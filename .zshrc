@@ -52,21 +52,16 @@ colors
 setopt prompt_subst
 
 # gitのステータスを表示
-# zsh-git-prompt https://github.com/olivierverdier/zsh-git-prompt
-# 色一覧: for c in {000..255}; do echo -n "\e[38;5;${c}m $c" ; [ $(($c%16)) -eq 15 ] && echo;done;echo
-source "/usr/local/opt/zsh-git-prompt/zshrc.sh"
-ZSH_THEME_GIT_PROMPT_PREFIX="["
-ZSH_THEME_GIT_PROMPT_SUFFIX="]"
-ZSH_THEME_GIT_PROMPT_BRANCH="%F{049}"
-ZSH_THEME_GIT_PROMPT_STAGED="%{$fg[green]%}%{ %G%}"
-ZSH_THEME_GIT_PROMPT_CONFLICTS="%{$fg[magenta]%}%{x%G%}"
-ZSH_THEME_GIT_PROMPT_CHANGED="%{$fg[red]%}%{+%G%}"
-ZSH_THEME_GIT_PROMPT_BEHIND="%{$fg[red]%}%{-%G%}"
-ZSH_THEME_GIT_PROMPT_AHEAD="%{$fg[green]%}%{+%G%}"
-ZSH_THEME_GIT_PROMPT_CLEAN="%{$fg[green]%}%{✔%G%}"
+autoload -Uz vcs_info
+zstyle ':vcs_info:git:*' check-for-changes true
+zstyle ':vcs_info:git:*' stagedstr "%F{magenta}!"
+zstyle ':vcs_info:git:*' unstagedstr "%F{yellow}+"
+zstyle ':vcs_info:*' formats "%F{087}%c%u[%b]%f"
+zstyle ':vcs_info:*' actionformats '[%b|%a]'
+precmd () { vcs_info }
 
 # プロンプト表示
-PROMPT='%F{141}[%D %*]%f %~ $(git_super_status)
+PROMPT='%F{141}[%D %*]%f %~ %F{087}$vcs_info_msg_0_%f
 %F{081}❯%f '
 
 ########################################
