@@ -1,4 +1,3 @@
-# Created by newuser for 5.7.1
 ##################################
 # 環境変数
 
@@ -21,14 +20,8 @@ export PYENV_ROOT="$HOME/.pyenv"
 export LSCOLORS=gxfxcxdxbxegedabagacad
 export LS_COLORS='di=34:ln=35:so=32:pi=33:ex=31:bd=46;34:cd=43;34:su=41;30:sg=46;30:tw=42;30:ow=43;30'
 
-# Java（Java8: 1.8 / Java10: 10）
-#export JAVA_HOME=`/System/Library/Frameworks/JavaVM.framework/Versions/A/Commands/java_home -v "1.8"`
-
 # Go言語の設定
 export GOPATH="$HOME/.go"
-
-# direnvで使うエディタ
-#export EDITOR=code
 
 # path配列を使ってパスを通す
 path=(
@@ -36,7 +29,6 @@ path=(
     $PYENV_ROOT/bin(N-/)
     /usr/local/bin(N-/)
     ./node_modules/.bin(N-/)
-#    $JAVA_HOME/bin(N-/)
     $GOPATH/bin(N-/)
     $HOME/.nodenv/shims(N-/)
 )
