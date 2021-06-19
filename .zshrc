@@ -135,6 +135,7 @@ setopt nonomatch
 alias ls='ls -aG'
 alias yarnx='yarn run -s'
 alias gitl='git log -15 --graph --date-order --decorate=short --date=iso --format="%C(yellow)%h%C(reset) %C(magenta)[%ad]%C(reset)%C(auto)%d%C(reset) %s %C(cyan)Author:%an%C(reset)"'
+alias uug='uuidgen | tr "[:upper:]" "[:lower:]"'
 
 ########################################
 # その他
