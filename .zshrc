@@ -141,7 +141,7 @@ alias sl='sl -Falc'
 # その他
 
 # pyenv
-eval "$(pyenv init -)"
+eval "$(pyenv init --path)"
 
 # nodenv
 eval "$(nodenv init -)"
