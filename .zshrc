@@ -31,6 +31,7 @@ path=(
     ./node_modules/.bin(N-/)
     $GOPATH/bin(N-/)
     $HOME/.nodenv/shims(N-/)
+    $HOME/.cargo/bin(N-/)
 )
 
 ##################################
