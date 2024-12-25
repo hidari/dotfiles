@@ -13,25 +13,26 @@ export HISTSIZE=10000
 # 履歴ファイルに保存される履歴の件数
 export SAVEHIST=100000
 
-# pyenvの環境
-export PYENV_ROOT="$HOME/.pyenv"
-
 # lsの色設定
 export LSCOLORS=gxfxcxdxbxegedabagacad
 export LS_COLORS='di=34:ln=35:so=32:pi=33:ex=31:bd=46;34:cd=43;34:su=41;30:sg=46;30:tw=42;30:ow=43;30'
 
 # Go言語の設定
 export GOPATH="$HOME/.go"
+export GOROOT="$(brew --prefix golang)/libexec"
+
+# Voltaの設定
+export VOLTA_HOME="$HOME/.volta"
 
 # path配列を使ってパスを通す
 path=(
     $path
-    $PYENV_ROOT/bin(N-/)
+    $VOLTA_HOME/bin(N-/)
+    $HOME/.cargo/bin(N-/)
+    $GOPATH/bin(N-/)
+    $GOROOT/bin(N-/)
     /usr/local/bin(N-/)
     ./node_modules/.bin(N-/)
-    $GOPATH/bin(N-/)
-    $HOME/.nodenv/shims(N-/)
-    $HOME/.cargo/bin(N-/)
 )
 
 ##################################
@@ -133,7 +134,7 @@ setopt nonomatch
 ########################################
 # エイリアス
 
-alias ls='ls -aG'
+alias ls='ls -aGl'
 alias gitl='git log -15 --graph --date-order --decorate=short --date=iso --format="%C(yellow)%h%C(reset) %C(magenta)[%ad]%C(reset)%C(auto)%d%C(reset) %s %C(cyan)Author:%an%C(reset)"'
 alias uug='uuidgen | tr "[:upper:]" "[:lower:]" | tr -d "\n" | pbcopy && pbpaste'
 alias sl='sl -Falc'
@@ -141,14 +142,8 @@ alias sl='sl -Falc'
 ########################################
 # その他
 
-# pyenv
-eval "$(pyenv init --path)"
-
-# nodenv
-eval "$(nodenv init -)"
-
-# direnv
-#eval "$(direnv hook zsh)"
-
 # PATHの重複をなくすやつ
 typeset -U PATH
+
+# homebrewのやつ
+eval "$(/opt/homebrew/bin/brew shellenv)"
