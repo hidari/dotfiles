@@ -19,7 +19,6 @@ export LS_COLORS='di=34:ln=35:so=32:pi=33:ex=31:bd=46;34:cd=43;34:su=41;30:sg=46
 
 # Go言語の設定
 export GOPATH="$HOME/.go"
-export GOROOT="$(brew --prefix golang)/libexec"
 
 # Voltaの設定
 export VOLTA_HOME="$HOME/.volta"
@@ -29,9 +28,12 @@ path=(
     $path
     $VOLTA_HOME/bin(N-/)
     $HOME/.cargo/bin(N-/)
+    $HOME/.local/bin(N-/)
     $GOPATH/bin(N-/)
     $GOROOT/bin(N-/)
+    /opt/homebrew/bin(N-/)
     /usr/local/bin(N-/)
+    /opt/homebrew/opt/libpq/bin(N-/)
     ./node_modules/.bin(N-/)
 )
 
@@ -138,6 +140,7 @@ alias ls='ls -aGl'
 alias gitl='git log -15 --graph --date-order --decorate=short --date=iso --format="%C(yellow)%h%C(reset) %C(magenta)[%ad]%C(reset)%C(auto)%d%C(reset) %s %C(cyan)Author:%an%C(reset)"'
 alias uug='uuidgen | tr "[:upper:]" "[:lower:]" | tr -d "\n" | pbcopy && pbpaste'
 alias sl='sl -Falc'
+alias disk='diskutil info / | grep -E "Free|Available"'
 
 ########################################
 # その他
