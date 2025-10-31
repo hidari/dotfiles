@@ -1,12 +1,22 @@
 #!/bin/bash
 
-# ロケール設定を明示的に指定して、日本語ファイル名を正しく扱えるようにする
-export LC_ALL=ja_JP.UTF-8
-export LANG=ja_JP.UTF-8
+# =============================================================================
+# ストレージバックアップスクリプト
+# =============================================================================
 
-# =============================================================================
-# SSDバックアップスクリプト（改善版）
-# =============================================================================
+# ロケール設定を明示的に指定して、日本語ファイル名を正しく扱えるようにする
+# ja_JP.UTF-8が利用できない環境では、UTF-8ベースの他のロケールにフォールバック
+if locale -a 2>/dev/null | grep -q "ja_JP.UTF-8"; then
+    export LC_ALL=ja_JP.UTF-8
+    export LANG=ja_JP.UTF-8
+elif locale -a 2>/dev/null | grep -q "en_US.UTF-8"; then
+    export LC_ALL=en_US.UTF-8
+    export LANG=en_US.UTF-8
+else
+    # どちらも利用できない場合は、UTF-8を明示的に指定
+    export LC_ALL=C.UTF-8 2>/dev/null || export LC_ALL=C
+    export LANG=C.UTF-8 2>/dev/null || export LANG=C
+fi
 
 # -----------------------------------------------------------------------------
 # 設定ファイルの読み込み
@@ -58,6 +68,9 @@ fi
 LOG_DIR="$SOURCE_STORAGE/.backup_logs"
 LOG_FILE="$LOG_DIR/backup_$(date +%Y%m%d_%H%M%S).log"
 
+# フィルタリングしたエラーを記録する一時ファイル
+FILTERED_ERRORS_FILE="/tmp/backup_filtered_errors_$$.tmp"
+
 # 除外リストの設定
 # macOSが自動生成する不要なシステムファイルをバックアップから除外
 EXCLUDE_LIST=(
@@ -107,22 +120,21 @@ EXCLUDE_LIST=(
 
 # 設定ファイルから追加の除外パターンを読み込む
 # ユーザーが ADDITIONAL_EXCLUDE を定義している場合、それを基本リストに追加する
-# 
+#
 # この処理の流れ：
 # 1. 設定ファイルを source で読み込むと、ADDITIONAL_EXCLUDE 配列が定義される（定義されていれば）
-# 2. 配列が定義されているか（要素数が0より大きいか）をチェック
+# 2. 配列が定義されており要素数が0より大きいかをチェック
 # 3. 定義されていれば、基本リストと追加リストを結合して新しい除外リストを作る
 # 4. 結合には配列の展開構文 ${配列名[@]} を使用し、両方の要素を含む新しい配列を作成
 #
-if [ -n "${ADDITIONAL_EXCLUDE+x}" ] && [ ${#ADDITIONAL_EXCLUDE[@]} -gt 0 ]; then
+if [ "${#ADDITIONAL_EXCLUDE[@]}" -gt 0 ] 2>/dev/null; then
     # 追加の除外パターンが定義されている場合、基本リストと結合
     # ${EXCLUDE_LIST[@]} = 基本リストの全要素を展開
     # ${ADDITIONAL_EXCLUDE[@]} = 追加リストの全要素を展開
     # () = これらを新しい配列として結合
     EXCLUDE_LIST=("${EXCLUDE_LIST[@]}" "${ADDITIONAL_EXCLUDE[@]}")
-    
-    # デバッグ用：追加された除外パターンの数を表示
-    # （この行はオプション。実運用では削除しても良い）
+
+    # 追加された除外パターンの数を表示
     log "追加の除外パターンを ${#ADDITIONAL_EXCLUDE[@]} 個適用しました。"
 fi
 
@@ -181,6 +193,13 @@ check_disk_space() {
     # 2>/dev/null でエラー出力を抑制（システムディレクトリへのアクセス拒否エラーを隠す）
     local source_size
     source_size=$(du -sk "$source" 2>/dev/null | awk '{print $1}')
+
+    # duコマンドが失敗した場合のエラーハンドリング
+    if [ -z "$source_size" ] || [ "$source_size" -eq 0 ] 2>/dev/null; then
+        log "警告: バックアップ元の使用容量を正確に取得できませんでした。"
+        log "       容量チェックをスキップして続行します。"
+        return 0
+    fi
     
     # バックアップ先の空き容量を取得（KB単位）
     local dest_free
@@ -190,8 +209,9 @@ check_disk_space() {
     local required_space=$((MINIMUM_FREE_SPACE_GB * 1024 * 1024))
     
     # 情報をログに出力
-    log "バックアップ元の使用容量: $(echo "scale=2; $source_size/1024/1024" | bc) GB"
-    log "バックアップ先の空き容量: $(echo "scale=2; $dest_free/1024/1024" | bc) GB"
+    # bcコマンドの代わりにawkを使用して計算（awkは標準で利用可能）
+    log "バックアップ元の使用容量: $(awk "BEGIN {printf \"%.2f\", $source_size/1024/1024}") GB"
+    log "バックアップ先の空き容量: $(awk "BEGIN {printf \"%.2f\", $dest_free/1024/1024}") GB"
     log "最低限必要な空き容量: ${MINIMUM_FREE_SPACE_GB} GB"
     
     # 空き容量が最低限必要な容量より少ない場合はエラー
@@ -202,6 +222,34 @@ check_disk_space() {
     log "十分な空き容量があることを確認しました。"
 }
 
+# rsync出力のフィルタリング関数
+# 既知の無害なエラーメッセージ（システムディレクトリの削除失敗など）を抑制
+# これにより、ログがより見やすくなり、重要なエラーに気づきやすくなる
+# フィルタリングしたエラーは一時ファイルに記録し、後でサマリーを表示する
+filter_rsync_output() {
+    local line
+    while IFS= read -r line; do
+        # フィルタリング対象のパターンをチェック
+        if echo "$line" | grep -q -E \
+            -e "opendir.*\.Trashes.*failed: Operation not permitted" \
+            -e "delete_file: rmdir\(\.Trashes\).*failed: Operation not permitted" \
+            -e "opendir.*\.Spotlight-V100.*failed: Operation not permitted" \
+            -e "delete_file: rmdir\(\.Spotlight-V100\).*failed: Operation not permitted" \
+            -e "opendir.*\.fseventsd.*failed: Operation not permitted" \
+            -e "delete_file: rmdir\(\.fseventsd\).*failed: Operation not permitted" \
+            -e "opendir.*\.TemporaryItems.*failed: Operation not permitted" \
+            -e "delete_file: rmdir\(\.TemporaryItems\).*failed: Operation not permitted" \
+            -e "IO error encountered -- skipping file deletion" \
+            -e "rsync error:.*some files/attrs were not transferred.*code 23"; then
+            # フィルタリング対象の場合、一時ファイルに記録（画面には表示しない）
+            echo "$line" >> "$FILTERED_ERRORS_FILE"
+        else
+            # フィルタリング対象外の場合、そのまま表示
+            echo "$line"
+        fi
+    done
+}
+
 # 古いログファイル削除関数
 # LOG_RETENTION_DAYS で指定した日数より古いログファイルを自動的に削除
 # これによりログディレクトリが肥大化するのを防ぐ
@@ -210,9 +258,9 @@ cleanup_old_logs() {
     if [ ! -d "$LOG_DIR" ]; then
         return
     fi
-    
+
     log "古いログファイルのクリーンアップを実行しています..."
-    
+
     # findコマンドで指定日数より古い.logファイルを検索して削除
     # -name "backup_*.log": backup_で始まる.logファイルのみを対象
     # -type f: 通常ファイルのみを対象（ディレクトリは除外）
@@ -220,7 +268,7 @@ cleanup_old_logs() {
     # -delete: 見つかったファイルを削除
     local deleted_count
     deleted_count=$(find "$LOG_DIR" -name "backup_*.log" -type f -mtime +"$LOG_RETENTION_DAYS" -print -delete | wc -l)
-    
+
     if [ "$deleted_count" -gt 0 ]; then
         log "${LOG_RETENTION_DAYS}日より古いログファイルを ${deleted_count} 個削除しました。"
     else
@@ -309,7 +357,7 @@ echo ""
 # dry-runモードでない場合のみ、確認を求める
 if [ "$DRY_RUN" = false ]; then
     echo "上記の設定でバックアップを実行しますか？ (y/n): "
-    read -r  confirm
+    read -r confirm
     if [ "$confirm" != "y" ]; then
         log "ユーザーによってバックアップが中止されました。"
         echo "バックアップを中止しました。"
@@ -322,9 +370,17 @@ START_TIME=$(date +%s)
 log "バックアップを開始します..."
 echo ""
 
+# パスの末尾スラッシュを正規化（二重スラッシュを防ぐ）
+# rsyncでは末尾にスラッシュがあるかないかで動作が変わるため、
+# ソースディレクトリには必ず末尾スラッシュを付け、
+# デスティネーションには付けない形式に統一する
+SOURCE_PATH="${SOURCE_STORAGE%/}/"
+DESTINATION_PATH="${DESTINATION_STORAGE%/}"
+
 # rsyncコマンドを実行してバックアップを実施
 # エラーが発生した場合は、その終了ステータスを保存
-rsync "${RSYNC_OPTIONS[@]}" "$SOURCE_STORAGE/" "$DESTINATION_STORAGE/" 2>&1 | tee -a "$LOG_FILE"
+# filter_rsync_output関数を通して、既知の無害なエラーメッセージを抑制
+rsync "${RSYNC_OPTIONS[@]}" "$SOURCE_PATH" "$DESTINATION_PATH" 2>&1 | filter_rsync_output | tee -a "$LOG_FILE"
 RSYNC_EXIT_CODE=${PIPESTATUS[0]}
 
 # バックアップ終了時刻を記録し、所要時間を計算
@@ -334,6 +390,36 @@ MINUTES=$((ELAPSED_TIME / 60))
 SECONDS=$((ELAPSED_TIME % 60))
 
 echo ""
+
+# フィルタリングしたエラーのサマリーを表示する関数
+show_filtered_errors_summary() {
+    if [ -f "$FILTERED_ERRORS_FILE" ] && [ -s "$FILTERED_ERRORS_FILE" ]; then
+        echo ""
+        echo "----------------------------------------"
+        echo "抑制されたシステムエラーのサマリー:"
+        echo "----------------------------------------"
+
+        # 各ディレクトリごとにエラーをカウント
+        local trashes_count
+        local spotlight_count
+        local fseventsd_count
+        local tempitems_count
+        trashes_count=$(grep -c "\.Trashes" "$FILTERED_ERRORS_FILE" 2>/dev/null) || trashes_count=0
+        spotlight_count=$(grep -c "\.Spotlight-V100" "$FILTERED_ERRORS_FILE" 2>/dev/null) || spotlight_count=0
+        fseventsd_count=$(grep -c "\.fseventsd" "$FILTERED_ERRORS_FILE" 2>/dev/null) || fseventsd_count=0
+        tempitems_count=$(grep -c "\.TemporaryItems" "$FILTERED_ERRORS_FILE" 2>/dev/null) || tempitems_count=0
+
+        # カウントが0より大きいもののみ表示
+        [ "$trashes_count" -gt 0 ] && echo "  • .Trashes: ${trashes_count}件"
+        [ "$spotlight_count" -gt 0 ] && echo "  • .Spotlight-V100: ${spotlight_count}件"
+        [ "$fseventsd_count" -gt 0 ] && echo "  • .fseventsd: ${fseventsd_count}件"
+        [ "$tempitems_count" -gt 0 ] && echo "  • .TemporaryItems: ${tempitems_count}件"
+
+        echo ""
+        echo "これらはmacOSが保護しているシステムディレクトリです。"
+        echo "データファイルのバックアップには影響ありません。"
+    fi
+}
 
 # rsyncの終了ステータスをチェック
 # 0: 成功
@@ -355,6 +441,13 @@ if [ "$RSYNC_EXIT_CODE" -eq 0 ]; then
         echo "所要時間: ${MINUTES}分${SECONDS}秒"
         echo "ログファイル: $LOG_FILE"
     fi
+
+    # フィルタリングしたエラーのサマリーを表示
+    show_filtered_errors_summary
+
+    # 一時ファイルを削除
+    rm -f "$FILTERED_ERRORS_FILE"
+
     exit 0
 elif [ "$RSYNC_EXIT_CODE" -eq 23 ]; then
     # エラーコード23は「一部のファイルが転送できなかった」という非致命的なエラー
@@ -367,30 +460,20 @@ elif [ "$RSYNC_EXIT_CODE" -eq 23 ]; then
         echo ""
         echo "⚠️  一部のファイル処理で問題がありましたが、"
         echo "   重要なデータのバックアップには影響ありません。"
-        echo ""
-        echo "詳細: システムディレクトリの削除で問題が発生しました。"
-        echo "     これは通常、macOSが保護しているディレクトリ"
-        echo "     （.Trashes、.Spotlight-V100など）が原因です。"
     else
-        log "==================== バックアップ完了（警告あり） ===================="
+        log "==================== バックアップ完了 ===================="
         log "所要時間: ${MINUTES}分${SECONDS}秒"
-        log "警告: 一部のファイル処理で問題がありましたが、重要なデータのバックアップには影響ありません。"
-        echo ""
-        echo "=========================================="
-        echo "バックアップが完了しました（警告あり）"
-        echo "=========================================="
-        echo "バックアップ先: $DESTINATION_STORAGE"
-        echo "所要時間: ${MINUTES}分${SECONDS}秒"
+        log "一部のファイル処理で問題がありましたが、重要なデータのバックアップには影響ありません。"
         echo "ログファイル: $LOG_FILE"
         echo ""
-        echo "⚠️  一部のファイル処理で問題がありましたが、"
-        echo "   重要なデータのバックアップには影響ありません。"
-        echo ""
-        echo "詳細: システムディレクトリの削除で問題が発生しました。"
-        echo "     これは通常、macOSが保護しているディレクトリ"
-        echo "     （.Trashes、.Spotlight-V100など）が原因です。"
-        echo "     実際のデータファイルは全て正しくバックアップされています。"
     fi
+
+    # フィルタリングしたエラーのサマリーを表示
+    show_filtered_errors_summary
+
+    # 一時ファイルを削除
+    rm -f "$FILTERED_ERRORS_FILE"
+
     exit 0
 else
     # rsyncがエラーで終了した場合

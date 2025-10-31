@@ -100,10 +100,10 @@ vim backup.conf  # または nano, code などお好みのエディタで
 
 ## ログファイル
 
-バックアップの実行履歴は、バックアップ先の `.backup_logs` ディレクトリに保存されます：
+バックアップの実行履歴は、バックアップ元の `.backup_logs` ディレクトリに保存されます：
 
 ```
-/Volumes/バックアップ先/.backup_logs/
+/Volumes/バックアップ元/.backup_logs/
   ├── backup_20251031_143000.log
   ├── backup_20251101_093000.log
   └── ...
