@@ -28,17 +28,19 @@ path=(
     $path
     $VOLTA_HOME/bin(N-/)
     $HOME/.cargo/bin(N-/)
+    $HOME/.cargo/env(N-/)
     $HOME/.local/bin(N-/)
     $GOPATH/bin(N-/)
     $GOROOT/bin(N-/)
     /opt/homebrew/bin(N-/)
     /usr/local/bin(N-/)
     /opt/homebrew/opt/libpq/bin(N-/)
+    $HOME/Library/Application Support/JetBrains/Toolbox/scripts(N-/)
     ./node_modules/.bin(N-/)
 )
 
 ##################################
-# プロンプト
+# プロンプト設定
 
 # 色を使用出来るようにする
 autoload -Uz colors

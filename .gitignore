@@ -2,7 +2,7 @@
 .DS_Store
 
 # IDE
-/.idea/
+.idea/
 
-# Private files
+# Private
 scripts/backup.conf
