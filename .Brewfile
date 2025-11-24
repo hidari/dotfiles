@@ -5,6 +5,7 @@ tap "hidari/tap"
 brew "git"                                # バージョン管理システム
 brew "cmake"                              # クロスプラットフォームビルドシステム
 brew "go"                                 # Go言語
+brew "deno"                               # Denoランタイム
 brew "gh"                                 # GitHub CLI
 
 # --- メディア処理 ---

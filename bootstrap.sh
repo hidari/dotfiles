@@ -3,7 +3,6 @@
 echo "This script will install:"
 echo "  - Homebrew: https://brew.sh/"
 echo "  - Rust (rustup): https://rustup.rs/"
-echo "  - Deno: https://deno.land/"
 echo "  - Volta (Node.js version manager): https://volta.sh/"
 echo "  - Claude Code: https://code.claude.com/"
 echo ""
@@ -29,11 +28,6 @@ fi
 echo ""
 echo "Installing Rust..."
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-
-# Deno
-echo ""
-echo "Installing Deno..."
-curl -fsSL https://deno.land/install.sh | sh
 
 # Volta (Node.js version manager)
 echo ""
