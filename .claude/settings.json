@@ -10,10 +10,14 @@
       "Bash(grep:*)",
       "Bash(tail:*)",
       "Bash(tree:*)",
+      "Bash(git add:*)",
+      "Bash(git log:*)",
       "Skill(code-reviewer)",
       "WebSearch"
     ],
     "deny": [],
-    "ask": []
+    "ask": [
+      "Bash(git commit:*)"
+    ]
   }
 }
