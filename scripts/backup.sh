@@ -22,8 +22,25 @@ fi
 # 設定ファイルの読み込み
 # -----------------------------------------------------------------------------
 # スクリプトと同じディレクトリにある backup.conf から設定を読み込む
+# シンボリックリンク経由で実行された場合も、実際のスクリプトの場所を解決する
 # 設定ファイルが見つからない場合は、エラーメッセージを表示して終了
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# シンボリックリンクを解決してスクリプトの実際のパスを取得
+# macOS 12.3+ では realpath が使えるが、古い環境でも動作するようフォールバック付き
+if command -v realpath >/dev/null 2>&1; then
+    SCRIPT_PATH="$(realpath "$0")"
+else
+    # realpath がない場合は手動でシンボリックリンクを解決
+    SCRIPT_PATH="$0"
+    while [ -L "$SCRIPT_PATH" ]; do
+        LINK_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+        SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
+        # 相対パスの場合は絶対パスに変換
+        [[ "$SCRIPT_PATH" != /* ]] && SCRIPT_PATH="$LINK_DIR/$SCRIPT_PATH"
+    done
+    SCRIPT_PATH="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)/$(basename "$SCRIPT_PATH")"
+fi
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
 CONFIG_FILE="$SCRIPT_DIR/backup.conf"
 
 if [ ! -f "$CONFIG_FILE" ]; then
