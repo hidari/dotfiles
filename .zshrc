@@ -25,6 +25,7 @@ export VOLTA_HOME="$HOME/.volta"
 
 # path配列を使ってパスを通す
 path=(
+    /opt/homebrew/bin(N-/)
     $path
     $VOLTA_HOME/bin(N-/)
     $HOME/.cargo/bin(N-/)
@@ -32,7 +33,6 @@ path=(
     $HOME/.local/bin(N-/)
     $GOPATH/bin(N-/)
     $GOROOT/bin(N-/)
-    /opt/homebrew/bin(N-/)
     /usr/local/bin(N-/)
     /opt/homebrew/opt/libpq/bin(N-/)
     $HOME/Library/Application Support/JetBrains/Toolbox/scripts(N-/)
@@ -155,6 +155,9 @@ alias sl='sl -Falc'
 
 # ディスクの空き容量を確認
 alias disk='diskutil info / | grep -E "Free|Available"'
+
+# $PATHを見やすく表示
+alias path='echo $PATH | tr ":" "\n" | nl'
 
 ########################################
 # その他
