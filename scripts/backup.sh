@@ -69,7 +69,8 @@ LOG_DIR="$SOURCE_STORAGE/.backup_logs"
 LOG_FILE="$LOG_DIR/backup_$(date +%Y%m%d_%H%M%S).log"
 
 # フィルタリングしたエラーを記録する一時ファイル
-FILTERED_ERRORS_FILE="/tmp/backup_filtered_errors_$$.tmp"
+# mktemp を使用して安全な一時ファイルを作成（予測不可能なファイル名でセキュリティ向上）
+FILTERED_ERRORS_FILE=$(mktemp)
 
 # 除外リストの設定
 # macOSが自動生成する不要なシステムファイルをバックアップから除外

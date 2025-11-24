@@ -29,6 +29,10 @@ cp ~/path/to/dotfiles/.gitconfig.private.example ~/.gitconfig.private
 ln -sf ~/path/to/dotfiles/.Brewfile ~/.Brewfile
 brew bundle --global
 
+# claude skills
+mkdir -p ~/.claude/skills/code-reviewer
+ln -sf ~/path/to/dotfiles/.claude/skills/code-reviewer/SKILL.md ~/.claude/skills/code-reviewer/SKILL.md
+
 # backup script
 # See scripts/README.md for details.
 ln -sf ~/path/to/dotfiles/scripts/backup.sh ~/backup.sh

@@ -36,7 +36,6 @@ path=(
     /usr/local/bin(N-/)
     /opt/homebrew/opt/libpq/bin(N-/)
     $HOME/Library/Application Support/JetBrains/Toolbox/scripts(N-/)
-    ./node_modules/.bin(N-/)
 )
 
 ##################################
@@ -70,7 +69,11 @@ PROMPT='%F{141}[%D %*]%f %~ %F{087}$vcs_info_msg_0_%f
 fpath=(/usr/local/share/zsh-completions $fpath)
 
 autoload -Uz compinit
-compinit
+if [ $(date +'%j') != $(stat -f '%Sm' -t '%j' ~/.zcompdump 2>/dev/null) ]; then
+  compinit
+else
+  compinit -C
+fi
 
 zstyle ':completion:*' list-colors 'di=36' 'ln=35' 'so=32' 'ex=31' 'bd=46;34' 'cd=43;34'
 
@@ -138,10 +141,19 @@ setopt nonomatch
 ########################################
 # エイリアス
 
+# ファイル一覧を詳細表示（隠しファイル含む、色付き）
 alias ls='ls -aGl'
+
+# Git履歴を見やすく表示（直近15件、グラフ付き）
 alias gitl='git log -15 --graph --date-order --decorate=short --date=iso --format="%C(yellow)%h%C(reset) %C(magenta)[%ad]%C(reset)%C(auto)%d%C(reset) %s %C(cyan)Author:%an%C(reset)"'
+
+# UUIDを生成し、小文字に変換してクリップボードにコピー
 alias uug='uuidgen | tr "[:upper:]" "[:lower:]" | tr -d "\n" | pbcopy && pbpaste'
+
+# SL（Steam Locomotive）コマンドのオプション付き
 alias sl='sl -Falc'
+
+# ディスクの空き容量を確認
 alias disk='diskutil info / | grep -E "Free|Available"'
 
 ########################################
