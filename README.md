@@ -11,6 +11,14 @@ To use it, clone it and put a symbolic link to your home directory.
 ## Setup
 
 ```bash
+# install pre-requirements
+cd ~/path/to/dotfiles
+./bootstrap.sh
+
+# tools
+ln -sf ~/path/to/dotfiles/.Brewfile ~/.Brewfile
+brew bundle --global
+
 # directories
 mkdir -p ~/.claude
 mkdir -p ~/.config/git
@@ -24,10 +32,6 @@ ln -sf ~/path/to/dotfiles/.claude/CLAUDE.md ~/.claude/CLAUDE.md
 
 # copy and edit your personal Git configuration
 cp ~/path/to/dotfiles/.gitconfig.private.example ~/.gitconfig.private
-
-# tools
-ln -sf ~/path/to/dotfiles/.Brewfile ~/.Brewfile
-brew bundle --global
 
 # claude skills
 mkdir -p ~/.claude/skills/code-reviewer

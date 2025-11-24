@@ -5,6 +5,7 @@ echo "  - Homebrew: https://brew.sh/"
 echo "  - Rust (rustup): https://rustup.rs/"
 echo "  - Deno: https://deno.land/"
 echo "  - Volta (Node.js version manager): https://volta.sh/"
+echo "  - Claude Code: https://code.claude.com/"
 echo ""
 echo -n "Continue? (y/N): "
 read -r REPLY
@@ -38,6 +39,11 @@ curl -fsSL https://deno.land/install.sh | sh
 echo ""
 echo "Installing Volta..."
 curl https://get.volta.sh | bash
+
+# Claude Code
+echo ""
+echo "Installing Claude Code..."
+curl -fsSL https://claude.ai/install.sh | bash
 
 echo ""
 echo "Setup complete!"
