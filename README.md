@@ -34,5 +34,6 @@ ln -sf ~/path/to/dotfiles/.claude/skills/code-reviewer/SKILL.md ~/.claude/skills
 
 # backup script
 # See scripts/README.md for details.
-ln -sf ~/path/to/dotfiles/scripts/backup.sh ~/backup.sh
+mkdir -p ~/.local/bin
+ln -sf ~/path/to/dotfiles/scripts/backup.sh ~/.local/bin/backup.sh
 ```

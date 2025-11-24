@@ -25,7 +25,25 @@ brew install rsync
 
 ## セットアップ
 
-### 1. 設定ファイルの作成
+### 1. スクリプトを PATH の通った場所に配置
+
+`~/.local/bin` にシンボリックリンクを作成します。これにより、どこからでも `backup.sh` で実行できるようになります：
+
+```bash
+mkdir -p ~/.local/bin
+ln -sf ~/dotfiles/scripts/backup.sh ~/.local/bin/backup.sh
+```
+
+**注意**: `~/.local/bin` が PATH に含まれている必要があります。`.zshrc` に以下のような設定があることを確認してください：
+
+```bash
+path=(
+    $HOME/.local/bin(N-/)
+    # ...
+)
+```
+
+### 2. 設定ファイルの作成
 
 テンプレートをコピーして、自分用の設定ファイルを作成します：
 
@@ -34,7 +52,7 @@ cd ~/dotfiles/scripts  # スクリプトがあるディレクトリに移動
 cp backup.example.conf backup.conf
 ```
 
-### 2. 設定ファイルの編集
+### 3. 設定ファイルの編集
 
 `backup.conf` をエディタで開き、自分の環境に合わせて編集します：
 
