@@ -9,6 +9,8 @@
       "Bash(find:*)",
       "Bash(grep:*)",
       "Bash(tail:*)",
+      "Bash(tree:*)",
+      "Skill(code-reviewer)",
       "WebSearch"
     ],
     "deny": [],
