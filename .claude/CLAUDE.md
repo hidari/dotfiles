@@ -39,10 +39,12 @@
 - `config:` 設定値の変更
 - `chore:` その他の作業（typoの修正、コメントの修正など）
 
+大きな機能や修正を実施している最中に作業中の変更をコミットする際には、それぞれのプレフィックスの後ろに `(wip)` を付ける。
+
 ### コミットメッセージ例
 
 ```
-feat: React Router v7フロントエンド基盤を実装
+feat(wip): React Router v7フロントエンド基盤を実装
 
 - CSS Modules + Biome開発環境セットアップ
 - Welcome画面とCloudflare Workers統合
