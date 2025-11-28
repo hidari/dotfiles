@@ -228,8 +228,8 @@ check_disk_space() {
     
     # 情報をログに出力
     # bcコマンドの代わりにawkを使用して計算（awkは標準で利用可能）
-    log "バックアップ元の使用容量: $(awk "BEGIN {printf \"%.2f\", $source_size/1024/1024}") GB"
-    log "バックアップ先の空き容量: $(awk "BEGIN {printf \"%.2f\", $dest_free/1024/1024}") GB"
+    log "バックアップ元の使用容量: $(awk -v size="$source_size" 'BEGIN {printf "%.2f", size/1024/1024}') GB"
+    log "バックアップ先の空き容量: $(awk -v free="$dest_free" 'BEGIN {printf "%.2f", free/1024/1024}') GB"
     log "最低限必要な空き容量: ${MINIMUM_FREE_SPACE_GB} GB"
     
     # 空き容量が最低限必要な容量より少ない場合はエラー
