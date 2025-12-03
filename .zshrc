@@ -33,6 +33,7 @@ path=(
     $VOLTA_HOME/bin(N-/)
     $HOME/.cargo/bin(N-/)
     $HOME/.cargo/env(N-/)
+    $HOME/.moon/bin(N-/)
     $HOME/.local/bin(N-/)
     $GOPATH/bin(N-/)
     $GOROOT/bin(N-/)

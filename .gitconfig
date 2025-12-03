@@ -1,7 +1,11 @@
 [core]
 	excludesfile = ~/.config/git/.gitignore_global
+
 [user]
 	name = Hidari
+
+[init]
+	defaultBranch = main
 
 [include]
 	path = ~/.gitconfig.private
