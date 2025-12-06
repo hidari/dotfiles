@@ -29,8 +29,9 @@ ln -sf ~/path/to/dotfiles/.claude/CLAUDE.md ~/.claude/CLAUDE.md
 cp ~/path/to/dotfiles/.gitconfig.private.example ~/.gitconfig.private
 
 # claude skills
-mkdir -p ~/.claude/skills/code-reviewer
+mkdir -p ~/.claude/skills/{code-reviewer, frontend-designer}
 ln -sf ~/path/to/dotfiles/.claude/skills/code-reviewer/SKILL.md ~/.claude/skills/code-reviewer/SKILL.md
+ln -sf ~/path/to/dotfiles/.claude/skills/frontend-designer/SKILL.md ~/.claude/skills/frontend-designer/SKILL.md
 
 # backup script
 # See scripts/README.md for details.
