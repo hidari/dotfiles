@@ -12,7 +12,12 @@
       "Bash(tree:*)",
       "Bash(git add:*)",
       "Bash(git log:*)",
+      "Bash(cargo test:*)",
+      "Bash(cargo build:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(cargo fmt:*)",
       "Skill(code-reviewer)",
+      "Skill(frontend-designer)",
       "WebSearch"
     ],
     "deny": [],
