@@ -5,7 +5,7 @@
 export LANG=ja_JP.UTF-8
 
 # 履歴ファイルの保存先
-export HISTFILE=${HOME}/.zhistory
+export HISTFILE=${HOME}/.z_history
 
 # メモリに保存される履歴の件数
 export HISTSIZE=10000
@@ -26,8 +26,8 @@ export GOPATH="$HOME/.go"
 # Voltaの設定
 export VOLTA_HOME="$HOME/.volta"
 
-# pnpm
-PNPM_HOME="$HOME/Library/pnpm"
+# pnpmの設定
+export PNPM_HOME="$HOME/Library/pnpm"
 
 # path配列を使ってパスを通す
 path=(
@@ -175,11 +175,3 @@ typeset -U PATH
 
 # homebrewのやつ
 eval "$(/opt/homebrew/bin/brew shellenv)"
-
-# pnpm
-export PNPM_HOME="/Users/sho/Library/pnpm"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
-# pnpm end

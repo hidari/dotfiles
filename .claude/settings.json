@@ -1,7 +1,9 @@
 {
-  "outputStyle": "Explanatory",
-  "includeCoAuthoredBy": false,
-  "alwaysThinkingEnabled": true,
+  "cleanupPeriodDays": 10,
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
   "permissions": {
     "allow": [
       "Bash(cat:*)",
@@ -16,6 +18,10 @@
       "Bash(cargo build:*)",
       "Bash(cargo clippy:*)",
       "Bash(cargo fmt:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(pnpm vitest run:*)",
+      "Bash(pnpm test:*)",
       "Skill(code-reviewer)",
       "Skill(frontend-designer)",
       "WebSearch"
@@ -24,5 +30,7 @@
     "ask": [
       "Bash(git commit:*)"
     ]
-  }
+  },
+  "outputStyle": "Explanatory",
+  "alwaysThinkingEnabled": true
 }
