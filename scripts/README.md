@@ -62,10 +62,18 @@ vim backup.conf  # または nano, code などお好みのエディタで
 
 編集する項目：
 
-- `SOURCE_STORAGE`: バックアップ元のストレージのマウントポイント
-- `DESTINATION_STORAGE`: バックアップ先のストレージのマウントポイント
+- `BACKUP_PAIRS`: バックアップペアの配列（形式: `"名前|ソース|デスティネーション"`）
 - `MINIMUM_FREE_SPACE_GB`: 最低限必要な空き容量（GB単位）
 - `LOG_RETENTION_DAYS`: ログファイルの保持期間（日数）
+- `LOG_BASE_DIR`: ログ保存先（オプション、未指定時は最初のソース配下）
+
+設定例：
+
+```bash
+BACKUP_PAIRS=(
+    "メインSSD|/Volumes/Luna-P|/Volumes/Luna-S"
+)
+```
 
 **重要**: macOS では外部ドライブは `/Volumes/ドライブ名` にマウントされます。Finder でドライブ名を確認してください。
 
@@ -118,7 +126,8 @@ vim backup.conf  # または nano, code などお好みのエディタで
 
 ## ログファイル
 
-バックアップの実行履歴は、バックアップ元の `.backup_logs` ディレクトリに保存されます：
+バックアップの実行履歴は、デフォルトでは最初のバックアップペアのソースパス配下の `.backup_logs` ディレクトリに保存されます。
+`LOG_BASE_DIR` を設定することで、任意の場所に変更できます。
 
 ```
 /Volumes/バックアップ元/.backup_logs/

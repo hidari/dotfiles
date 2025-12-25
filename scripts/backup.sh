@@ -64,26 +64,38 @@ if [ ! -f "$CONFIG_FILE" ]; then
     exit 1
 fi
 
+# 設定ファイルのパーミッションをチェック（セキュリティ対策）
+# 他のユーザーが書き込み可能な場合は警告を表示
+# source で読み込む前に、悪意のあるコードが含まれていないか確認するため
+config_perms=$(stat -f '%A' "$CONFIG_FILE" 2>/dev/null)
+if [ -n "$config_perms" ]; then
+    # パーミッションの最後の桁（その他ユーザー）が2（書き込み可能）を含むかチェック
+    other_write=$((config_perms % 10 & 2))
+    group_write=$(((config_perms / 10) % 10 & 2))
+    if [ "$other_write" -ne 0 ] || [ "$group_write" -ne 0 ]; then
+        echo "=========================================="
+        echo "警告: 設定ファイルのパーミッションが緩すぎます"
+        echo "=========================================="
+        echo ""
+        echo "設定ファイル: $CONFIG_FILE"
+        echo "現在のパーミッション: $config_perms"
+        echo ""
+        echo "セキュリティ向上のため、以下のコマンドで修正してください："
+        echo "  chmod 600 $CONFIG_FILE"
+        echo ""
+    fi
+fi
+
 # 設定ファイルを読み込む
 # shellcheck source=./backup.conf
 source "$CONFIG_FILE"
 
-# 必須の設定項目がすべて定義されているかチェック
-if [ -z "$SOURCE_STORAGE" ] || [ -z "$DESTINATION_STORAGE" ] || [ -z "$LOG_RETENTION_DAYS" ] || [ -z "$MINIMUM_FREE_SPACE_GB" ]; then
-    echo "エラー: 設定ファイルに必要な項目が定義されていません。"
-    echo "設定ファイル: $CONFIG_FILE"
-    echo ""
-    echo "必須項目："
-    echo "  - SOURCE_STORAGE（バックアップ元のストレージ）"
-    echo "  - DESTINATION_STORAGE（バックアップ先のストレージ）"
-    echo "  - MINIMUM_FREE_SPACE_GB（最低限必要な空き容量）"
-    echo "  - LOG_RETENTION_DAYS（ログ保持期間）"
-    exit 1
-fi
+# 必須設定項目のチェックは BACKUP_PAIRS の存在確認で行う
 
-# ログファイルのパスを設定
-LOG_DIR="$SOURCE_STORAGE/.backup_logs"
-LOG_FILE="$LOG_DIR/backup_$(date +%Y%m%d_%H%M%S).log"
+# ログファイルのパスは setup_logging 関数で動的に設定
+# （拡張モードでは LOG_BASE_DIR または最初のペアのソースを使用）
+LOG_DIR=""
+LOG_FILE=""
 
 # フィルタリングしたエラーを記録する一時ファイル
 # mktemp を使用して安全な一時ファイルを作成（予測不可能なファイル名でセキュリティ向上）
@@ -145,15 +157,17 @@ EXCLUDE_LIST=(
 # 3. 定義されていれば、基本リストと追加リストを結合して新しい除外リストを作る
 # 4. 結合には配列の展開構文 ${配列名[@]} を使用し、両方の要素を含む新しい配列を作成
 #
+# 追加の除外パターンが適用されたかを記録するフラグ
+# （log 関数が未定義のため、ここでは記録のみ。出力は setup_logging 後に行う）
+ADDITIONAL_EXCLUDE_COUNT=0
+
 if [ "${#ADDITIONAL_EXCLUDE[@]}" -gt 0 ] 2>/dev/null; then
     # 追加の除外パターンが定義されている場合、基本リストと結合
     # ${EXCLUDE_LIST[@]} = 基本リストの全要素を展開
     # ${ADDITIONAL_EXCLUDE[@]} = 追加リストの全要素を展開
     # () = これらを新しい配列として結合
     EXCLUDE_LIST=("${EXCLUDE_LIST[@]}" "${ADDITIONAL_EXCLUDE[@]}")
-
-    # 追加された除外パターンの数を表示
-    log "追加の除外パターンを ${#ADDITIONAL_EXCLUDE[@]} 個適用しました。"
+    ADDITIONAL_EXCLUDE_COUNT=${#ADDITIONAL_EXCLUDE[@]}
 fi
 
 # =============================================================================
@@ -244,21 +258,20 @@ check_disk_space() {
 # 既知の無害なエラーメッセージ（システムディレクトリの削除失敗など）を抑制
 # これにより、ログがより見やすくなり、重要なエラーに気づきやすくなる
 # フィルタリングしたエラーは一時ファイルに記録し、後でサマリーを表示する
+#
+# パフォーマンス最適化:
+# - 複数の -e オプションを単一の正規表現パターンに統合
+# - Bash の [[ =~ ]] を使用してサブプロセス生成を回避
 filter_rsync_output() {
     local line
+    # フィルタリング対象のパターン（単一の正規表現に統合）
+    # macOS が保護しているシステムディレクトリへのアクセス/削除エラーをフィルタ
+    # opendir の場合は "..." で囲まれ、delete_file: rmdir の場合は (...) で囲まれる
+    local filter_pattern='\.(Trashes|Spotlight-V100|fseventsd|TemporaryItems).*failed: Operation not permitted|IO error encountered -- skipping file deletion|rsync error:.*some files/attrs were not transferred.*code 23'
+
     while IFS= read -r line; do
-        # フィルタリング対象のパターンをチェック
-        if echo "$line" | grep -q -E \
-            -e "opendir.*\.Trashes.*failed: Operation not permitted" \
-            -e "delete_file: rmdir\(\.Trashes\).*failed: Operation not permitted" \
-            -e "opendir.*\.Spotlight-V100.*failed: Operation not permitted" \
-            -e "delete_file: rmdir\(\.Spotlight-V100\).*failed: Operation not permitted" \
-            -e "opendir.*\.fseventsd.*failed: Operation not permitted" \
-            -e "delete_file: rmdir\(\.fseventsd\).*failed: Operation not permitted" \
-            -e "opendir.*\.TemporaryItems.*failed: Operation not permitted" \
-            -e "delete_file: rmdir\(\.TemporaryItems\).*failed: Operation not permitted" \
-            -e "IO error encountered -- skipping file deletion" \
-            -e "rsync error:.*some files/attrs were not transferred.*code 23"; then
+        # Bash の組み込み正規表現マッチングを使用（サブプロセス生成なし）
+        if [[ "$line" =~ $filter_pattern ]]; then
             # フィルタリング対象の場合、一時ファイルに記録（画面には表示しない）
             echo "$line" >> "$FILTERED_ERRORS_FILE"
         else
@@ -266,6 +279,36 @@ filter_rsync_output() {
             echo "$line"
         fi
     done
+}
+
+# フィルタリングしたエラーのサマリーを表示する関数
+show_filtered_errors_summary() {
+    if [ -f "$FILTERED_ERRORS_FILE" ] && [ -s "$FILTERED_ERRORS_FILE" ]; then
+        echo ""
+        echo "----------------------------------------"
+        echo "抑制されたシステムエラーのサマリー:"
+        echo "----------------------------------------"
+
+        # 各ディレクトリごとにエラーをカウント
+        local trashes_count
+        local spotlight_count
+        local fseventsd_count
+        local tempitems_count
+        trashes_count=$(grep -c "\.Trashes" "$FILTERED_ERRORS_FILE" 2>/dev/null) || trashes_count=0
+        spotlight_count=$(grep -c "\.Spotlight-V100" "$FILTERED_ERRORS_FILE" 2>/dev/null) || spotlight_count=0
+        fseventsd_count=$(grep -c "\.fseventsd" "$FILTERED_ERRORS_FILE" 2>/dev/null) || fseventsd_count=0
+        tempitems_count=$(grep -c "\.TemporaryItems" "$FILTERED_ERRORS_FILE" 2>/dev/null) || tempitems_count=0
+
+        # カウントが0より大きいもののみ表示
+        [ "$trashes_count" -gt 0 ] && echo " .Trashes: ${trashes_count}件"
+        [ "$spotlight_count" -gt 0 ] && echo " .Spotlight-V100: ${spotlight_count}件"
+        [ "$fseventsd_count" -gt 0 ] && echo " .fseventsd: ${fseventsd_count}件"
+        [ "$tempitems_count" -gt 0 ] && echo " .TemporaryItems: ${tempitems_count}件"
+
+        echo ""
+        echo "これらはmacOSが保護しているシステムディレクトリです。"
+        echo "データファイルのバックアップには影響ありません。"
+    fi
 }
 
 # 古いログファイル削除関数
@@ -295,6 +338,343 @@ cleanup_old_logs() {
 }
 
 # =============================================================================
+# 複数ペア対応
+# =============================================================================
+
+# BACKUP_PAIRS の1要素をパースして変数に展開
+# 引数: パイプ区切りの文字列
+# 出力: PAIR_NAME, PAIR_SOURCE, PAIR_DEST, PAIR_EXCLUDES（配列）をグローバルに設定
+parse_backup_pair() {
+    local pair_string="$1"
+
+    # パイプで分割
+    PAIR_NAME="${pair_string%%|*}"
+    local rest="${pair_string#*|}"
+    PAIR_SOURCE="${rest%%|*}"
+    rest="${rest#*|}"
+    PAIR_DEST="${rest%%|*}"
+    local excludes_str="${rest#*|}"
+
+    # 除外パターンが元の文字列と同じ場合は空（区切りがなかった）
+    if [ "$excludes_str" = "$PAIR_DEST" ]; then
+        excludes_str=""
+    fi
+
+    # 除外パターンをカンマで分割して配列に
+    PAIR_EXCLUDES=()
+    if [ -n "$excludes_str" ]; then
+        IFS=',' read -ra PAIR_EXCLUDES <<< "$excludes_str"
+    fi
+
+    # 前後の空白をトリム
+    PAIR_NAME="${PAIR_NAME## }"
+    PAIR_NAME="${PAIR_NAME%% }"
+    PAIR_SOURCE="${PAIR_SOURCE## }"
+    PAIR_SOURCE="${PAIR_SOURCE%% }"
+    PAIR_DEST="${PAIR_DEST## }"
+    PAIR_DEST="${PAIR_DEST%% }"
+}
+
+# パスの種類を判定
+# 戻り値: "volume"（ボリューム直下）, "directory"（ディレクトリ）, "local"（ローカル）
+get_path_type() {
+    local path="$1"
+
+    # /Volumes/XXX の形式かチェック
+    if [[ "$path" =~ ^/Volumes/[^/]+$ ]]; then
+        echo "volume"
+    elif [[ "$path" =~ ^/Volumes/ ]]; then
+        echo "directory"
+    else
+        # /Volumes 以外のパス（ローカルディレクトリなど）
+        echo "local"
+    fi
+}
+
+# パスからボリューム名を抽出
+# 例: /Volumes/Luna-P/Photos → /Volumes/Luna-P
+extract_volume_path() {
+    local path="$1"
+
+    if [[ "$path" =~ ^(/Volumes/[^/]+) ]]; then
+        echo "${BASH_REMATCH[1]}"
+    else
+        echo ""
+    fi
+}
+
+# 拡張版パス検証関数
+# ボリューム全体の場合はマウント確認、ディレクトリの場合は親ボリューム確認＋存在確認
+check_path() {
+    local path="$1"
+    local name="$2"
+    local path_type
+    path_type=$(get_path_type "$path")
+
+    case "$path_type" in
+        "volume")
+            # 従来のボリュームチェック
+            check_mount "$path" "$name"
+            ;;
+        "directory")
+            # ディレクトリの場合: 親ボリュームのマウント確認 + ディレクトリ存在確認
+            local volume_path
+            volume_path=$(extract_volume_path "$path")
+
+            if [ -z "$volume_path" ]; then
+                error_exit "$name のボリュームパスを特定できません: $path"
+            fi
+
+            # 親ボリュームのマウント確認
+            if ! mount | grep -q "on $volume_path "; then
+                error_exit "$name の親ボリューム ($volume_path) がマウントされていません。"
+            fi
+
+            # ディレクトリの存在確認
+            if [ ! -d "$path" ]; then
+                error_exit "$name のディレクトリが存在しません: $path"
+            fi
+
+            log "$name のパスを確認しました: $path (ボリューム: $volume_path)"
+            ;;
+        "local")
+            # ローカルパスの場合は単純にディレクトリ存在確認
+            if [ ! -d "$path" ]; then
+                error_exit "$name のディレクトリが存在しません: $path"
+            fi
+            log "$name のパスを確認しました: $path"
+            ;;
+    esac
+}
+
+# ロギングのセットアップ
+setup_logging() {
+    local base_path="$1"
+
+    if [ -n "$LOG_BASE_DIR" ]; then
+        LOG_DIR="$LOG_BASE_DIR"
+    else
+        LOG_DIR="$base_path/.backup_logs"
+    fi
+
+    if [ "$DRY_RUN" = false ]; then
+        mkdir -p "$LOG_DIR"
+        LOG_FILE="$LOG_DIR/backup_$(date +%Y%m%d_%H%M%S).log"
+        cleanup_old_logs
+        touch "$LOG_FILE"
+        log "==================== バックアップセッション開始 ===================="
+        # 追加の除外パターンが適用されていた場合、ここでログ出力
+        if [ "$ADDITIONAL_EXCLUDE_COUNT" -gt 0 ]; then
+            log "追加の除外パターンを ${ADDITIONAL_EXCLUDE_COUNT} 個適用しました。"
+        fi
+    else
+        LOG_FILE="/dev/null"
+    fi
+}
+
+# 全ペアの情報表示
+display_all_pairs_info() {
+    echo ""
+    echo "=========================================="
+    echo "バックアップ設定（${#BACKUP_PAIRS[@]} ペア）"
+    echo "=========================================="
+
+    local index=1
+    for pair in "${BACKUP_PAIRS[@]}"; do
+        parse_backup_pair "$pair"
+        echo ""
+        echo "[$index] $PAIR_NAME"
+        echo "    source: $PAIR_SOURCE"
+        echo "    destination: $PAIR_DEST"
+        if [ "${#PAIR_EXCLUDES[@]}" -gt 0 ]; then
+            echo "    固有の除外: ${PAIR_EXCLUDES[*]}"
+        fi
+        ((index++))
+    done
+
+    echo ""
+    echo "Exclude List:"
+    printf '%s\n' "${EXCLUDE_LIST[@]}" | sed 's/^/  - /'
+}
+
+# サマリー表示
+display_summary() {
+    local success=$1
+    local partial=$2
+    local fail=$3
+    local total=$((success + partial + fail))
+
+    echo ""
+    echo "=========================================="
+    echo "バックアップ結果サマリー"
+    echo "=========================================="
+    echo "成功: $success / $total"
+    echo "部分的成功: $partial / $total"
+    echo "失敗: $fail / $total"
+
+    if [ "$fail" -gt 0 ]; then
+        echo ""
+        echo "警告: 一部のバックアップが失敗しました。ログを確認してください。"
+    fi
+}
+
+# 終了処理
+finalize_backup() {
+    show_filtered_errors_summary
+    rm -f "$FILTERED_ERRORS_FILE"
+
+    if [ "$DRY_RUN" = false ]; then
+        log "==================== バックアップセッション終了 ===================="
+        echo ""
+        echo "ログファイル: $LOG_FILE"
+    fi
+}
+
+# 単一のバックアップペアを実行
+# 引数: $1=ペア名, $2=ソース, $3=デスティネーション, $4...=追加除外パターン
+execute_backup_pair() {
+    local pair_name="$1"
+    local source="$2"
+    local destination="$3"
+    shift 3
+    local pair_excludes=("$@")
+
+    log "========== [$pair_name] バックアップ開始 =========="
+    log "source: $source"
+    log "destination: $destination"
+
+    # パス検証
+    check_path "$source" "[$pair_name] "
+    check_path "$destination" "[$pair_name] "
+
+    # 容量チェック
+    check_disk_space "$source" "$destination"
+
+    # このペア用の除外リストを構築
+    local current_exclude_list=("${EXCLUDE_LIST[@]}")
+
+    # ペア固有の除外パターンを追加
+    if [ "${#pair_excludes[@]}" -gt 0 ]; then
+        current_exclude_list+=("${pair_excludes[@]}")
+        log "ペア固有の除外パターン: ${pair_excludes[*]}"
+    fi
+
+    # 除外オプションを生成
+    local exclude_opts=()
+    for item in "${current_exclude_list[@]}"; do
+        exclude_opts+=("--exclude=$item")
+    done
+
+    # rsyncオプションを構築
+    local rsync_options=(-avh --delete --delete-excluded --progress --stats "${exclude_opts[@]}")
+
+    if [ "$DRY_RUN" = true ]; then
+        rsync_options+=(--dry-run)
+    fi
+
+    # パスの正規化
+    local source_path="${source%/}/"
+    local destination_path="${destination%/}"
+
+    # rsync実行
+    local start_time
+    start_time=$(date +%s)
+
+    rsync "${rsync_options[@]}" "$source_path" "$destination_path" 2>&1 | filter_rsync_output | tee -a "$LOG_FILE"
+    local rsync_exit_code=${PIPESTATUS[0]}
+
+    local end_time
+    end_time=$(date +%s)
+    local elapsed=$((end_time - start_time))
+
+    # 結果を返す（0: 成功, 23: 部分的成功, その他: エラー）
+    log "[$pair_name] 完了 (所要時間: $((elapsed / 60))分$((elapsed % 60))秒, 終了コード: $rsync_exit_code)"
+
+    return $rsync_exit_code
+}
+
+# バックアップ実行（複数ペア処理）
+run_backup() {
+    # 必須設定のチェック
+    if [ -z "$LOG_RETENTION_DAYS" ] || [ -z "$MINIMUM_FREE_SPACE_GB" ]; then
+        echo "エラー: 設定ファイルに必要な項目が定義されていません。"
+        echo "設定ファイル: $CONFIG_FILE"
+        echo ""
+        echo "必須項目："
+        echo "  - MINIMUM_FREE_SPACE_GB（最低限必要な空き容量）"
+        echo "  - LOG_RETENTION_DAYS（ログ保持期間）"
+        exit 1
+    fi
+
+    # ログディレクトリの決定
+    local first_pair="${BACKUP_PAIRS[0]}"
+    parse_backup_pair "$first_pair"
+    setup_logging "$PAIR_SOURCE"
+
+    log "${#BACKUP_PAIRS[@]} 個のバックアップペアを処理します"
+
+    # 全ペアの情報を表示
+    display_all_pairs_info
+
+    # ユーザー確認
+    if [ "$DRY_RUN" = false ]; then
+        echo ""
+        echo "上記の設定でバックアップを実行しますか？ (y/n): "
+        read -r confirm
+        if [ "$confirm" != "y" ]; then
+            log "ユーザーによってバックアップが中止されました。"
+            exit 0
+        fi
+    fi
+
+    # 各ペアを順次実行
+    local success_count=0
+    local fail_count=0
+    local partial_count=0
+    local error_behavior="${ERROR_BEHAVIOR:-continue}"
+
+    for pair in "${BACKUP_PAIRS[@]}"; do
+        parse_backup_pair "$pair"
+
+        execute_backup_pair "$PAIR_NAME" "$PAIR_SOURCE" "$PAIR_DEST" "${PAIR_EXCLUDES[@]}"
+        local exit_code=$?
+
+        case $exit_code in
+            0)
+                ((success_count++))
+                ;;
+            23)
+                ((partial_count++))
+                ;;
+            *)
+                ((fail_count++))
+                if [ "$error_behavior" = "stop" ]; then
+                    log "[$PAIR_NAME] でエラーが発生したため、処理を中断します。"
+                    display_summary "$success_count" "$partial_count" "$fail_count"
+                    finalize_backup
+                    exit 2
+                fi
+                log "警告: [$PAIR_NAME] でエラーが発生しましたが、次のペアを続行します。"
+                ;;
+        esac
+    done
+
+    # サマリー表示
+    display_summary "$success_count" "$partial_count" "$fail_count"
+
+    finalize_backup
+
+    # 終了コードの決定
+    if [ "$fail_count" -eq "${#BACKUP_PAIRS[@]}" ]; then
+        exit 3  # 全て失敗
+    elif [ "$fail_count" -gt 0 ]; then
+        exit 2  # 一部失敗
+    else
+        exit 0  # 成功
+    fi
+}
+
+# =============================================================================
 # メイン処理
 # =============================================================================
 
@@ -308,192 +688,21 @@ if [[ "$*" == *"--dry-run"* ]] || [[ "$*" == *"-n"* ]]; then
     echo "=========================================="
 fi
 
-# マウントポイントの存在チェック
-echo "マウントポイントをチェックしています..."
-check_mount "$SOURCE_STORAGE" "バックアップ元 ($(basename "$SOURCE_STORAGE"))"
-check_mount "$DESTINATION_STORAGE" "バックアップ先 ($(basename "$DESTINATION_STORAGE"))"
-
-# ログディレクトリの作成
-# dry-runモードでない場合のみ、ログディレクトリとファイルを作成
-if [ "$DRY_RUN" = false ]; then
-    mkdir -p "$LOG_DIR"
-    
-    # 古いログファイルのクリーンアップを実行
-    # 新しいログファイルを作成する前に、古いログを削除することで
-    # ログディレクトリの肥大化を防ぐ
-    cleanup_old_logs
-    
-    touch "$LOG_FILE"
-    log "==================== バックアップ開始 ===================="
-else
-    # dry-runモードの場合はログファイルに出力しない
-    LOG_FILE="/dev/null"
+# BACKUP_PAIRS の存在チェック
+if [ "${#BACKUP_PAIRS[@]}" -eq 0 ] 2>/dev/null; then
+    echo "エラー: 有効なバックアップ設定が見つかりません。"
+    echo "設定ファイル: $CONFIG_FILE"
+    echo ""
+    echo "設定方法："
+    echo "  BACKUP_PAIRS=("
+    echo "      \"名前|/Volumes/Source|/Volumes/Destination\""
+    echo "  )"
+    echo ""
+    echo "例："
+    echo "  BACKUP_PAIRS=("
+    echo "      \"メインSSD|/Volumes/Luna-P|/Volumes/Luna-S\""
+    echo "  )"
+    exit 1
 fi
 
-# ディスク容量チェック
-check_disk_space "$SOURCE_STORAGE" "$DESTINATION_STORAGE"
-
-# 除外オプションの生成
-# 配列に格納された除外パターンをrsyncのオプション形式に変換
-# 配列を使うことで、引用符の問題を回避し、より安全にオプションを扱える
-EXCLUDE_OPTS=()
-for item in "${EXCLUDE_LIST[@]}"; do
-    EXCLUDE_OPTS+=("--exclude=$item")
-done
-
-# rsyncコマンドのオプションを配列として設定
-# -a: アーカイブモード（パーミッション、タイムスタンプ、シンボリックリンクなどを保持）
-# -v: 詳細出力（処理中のファイル名を表示）
-# -h: 人間が読みやすい形式でサイズを表示
-# --delete: バックアップ元にないファイルをバックアップ先から削除（完全同期）
-# --delete-excluded: 除外パターンに一致するファイルもバックアップ先から削除
-# --progress: 各ファイルの転送進行状況を表示
-# --stats: 転送完了後に統計情報を表示
-RSYNC_OPTIONS=(-avh --delete --delete-excluded --progress --stats "${EXCLUDE_OPTS[@]}")
-
-# dry-runモードの場合は --dry-run オプションを追加
-if [ "$DRY_RUN" = true ]; then
-    RSYNC_OPTIONS+=(--dry-run)
-fi
-
-# バックアップ実行前の確認と情報表示
-echo ""
-echo "=========================================="
-echo "バックアップ設定"
-echo "=========================================="
-echo "バックアップ元: $SOURCE_STORAGE"
-echo "バックアップ先: $DESTINATION_STORAGE"
-if [ "$DRY_RUN" = false ]; then
-    echo "ログファイル  : $LOG_FILE"
-fi
-echo ""
-echo "除外項目:"
-printf '%s\n' "${EXCLUDE_LIST[@]}" | sed 's/^/  - /'
-echo ""
-
-# ユーザーに実行確認を求める
-# dry-runモードでない場合のみ、確認を求める
-if [ "$DRY_RUN" = false ]; then
-    echo "上記の設定でバックアップを実行しますか？ (y/n): "
-    read -r confirm
-    if [ "$confirm" != "y" ]; then
-        log "ユーザーによってバックアップが中止されました。"
-        echo "バックアップを中止しました。"
-        exit 0
-    fi
-fi
-
-# バックアップ開始時刻を記録
-START_TIME=$(date +%s)
-log "バックアップを開始します..."
-echo ""
-
-# パスの末尾スラッシュを正規化（二重スラッシュを防ぐ）
-# rsyncでは末尾にスラッシュがあるかないかで動作が変わるため、
-# ソースディレクトリには必ず末尾スラッシュを付け、
-# デスティネーションには付けない形式に統一する
-SOURCE_PATH="${SOURCE_STORAGE%/}/"
-DESTINATION_PATH="${DESTINATION_STORAGE%/}"
-
-# rsyncコマンドを実行してバックアップを実施
-# エラーが発生した場合は、その終了ステータスを保存
-# filter_rsync_output関数を通して、既知の無害なエラーメッセージを抑制
-rsync "${RSYNC_OPTIONS[@]}" "$SOURCE_PATH" "$DESTINATION_PATH" 2>&1 | filter_rsync_output | tee -a "$LOG_FILE"
-RSYNC_EXIT_CODE=${PIPESTATUS[0]}
-
-# バックアップ終了時刻を記録し、所要時間を計算
-END_TIME=$(date +%s)
-ELAPSED_TIME=$((END_TIME - START_TIME))
-MINUTES=$((ELAPSED_TIME / 60))
-SECONDS=$((ELAPSED_TIME % 60))
-
-echo ""
-
-# フィルタリングしたエラーのサマリーを表示する関数
-show_filtered_errors_summary() {
-    if [ -f "$FILTERED_ERRORS_FILE" ] && [ -s "$FILTERED_ERRORS_FILE" ]; then
-        echo ""
-        echo "----------------------------------------"
-        echo "抑制されたシステムエラーのサマリー:"
-        echo "----------------------------------------"
-
-        # 各ディレクトリごとにエラーをカウント
-        local trashes_count
-        local spotlight_count
-        local fseventsd_count
-        local tempitems_count
-        trashes_count=$(grep -c "\.Trashes" "$FILTERED_ERRORS_FILE" 2>/dev/null) || trashes_count=0
-        spotlight_count=$(grep -c "\.Spotlight-V100" "$FILTERED_ERRORS_FILE" 2>/dev/null) || spotlight_count=0
-        fseventsd_count=$(grep -c "\.fseventsd" "$FILTERED_ERRORS_FILE" 2>/dev/null) || fseventsd_count=0
-        tempitems_count=$(grep -c "\.TemporaryItems" "$FILTERED_ERRORS_FILE" 2>/dev/null) || tempitems_count=0
-
-        # カウントが0より大きいもののみ表示
-        [ "$trashes_count" -gt 0 ] && echo "  • .Trashes: ${trashes_count}件"
-        [ "$spotlight_count" -gt 0 ] && echo "  • .Spotlight-V100: ${spotlight_count}件"
-        [ "$fseventsd_count" -gt 0 ] && echo "  • .fseventsd: ${fseventsd_count}件"
-        [ "$tempitems_count" -gt 0 ] && echo "  • .TemporaryItems: ${tempitems_count}件"
-
-        echo ""
-        echo "これらはmacOSが保護しているシステムディレクトリです。"
-        echo "データファイルのバックアップには影響ありません。"
-    fi
-}
-
-# rsyncの終了ステータスをチェック
-# 0: 成功
-# 23: 一部のファイル/属性が転送できなかった（非致命的）
-# その他: エラー
-if [ "$RSYNC_EXIT_CODE" -eq 0 ]; then
-    if [ "$DRY_RUN" = true ]; then
-        echo "=========================================="
-        echo "DRY-RUN完了（実際のコピーは行われていません）"
-        echo "=========================================="
-    else
-        log "==================== バックアップ完了 ===================="
-        log "所要時間: ${MINUTES}分${SECONDS}秒"
-        echo ""
-        echo "=========================================="
-        echo "バックアップが正常に完了しました！"
-        echo "=========================================="
-        echo "バックアップ先: $DESTINATION_STORAGE"
-        echo "所要時間: ${MINUTES}分${SECONDS}秒"
-        echo "ログファイル: $LOG_FILE"
-    fi
-
-    # フィルタリングしたエラーのサマリーを表示
-    show_filtered_errors_summary
-
-    # 一時ファイルを削除
-    rm -f "$FILTERED_ERRORS_FILE"
-
-    exit 0
-elif [ "$RSYNC_EXIT_CODE" -eq 23 ]; then
-    # エラーコード23は「一部のファイルが転送できなかった」という非致命的なエラー
-    # 通常、システムが保護しているディレクトリ（.Trashes、.Spotlight-V100など）の
-    # 削除に失敗した場合に発生するが、重要なデータのバックアップには影響しない
-    if [ "$DRY_RUN" = true ]; then
-        echo "=========================================="
-        echo "DRY-RUN完了（警告あり）"
-        echo "=========================================="
-        echo ""
-        echo "⚠️  一部のファイル処理で問題がありましたが、"
-        echo "   重要なデータのバックアップには影響ありません。"
-    else
-        log "==================== バックアップ完了 ===================="
-        log "所要時間: ${MINUTES}分${SECONDS}秒"
-        log "一部のファイル処理で問題がありましたが、重要なデータのバックアップには影響ありません。"
-        echo "ログファイル: $LOG_FILE"
-        echo ""
-    fi
-
-    # フィルタリングしたエラーのサマリーを表示
-    show_filtered_errors_summary
-
-    # 一時ファイルを削除
-    rm -f "$FILTERED_ERRORS_FILE"
-
-    exit 0
-else
-    # rsyncがエラーで終了した場合
-    error_exit "rsyncがエラーコード $RSYNC_EXIT_CODE で終了しました。"
-fi
+run_backup
