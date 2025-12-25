@@ -606,10 +606,8 @@ run_backup() {
         exit 1
     fi
 
-    # ログディレクトリの決定
-    local first_pair="${BACKUP_PAIRS[0]}"
-    parse_backup_pair "$first_pair"
-    setup_logging "$PAIR_SOURCE"
+    # ログディレクトリの決定（カレントディレクトリに出力）
+    setup_logging "$PWD"
 
     log "${#BACKUP_PAIRS[@]} 個のバックアップペアを処理します"
 
