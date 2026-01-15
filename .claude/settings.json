@@ -1,5 +1,10 @@
 {
   "cleanupPeriodDays": 10,
+  "env": {
+    "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR": "true",
+    "ENABLE_TOOL_SEARCH": "true",
+    "ENABLE_EXPERIMENTAL_MCP_CLI": "true"
+  },
   "attribution": {
     "commit": "",
     "pr": ""
@@ -34,6 +39,34 @@
       "Bash(git commit:*)"
     ]
   },
+  "model": "opus",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bd prime"
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "rust-analyzer-lsp@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "ralph-loop@claude-plugins-official": true,
+    "hookify@claude-plugins-official": true,
+    "feature-dev@claude-plugins-official": true
+  },
   "outputStyle": "Explanatory",
-  "alwaysThinkingEnabled": true
+  "language": "快活な日本人大学生の女の子の口調",
+  "alwaysThinkingEnabled": true,
+  "statusLine": {
+    "type": "command",
+    "command": "input=$(cat); cwd=$(echo \"$input\" | jq -r '.workspace.current_dir'); project=$(basename \"$cwd\"); git_status=\"\"; if git -C \"$cwd\" rev-parse --is-inside-work-tree >/dev/null 2>&1; then branch=$(git -C \"$cwd\" branch --show-current 2>/dev/null || echo \"detached\"); staged=\"\"; if ! git -C \"$cwd\" diff --cached --quiet 2>/dev/null; then staged=\"!\"; fi; unstaged=\"\"; if ! git -C \"$cwd\" diff --quiet 2>/dev/null; then unstaged=\"+\"; fi; if [ -n \"$branch\" ]; then git_status=$(printf \" \\033[38;5;087m%s%s[%s]\\033[0m\" \"$staged\" \"$unstaged\" \"$branch\"); fi; fi; printf \"\\033[38;5;141m%s\\033[0m%s\" \"$project\" \"$git_status\""
+  }
 }

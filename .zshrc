@@ -35,6 +35,7 @@ path=(
     $path
     $PNPM_HOME(N-/)
     $VOLTA_HOME/bin(N-/)
+    $HOME/.bun/bin(N-/)
     $HOME/.cargo/bin(N-/)
     $HOME/.cargo/env(N-/)
     $HOME/.moon/bin(N-/)
@@ -167,6 +168,25 @@ alias disk='diskutil info / | grep -E "Free|Available"'
 # $PATHを見やすく表示
 alias path='echo $PATH | tr ":" "\n" | nl'
 
+alias claude-mem='$HOME/.bun/bin/bun "$HOME/.claude/plugins/marketplaces/thedotmack/plugin/scripts/worker-service.cjs"'
+
+########################################
+# シェル関数
+
+function port-proc() {
+  lsof -ti :$1 | xargs ps -p
+}
+
+function kill-port() {
+  if lsof -ti :$1 > /dev/null; then
+    echo "Killing process(es) on port $1"
+    lsof -ti :$1 | xargs kill
+    echo "Still alive? Run: lsof -ti :$1 | xargs kill -9"
+  else
+    echo "No process found on port $1"
+  fi
+}
+
 ########################################
 # その他
 
@@ -175,3 +195,6 @@ typeset -U PATH
 
 # homebrewのやつ
 eval "$(/opt/homebrew/bin/brew shellenv)"
+
+# bun completions
+[ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
