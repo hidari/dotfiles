@@ -6,34 +6,42 @@ To use it, clone it and put a symbolic link to your home directory.
 ## Setup
 
 ```bash
+# install automatically
+cd ~/path/to/dotfiles
+./bootstrap.sh
+```
+
+```bash
 # install pre-requirements
 cd ~/path/to/dotfiles
 ./bootstrap.sh
 
 # tools
-ln -sf ~/path/to/dotfiles/.Brewfile ~/.Brewfile
+ln -sf "$PWD/home/.Brewfile" ~/.Brewfile
 brew bundle --global
 
 # directories
-mkdir -p ~/.claude
+mkdir -p ~/.claude/skills
 mkdir -p ~/.config/git
 
 # dotfiles
-ln -sf ~/path/to/dotfiles/.zshrc ~/.zshrc
-ln -sf ~/path/to/dotfiles/.gitconfig ~/.gitconfig
-ln -sf ~/path/to/dotfiles/.config/.gitignore_global ~/.config/git/.gitignore_global
-ln -sf ~/path/to/dotfiles/.claude/settings.json ~/.claude/settings.json
-ln -sf ~/path/to/dotfiles/.claude/CLAUDE.md ~/.claude/CLAUDE.md
+ln -sf "$PWD/home/.zshrc" ~/.zshrc
+ln -sf "$PWD/home/.gitconfig" ~/.gitconfig
+ln -sf "$PWD/home/.config/git/.gitignore_global" ~/.config/git/.gitignore_global
+ln -sf "$PWD/home/.claude/settings.json" ~/.claude/settings.json
+ln -sf "$PWD/home/.claude/CLAUDE.md" ~/.claude/CLAUDE.md
+ln -sf "$PWD/home/.claude/.mcp.json" ~/.claude/.mcp.json
 
 # copy and edit your personal Git configuration
-cp ~/path/to/dotfiles/.gitconfig.private.example ~/.gitconfig.private
+cp "$PWD/home/.gitconfig.private.example" ~/.gitconfig.private
 
-# claude skills
-mkdir -p ~/.claude/skills/frontend-designer
-ln -sf ~/path/to/dotfiles/.claude/skills/frontend-designer/SKILL.md ~/.claude/skills/frontend-designer/SKILL.md
+# claude skills (link each skill directory)
+for skill in "$PWD/home/.claude/skills"/*/; do
+  ln -sf "$skill" ~/.claude/skills/
+done
 
 # backup script
 # See scripts/README.md for details.
 mkdir -p ~/.local/bin
-ln -sf ~/path/to/dotfiles/scripts/backup.sh ~/.local/bin/backup.sh
+ln -sf "$PWD/scripts/backup.sh" ~/.local/bin/backup.sh
 ```

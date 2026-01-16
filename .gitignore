@@ -3,4 +3,4 @@
 
 # Private
 scripts/backup.conf
-.claude/settings.local.json
+home/.claude/settings.local.json
