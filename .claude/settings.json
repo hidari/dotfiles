@@ -1,5 +1,5 @@
 {
-  "plansDirectory": "./plans",
+  "plansDirectory": ".claude/plans",
   "enabledPlugins": {},
   "sandbox": {
     "enabled": true,
