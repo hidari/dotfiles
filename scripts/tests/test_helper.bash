@@ -57,20 +57,45 @@ load_backup_functions() {
     local temp_func_file
     temp_func_file=$(mktemp)
 
-    # 行番号を取得
-    local func_start pairs_start main_start
-    func_start=$(grep -n "^# 関数定義$" "$BACKUP_SCRIPT" | cut -d: -f1)
-    pairs_start=$(grep -n "^# 複数ペア対応$" "$BACKUP_SCRIPT" | cut -d: -f1)
-    main_start=$(grep -n "^# メイン処理$" "$BACKUP_SCRIPT" | cut -d: -f1)
-
-    # 関数定義セクションを抽出（関数定義 から 複数ペア対応 の前まで）
-    if [ -n "$func_start" ] && [ -n "$pairs_start" ]; then
-        sed -n "$((func_start + 2)),$((pairs_start - 2))p" "$BACKUP_SCRIPT" > "$temp_func_file"
+    # スクリプトの存在確認
+    if [ ! -f "$BACKUP_SCRIPT" ]; then
+        echo "Error: Backup script not found: $BACKUP_SCRIPT" >&2
+        return 1
     fi
 
-    # 複数ペア対応セクションを追加（複数ペア対応 から メイン処理 の前まで）
-    if [ -n "$pairs_start" ] && [ -n "$main_start" ]; then
+    # 行番号を取得
+    local func_start pairs_start main_start
+    func_start=$(grep -n "^# 関数定義$" "$BACKUP_SCRIPT" | head -1 | cut -d: -f1)
+    pairs_start=$(grep -n "^# 複数ペア対応$" "$BACKUP_SCRIPT" | head -1 | cut -d: -f1)
+    main_start=$(grep -n "^# メイン処理$" "$BACKUP_SCRIPT" | head -1 | cut -d: -f1)
+
+    # 必須マーカーの存在確認
+    if [ -z "$func_start" ]; then
+        echo "Error: '# 関数定義' marker not found in $BACKUP_SCRIPT" >&2
+        rm -f "$temp_func_file"
+        return 1
+    fi
+    if [ -z "$main_start" ]; then
+        echo "Error: '# メイン処理' marker not found in $BACKUP_SCRIPT" >&2
+        rm -f "$temp_func_file"
+        return 1
+    fi
+
+    # 関数定義セクションを抽出（関数定義 から 複数ペア対応 の前まで）
+    if [ -n "$pairs_start" ]; then
+        sed -n "$((func_start + 2)),$((pairs_start - 2))p" "$BACKUP_SCRIPT" > "$temp_func_file"
+        # 複数ペア対応セクションを追加（複数ペア対応 から メイン処理 の前まで）
         sed -n "$((pairs_start + 2)),$((main_start - 2))p" "$BACKUP_SCRIPT" >> "$temp_func_file"
+    else
+        # 複数ペア対応マーカーがない場合は関数定義からメイン処理の前まで
+        sed -n "$((func_start + 2)),$((main_start - 2))p" "$BACKUP_SCRIPT" > "$temp_func_file"
+    fi
+
+    # 抽出結果の確認
+    if [ ! -s "$temp_func_file" ]; then
+        echo "Warning: No functions extracted from $BACKUP_SCRIPT" >&2
+        rm -f "$temp_func_file"
+        return 1
     fi
 
     # shellcheck source=/dev/null
@@ -106,17 +131,40 @@ load_bootstrap_functions() {
     local temp_func_file
     temp_func_file=$(mktemp)
 
-    # 行番号を取得
-    local func_start main_start
-    func_start=$(grep -n "^# ヘルパー関数$" "$BOOTSTRAP_SCRIPT" | cut -d: -f1)
-    main_start=$(grep -n "^# メイン処理$" "$BOOTSTRAP_SCRIPT" | cut -d: -f1)
-
-    # ヘルパー関数セクションを抽出
-    if [ -n "$func_start" ] && [ -n "$main_start" ]; then
-        sed -n "$((func_start + 1)),$((main_start - 1))p" "$BOOTSTRAP_SCRIPT" > "$temp_func_file"
-        # shellcheck source=/dev/null
-        source "$temp_func_file"
+    # スクリプトの存在確認
+    if [ ! -f "$BOOTSTRAP_SCRIPT" ]; then
+        echo "Error: Bootstrap script not found: $BOOTSTRAP_SCRIPT" >&2
+        return 1
     fi
 
+    # 行番号を取得（重複マーカーに対応するため head -1 を使用）
+    local func_start main_start
+    func_start=$(grep -n "^# ヘルパー関数$" "$BOOTSTRAP_SCRIPT" | head -1 | cut -d: -f1)
+    main_start=$(grep -n "^# メイン処理$" "$BOOTSTRAP_SCRIPT" | head -1 | cut -d: -f1)
+
+    # 必須マーカーの存在確認
+    if [ -z "$func_start" ]; then
+        echo "Error: '# ヘルパー関数' marker not found in $BOOTSTRAP_SCRIPT" >&2
+        rm -f "$temp_func_file"
+        return 1
+    fi
+    if [ -z "$main_start" ]; then
+        echo "Error: '# メイン処理' marker not found in $BOOTSTRAP_SCRIPT" >&2
+        rm -f "$temp_func_file"
+        return 1
+    fi
+
+    # ヘルパー関数セクションを抽出
+    sed -n "$((func_start + 1)),$((main_start - 1))p" "$BOOTSTRAP_SCRIPT" > "$temp_func_file"
+
+    # 抽出結果の確認
+    if [ ! -s "$temp_func_file" ]; then
+        echo "Warning: No functions extracted from $BOOTSTRAP_SCRIPT" >&2
+        rm -f "$temp_func_file"
+        return 1
+    fi
+
+    # shellcheck source=/dev/null
+    source "$temp_func_file"
     rm -f "$temp_func_file"
 }

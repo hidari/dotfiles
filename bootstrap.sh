@@ -78,7 +78,13 @@ backup_file() {
         mkdir -p "$BACKUP_DIR"
     fi
 
-    local backup_path="$BACKUP_DIR/$(basename "$file")"
+    # ホームディレクトリからの相対パスを保持してバックアップ
+    local relative_path="${file#$HOME/}"
+    local backup_path="$BACKUP_DIR/$relative_path"
+    local backup_dir
+    backup_dir=$(dirname "$backup_path")
+
+    mkdir -p "$backup_dir"
     mv "$file" "$backup_path"
     log "Backed up: $file -> $backup_path"
 }
@@ -146,6 +152,7 @@ copy_if_not_exists() {
 link_skills() {
     local source_dir="$1"
     local target_dir="$2"
+    local error_count=0
 
     if [ ! -d "$source_dir" ]; then
         warn "Skills directory not found: $source_dir"
@@ -156,9 +163,16 @@ link_skills() {
         if [ -d "$skill" ]; then
             local skill_name
             skill_name=$(basename "$skill")
-            create_symlink "${skill%/}" "$target_dir/$skill_name"
+            if ! create_symlink "${skill%/}" "$target_dir/$skill_name"; then
+                ((error_count++))
+            fi
         fi
     done
+
+    if [ "$error_count" -gt 0 ]; then
+        warn "Failed to link $error_count skill(s)"
+        return 1
+    fi
 }
 
 # 使用方法を表示

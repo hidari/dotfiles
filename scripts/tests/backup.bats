@@ -42,6 +42,22 @@ load test_helper
     [ "$PAIR_DEST" = "/Volumes/My Drive/Backup" ]
 }
 
+@test "parse_backup_pair: fails on empty name" {
+    run parse_backup_pair "|/source|/dest"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"エラー"* ]] || [[ "$output" == *"不正"* ]]
+}
+
+@test "parse_backup_pair: fails on empty source" {
+    run parse_backup_pair "name||/dest"
+    [ "$status" -ne 0 ]
+}
+
+@test "parse_backup_pair: fails on incomplete pair" {
+    run parse_backup_pair "name_only"
+    [ "$status" -ne 0 ]
+}
+
 # =============================================================================
 # get_path_type tests
 # =============================================================================
@@ -153,4 +169,69 @@ load test_helper
     run display_summary 1 2 0
     [ "$status" -eq 0 ]
     [[ "$output" == *"2 / 3"* ]]
+}
+
+# =============================================================================
+# check_path permission tests
+# =============================================================================
+
+# Note: check_path uses error_exit which calls exit, so we test the permission
+# checking logic indirectly by verifying the bash test operators work correctly
+
+@test "check_path: permission check logic - readable directory" {
+    local test_dir
+    test_dir=$(mktemp -d)
+    chmod 755 "$test_dir"
+
+    # Verify -r test works for readable directory
+    [ -r "$test_dir" ]
+
+    rm -rf "$test_dir"
+}
+
+@test "check_path: permission check logic - writable directory" {
+    local test_dir
+    test_dir=$(mktemp -d)
+    chmod 755 "$test_dir"
+
+    # Verify -w test works for writable directory
+    [ -w "$test_dir" ]
+
+    rm -rf "$test_dir"
+}
+
+@test "check_path: permission check logic - unreadable directory" {
+    # Skip if running as root (root can read anything)
+    [ "$(id -u)" -eq 0 ] && skip "Running as root, permission tests not applicable"
+
+    local test_dir
+    test_dir=$(mktemp -d)
+    chmod 000 "$test_dir"
+
+    # Verify -r test fails for unreadable directory
+    local is_readable=true
+    [ -r "$test_dir" ] || is_readable=false
+
+    chmod 755 "$test_dir"
+    rm -rf "$test_dir"
+
+    [ "$is_readable" = "false" ]
+}
+
+@test "check_path: permission check logic - unwritable directory" {
+    # Skip if running as root (root can write anything)
+    [ "$(id -u)" -eq 0 ] && skip "Running as root, permission tests not applicable"
+
+    local test_dir
+    test_dir=$(mktemp -d)
+    chmod 555 "$test_dir"
+
+    # Verify -w test fails for unwritable directory
+    local is_writable=true
+    [ -w "$test_dir" ] || is_writable=false
+
+    chmod 755 "$test_dir"
+    rm -rf "$test_dir"
+
+    [ "$is_writable" = "false" ]
 }

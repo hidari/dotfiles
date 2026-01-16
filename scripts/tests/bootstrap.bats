@@ -176,6 +176,20 @@ teardown() {
     [ -L "$target_dir/test-skill" ]
 }
 
+@test "link_skills: returns error count when symlink fails" {
+    local source_dir="$BOOTSTRAP_FIXTURES_DIR/home/.claude/skills"
+    local target_dir="$TEST_HOME/.claude/skills"
+
+    # 既存ファイルを作成してリンク失敗を誘発
+    echo "blocking file" > "$target_dir/test-skill"
+    FORCE_MODE=false
+
+    run link_skills "$source_dir" "$target_dir"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Failed"* ]] || [[ "$output" == *"fail"* ]]
+}
+
 # =============================================================================
 # dry-run mode tests
 # =============================================================================
@@ -190,4 +204,35 @@ teardown() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"[DRY-RUN]"* ]] || [[ "$output" == *"dry"* ]] || [[ "$output" == *"Dry"* ]]
     [ ! -L "$target" ]
+}
+
+# =============================================================================
+# backup_file tests
+# =============================================================================
+
+@test "backup_file: preserves directory structure in backup" {
+    # テスト用のファイルを作成
+    mkdir -p "$TEST_HOME/.config/test"
+    echo "test content" > "$TEST_HOME/.config/test/file.txt"
+
+    run backup_file "$TEST_HOME/.config/test/file.txt"
+
+    [ "$status" -eq 0 ]
+    # バックアップがディレクトリ構造を保持しているか確認
+    [ -f "$BACKUP_DIR/.config/test/file.txt" ]
+    # 元のファイルは削除されている
+    [ ! -f "$TEST_HOME/.config/test/file.txt" ]
+}
+
+@test "backup_file: dry-run mode shows action without executing" {
+    mkdir -p "$TEST_HOME/.config"
+    echo "test content" > "$TEST_HOME/.config/test.txt"
+    DRY_RUN=true
+
+    run backup_file "$TEST_HOME/.config/test.txt"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"[DRY-RUN]"* ]]
+    # 元のファイルは残っている
+    [ -f "$TEST_HOME/.config/test.txt" ]
 }

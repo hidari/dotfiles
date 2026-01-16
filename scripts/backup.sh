@@ -100,6 +100,8 @@ LOG_FILE=""
 # フィルタリングしたエラーを記録する一時ファイル
 # mktemp を使用して安全な一時ファイルを作成（予測不可能なファイル名でセキュリティ向上）
 FILTERED_ERRORS_FILE=$(mktemp)
+# 異常終了時も確実に一時ファイルを削除
+trap 'rm -f "$FILTERED_ERRORS_FILE"' EXIT
 
 # 除外リストの設定
 # macOSが自動生成する不要なシステムファイルをバックアップから除外
@@ -347,6 +349,13 @@ cleanup_old_logs() {
 parse_backup_pair() {
     local pair_string="$1"
 
+    # パイプが少なくとも2つ必要（名前|ソース|宛先）
+    local pipe_only="${pair_string//[^|]/}"
+    if [ ${#pipe_only} -lt 2 ]; then
+        echo "エラー: バックアップペアの形式が不正です: $pair_string" >&2
+        return 1
+    fi
+
     # パイプで分割
     PAIR_NAME="${pair_string%%|*}"
     local rest="${pair_string#*|}"
@@ -370,6 +379,12 @@ parse_backup_pair() {
     PAIR_NAME=$(trim "$PAIR_NAME")
     PAIR_SOURCE=$(trim "$PAIR_SOURCE")
     PAIR_DEST=$(trim "$PAIR_DEST")
+
+    # 必須フィールドの検証
+    if [ -z "$PAIR_NAME" ] || [ -z "$PAIR_SOURCE" ] || [ -z "$PAIR_DEST" ]; then
+        echo "エラー: バックアップペアの形式が不正です: $pair_string" >&2
+        return 1
+    fi
 }
 
 # パスの種類を判定
@@ -405,6 +420,7 @@ extract_volume_path() {
 check_path() {
     local path="$1"
     local name="$2"
+    local mode="${3:-read}"  # read, write, または both
     local path_type
     path_type=$(get_path_type "$path")
 
@@ -442,6 +458,18 @@ check_path() {
             log "$name のパスを確認しました: $path"
             ;;
     esac
+
+    # パーミッションチェック
+    if [[ "$mode" == "read" || "$mode" == "both" ]]; then
+        if [ ! -r "$path" ]; then
+            error_exit "$name に対する読み取り権限がありません: $path"
+        fi
+    fi
+    if [[ "$mode" == "write" || "$mode" == "both" ]]; then
+        if [ ! -w "$path" ]; then
+            error_exit "$name に対する書き込み権限がありません: $path"
+        fi
+    fi
 }
 
 # ロギングのセットアップ
@@ -540,9 +568,9 @@ execute_backup_pair() {
     log "source: $source"
     log "destination: $destination"
 
-    # パス検証
-    check_path "$source" "[$pair_name] "
-    check_path "$destination" "[$pair_name] "
+    # パス検証（ソースは読み取り権限、デスティネーションは書き込み権限が必要）
+    check_path "$source" "[$pair_name] ソース" "read"
+    check_path "$destination" "[$pair_name] デスティネーション" "write"
 
     # 容量チェック
     check_disk_space "$source" "$destination"
@@ -577,8 +605,9 @@ execute_backup_pair() {
     local start_time
     start_time=$(date +%s)
 
+    local rsync_exit_code
     rsync "${rsync_options[@]}" "$source_path" "$destination_path" 2>&1 | filter_rsync_output | tee -a "$LOG_FILE"
-    local rsync_exit_code=${PIPESTATUS[0]}
+    rsync_exit_code=${PIPESTATUS[0]}
 
     local end_time
     end_time=$(date +%s)
