@@ -1,17 +1,20 @@
 #!/bin/bash
 # =============================================================================
-# backup.sh テスト用ヘルパー
+# テスト用ヘルパー（backup.sh / bootstrap.sh 共通）
 # =============================================================================
 
 # テストディレクトリのパスを取得
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_DIR="$(dirname "$TEST_DIR")"
+REPO_ROOT="$(dirname "$SCRIPTS_DIR")"
 
-# backup.sh のパス
+# スクリプトのパス
 BACKUP_SCRIPT="$SCRIPTS_DIR/backup.sh"
+BOOTSTRAP_SCRIPT="$REPO_ROOT/bootstrap.sh"
 
 # フィクスチャのパス
 FIXTURES_DIR="$TEST_DIR/fixtures"
+BOOTSTRAP_FIXTURES_DIR="$FIXTURES_DIR/bootstrap"
 
 # =============================================================================
 # 各テスト前の初期化
@@ -72,5 +75,48 @@ load_backup_functions() {
 
     # shellcheck source=/dev/null
     source "$temp_func_file"
+    rm -f "$temp_func_file"
+}
+
+# =============================================================================
+# bootstrap.sh テスト用ヘルパー
+# =============================================================================
+
+# テスト用の仮想ホームディレクトリを作成
+setup_test_home() {
+    TEST_HOME=$(mktemp -d)
+    export HOME="$TEST_HOME"
+    export DOTFILES_DIR="$BOOTSTRAP_FIXTURES_DIR"
+
+    # 必要なディレクトリを作成
+    mkdir -p "$TEST_HOME/.claude/skills"
+    mkdir -p "$TEST_HOME/.config/git"
+    mkdir -p "$TEST_HOME/.local/bin"
+}
+
+# テスト用の仮想ホームディレクトリを削除
+teardown_test_home() {
+    if [ -n "$TEST_HOME" ] && [ -d "$TEST_HOME" ]; then
+        rm -rf "$TEST_HOME"
+    fi
+}
+
+# bootstrap.sh からヘルパー関数を読み込む
+load_bootstrap_functions() {
+    local temp_func_file
+    temp_func_file=$(mktemp)
+
+    # 行番号を取得
+    local func_start main_start
+    func_start=$(grep -n "^# ヘルパー関数$" "$BOOTSTRAP_SCRIPT" | cut -d: -f1)
+    main_start=$(grep -n "^# メイン処理$" "$BOOTSTRAP_SCRIPT" | cut -d: -f1)
+
+    # ヘルパー関数セクションを抽出
+    if [ -n "$func_start" ] && [ -n "$main_start" ]; then
+        sed -n "$((func_start + 1)),$((main_start - 1))p" "$BOOTSTRAP_SCRIPT" > "$temp_func_file"
+        # shellcheck source=/dev/null
+        source "$temp_func_file"
+    fi
+
     rm -f "$temp_func_file"
 }
