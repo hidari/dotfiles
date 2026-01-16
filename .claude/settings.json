@@ -1,0 +1,9 @@
+{
+  "plansDirectory": "./plans",
+  "enabledPlugins": {},
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": false
+  },
+  "spinnerTipsEnabled": true
+}
