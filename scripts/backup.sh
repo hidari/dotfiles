@@ -174,6 +174,14 @@ fi
 # 関数定義
 # =============================================================================
 
+# 文字列の前後の空白をトリムする関数
+trim() {
+    local str="$1"
+    str="${str## }"
+    str="${str%% }"
+    echo "$str"
+}
+
 # ログ出力関数
 # 標準出力とログファイルの両方に出力する
 log() {
@@ -289,21 +297,13 @@ show_filtered_errors_summary() {
         echo "抑制されたシステムエラーのサマリー:"
         echo "----------------------------------------"
 
-        # 各ディレクトリごとにエラーをカウント
-        local trashes_count
-        local spotlight_count
-        local fseventsd_count
-        local tempitems_count
-        trashes_count=$(grep -c "\.Trashes" "$FILTERED_ERRORS_FILE" 2>/dev/null) || trashes_count=0
-        spotlight_count=$(grep -c "\.Spotlight-V100" "$FILTERED_ERRORS_FILE" 2>/dev/null) || spotlight_count=0
-        fseventsd_count=$(grep -c "\.fseventsd" "$FILTERED_ERRORS_FILE" 2>/dev/null) || fseventsd_count=0
-        tempitems_count=$(grep -c "\.TemporaryItems" "$FILTERED_ERRORS_FILE" 2>/dev/null) || tempitems_count=0
-
-        # カウントが0より大きいもののみ表示
-        [ "$trashes_count" -gt 0 ] && echo " .Trashes: ${trashes_count}件"
-        [ "$spotlight_count" -gt 0 ] && echo " .Spotlight-V100: ${spotlight_count}件"
-        [ "$fseventsd_count" -gt 0 ] && echo " .fseventsd: ${fseventsd_count}件"
-        [ "$tempitems_count" -gt 0 ] && echo " .TemporaryItems: ${tempitems_count}件"
+        # 各ディレクトリごとにエラーをカウントして表示
+        local patterns=(".Trashes" ".Spotlight-V100" ".fseventsd" ".TemporaryItems")
+        local count
+        for pattern in "${patterns[@]}"; do
+            count=$(grep -c "\\$pattern" "$FILTERED_ERRORS_FILE" 2>/dev/null) || count=0
+            [ "$count" -gt 0 ] && echo " $pattern: ${count}件"
+        done
 
         echo ""
         echo "これらはmacOSが保護しているシステムディレクトリです。"
@@ -367,12 +367,9 @@ parse_backup_pair() {
     fi
 
     # 前後の空白をトリム
-    PAIR_NAME="${PAIR_NAME## }"
-    PAIR_NAME="${PAIR_NAME%% }"
-    PAIR_SOURCE="${PAIR_SOURCE## }"
-    PAIR_SOURCE="${PAIR_SOURCE%% }"
-    PAIR_DEST="${PAIR_DEST## }"
-    PAIR_DEST="${PAIR_DEST%% }"
+    PAIR_NAME=$(trim "$PAIR_NAME")
+    PAIR_SOURCE=$(trim "$PAIR_SOURCE")
+    PAIR_DEST=$(trim "$PAIR_DEST")
 }
 
 # パスの種類を判定
