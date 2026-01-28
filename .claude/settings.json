@@ -2,7 +2,7 @@
   "plansDirectory": ".claude/plans",
   "enabledPlugins": {},
   "sandbox": {
-    "enabled": true,
+    "enabled": false,
     "autoAllowBashIfSandboxed": false
   },
   "spinnerTipsEnabled": true

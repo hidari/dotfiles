@@ -1,6 +1,6 @@
 ---
 name: playwright-e2e-generator
-description: Playwright MCPを使用してブラウザ操作を記録し、E2Eテストコードを自動生成します。テスト駆動開発やリグレッションテストの作成に使用します。
+description: Playwright MCPを使用してブラウザ操作を記録し、E2Eテストコードを自動生成します。E2Eテストを実装する際には自前で一からコード書くのではなくこのスキルを使用する。
 allowed-tools:
   - mcp__playwright__browser_navigate
   - mcp__playwright__browser_navigate_back
@@ -49,6 +49,7 @@ E2Eテストを生成する際は、以下のステップに従ってくださ�
 4. アサーションを追加
 5. 生成コードを検証
 6. テストファイルとして保存
+7. 他のE2Eテストケースを参照しながらテストコードに一貫性を持たせるリファクタリングや整理を行う
 
 ## 詳細フロー
 
