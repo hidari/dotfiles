@@ -4,6 +4,9 @@
 # Private
 scripts/backup-tool/backup.conf
 
+# Logs
+scripts/.backup_logs/
+
 # Claude
 .claude/settings.local.json
 .claude/plans/
