@@ -28,7 +28,7 @@ SYMLINK_PAIRS=(
     "home/.claude/settings.json|.claude/settings.json"
     "home/.claude/CLAUDE.md|.claude/CLAUDE.md"
     "home/.claude/.mcp.json|.claude/.mcp.json"
-    "scripts/backup.sh|.local/bin/backup.sh"
+    "scripts/backup-tool/backup.sh|.local/bin/backup.sh"
 )
 
 # =============================================================================

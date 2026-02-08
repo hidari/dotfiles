@@ -2,7 +2,7 @@
 .idea/
 
 # Private
-scripts/backup.conf
+scripts/backup-tool/backup.conf
 
 # Claude
 .claude/settings.local.json

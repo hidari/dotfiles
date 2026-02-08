@@ -31,7 +31,7 @@ brew install rsync
 
 ```bash
 mkdir -p ~/.local/bin
-ln -sf ~/dotfiles/scripts/backup.sh ~/.local/bin/backup.sh
+ln -sf ~/dotfiles/scripts/backup-tool/backup.sh ~/.local/bin/backup.sh
 ```
 
 **注意**: `~/.local/bin` が PATH に含まれている必要があります。`.zshrc` に以下のような設定があることを確認してください：
@@ -48,7 +48,7 @@ path=(
 テンプレートをコピーして、自分用の設定ファイルを作成します：
 
 ```bash
-cd ~/dotfiles/scripts  # スクリプトがあるディレクトリに移動
+cd ~/dotfiles/scripts/backup-tool  # スクリプトがあるディレクトリに移動
 cp backup.example.conf backup.conf
 ```
 

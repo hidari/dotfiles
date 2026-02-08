@@ -9,7 +9,7 @@ SCRIPTS_DIR="$(dirname "$TEST_DIR")"
 REPO_ROOT="$(dirname "$SCRIPTS_DIR")"
 
 # スクリプトのパス
-BACKUP_SCRIPT="$SCRIPTS_DIR/backup.sh"
+BACKUP_SCRIPT="$SCRIPTS_DIR/backup-tool/backup.sh"
 BOOTSTRAP_SCRIPT="$REPO_ROOT/bootstrap.sh"
 
 # フィクスチャのパス
