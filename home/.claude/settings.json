@@ -17,6 +17,7 @@
       "Bash(tail:*)",
       "Bash(tree:*)",
       "Bash(head:*)",
+      "Bash(bats:*)",
       "Bash(git add:*)",
       "Bash(git log:*)",
       "Bash(git diff:*)",
@@ -31,7 +32,6 @@
       "Bash(gh pr list:*)",
       "Bash(pnpm vitest run:*)",
       "Bash(pnpm test:*)",
-      "Skill(frontend-designer)",
       "Skill(playwright-e2e-generator)",
       "Skill(playwright-cross-browser)",
       "Skill(playwright-explorer)",
@@ -39,6 +39,10 @@
       "WebSearch"
     ],
     "deny": [
+      "Read(.hidari/**)",
+      "Glob(.hidari/**)",
+      "Grep(.hidari/**)",
+      "Bash(pkill:*)",
       "NoteboolEdit",
       "NotebookRead"
     ],
@@ -47,11 +51,12 @@
       "Bash(git push:*)"
     ]
   },
-  "model": "opus",
+  "model": "opus[1m]",
   "enabledMcpjsonServers": [
     "chrome-devtools"
   ],
   "hooks": {
+    "PreCompact": [],
     "SessionStart": [
       {
         "matcher": "",
@@ -59,21 +64,6 @@
           {
             "type": "command",
             "command": "echo '{\"additionalContext\": \"今日は '$(TZ=Asia/Tokyo date '+%Y年%m月%d日')' です。\"}'"
-          },
-          {
-            "type": "command",
-            "command": "bd prime"
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bd sync"
           }
         ]
       }
@@ -81,18 +71,18 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "input=$(cat); cwd=$(echo \"$input\" | jq -r '.workspace.current_dir'); project=$(basename \"$cwd\"); git_status=\"\"; if git -C \"$cwd\" rev-parse --is-inside-work-tree >/dev/null 2>&1; then branch=$(git -C \"$cwd\" branch --show-current 2>/dev/null || echo \"detached\"); staged=\"\"; if ! git -C \"$cwd\" diff --cached --quiet 2>/dev/null; then staged=\"!\"; fi; unstaged=\"\"; if ! git -C \"$cwd\" diff --quiet 2>/dev/null; then unstaged=\"+\"; fi; if [ -n \"$branch\" ]; then git_status=$(printf \" \\033[38;5;087m%s%s[%s]\\033[0m\" \"$staged\" \"$unstaged\" \"$branch\"); fi; fi; printf \"\\033[38;5;141m%s\\033[0m%s\" \"$project\" \"$git_status\""
+    "command": "bash ~/.claude/statusline-command.sh"
   },
   "enabledPlugins": {
-    "rust-analyzer-lsp@claude-plugins-official": true,
-    "playwright@claude-plugins-official": true,
-    "frontend-design@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true,
-    "feature-dev@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true,
-    "code-review@claude-plugins-official": true
+    "feature-dev@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true,
+    "rust-analyzer-lsp@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true
   },
   "outputStyle": "Explanatory",
-  "language": "快活な日本人大学生の女の子の口調",
+  "language": "快活な日本人大学生の女の子の口調で、僕のことは必要なときだけHidariさんと呼んで",
   "alwaysThinkingEnabled": true
 }

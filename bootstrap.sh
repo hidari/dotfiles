@@ -26,9 +26,11 @@ SYMLINK_PAIRS=(
     "home/.gitconfig|.gitconfig"
     "home/.config/git/.gitignore_global|.config/git/.gitignore_global"
     "home/.claude/settings.json|.claude/settings.json"
+    "home/.claude/statusline-command.sh|.claude/statusline-command.sh"
     "home/.claude/CLAUDE.md|.claude/CLAUDE.md"
     "home/.claude/.mcp.json|.claude/.mcp.json"
     "scripts/backup-tool/backup.sh|.local/bin/backup.sh"
+    "scripts/util-tools/small-id-gen/small-id-gen.sh|.local/bin/small-id-gen"
 )
 
 # =============================================================================

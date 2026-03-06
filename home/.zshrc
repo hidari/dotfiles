@@ -29,6 +29,9 @@ export VOLTA_HOME="$HOME/.volta"
 # pnpmの設定
 export PNPM_HOME="$HOME/Library/pnpm"
 
+# Android開発の設定
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+
 # path配列を使ってパスを通す
 path=(
     /opt/homebrew/bin(N-/)
@@ -44,6 +47,8 @@ path=(
     $GOROOT/bin(N-/)
     /usr/local/bin(N-/)
     /opt/homebrew/opt/libpq/bin(N-/)
+    $ANDROID_HOME/emulator(N-/)
+    $ANDROID_HOME/platform-tools(N-/)
     $HOME/Library/Application Support/JetBrains/Toolbox/scripts(N-/)
 )
 
