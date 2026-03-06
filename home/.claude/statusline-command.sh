@@ -1,6 +1,6 @@
 #!/bin/bash
 # Claude Code statusline script
-# Line 1: Model | Context% | +added/-removed | git branch
+# Line 1: › Model | ◔◑◕● Context% | ± +added/-removed | project [branch]
 # Line 2: 5h rate limit progress bar
 # Line 3: 7d rate limit progress bar
 
@@ -48,6 +48,20 @@ progress_bar() {
     fi
   done
   printf '%s' "$bar"
+}
+
+# ---------- Context gauge icon (pie chart) ----------
+ctx_gauge() {
+  local pct="$1"
+  if [ "$pct" -ge 75 ] 2>/dev/null; then
+    printf '%s' "●"
+  elif [ "$pct" -ge 50 ] 2>/dev/null; then
+    printf '%s' "◕"
+  elif [ "$pct" -ge 25 ] 2>/dev/null; then
+    printf '%s' "◑"
+  else
+    printf '%s' "◔"
+  fi
 }
 
 # ---------- Parse stdin (single jq call) ----------
@@ -190,17 +204,17 @@ format_epoch_time() {
   local result
   result=$(TZ="Asia/Tokyo" date -j -f "%s" "$epoch" "$format" 2>/dev/null || \
            TZ="Asia/Tokyo" date -d "@${epoch}" "$format" 2>/dev/null || echo "")
-  echo "$result" | sed 's/AM/am/;s/PM/pm/'
+  echo "$result"
 }
 
 five_reset_display=""
 if [ -n "$FIVE_HOUR_RESET" ] && [ "$FIVE_HOUR_RESET" != "0" ]; then
-  five_reset_display="Resets $(format_epoch_time "$FIVE_HOUR_RESET" "+%-I%p") (Asia/Tokyo)"
+  five_reset_display="Resets at $(format_epoch_time "$FIVE_HOUR_RESET" "+%H:%M") (Asia/Tokyo)"
 fi
 
 seven_reset_display=""
 if [ -n "$SEVEN_DAY_RESET" ] && [ "$SEVEN_DAY_RESET" != "0" ]; then
-  seven_reset_display="Resets $(format_epoch_time "$SEVEN_DAY_RESET" "+%b %-d at %-I%p") (Asia/Tokyo)"
+  seven_reset_display="Resets at $(format_epoch_time "$SEVEN_DAY_RESET" "+%Y-%m-%d %H:%M") (Asia/Tokyo)"
 fi
 
 # ---------- Format context used% ----------
@@ -214,10 +228,11 @@ SEP="${GRAY} │ ${RESET}"
 ctx_color=$(color_for
 _pct "$ctx_pct_int")
 
-line1="🤖 ${model_name}${SEP}${ctx_color}📊 ${ctx_pct_int}%${RESET}"
+ctx_icon=$(ctx_gauge "$ctx_pct_int")
+line1="› ${model_name}${SEP}${ctx_color}${ctx_icon} ${ctx_pct_int}%${RESET}"
 
 if [ -n "$git_stats" ]; then
-  line1+="${SEP}✏️  ${GREEN}${git_stats}${RESET}"
+  line1+="${SEP}${GREEN}± ${git_stats}${RESET}"
 fi
 
 if [ -n "$git_branch" ]; then
@@ -231,10 +246,11 @@ line2=""
 if [ -n "$FIVE_HOUR_PCT" ]; then
   c5=$(color_for_pct "$FIVE_HOUR_PCT")
   bar5=$(progress_bar "$FIVE_HOUR_PCT")
-  line2="${c5}⏱ 5h  ${bar5}  ${FIVE_HOUR_PCT}%${RESET}"
+  pct5=$(printf "%3s%%" "$FIVE_HOUR_PCT")
+  line2="${c5}5h  ${bar5}  ${pct5}${RESET}"
   [ -n "$five_reset_display" ] && line2+="  ${DIM}${five_reset_display}${RESET}"
 else
-  line2="${GRAY}⏱ 5h  ▱▱▱▱▱▱▱▱▱▱  --%${RESET}"
+  line2="${GRAY}5h  ▱▱▱▱▱▱▱▱▱▱   --%${RESET}"
 fi
 
 # ---------- Line 3 (7d) ----------
@@ -242,10 +258,11 @@ line3=""
 if [ -n "$SEVEN_DAY_PCT" ]; then
   c7=$(color_for_pct "$SEVEN_DAY_PCT")
   bar7=$(progress_bar "$SEVEN_DAY_PCT")
-  line3="${c7}📅 7d  ${bar7}  ${SEVEN_DAY_PCT}%${RESET}"
+  pct7=$(printf "%3s%%" "$SEVEN_DAY_PCT")
+  line3="${c7}7d  ${bar7}  ${pct7}${RESET}"
   [ -n "$seven_reset_display" ] && line3+="  ${DIM}${seven_reset_display}${RESET}"
 else
-  line3="${GRAY}📅 7d  ▱▱▱▱▱▱▱▱▱▱  --%${RESET}"
+  line3="${GRAY}7d  ▱▱▱▱▱▱▱▱▱▱   --%${RESET}"
 fi
 
 # ---------- Output ----------
