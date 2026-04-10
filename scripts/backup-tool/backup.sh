@@ -222,15 +222,15 @@ check_mount() {
 }
 
 # ディスク容量チェック関数
-# バックアップ先に十分な空き容量があるかを確認
-# rsyncは差分バックアップなので、2回目以降は実際に必要な容量は少ない
-# そのため、最低限必要な空き容量（設定ファイルで指定）があるかをチェックする
+# バックアップ先の総容量がソースデータ + マージンを収容できるかを確認
+# --delete-before により転送前に不要ファイルが削除されるため、
+# 「現在の空き容量」ではなく「総容量」で判定する
 check_disk_space() {
     local source="$1"
     local destination="$2"
-    
+
     log "ディスク容量をチェックしています..."
-    
+
     # バックアップ元の使用容量を取得（KB単位）
     # 2>/dev/null でエラー出力を抑制（システムディレクトリへのアクセス拒否エラーを隠す）
     local source_size
@@ -242,26 +242,26 @@ check_disk_space() {
         log "       容量チェックをスキップして続行します。"
         return 0
     fi
-    
-    # バックアップ先の空き容量を取得（KB単位）
-    local dest_free
-    dest_free=$(df -k "$destination" | tail -1 | awk '{print $4}')
-    
-    # 最低限必要な空き容量をKB単位に変換（GB→KB: ×1024×1024）
-    local required_space=$((MINIMUM_FREE_SPACE_GB * 1024 * 1024))
-    
+
+    # バックアップ先の総容量を取得（KB単位）
+    local dest_total
+    dest_total=$(df -k "$destination" | tail -1 | awk '{print $2}')
+
+    # マージンをKB単位に変換（GB→KB: ×1024×1024）
+    local margin_kb=$((MINIMUM_FREE_SPACE_GB * 1024 * 1024))
+    local required_total=$((source_size + margin_kb))
+
     # 情報をログに出力
-    # bcコマンドの代わりにawkを使用して計算（awkは標準で利用可能）
-    log "バックアップ元の使用容量: $(awk -v size="$source_size" 'BEGIN {printf "%.2f", size/1024/1024}') GB"
-    log "バックアップ先の空き容量: $(awk -v free="$dest_free" 'BEGIN {printf "%.2f", free/1024/1024}') GB"
-    log "最低限必要な空き容量: ${MINIMUM_FREE_SPACE_GB} GB"
-    
-    # 空き容量が最低限必要な容量より少ない場合はエラー
-    if [ "$dest_free" -lt "$required_space" ]; then
-        error_exit "バックアップ先の空き容量が不足しています（最低 ${MINIMUM_FREE_SPACE_GB} GB 必要）。"
+    log "バックアップ元の使用容量: $(awk -v s="$source_size" 'BEGIN {printf "%.2f", s/1024/1024}') GB"
+    log "バックアップ先の総容量: $(awk -v t="$dest_total" 'BEGIN {printf "%.2f", t/1024/1024}') GB"
+    log "必要な総容量（データ + マージン ${MINIMUM_FREE_SPACE_GB} GB）: $(awk -v r="$required_total" 'BEGIN {printf "%.2f", r/1024/1024}') GB"
+
+    # バックアップ先の総容量が必要な容量より少ない場合はエラー
+    if [ "$dest_total" -lt "$required_total" ]; then
+        error_exit "バックアップ先の総容量が不足しています（ソースデータ + マージン ${MINIMUM_FREE_SPACE_GB} GB が必要）。"
     fi
-    
-    log "十分な空き容量があることを確認しました。"
+
+    log "十分な容量があることを確認しました。"
 }
 
 # rsync出力のフィルタリング関数
@@ -591,7 +591,7 @@ execute_backup_pair() {
     done
 
     # rsyncオプションを構築
-    local rsync_options=(-avh --delete --delete-excluded --progress --stats "${exclude_opts[@]}")
+    local rsync_options=(-avh --delete-before --delete-excluded --progress --stats "${exclude_opts[@]}")
 
     if [ "$DRY_RUN" = true ]; then
         rsync_options+=(--dry-run)
