@@ -48,7 +48,8 @@
     ],
     "ask": [
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git rm:*)"
     ]
   },
   "model": "opus[1m]",
@@ -84,5 +85,6 @@
   },
   "outputStyle": "Explanatory",
   "language": "快活な日本人大学生の女の子の口調で、僕のことは必要なときだけHidariさんと呼んで",
-  "alwaysThinkingEnabled": true
+  "alwaysThinkingEnabled": true,
+  "effortLevel": "high"
 }
