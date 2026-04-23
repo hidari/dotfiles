@@ -37,10 +37,7 @@ class RsyncResult:
 def build_options(*, excludes: Sequence[str], dry_run: bool) -> list[str]:
     """rsync に渡すオプション列を組み立てる。
 
-    --delete-excluded は意図的に付けていない。destination 側の .Trashes /
-    .Spotlight-V100 を削除しようとして macOS の保護で Operation not permitted
-    を引き起こし、毎回 rsync code 23 のノイズになるため。
-    destination は backup 専用運用を前提に、excludes 対象は触らない。
+    `--delete-excluded` は付けない (理由は README「除外されるファイル」参照)。
     """
     options: list[str] = [
         "-avh",

@@ -23,8 +23,6 @@ class TestBuildOptions:
         assert "--dry-run" not in options
 
     def test_does_not_include_delete_excluded(self) -> None:
-        # destination 側の excludes 対象 (.DS_Store / .Trashes 等) は
-        # 削除しない方針。削除試行が macOS 保護で code 23 になるのを防ぐため。
         options = build_options(excludes=(".DS_Store",), dry_run=False)
         assert "--delete-excluded" not in options
 
