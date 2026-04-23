@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# backup-tool 起動ラッパー
+# ~/.local/bin/backup などにシンボリックリンクで配置し、uv 管理の仮想環境で
+# Python 本体 (src/backup_tool) を起動する。
+
+set -euo pipefail
+
+# シンボリックリンクを解決してスクリプトの実パスを取得
+if command -v realpath >/dev/null 2>&1; then
+    SCRIPT_PATH="$(realpath "$0")"
+else
+    SCRIPT_PATH="$0"
+    while [ -L "$SCRIPT_PATH" ]; do
+        LINK_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+        SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
+        [[ "$SCRIPT_PATH" != /* ]] && SCRIPT_PATH="$LINK_DIR/$SCRIPT_PATH"
+    done
+    SCRIPT_PATH="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)/$(basename "$SCRIPT_PATH")"
+fi
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+
+if ! command -v uv >/dev/null 2>&1; then
+    echo "エラー: uv が見つかりません。https://docs.astral.sh/uv/ を参照してインストールしてください。" >&2
+    exit 1
+fi
+
+# BACKUP_TOOL_BASE_DIR を渡して、設定ファイル (backup.toml) とログ基準パスを
+# スクリプト実体の隣に固定する
+export BACKUP_TOOL_BASE_DIR="$SCRIPT_DIR"
+exec uv run --directory "$SCRIPT_DIR" backup "$@"

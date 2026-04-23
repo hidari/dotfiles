@@ -1,0 +1,39 @@
+# pre-commit 設定
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# セットアップ:
+#   brew install pre-commit
+#   pre-commit install
+#
+# scripts/backup-tool の ruff / mypy を uv 仮想環境で実行する。
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+repos:
+  - repo: local
+    hooks:
+      - id: backup-tool-ruff-check
+        name: backup-tool ruff check
+        language: system
+        entry: uv run --directory scripts/backup-tool ruff check src tests
+        pass_filenames: false
+        files: ^scripts/backup-tool/(src|tests)/.*\.py$
+
+      - id: backup-tool-ruff-format
+        name: backup-tool ruff format --check
+        language: system
+        entry: uv run --directory scripts/backup-tool ruff format --check src tests
+        pass_filenames: false
+        files: ^scripts/backup-tool/(src|tests)/.*\.py$
+
+      - id: backup-tool-mypy
+        name: backup-tool mypy
+        language: system
+        entry: uv run --directory scripts/backup-tool mypy src tests
+        pass_filenames: false
+        files: ^scripts/backup-tool/(src|tests)/.*\.py$
+
+      - id: backup-tool-pytest
+        name: backup-tool pytest
+        language: system
+        entry: uv run --directory scripts/backup-tool pytest -q
+        pass_filenames: false
+        files: ^scripts/backup-tool/(src|tests)/.*\.py$
