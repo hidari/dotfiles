@@ -29,6 +29,7 @@ SYMLINK_PAIRS=(
     "home/.claude/statusline-command.sh|.claude/statusline-command.sh"
     "home/.claude/CLAUDE.md|.claude/CLAUDE.md"
     "home/.claude/.mcp.json|.claude/.mcp.json"
+    "home/.claude/skills|.claude/skills"
     "scripts/backup-tool/backup.sh|.local/bin/backup.sh"
     "scripts/util-tools/small-id-gen/small-id-gen.sh|.local/bin/small-id-gen"
 )
@@ -150,33 +151,6 @@ copy_if_not_exists() {
     log "Copied: $source -> $target"
 }
 
-# skills ディレクトリをリンク
-link_skills() {
-    local source_dir="$1"
-    local target_dir="$2"
-    local error_count=0
-
-    if [ ! -d "$source_dir" ]; then
-        warn "Skills directory not found: $source_dir"
-        return 0
-    fi
-
-    for skill in "$source_dir"/*/; do
-        if [ -d "$skill" ]; then
-            local skill_name
-            skill_name=$(basename "$skill")
-            if ! create_symlink "${skill%/}" "$target_dir/$skill_name"; then
-                ((error_count++))
-            fi
-        fi
-    done
-
-    if [ "$error_count" -gt 0 ]; then
-        warn "Failed to link $error_count skill(s)"
-        return 1
-    fi
-}
-
 # 使用方法を表示
 usage() {
     cat <<EOF
@@ -269,7 +243,6 @@ setup_dotfiles() {
     log "Setting up dotfiles..."
 
     # 必要なディレクトリを作成
-    ensure_directory "$HOME/.claude/skills"
     ensure_directory "$HOME/.config/git"
     ensure_directory "$HOME/.local/bin"
 
@@ -279,9 +252,6 @@ setup_dotfiles() {
         local target="${pair##*|}"
         create_symlink "$DOTFILES_DIR/$source" "$HOME/$target"
     done
-
-    # skills ディレクトリをリンク
-    link_skills "$DOTFILES_DIR/home/.claude/skills" "$HOME/.claude/skills"
 
     # .gitconfig.private をコピー（既存の場合はスキップ）
     if [ -f "$DOTFILES_DIR/home/.gitconfig.private.example" ]; then
