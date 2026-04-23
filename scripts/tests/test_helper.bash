@@ -114,7 +114,7 @@ setup_test_home() {
     export DOTFILES_DIR="$BOOTSTRAP_FIXTURES_DIR"
 
     # 必要なディレクトリを作成
-    mkdir -p "$TEST_HOME/.claude/skills"
+    mkdir -p "$TEST_HOME/.claude"
     mkdir -p "$TEST_HOME/.config/git"
     mkdir -p "$TEST_HOME/.local/bin"
 }

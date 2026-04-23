@@ -149,48 +149,6 @@ teardown() {
 }
 
 # =============================================================================
-# link_skills tests
-# =============================================================================
-
-@test "link_skills: links all skill directories" {
-    local source_dir="$BOOTSTRAP_FIXTURES_DIR/home/.claude/skills"
-    local target_dir="$TEST_HOME/.claude/skills"
-
-    run link_skills "$source_dir" "$target_dir"
-
-    [ "$status" -eq 0 ]
-    [ -L "$target_dir/test-skill" ]
-    [ "$(readlink "$target_dir/test-skill")" = "$source_dir/test-skill" ]
-}
-
-@test "link_skills: skips if skill already linked correctly" {
-    local source_dir="$BOOTSTRAP_FIXTURES_DIR/home/.claude/skills"
-    local target_dir="$TEST_HOME/.claude/skills"
-
-    # 先にリンクを作成
-    ln -s "$source_dir/test-skill" "$target_dir/test-skill"
-
-    run link_skills "$source_dir" "$target_dir"
-
-    [ "$status" -eq 0 ]
-    [ -L "$target_dir/test-skill" ]
-}
-
-@test "link_skills: returns error count when symlink fails" {
-    local source_dir="$BOOTSTRAP_FIXTURES_DIR/home/.claude/skills"
-    local target_dir="$TEST_HOME/.claude/skills"
-
-    # 既存ファイルを作成してリンク失敗を誘発
-    echo "blocking file" > "$target_dir/test-skill"
-    FORCE_MODE=false
-
-    run link_skills "$source_dir" "$target_dir"
-
-    [ "$status" -ne 0 ]
-    [[ "$output" == *"Failed"* ]] || [[ "$output" == *"fail"* ]]
-}
-
-# =============================================================================
 # dry-run mode tests
 # =============================================================================
 
