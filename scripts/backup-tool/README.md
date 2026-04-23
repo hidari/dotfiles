@@ -30,7 +30,7 @@ brew install uv rsync
 ### 1. 依存関係のインストール
 
 ```bash
-cd ~/dotfiles/scripts/backup-tool
+cd ~/Develop/dotfiles/scripts/backup-tool
 uv sync
 ```
 
@@ -40,7 +40,7 @@ uv sync
 
 ```bash
 mkdir -p ~/.local/bin
-ln -sf ~/dotfiles/scripts/backup-tool/backup ~/.local/bin/backup
+ln -sf ~/Develop/dotfiles/scripts/backup-tool/backup ~/.local/bin/backup
 ```
 
 `~/.local/bin` が PATH に含まれていることを確認してください。
@@ -50,7 +50,7 @@ ln -sf ~/dotfiles/scripts/backup-tool/backup ~/.local/bin/backup
 テンプレートをコピーして自分の環境に合わせて編集します。
 
 ```bash
-cd ~/dotfiles/scripts/backup-tool
+cd ~/Develop/dotfiles/scripts/backup-tool
 cp backup.example.toml backup.toml
 $EDITOR backup.toml
 ```

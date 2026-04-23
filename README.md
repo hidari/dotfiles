@@ -5,7 +5,7 @@ This is my own dotfiles repository.
 ## Quick Start
 
 ```bash
-cd ~/dotfiles
+cd ~/Develop/dotfiles
 ./bootstrap.sh
 ```
 
