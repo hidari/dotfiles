@@ -8,5 +8,5 @@ scripts/backup-tool/backup.conf
 scripts/.backup_logs/
 
 # Claude
-.claude/settings.local.json
-.claude/plans/
+**/.claude/settings.local.json
+**/.claude/plans/
