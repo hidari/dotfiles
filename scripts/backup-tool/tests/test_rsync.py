@@ -18,10 +18,15 @@ class TestBuildOptions:
         options = build_options(excludes=(), dry_run=False)
         assert "-avh" in options
         assert "--delete-before" in options
-        assert "--delete-excluded" in options
         assert "--progress" in options
         assert "--stats" in options
         assert "--dry-run" not in options
+
+    def test_does_not_include_delete_excluded(self) -> None:
+        # destination 側の excludes 対象 (.DS_Store / .Trashes 等) は
+        # 削除しない方針。削除試行が macOS 保護で code 23 になるのを防ぐため。
+        options = build_options(excludes=(".DS_Store",), dry_run=False)
+        assert "--delete-excluded" not in options
 
     def test_dry_run_appends_flag(self) -> None:
         options = build_options(excludes=(), dry_run=True)
