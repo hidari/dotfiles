@@ -1,249 +1,251 @@
-# ストレージバックアップスクリプト
+# ストレージバックアップツール
 
-macOS 用の外部ストレージバックアップスクリプトです。rsync を使用して、指定したストレージ間で効率的な同期バックアップを行います。
+macOS 向けの rsync ベース外部ストレージバックアップツールです。
+`rsync` を `subprocess` 経由で呼び出す Python CLI として実装されており、
+ユニットテストと型検査によって信頼性を担保しています。
 
 ## 特徴
 
-- rsync の `--delete-before` オプションにより、転送前に不要ファイルを削除してからバックアップ元と先を同期
-- バックアップの履歴をログファイルとして保存し、古いログは自動削除
-- Mac システムファイル除外: `.DS_Store` や `._*` などの不要なファイルを自動除外
-- エラーハンドリング: マウント確認、容量チェック、終了ステータスの検証
-- Dry-run モード: 実際にコピーせずに動作を確認可能
+- rsync の `--delete-before` で転送前に不要ファイルを削除してから同期
+- バックアップペアを TOML で宣言的に定義
+- macOS システムファイル (`.DS_Store`、`._*` など) は自動で除外
+- 既知の無害なエラー (`.Spotlight-V100` の削除失敗など) は自動抑制
+- 容量不足・未マウント・権限不足を事前にチェック
+- `--log-format=json` で構造化ログに切り替え可能
+- ログファイルは日次ローテーションされ、古いものは自動削除
+- Dry-run モードで実行内容を事前確認可能
 
 ## 必要要件
 
 - macOS: Catalina 10.15 以降を推奨
-- bc: 容量計算用、macOS にデフォルトで付属
-- rsync: Homebrew版 3.0.0 以降（macOSデフォルトの openrsync は `--delete-before` の動作が異なり、特殊なディレクトリとの組み合わせでクラッシュする既知のバグがある）
-
-Homebrewでのインストールには以下のコマンドを実行します：
+- `uv`: Python 実行環境と依存関係の管理 ([インストール方法](https://docs.astral.sh/uv/))
+- `rsync`: Homebrew 版 3.0.0 以降 (macOS デフォルトの openrsync は `--delete-before` の挙動が異なり既知のバグがある)
 
 ```bash
-brew install rsync
-# インストール後、必要に応じてパスの追加
+brew install uv rsync
 ```
 
 ## セットアップ
 
-### 1. スクリプトを PATH の通った場所に配置
+### 1. 依存関係のインストール
 
-`~/.local/bin` にシンボリックリンクを作成します。これにより、どこからでも `backup.sh` で実行できるようになります：
+```bash
+cd ~/dotfiles/scripts/backup-tool
+uv sync
+```
+
+これで `.venv/` に Python 本体と必要パッケージが入ります。
+
+### 2. PATH に通す
 
 ```bash
 mkdir -p ~/.local/bin
-ln -sf ~/dotfiles/scripts/backup-tool/backup.sh ~/.local/bin/backup.sh
+ln -sf ~/dotfiles/scripts/backup-tool/backup ~/.local/bin/backup
 ```
 
-**注意**: `~/.local/bin` が PATH に含まれている必要があります。`.zshrc` に以下のような設定があることを確認してください：
+`~/.local/bin` が PATH に含まれていることを確認してください。
+
+### 3. 設定ファイルの作成
+
+テンプレートをコピーして自分の環境に合わせて編集します。
 
 ```bash
-path=(
-    $HOME/.local/bin(N-/)
-    # ...
-)
+cd ~/dotfiles/scripts/backup-tool
+cp backup.example.toml backup.toml
+$EDITOR backup.toml
 ```
 
-### 2. 設定ファイルの作成
+主な項目:
 
-テンプレートをコピーして、自分用の設定ファイルを作成します：
+| キー | 型 | 必須 | 説明 |
+| --- | --- | --- | --- |
+| `minimum_free_space_gb` | int | yes | 確保しておきたいマージン (GB) |
+| `log_retention_days` | int | yes | ログファイルの保持日数 |
+| `log_base_dir` | string | no | ログ出力先 (未指定時は設定ファイル隣の `.backup_logs/`) |
+| `error_behavior` | `"continue"` \| `"stop"` | no | エラー発生時の挙動 (デフォルト `continue`) |
+| `additional_excludes` | string 配列 | no | 全ペア共通で追加する除外パターン |
+| `[[backup_pairs]]` | テーブル配列 | yes | 1 ペア以上のバックアップ対象 |
+
+`backup_pairs` の各要素には `name` / `source` / `destination` が必須で、
+`excludes` はオプションです (ペア固有の除外パターン)。
+
+### 4. 旧 backup.conf を使っていた場合の移行
+
+既存の `backup.conf` (Bash 版) がある場合は、以下のコマンドで
+TOML フォーマットに自動変換できます。
 
 ```bash
-cd ~/dotfiles/scripts/backup-tool  # スクリプトがあるディレクトリに移動
-cp backup.example.conf backup.conf
+backup migrate-config
 ```
 
-### 3. 設定ファイルの編集
-
-`backup.conf` をエディタで開き、自分の環境に合わせて編集します：
-
-```bash
-vim backup.conf  # または nano, code などお好みのエディタで
-```
-
-編集する項目：
-
-- `BACKUP_PAIRS`: バックアップペアの配列（形式: `"名前|ソース|デスティネーション"`）
-- `MINIMUM_FREE_SPACE_GB`: 最低限必要な空き容量（GB単位）
-- `LOG_RETENTION_DAYS`: ログファイルの保持期間（日数）
-- `LOG_BASE_DIR`: ログ保存先（オプション、未指定時は最初のソース配下）
-
-設定例：
-
-```bash
-BACKUP_PAIRS=(
-    "メインSSD|/Volumes/Luna-P|/Volumes/Luna-S"
-)
-```
-
-**重要**: macOS では外部ドライブは `/Volumes/ドライブ名` にマウントされます。Finder でドライブ名を確認してください。
-
-容量チェックについて: `--delete-before` により転送前に不要ファイルが削除されるため、容量チェックは「空き容量」ではなく「バックアップ先の総容量 >= ソースデータ + マージン」で判定します。
-`MINIMUM_FREE_SPACE_GB` は同期完了後に確保しておきたいマージンとして使用されます（推奨: 100GB）。
+- 既存の `backup.conf` は `backup.conf.bak` にリネームされます
+- `backup.toml` が既に存在する場合は上書きせずエラー終了します
+- 入出力パスを明示したい場合は `--from PATH` / `--to PATH` を指定
 
 ## 使い方
 
-### 基本的な実行
+### 通常実行
 
 ```bash
-./backup.sh
+backup
 ```
 
-実行すると、設定内容の確認画面が表示されます。内容を確認して `y` を入力すると、バックアップが開始されます。
+設定内容の確認プロンプトが表示され、`y` で実行を開始します。
+非 TTY 環境 (cron など) および `--log-format=json` 指定時は
+確認プロンプトをスキップします。
 
-### Dry-run モード（事前確認）
-
-実際にコピーせずに、何が起きるかだけを確認できます：
+### Dry-run (事前確認)
 
 ```bash
-./backup.sh --dry-run
+backup --dry-run
+# または
+backup -n
 ```
 
-または
+初めて使うとき、または `--delete-before` の影響が気になるときは
+必ず dry-run で動作を確認してください。
+
+### JSON ログ
+
+ログを 1 行 1 JSON オブジェクトで出力します。
+cron 運用やログ集約システムへの投入に便利です。
 
 ```bash
-./backup.sh -n
+backup --log-format=json
 ```
 
-初めて使う場合や、`--delete-before` オプションの影響が気になる場合は、まず dry-run で確認することを強く推奨します。
+### 設定ファイルを明示する
+
+```bash
+backup --config /path/to/custom.toml
+```
 
 ## 除外されるファイル
 
-以下のファイルやディレクトリは自動的にバックアップから除外されます：
+以下のファイル・ディレクトリは自動的に除外されます。詳細は
+`src/backup_tool/excludes.py` を参照してください。
 
 ### macOS システムファイル
-- `.DS_Store`: Finder の表示設定
-- `._*`: AppleDouble ファイル（リソースフォーク）
-- `.Spotlight-V100`: Spotlight インデックス
-- `.Trashes`: ゴミ箱
-- `.fseventsd`: ファイルシステムイベント
-- その他多数の macOS 特有のファイル
+
+- `.DS_Store` / `._*` / `.localized` / `.VolumeIcon.icns`
+- `.Spotlight-V100` / `.metadata_never_index*`
+- `.Trashes` / `.TemporaryItems`
+- `.fseventsd` / `.DocumentRevisions-V100`
+- `.ql_*` / `.apdisk`
+- `.PKInstallSandboxManager*`
+- `.AppleDB` / `.AppleDesktop`
 
 ### Windows システムファイル
-- `Thumbs.db`: Windows のサムネイルキャッシュ
-- `desktop.ini`: Windows のフォルダ設定
 
-詳細はスクリプト内の除外リストを参照してください。
+- `Thumbs.db` / `desktop.ini`
 
-## ログファイル
+個別に除外を追加したい場合は `backup.toml` の
+`additional_excludes` (全ペア共通) か `[[backup_pairs]].excludes`
+(ペア固有) を編集します。
 
-バックアップの実行履歴は、デフォルトでは最初のバックアップペアのソースパス配下の `.backup_logs` ディレクトリに保存されます。
-`LOG_BASE_DIR` を設定することで、任意の場所に変更できます。
+## ログ
+
+ログは既定で `.backup_logs/backup_YYYYMMDD_HHMMSS.log` として保存されます。
+`log_base_dir` を設定すれば出力先を変更できます。
 
 ```
-/Volumes/バックアップ元/.backup_logs/
-  ├── backup_20251031_143000.log
-  ├── backup_20251101_093000.log
+/Volumes/Luna-P/.backup_logs/
+  ├── backup_20260401_143000.log
+  ├── backup_20260402_093000.log
   └── ...
 ```
 
-ログファイルには以下の情報が記録されます：
+保持期間を超えた古いログは実行時に自動削除されます。
 
-- バックアップの開始・終了時刻
-- マウントポイントの確認結果
-- ディスク容量チェックの結果
-- rsync の詳細な出力（どのファイルがコピーされたか）
-- エラーメッセージ（発生した場合）
-- 所要時間
+## 終了コード
 
-古いログファイルは、設定で指定した日数（デフォルト90日）より古いものが自動的に削除されます。
+| コード | 意味 |
+| --- | --- |
+| 0 | 全ペアが成功 (rsync code 23 の部分的成功を含む) |
+| 1 | 設定不備・ユーザー中止・マイグレーション失敗 |
+| 2 | 一部のペアが失敗 |
+| 3 | 全ペアが失敗 |
+
+## 開発者向け
+
+### 依存関係
+
+開発用パッケージ (`pytest`, `pytest-cov`, `ruff`, `mypy`) は `uv sync`
+で自動的にインストールされます。
+
+### テスト
+
+```bash
+uv run pytest
+uv run pytest --cov=backup_tool --cov-report=term-missing
+```
+
+### 静的検査
+
+```bash
+uv run ruff check src tests
+uv run ruff format src tests
+uv run mypy src tests
+```
+
+### モジュール構成
+
+```
+src/backup_tool/
+  ├── __main__.py       # エントリポイント
+  ├── cli.py            # argparse サブコマンド定義
+  ├── config.py         # TOML 読み込み・バリデーション
+  ├── runner.py         # バックアップ全体の orchestration
+  ├── disk.py           # 容量計算・du/df 呼び出し
+  ├── paths.py          # パス種別判定・マウント確認
+  ├── rsync.py          # rsync 起動・出力フィルタリング
+  ├── logging_setup.py  # text / json ロガー・ローテーション
+  ├── migrate.py        # backup.conf → backup.toml 変換
+  └── excludes.py       # 基本除外リスト
+```
 
 ## トラブルシューティング
 
 ### 設定ファイルが見つかりません
 
-`backup.conf` が存在しない場合に表示されます。セットアップ手順に従って、設定ファイルを作成してください。
+`backup.toml` が存在しない状態でコマンドを実行すると表示されます。
+`backup.example.toml` をコピーするか、旧 `backup.conf` がある場合は
+`backup migrate-config` で変換してください。
 
 ### マウントされていません
 
-指定したストレージがマウントされていない、または名前が間違っている可能性があります。
-
-確認方法：
+指定したボリュームがマウントされていないか、パスが間違っている可能性があります。
 
 ```bash
 ls /Volumes/
 ```
 
-Finder でドライブ名を確認し、`backup.conf` の設定を修正してください。
-
 ### 総容量が不足しています
 
-バックアップ先の総容量がソースデータ + マージン（`MINIMUM_FREE_SPACE_GB`）に満たない場合に表示されます。
+バックアップ先の総容量がソースデータ + マージンに満たない場合に表示されます。
+対処:
 
-対処方法：
-
-1. `MINIMUM_FREE_SPACE_GB` の値を小さくする（ただし、最低でも50GB程度は推奨）
-2. 根本的な解決として、より大きな容量のストレージに変更する
+1. `backup.toml` の `minimum_free_space_gb` を小さくする (最低 50 GB 程度を推奨)
+2. より大きなストレージに変更する
 
 ### Operation not permitted
 
-スクリプト実行中に `.Spotlight-V100` や `.Trashes` へのアクセス拒否エラーが表示されることがありますが、これはmacOSのシステム保護機能による正常な動作です。スクリプトの実行には影響しません。エラー出力は自動的に抑制されるため、通常は表示されません。
+`.Spotlight-V100` や `.Trashes` へのアクセス拒否エラーは macOS の保護機能による
+正常動作で、ログ上は「抑制されたシステムエラー」として集計のみ表示されます。
+実データには影響しません。
 
-### バックアップが完了しました（警告あり）
+### 部分的成功 (rsync code 23)
 
-バックアップ完了時に警告が表示されることがありますが、これは**正常な動作**です。
-
-原因: macOSが保護しているシステムディレクトリ（`.Trashes`、`.Spotlight-V100`など）の削除で問題が発生した場合に表示されます。rsyncが「バックアップ元にないファイル」として削除しようとしますが、これらはシステムが特殊な権限で保護しているため削除できません。
-
-影響: ありません。重要なデータ（写真、イラスト、ドキュメントなど）は全て正しくバックアップされています。削除できなかったのはmacOSが自動生成する空のシステムディレクトリだけです。
-
-対処: 特に対処は不要です。このメッセージは無視しても問題ありません。気になる場合は、ログファイルで詳細を確認できます。
-
-### 日本語ファイル名が文字化けする
-
-スクリプトにロケール設定が含まれているため、通常は問題ありませんが、もし文字化けする場合は以下を確認してください：
-
-```bash
-locale  # ロケール設定を確認
-```
-
-`ja_JP.UTF-8` が利用可能か確認し、利用できない場合は `en_US.UTF-8` でも動作します。
+rsync が「一部ファイルを転送できなかった」ことを示すコードです。多くは
+システム保護ファイルの削除失敗で、データのバックアップ自体は成功しています。
+詳細はログファイルで確認してください。
 
 ## 注意事項
 
-- このスクリプトは `rsync` の `--delete-before` オプションを使用しています。転送前にバックアップ元に存在しないファイルをバックアップ先から一括削除し、その後に転送を行います。初めて使う場合は、必ず dry-run モードで動作を確認してください。
-- バックアップ元とバックアップ先の設定を間違えると、データが削除される可能性があります。設定ファイルを慎重に確認してください。
-- このスクリプトを cron や launchd で定期実行する場合は、ログファイルを定期的に確認することを推奨します。
-
-## カスタマイズ
-
-### 除外パターンの追加
-
-スクリプトには基本的な除外リスト（`.DS_Store`、`._*`、`.Spotlight-V100` など）があらかじめ組み込まれています。
-通常はこのままで問題ありませんが、特定のファイルやディレクトリを追加で除外したい場合は、設定ファイルで追加の除外パターンを指定できます。
-
-#### 設定方法
-
-`backup.conf` を開き、`ADDITIONAL_EXCLUDE` 配列を定義します：
-
-```bash
-# 追加の除外パターン
-ADDITIONAL_EXCLUDE=(
-    "node_modules"      # Node.jsの依存パッケージ
-    ".venv"             # Pythonの仮想環境
-    "*.log"             # すべてのログファイル
-)
-```
-
-#### 注意事項
-
-- ワイルドカード（`*` や `?`）を使用できます
-- ディレクトリを除外する場合、末尾に `/` を付けると明示的です
-- 除外パターンは慎重に設定してください（誤って重要なファイルを除外しないよう注意）
-- 基本的な除外リストは常に適用されます（上書きではなく追加です）
-
-### 最低限必要な空き容量の変更
-
-`backup.conf` の `MINIMUM_FREE_SPACE_GB` を変更することで、同期完了後に確保しておきたいマージンを調整できます。容量チェックは「バックアップ先の総容量 >= ソースデータ + マージン」で判定されます。
-
-- 大量の写真やイラストを頻繁に追加する場合: 200GB
-- 一般的な使用: 100GB（デフォルト）
-- 小規模な変更のみの場合: 50GB
-
-### ログ保持期間の変更
-
-`backup.conf` の `LOG_RETENTION_DAYS` を変更することで、ログの保持期間を調整できます。
-
-## 参考
-
-- [rsync マニュアル](https://ss64.com/osx/rsync.html)
-- [macOS でのバックアップベストプラクティス](https://support.apple.com/ja-jp/HT201250)
+- このツールは `rsync --delete-before --delete-excluded` を使用します。
+  バックアップ元にないファイルはバックアップ先から削除されます。
+  初めて使うときは必ず dry-run で確認してください。
+- 設定ファイルの source / destination を取り違えるとデータが失われます。
+  設定を保存する前に必ず見直してください。
+- cron / launchd で定期実行する場合は `--log-format=json` と
+  ログの定期的な監視をセットで設定することを推奨します。

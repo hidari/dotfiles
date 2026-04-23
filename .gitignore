@@ -1,8 +1,18 @@
 # IDE
 .idea/
 
-# Private
+# Private (backup-tool)
 scripts/backup-tool/backup.conf
+scripts/backup-tool/backup.conf.bak
+scripts/backup-tool/backup.toml
+
+# Python (backup-tool)
+scripts/backup-tool/.venv/
+scripts/backup-tool/**/__pycache__/
+scripts/backup-tool/.ruff_cache/
+scripts/backup-tool/.mypy_cache/
+scripts/backup-tool/.pytest_cache/
+scripts/backup-tool/.coverage
 
 # Logs
 scripts/.backup_logs/
