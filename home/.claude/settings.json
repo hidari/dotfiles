@@ -32,10 +32,6 @@
       "Bash(gh pr list:*)",
       "Bash(pnpm vitest run:*)",
       "Bash(pnpm test:*)",
-      "Skill(playwright-e2e-generator)",
-      "Skill(playwright-cross-browser)",
-      "Skill(playwright-explorer)",
-      "Skill(playwright-bug-reproducer)",
       "WebSearch"
     ],
     "deny": [
@@ -84,7 +80,9 @@
     "typescript-lsp@claude-plugins-official": true,
     "superpowers@superpowers-marketplace": true,
     "superpowers-developing-for-claude-code@superpowers-marketplace": true,
-    "github@claude-plugins-official": true
+    "pyright-lsp@claude-plugins-official": true,
+    "swift-lsp@claude-plugins-official": true,
+    "kotlin-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "superpowers-marketplace": {
