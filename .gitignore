@@ -15,7 +15,7 @@ scripts/backup-tool/.pytest_cache/
 scripts/backup-tool/.coverage
 
 # Logs
-scripts/.backup_logs/
+*.log
 
 # Claude
 **/.claude/settings.local.json
