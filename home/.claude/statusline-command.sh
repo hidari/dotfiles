@@ -71,8 +71,27 @@ eval "$(echo "$input" | jq -r '
   "cwd=" + (.cwd // "" | @sh),
   "lines_added=" + (.cost.total_lines_added // 0 | tostring),
   "lines_removed=" + (.cost.total_lines_removed // 0 | tostring),
+  "cost_usd=" + (.cost.total_cost_usd // 0 | tostring),
+  "duration_ms=" + (.cost.total_duration_ms // 0 | tostring),
   "cc_version=" + (.version // "0.0.0" | @sh)
 ' 2>/dev/null)"
+
+# ---------- Format wall duration (ms -> "Xh Ym" / "Xm Ys" / "Zs") ----------
+fmt_duration() {
+  local ms="$1"
+  [ -z "$ms" ] || [ "$ms" = "null" ] && ms=0
+  local total_s=$((ms / 1000))
+  local h=$((total_s / 3600))
+  local m=$(((total_s % 3600) / 60))
+  local s=$((total_s % 60))
+  if [ "$h" -gt 0 ]; then
+    printf '%dh%dm' "$h" "$m"
+  elif [ "$m" -gt 0 ]; then
+    printf '%dm%ds' "$m" "$s"
+  else
+    printf '%ds' "$s"
+  fi
+}
 
 # ---------- Git info ----------
 PURPLE=$'\e[38;5;141m'
@@ -225,11 +244,16 @@ fi
 
 # ---------- Line 1 ----------
 SEP="${GRAY} │ ${RESET}"
-ctx_color=$(color_for
-_pct "$ctx_pct_int")
-
+ctx_color=$(color_for_pct "$ctx_pct_int")
 ctx_icon=$(ctx_gauge "$ctx_pct_int")
 line1="› ${model_name}${SEP}${ctx_color}${ctx_icon} ${ctx_pct_int}%${RESET}"
+
+# Session cost + wall duration（cost が 0 のうちは表示しない: 起動直後のノイズ抑制）
+if [ -n "$cost_usd" ] && awk "BEGIN{exit !($cost_usd > 0)}"; then
+  cost_fmt=$(printf '$%.2f' "$cost_usd")
+  dur_fmt=$(fmt_duration "$duration_ms")
+  line1+="${SEP}${DIM}${cost_fmt} · ${dur_fmt}${RESET}"
+fi
 
 if [ -n "$git_stats" ]; then
   line1+="${SEP}${GREEN}± ${git_stats}${RESET}"
