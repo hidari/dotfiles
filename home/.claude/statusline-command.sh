@@ -11,8 +11,10 @@ GREEN=$'\e[38;2;151;201;195m'
 YELLOW=$'\e[38;2;229;192;123m'
 RED=$'\e[38;2;224;108;117m'
 GRAY=$'\e[38;2;74;88;92m'
+# 2 段階の text color（One Dark 系パレットに整合）
+TEXT=$'\e[38;2;220;223;228m'    # primary: model 名など主情報
+SUB=$'\e[38;2;168;178;195m'     # secondary: cost / reset 時刻など補助情報
 RESET=$'\e[0m'
-DIM=$'\e[2m'
 
 # ---------- Color by percentage ----------
 color_for_pct() {
@@ -246,13 +248,13 @@ fi
 SEP="${GRAY} │ ${RESET}"
 ctx_color=$(color_for_pct "$ctx_pct_int")
 ctx_icon=$(ctx_gauge "$ctx_pct_int")
-line1="› ${model_name}${SEP}${ctx_color}${ctx_icon} ${ctx_pct_int}%${RESET}"
+line1="${TEXT}› ${model_name}${RESET}${SEP}${ctx_color}${ctx_icon} ${ctx_pct_int}%${RESET}"
 
 # Session cost + wall duration（cost が 0 のうちは表示しない: 起動直後のノイズ抑制）
 if [ -n "$cost_usd" ] && awk "BEGIN{exit !($cost_usd > 0)}"; then
   cost_fmt=$(printf '$%.2f' "$cost_usd")
   dur_fmt=$(fmt_duration "$duration_ms")
-  line1+="${SEP}${DIM}${cost_fmt} · ${dur_fmt}${RESET}"
+  line1+="${SEP}${SUB}${cost_fmt} · ${dur_fmt}${RESET}"
 fi
 
 if [ -n "$git_stats" ]; then
@@ -272,7 +274,7 @@ if [ -n "$FIVE_HOUR_PCT" ]; then
   bar5=$(progress_bar "$FIVE_HOUR_PCT")
   pct5=$(printf "%3s%%" "$FIVE_HOUR_PCT")
   line2="${c5}5h  ${bar5}  ${pct5}${RESET}"
-  [ -n "$five_reset_display" ] && line2+="  ${DIM}${five_reset_display}${RESET}"
+  [ -n "$five_reset_display" ] && line2+="  ${SUB}${five_reset_display}${RESET}"
 else
   line2="${GRAY}5h  ▱▱▱▱▱▱▱▱▱▱   --%${RESET}"
 fi
@@ -284,7 +286,7 @@ if [ -n "$SEVEN_DAY_PCT" ]; then
   bar7=$(progress_bar "$SEVEN_DAY_PCT")
   pct7=$(printf "%3s%%" "$SEVEN_DAY_PCT")
   line3="${c7}7d  ${bar7}  ${pct7}${RESET}"
-  [ -n "$seven_reset_display" ] && line3+="  ${DIM}${seven_reset_display}${RESET}"
+  [ -n "$seven_reset_display" ] && line3+="  ${SUB}${seven_reset_display}${RESET}"
 else
   line3="${GRAY}7d  ▱▱▱▱▱▱▱▱▱▱   --%${RESET}"
 fi
