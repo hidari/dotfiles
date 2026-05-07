@@ -217,6 +217,11 @@ related_prs: []                        # 文字列配列、 例 ["#12"]
 branch: null                           # in_progress 時の作業ブランチ名
 ```
 
+`priority` の決め方:
+- 子 Issue 起票時は **親から継承**
+- 親が無い / 不明 / 推測手がかりが無い場合は **default 2** (空いたとき)
+- GitHub Issues 移行時は label (`priority 0` / `bug` 等) から推測可能なら設定、 そうでなければ default 2
+
 ### プロジェクト裁量 (CLAUDE.md で値セットを定義)
 
 ```yaml
@@ -324,8 +329,18 @@ NEXT=$(( ( 10#${GH} > 10#${LOCAL} ? 10#${GH} : 10#${LOCAL} ) + 1 ))
 
 1. `gh issue view <NNN> --json number,title,body,labels,createdAt,updatedAt` で取得
 2. Phase A で `docs/issues/<NNN>-<slug>/issue.md` を作成 (番号は **GitHub Issue 番号と一致** させる)
-3. frontmatter `source: github` を付ける
-4. 必要に応じて GitHub 側 Issue にコメント (「Migrated to in-repo: docs/issues/NNN-...」) を残し close
+3. frontmatter `source: github` を付ける。 日付は次のように設定:
+   - `created_at`: GitHub 側 `createdAt` (元の作成日) を採用
+   - `updated_at`: 移行作業日 (今日)。 移行は frontmatter の構造変更を伴うため updated とみなす
+4. **必須**: GitHub 側 Issue に「Migrated to in-repo: docs/issues/NNN-...」コメントを残す。 移行先パスを文字列で書き、 後日 GitHub 側で URL クリックで辿れるようにする
+5. **必須**: GitHub 側 Issue を close する。 コマンド:
+
+   ```bash
+   gh issue close <NNN> --reason "not planned" \
+     --comment "Migrated to in-repo. See comment above for the new location."
+   ```
+
+   `--reason "not planned"` を使う (GitHub の選択肢は `completed` / `not planned` の 2 値のみ。 「移行 / move」用 reason は無いため、 「実装としては未完で計画変更 = not planned」を慣例的に採用)
 
 一括移行する場合は `scripts/_oneshot/migrate_issues.py` のような uv スクリプトでまとめて処理する。
 
