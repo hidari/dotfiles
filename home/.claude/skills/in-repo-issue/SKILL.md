@@ -32,7 +32,7 @@ mkdir -p docs/issues
 cp -r ~/.claude/skills/in-repo-issue/templates docs/issues/templates
 ```
 
-以降は Phase A で起票する。 番号は 1 から開始。
+以降は Phase A で起票する。 番号は 1 から開始。 templates のコミットは「初期化セットアップ」として起票とは別コミットに切る (例: `chore(issues): in-repo-issue テンプレートを追加`)。 atomic な履歴を保つため、 1 件目の起票コミットに templates ファイルを混ぜない。
 
 ## いつ使うか
 
@@ -116,14 +116,21 @@ DIR=docs/issues/${NEXT}${TYPE:+_${TYPE}}_<sanitized-title>
 mkdir -p "${DIR}"
 ```
 
-A.4 テンプレをコピーして frontmatter を埋める:
+A.4 テンプレをコピーしてから、 Edit ツールで以下の placeholder を実値に置換する:
 
 ```bash
 cp docs/issues/templates/issue.md "${DIR}/issue.md"
-# その後 Edit で frontmatter の placeholder (NNN / title / created_at / updated_at) を実値に置換
 ```
 
-A.5 frontmatter 必須項目を全て設定する。 特に `status: open / created_at` は欠けると後の grep 検索が壊れる。
+置換対象:
+- frontmatter `issue_number: NNN` の `NNN` を採番済みの番号に
+- frontmatter `title: "<conventional commits prefix (任意)>: <タイトル>"` の右辺を実タイトルに (例: `"feat: ユーザープロフィール基盤"`)
+- frontmatter `created_at: YYYY-MM-DD` と `updated_at: YYYY-MM-DD` の YYYY-MM-DD を今日の日付に (`date +%F` または system context の現在日付)
+- 本文 1 行目 `# <タイトル>` の `<タイトル>` を frontmatter title と同じ実タイトル (conventional commits prefix を含む全体) に置換
+
+A.5 上記 A.4 で置換した項目以外の frontmatter デフォルト値 (`status: open` / `closed_at: null` / `priority: 2` / `parent_issue: null` / `child_issues: []` / `related_issues: []` / `related_prs: []` / `branch: null`) は新規 active Issue として正しいので、 そのまま使う。 特に `status: open` と `created_at` は grep 検索の生命線なので置換ミスに注意。
+
+`# component:` / `# type:` / `# source:` で始まるコメント行は「プロジェクト裁量フィールドの提示」のため、 プロジェクト CLAUDE.md で有効化する指示がある場合のみコメントを外して値を入れる。 指示がなければコメントのまま残す。
 
 A.6 コミット:
 
@@ -202,7 +209,7 @@ docs(issues): Issue #NNN を子 Issue (#NN1, #NN2) に分割
 
 ### Phase D: クローズ
 
-D.1 PR がマージされたら frontmatter を全て更新:
+D.1 PR がマージされたら frontmatter を全て更新 (4 項目を同時更新、 順序不問):
 
 ```yaml
 status: closed
@@ -211,18 +218,21 @@ related_prs: ["#PR番号", ...]
 updated_at: YYYY-MM-DD
 ```
 
-D.2 ディレクトリを `closed/` 配下へ移動 (番号とディレクトリ名は維持):
+D.2 frontmatter 編集後、 ディレクトリを `closed/` 配下へ移動 (番号とディレクトリ名は維持):
 
 ```bash
 mkdir -p docs/issues/closed
 git mv docs/issues/<NNN>_<type>_<title> docs/issues/closed/<NNN>_<type>_<title>
 ```
 
-D.3 frontmatter 更新と git mv をまとめて 1 コミット:
+D.3 frontmatter 更新と git mv の rename を 1 コミットにまとめる。 `git add -A` は機微ファイルを巻き込む可能性があるため避けて、 移動後の明示パスのみ stage する:
 
+```bash
+git add docs/issues/closed/<NNN>_<type>_<title>/issue.md
+git commit -m "docs(issues): Issue #NNN をクローズ (PR #M)"
 ```
-docs(issues): Issue #NNN をクローズ (PR #M)
-```
+
+`git mv` は rename を自動的に staged に入れる。 上記の `git add` で frontmatter の Edit 差分も同コミットに含まれる。 `git show --stat HEAD` で rename 検出 (R) と数行の変更が同居していれば成功。
 
 D.4 GitHub Issues を併用しているプロジェクトでは GitHub 側 auto-close が走らないため、 必ずこの skill 経由で in-repo を手動 close する (詳細は「GitHub Issues 連携」節)。
 
@@ -244,10 +254,11 @@ E.2 ディレクトリを `closed/` から戻す (番号とディレクトリ名
 git mv docs/issues/closed/<NNN>_<type>_<title> docs/issues/<NNN>_<type>_<title>
 ```
 
-E.3 frontmatter 更新と git mv をまとめて 1 コミット:
+E.3 frontmatter 更新と git mv の rename を 1 コミットにまとめる (Phase D.3 と同じく明示パス stage):
 
-```
-docs(issues): Issue #NNN を reopen
+```bash
+git add docs/issues/<NNN>_<type>_<title>/issue.md
+git commit -m "docs(issues): Issue #NNN を reopen"
 ```
 
 E.4 再 close する場合は通常の Phase D を再実行 (git mv で再度 closed/ 配下へ)。
