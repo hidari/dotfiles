@@ -73,26 +73,27 @@ echo "next: ${NEXT}"
 
 新規プロジェクトで一件もない場合は `NEXT=1` になる。 GitHub Issues 連携プロジェクトで番号衝突を避けたい場合は「GitHub Issues 連携」節の採番ロジックを使う。
 
-A.2.1 旧形式 `<NNN>-<slug>/` (番号の直後がハイフン) が混在していないか検出し、 居れば手動移行を促す:
+A.2.1 `closed/` 配下を除いた active な旧形式 `<NNN>-<slug>/` (番号の直後がハイフン) が混在していないか検出し、 居れば手動移行を促す:
 
 ```bash
 LEGACY=$(find docs/issues -maxdepth 2 -type d \
-  -regex '.*/[0-9]+-[^/]*' -not -path '*/_template/*' 2>/dev/null)
+  -regex '.*/[0-9]+-[^/]*' \
+  -not -path '*/_template/*' \
+  -not -path '*/closed/*' 2>/dev/null)
 if [ -n "$LEGACY" ]; then
   echo "旧形式の Issue が検出されました。 起票前に手動で新形式へ移行してください:"
   echo "$LEGACY" | while read -r dir; do
     name=$(basename "$dir")
     num=${name%%-*}
-    rest=${name#*-}
     parent=$(dirname "$dir")
-    echo "  git mv $dir $parent/${num}_<type>_${rest//-/}"
+    echo "  git mv $dir $parent/${num}_<type>_<title>   # 旧名: $name"
   done
 fi
 ```
 
-旧形式の番号は A.2 の MAX 計算に含めているため、 新形式採番は旧形式と衝突しない。
+新規番号は A.2 の MAX に旧形式も含めているため衝突しないが、 ディレクトリ名の体裁を保つために手動移行を推奨する。
 
-A.3 ディレクトリ名を作る。 形式は `<NNN>_<TYPE>_<sanitized-title>` (TYPE 省略時は `<NNN>_<sanitized-title>`)。 タイトルから FS-safe 文字列を作るサニタイズ規則:
+A.3 ディレクトリ名を作る。 形式は `<NNN>_<type>_<sanitized-title>` (TYPE 省略時は `<NNN>_<sanitized-title>`)。 タイトルから FS-safe 文字列を作るサニタイズ規則:
 
 - **削除** (詰める): 半角空白 / 全角空白
 - **置換対象** (→ アンダースコア `_`): `:` / `/` / `?` / `<` / `>` / `|` / `*` / `"` / `\`
@@ -214,7 +215,7 @@ D.2 ディレクトリを `closed/` 配下へ移動 (番号とディレクトリ
 
 ```bash
 mkdir -p docs/issues/closed
-git mv docs/issues/<NNN>_<TYPE>_<title> docs/issues/closed/<NNN>_<TYPE>_<title>
+git mv docs/issues/<NNN>_<type>_<title> docs/issues/closed/<NNN>_<type>_<title>
 ```
 
 D.3 frontmatter 更新と git mv をまとめて 1 コミット:
@@ -240,7 +241,7 @@ updated_at: YYYY-MM-DD
 E.2 ディレクトリを `closed/` から戻す (番号とディレクトリ名は維持):
 
 ```bash
-git mv docs/issues/closed/<NNN>_<TYPE>_<title> docs/issues/<NNN>_<TYPE>_<title>
+git mv docs/issues/closed/<NNN>_<type>_<title> docs/issues/<NNN>_<type>_<title>
 ```
 
 E.3 frontmatter 更新と git mv をまとめて 1 コミット:
@@ -339,7 +340,7 @@ PR タイトル (例):
 
 PR 本文に必ず Issue 本体への相対リンクを書く (PR 作成時は active のため `docs/issues/` 直下を指す。 close 後は `docs/issues/closed/` に移動するが、 PR 本文は履歴スナップショットとしてそのまま):
 ```markdown
-Closes [Issue #NNN](../../docs/issues/NNN_TYPE_title/issue.md)
+Closes [Issue #NNN](../../docs/issues/NNN_type_title/issue.md)
 ```
 
 GitHub Issues を併用しないプロジェクトでも、 PR レビュー時に Issue 本体に飛べるリンクは必須。
@@ -387,11 +388,11 @@ NEXT=$(( ( 10#${GH} > 10#${LOCAL} ? 10#${GH} : 10#${LOCAL} ) + 1 ))
 ### 既存 GitHub Issue を in-repo に移行
 
 1. `gh issue view <NNN> --json number,title,body,labels,createdAt,updatedAt` で取得
-2. Phase A で `docs/issues/<NNN>_<TYPE>_<sanitized-title>/issue.md` を作成 (番号は **GitHub Issue 番号と一致** させる)
+2. Phase A で `docs/issues/<NNN>_<type>_<sanitized-title>/issue.md` を作成 (番号は **GitHub Issue 番号と一致** させる)
 3. frontmatter `source: github` を付ける。 日付は次のように設定:
    - `created_at`: GitHub 側 `createdAt` (元の作成日) を採用
    - `updated_at`: 移行作業日 (今日)。 移行は frontmatter の構造変更を伴うため updated とみなす
-4. **必須**: GitHub 側 Issue に「Migrated to in-repo: docs/issues/NNN_TYPE_title/」コメントを残す。 移行先パスを文字列で書き、 後日 GitHub 側で URL クリックで辿れるようにする
+4. **必須**: GitHub 側 Issue に「Migrated to in-repo: docs/issues/NNN_type_title/」コメントを残す。 移行先パスを文字列で書き、 後日 GitHub 側で URL クリックで辿れるようにする
 5. **必須**: GitHub 側 Issue を close する。 コマンド:
 
    ```bash
@@ -422,7 +423,7 @@ PR タイトル / コミットメッセージで `Issue #NNN` 形式を維持し
 | 「子 Issue 起票時に親の child_issues 更新を忘れる」 | NG。 親→子の片方向リンクだけだと「親はこれ?」を grep で逆引きできない                                                                |
 | 「複数 Plan を 1 Issue に並列で書く」           | NG。 Phase C で分割するシグナル。 親が肥大化すると「結局何の Issue?」が分からなくなる                                                    |
 | 「採番に bash 算術で `$((007 + 1))`」        | NG。 0 prefix は 8 進数解釈で `value too great for base` エラー。 `$((10#${MAX} + 1))` で 10 進強制                    |
-| 「ファイル名を `Issue_NNN_*.md` のままにしたい」    | NG。 ディレクトリ名 `<NNN>_<TYPE>_<title>` に番号があるので冗長。 内側は固定名 `issue.md` / `plan.md`                            |
+| 「ファイル名を `Issue_NNN_*.md` のままにしたい」    | NG。 ディレクトリ名 `<NNN>_<type>_<title>` に番号があるので冗長。 内側は固定名 `issue.md` / `plan.md`                            |
 | 「Plan 結合は全プロジェクトで必須」                 | NG。 これはオプション。 `.claude/plans/` をワーキングディレクトリとして使うか、 Issue 永続化するかはプロジェクト CLAUDE.md で宣言する                 |
 | 「reopen で番号を採り直す」                    | NG。 reopen は元番号を維持したまま `closed/` から戻す。 番号を採り直すと過去コミット内 `Issue #NNN` 参照がブレる                              |
 | 「再 close で git mv を忘れる」              | NG。 `status: closed` への遷移とディレクトリの `closed/` 配下移動は常にセット。 状態の単一真実原則を保つ                                   |
