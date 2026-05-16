@@ -1,52 +1,42 @@
 ---
 name: in-repo-issue
-description: リポジトリ内 Markdown (`docs/issues/<NNN>_<type>_<title>/issue.md`) で Issue を起票・更新・分割・クローズ・reopen する。 「Issue を立てて / 起票して / 作って」「Issue #NNN をクローズして」「Issue #NNN を reopen して」「この Plan を Issue に紐付けて」「Issue を分割して / 子 Issue にして」と言われたとき、 PR 作成時に Issue リンクを書くとき、 既存 Issue の status / PR 紐付けを更新するときに使う。 GitHub Issues 連携 / `.claude/plans/*` からの Plan 結合はオプションで、 プロジェクト CLAUDE.md の有効化指示に従う。
+description: リポジトリ内 Markdown (`docs/issues/<NNN>_<title>/issue.md`) で Issue を起票・更新・自動クローズ・reopen する。「Issue を立てて」「起票して」「作って」「閉じて」と指示された時、 PR マージ後 `Closes #NNN` / `Fixes #NNN` を検出した時 (pre-merge-quality-gate Phase 5 から自動呼び出し)、 親 Issue の子全 closed を検出した時に起動。 frontmatter は status のみ、 完了判定は本文「## タスク」チェックリスト全 [x] で行う。
 ---
 
 # In-Repo Issue Management
 
-リポジトリ内の Markdown だけで Issue を起票・更新・分割・クローズする skill。
-ネットワーク往復 (gh issue) なしで grep ベースのトレーサビリティを担保する。
-
-GitHub Issues との併用や、 ExitPlanMode 後の Plan 永続化フローはオプション機能として末尾節に記述する。
+リポジトリ内 Markdown だけで Issue を起票・更新・自動クローズする skill。 frontmatter は `status` のみ、 完了判定は本文「## タスク」チェックリスト全 [x] で行うことで、 起票・close 両方の認知負荷を最小化する。
 
 ## 用語と構造
 
-| 用語     | 実体                                                       |
-|--------|----------------------------------------------------------|
-| Issue  | `docs/issues/<NNN>_<type>_<sanitized-title>/issue.md`    |
-| Plan   | 同ディレクトリ内 `plan.md` (任意、 1 Issue 1 Plan)                  |
-| 補助資料   | 同ディレクトリ内 `notes/<name>.md` (任意)                          |
-| 番号 NNN | プロジェクト内連番。 新規プロジェクトは 1 から、 既存は max+1 (closed/ 配下も含む)    |
-| クローズ済み | `docs/issues/closed/` (`status: closed` Issue の保管、 編集禁止) |
-| テンプレ   | `docs/issues/templates/` (コピー元)                          |
-
-ファイル名は `issue.md` / `plan.md` で固定。 ディレクトリ名 `<NNN>_<type>_<title>` に番号と type / タイトルを持たせ、 中身は短い固定名でアクセスを楽にする。 conventional commits prefix を採用しないプロジェクトでは type を省略し `<NNN>_<title>` で運用する。
+| 用語 | 実体 |
+|---|---|
+| Issue | `docs/issues/<NNN>_<title>/issue.md` |
+| 補助資料 | 同ディレクトリ内 `plan.md` / `notes/<name>.md` (任意) |
+| 番号 NNN | プロジェクト内連番。 max+1 (closed/ 配下も含む) |
+| クローズ済み | `docs/issues/closed/` (`status: closed` の保管庫、 編集禁止) |
+| テンプレ | `docs/issues/templates/issue.md` (コピー元) |
 
 ## 初期化 (新規プロジェクト)
 
-`docs/issues/` が存在しないプロジェクトで初めて Issue を立てる場合:
+`docs/issues/` が無いプロジェクトでは:
 
 ```bash
 mkdir -p docs/issues/templates
 cp ~/.claude/skills/in-repo-issue/templates/issue.md docs/issues/templates/
 ```
 
-以降は Phase A で起票する。 番号は 1 から開始。 templates のコミットは「初期化セットアップ」として起票とは別コミットに切る (例: `chore(issues): in-repo-issue テンプレートを追加`)。 atomic な履歴を保つため、 1 件目の起票コミットに templates ファイルを混ぜない。
+採番は 1 から開始。 templates のセットアップは「初期化」として起票とは別コミットに切る (例: `chore(issues): in-repo-issue テンプレートを追加`)。
 
 ## いつ使うか
 
 ### 必ず使う
 
-- 新規 Issue 起票指示があったとき (「Issue を立てて」「起票して」「作って」)
+- 新規 Issue 起票指示 (「Issue を立てて」「起票して」「作って」)
 - 既存 Issue の status 更新・クローズ・PR リンク追加
-- PR 本文・コミットメッセージ作成時の Issue リンク確認
 - 親 Issue を子 Issue に分割するとき
-
-### オプション (プロジェクト CLAUDE.md で有効化された場合のみ)
-
-- ExitPlanMode 直後に `.claude/plans/*.md` を Issue ディレクトリの `plan.md` に永続化 (「Plan 結合」節)
-- GitHub Issues との連携 / 移行 (「GitHub Issues 連携」節)
+- pre-merge-quality-gate Phase 5 から自動呼び出し (PR マージ後 `Closes #NNN` / `Fixes #NNN` を検出した時)
+- ユーザーから「マージしたよ」「閉じて」と指示された時、 また次セッション開始時に main の CI 成功 + `Closes #NNN` を検出した時 (フォールバック)
 
 ### 使わない
 
@@ -54,394 +44,189 @@ cp ~/.claude/skills/in-repo-issue/templates/issue.md docs/issues/templates/
 - 1-2 ステップの即時修正で進捗追跡不要なもの
 - 調査・質問応答のみのセッション
 
+## frontmatter スキーマ
+
+必須 (1 項目):
+
+```yaml
+status: open  # open / in_progress / closed
+```
+
+必要時のみ追記 (任意):
+
+```yaml
+parent: 5         # 子 Issue のときのみ
+children: [6, 7]  # 親 Issue のときのみ
+```
+
+これ以外は持たない。 日付は `git log` から、 タイトルは本文 H1 から、 番号はディレクトリ名から取得する。
+
 ## ライフサイクル
 
 ### Phase A: 起票
 
-A.1 タイトルと type を決める。 プロジェクトが conventional commits prefix を採用していれば `feat:` `fix:` `improve:` 等を付ける。 `:` の前の単語 (`feat` / `fix` / `improve` / `refactor` / `docs` / `chore` / 他) を `TYPE` として抽出する。 採用しないプロジェクトでは TYPE 省略で良い。
-
-A.2 番号を採番する (10 進数強制で 0 prefix の罠を避ける)。 `closed/` 配下と旧形式 `<NNN>-<slug>/` も MAX 計算に含めて、 番号衝突を防ぐ:
+A.1 採番 (10 進数強制で 0 prefix の 8 進解釈エラーを防ぐ):
 
 ```bash
-MAX=$(find docs/issues -maxdepth 2 -type d -regex '.*/[0-9]+[_-].*' \
+MAX=$(find docs/issues -maxdepth 2 -type d -regex '.*/[0-9]+_.*' \
   -not -path '*/templates/*' \
-  | sed -E 's|.*/([0-9]+)[_-].*|\1|' \
-  | sort -n | tail -1)
+  | sed -E 's|.*/([0-9]+)_.*|\1|' | sort -n | tail -1)
 NEXT=$((10#${MAX:-0} + 1))
-echo "next: ${NEXT}"
 ```
 
-新規プロジェクトで一件もない場合は `NEXT=1` になる。 GitHub Issues 連携プロジェクトで番号衝突を避けたい場合は「GitHub Issues 連携」節の採番ロジックを使う。
+A.2 ディレクトリ名 `<NNN>_<title>` を作る。 タイトルから FS-safe 文字列を作るサニタイズ規則 (3 項目):
 
-A.2.1 `closed/` 配下を除いた active な旧形式 `<NNN>-<slug>/` (番号の直後がハイフン) が混在していないか検出し、 居れば手動移行を促す:
+- 削除する文字: `/` `\` `:` `?` `*` `<` `>` `|` `"` (FS-unsafe な 9 文字のみ)
+- 長さ制限: Unicode コードポイント 50 文字以内
+- 末尾の半角/全角空白・`_`・`-`・`.` を除去
 
-```bash
-LEGACY=$(find docs/issues -maxdepth 2 -type d \
-  -regex '.*/[0-9]+-[^/]*' \
-  -not -path '*/templates/*' \
-  -not -path '*/closed/*' 2>/dev/null)
-if [ -n "$LEGACY" ]; then
-  echo "旧形式の Issue が検出されました。 起票前に手動で新形式へ移行してください:"
-  echo "$LEGACY" | while read -r dir; do
-    name=$(basename "$dir")
-    num=${name%%-*}
-    parent=$(dirname "$dir")
-    echo "  git mv $dir $parent/${num}_<type>_<title>   # 旧名: $name"
-  done
-fi
-```
-
-新規番号は A.2 の MAX に旧形式も含めているため衝突しないが、 ディレクトリ名の体裁を保つために手動移行を推奨する。
-
-A.3 ディレクトリ名を作る。 形式は `<NNN>_<type>_<sanitized-title>` (TYPE 省略時は `<NNN>_<sanitized-title>`)。 タイトルから FS-safe 文字列を作るサニタイズ規則:
-
-- **削除** (詰める): 半角空白 / 全角空白
-- **置換対象** (→ アンダースコア `_`): `:` / `/` / `?` / `<` / `>` / `|` / `*` / `"` / `\`
-- **保持** (置換しない): ハイフン `-` / 全角括弧 `（）` / 全角句読点 `、` `。` / 半角カンマ `,` / セミコロン `;` / `+` / `(` / `)` / 英数字 / 日本語文字
-- **連続アンダースコア正規化**: `__+` → `_`
-- **末尾整形**: 先頭・末尾の `_-.` を除去
-- **長さ制限**: タイトル部分を **Unicode コードポイント単位で 60 文字以内** にカット (バイトではない)。 カット後に末尾の `_-.` を再除去
-- 結果が空文字列なら `untitled`
+それ以外 (日本語、 英数字、 半角空白、 全角空白、 括弧、 句読点、 ハイフン等) は全部そのまま保持。 結果が空文字列なら `untitled`。 conventional commits prefix (`feat:` `fix:` 等) はディレクトリ名から除外し、 本文 H1 で表現する。
 
 ```bash
-# 例:
-# "feat: 作品詳細ページに SNS シェアボタンを追加"
-#   TYPE=feat / TITLE=作品詳細ページにSNSシェアボタンを追加
-#   → 1_feat_作品詳細ページにSNSシェアボタンを追加
-# "Stripe アカウント法人切り替え（合同会社 Hermitian）"
-#   TYPE=(none) / TITLE=Stripeアカウント法人切り替え（合同会社Hermitian）
-#   → 2_Stripeアカウント法人切り替え（合同会社Hermitian）   (全角括弧は保持)
-
-DIR=docs/issues/${NEXT}${TYPE:+_${TYPE}}_<sanitized-title>
+DIR="docs/issues/${NEXT}_<sanitized-title>"
 mkdir -p "${DIR}"
-```
-
-A.4 テンプレをコピーしてから、 Edit ツールで以下の placeholder を実値に置換する:
-
-```bash
 cp docs/issues/templates/issue.md "${DIR}/issue.md"
 ```
 
-置換対象:
-- frontmatter `issue_number: NNN` の `NNN` を採番済みの番号に
-- frontmatter `title: "<conventional commits prefix (任意)>: <タイトル>"` の右辺を実タイトルに (例: `"feat: ユーザープロフィール基盤"`)
-- frontmatter `created_at: YYYY-MM-DD` と `updated_at: YYYY-MM-DD` の YYYY-MM-DD を今日の日付に (`date +%F` または system context の現在日付)
-- 本文 1 行目 `# <タイトル>` の `<タイトル>` を frontmatter title と同じ実タイトル (conventional commits prefix を含む全体) に置換
+例: 入力 `feat: 作品詳細ページに SNS シェアボタンを追加` → ディレクトリ `1_作品詳細ページに SNS シェアボタンを追加/`、 本文 H1 `# feat: 作品詳細ページに SNS シェアボタンを追加`
 
-A.5 A.4 で挙げた項目以外の frontmatter デフォルト値は変更しない (詳細は「frontmatter スキーマ」節)。 特に `status: open` と `created_at` は grep 検索の生命線なので、 A.4 で誤って書き換えていないか最後に確認する。
+A.3 issue.md を Edit:
 
-`# component:` / `# type:` / `# source:` で始まるコメント行はプロジェクト裁量フィールドの提示。 プロジェクト CLAUDE.md で有効化指示がある場合のみコメントを外して値を入れ、 指示がなければそのまま残す。
+- H1 の `<タイトル>` を実タイトル (prefix 含む) に置換
+- `## タスク` セクションにチェックボックスを書き込む
 
-A.6 コミット:
+A.4 コミット: `docs(issues): Issue #NNN <title> を起票`
 
-```
-docs(issues): Issue #NNN <title> を起票
-```
-
-例:
-```
-docs(issues): Issue #1 feat: ユーザープロフィール基盤 を起票
-```
+A.5 分割 (親 → 子 Issue):「Plan が複数必要」「PR が PR-A, PR-B に分かれる」場合、 子 Issue を順次起票して子 frontmatter に `parent: 5`、 親 frontmatter に `children: [6, 7]` を追記。 親 issue.md の `## タスク` を `- [ ] [Issue #6: <子タイトル>](../6_<子タイトル>/issue.md)` の形式に置き換えると、 親の自動クローズ判定が Phase E と同期する。 コミット: `docs(issues): Issue #NNN を子 Issue (#NN1, #NN2) に分割`
 
 ### Phase B: 更新
 
-B.1 frontmatter `updated_at` を今日の日付に更新する。 既に今日の値なら no-op (変更不要)。
+- `open → in_progress` 遷移時のみ frontmatter `status` を書き換え
+- タスク進捗は本文 `- [ ]` → `- [x]`
+- 親子化したら `parent: N` / `children: [N, M]` を必要時に追記
+- コミット: `docs(issues): Issue #NNN を <変更内容> に更新`
 
-B.2 status 遷移は `open → in_progress → closed` の順を守る。 飛び越えない。
+### Phase C: 自動クローズ (本 skill の核)
 
-B.2.1 例外: `closed → in_progress` (reopen) は許可される。 詳細は Phase E (Reopen) 参照。 reopen 以外で status を巻き戻すのは NG。
+PR マージ後に Issue を自動クローズする処理。
 
-B.3 in_progress 移行時は実装ブランチ名を frontmatter `branch` に追記すると、 後で「この Issue でどのブランチが動いてた?」がわかる:
+C.1 マージ PR 本文から `Closes #NNN` / `Fixes #NNN` を抽出:
 
-```yaml
-status: in_progress
-branch: feat/<feature-name>
+```bash
+gh pr view <PR> --json body --jq '.body' \
+  | grep -oE '(Closes|Fixes) #[0-9]+' \
+  | grep -oE '[0-9]+'
 ```
 
-B.4 関連 Issue / 関連 PR が判明したら frontmatter `related_issues` / `related_prs` に追記する:
+抽出 0 件なら Phase C 終了 (close 対象なし)。
 
-```yaml
-related_issues: [12, 18]
-related_prs: ["#34", "#41"]
+C.2 起動契機 2 (gate 未経由フォールバック) の場合のみ、 main の最新 CI 成功を確認:
+
+```bash
+CI=$(gh run list --branch main --limit 1 --json status,conclusion --jq '.[0]')
+echo "$CI" | jq -e '.status == "completed" and .conclusion == "success"' >/dev/null
 ```
 
-B.5 コミット:
+CI 未成功なら Phase C 終了 (Phase D 実行を保留)。 gate Phase 5 経由の場合は gate が既に検証済みなのでこのチェックをスキップ。
 
-```
-docs(issues): Issue #NNN を <変更内容> に更新
-```
+C.3 該当 Issue の `## タスク` チェックリスト判定:
 
-### Phase C: 分割 (親 → 子 Issue)
-
-「Plan が複数必要」「PR が PR-A, PR-B などに分かれる」が分割シグナル。
-
-C.1 子 Issue を Phase A で順次起票する。 タイトルの prefix / scope は親から継承する (例: 親が `improve(test):` なら子も `improve(test):` を使う)。
-
-C.2 子 frontmatter に `parent_issue` を設定:
-
-```yaml
-parent_issue: 5
+```bash
+ISSUE_PATH=$(ls docs/issues/${NNN}_*/issue.md docs/issues/closed/${NNN}_*/issue.md 2>/dev/null | head -1)
+has_task_section=$(grep -c '^## タスク' "$ISSUE_PATH")
+unchecked=$(grep -c '^- \[ \]' "$ISSUE_PATH")
 ```
 
-C.3 親 frontmatter `child_issues` に子番号を全部追記:
+分岐:
 
-```yaml
-child_issues: [6, 7]
-```
+- `has_task_section == 0`: 自動 close 対象外。 「Issue #NNN にチェックリスト未定義、 手動 close 推奨」とログ出力のみ
+- `unchecked > 0`: status を `in_progress` に更新するだけ、 close しない。 「Issue #NNN にまだ未完タスクがある」とログ
+- `unchecked == 0`: Phase D を実行
 
-C.4 子 frontmatter `related_issues` に兄弟番号を入れる (親は parent_issue で表現済みなので含めない):
+### Phase D: クローズ実行
 
-```yaml
-# 子 Issue #6 の場合
-parent_issue: 5
-related_issues: [7]   # 兄弟のみ
-```
+D.1 frontmatter `status` を `closed` に書き換え。
 
-C.5 親 Markdown 末尾に「## 子 Issue」節を追加して各子へのリンクを書く。
-
-C.6 親の `plan.md` は: 子で分担するなら削除 (`git rm`)。 全体俯瞰として残すなら維持。
-
-C.7 コミット:
-
-```
-docs(issues): Issue #NNN を子 Issue (#NN1, #NN2) に分割
-```
-
-### Phase D: クローズ
-
-D.1 PR がマージされたら frontmatter を全て更新 (4 項目を同時更新、 順序不問):
-
-```yaml
-status: closed
-closed_at: YYYY-MM-DD
-related_prs: ["#PR番号", ...]
-updated_at: YYYY-MM-DD
-```
-
-D.2 frontmatter 編集後、 ディレクトリを `closed/` 配下へ移動 (番号とディレクトリ名は維持):
+D.2 `git mv` で `closed/` 配下に移動 (ディレクトリ名は維持):
 
 ```bash
 mkdir -p docs/issues/closed
-git mv docs/issues/<NNN>_<type>_<title> docs/issues/closed/<NNN>_<type>_<title>
+git mv "docs/issues/${NNN}_<title>" "docs/issues/closed/${NNN}_<title>"
 ```
 
-D.3 frontmatter 更新と git mv の rename を 1 コミットにまとめる。 `git add -A` は他の変更を巻き込む可能性があるため避けて、 移動後の明示パスのみ stage する:
+D.3 frontmatter 編集と git mv の rename を 1 コミットにまとめる。 明示パスのみ stage して他の変更を巻き込まない:
 
 ```bash
-git add docs/issues/closed/<NNN>_<type>_<title>/issue.md
+git add "docs/issues/closed/${NNN}_<title>/issue.md"
 git commit -m "docs(issues): Issue #NNN をクローズ (PR #M)"
 ```
 
-`git mv` で rename は自動 staged になり、 `git add` で frontmatter の Edit 差分も同コミットに収まる。
+D.4 Phase D 完了後、 close した Issue の `parent` を確認して Phase E に進む。
 
-D.4 GitHub Issues を併用しているプロジェクトでは GitHub 側 auto-close が走らないため、 必ずこの skill 経由で in-repo を手動 close する (詳細は「GitHub Issues 連携」節)。
+### Phase E: 親伝播 (子全 closed なら親 close を提案)
 
-### Phase E: Reopen
+E.1 D で close した Issue の `parent: N` を読む。 無ければ Phase E 終了。
 
-クローズ後に「やはり対応が必要」となった場合の再オープン。 `closed → in_progress` は Phase B.2 の唯一の例外として許可される。
+E.2 親の `children: [...]` を読み、 各子のディレクトリ位置 (`docs/issues/${child}_*/` が active、 `closed/${child}_*/` が closed) を ls で確認。 全ての子が `closed/` 配下なら「親も close できる状態」。
 
-E.1 frontmatter を更新:
+E.3 AskUserQuestion で「Issue #N の子 Issue が全て closed です。 親 Issue #N も close しますか?」と提案。
 
-```yaml
-status: in_progress
-closed_at: null
-updated_at: YYYY-MM-DD
-```
+E.4 承認 → 親に対して Phase D を実行 → 親に祖父母がいれば E を再帰実行。 拒否 → 何もしない。
 
-E.2 ディレクトリを `closed/` から戻す (番号とディレクトリ名は維持):
+### Phase F: Reopen
 
-```bash
-git mv docs/issues/closed/<NNN>_<type>_<title> docs/issues/<NNN>_<type>_<title>
-```
+クローズ後の再オープン。 `closed → in_progress` への巻き戻しはこの経路でのみ許可される。
 
-E.3 Phase D.3 と同じ手順 (明示パス stage で frontmatter + rename を 1 コミットに)。 commit message のみ差し替える:
+F.1 frontmatter `status: closed → in_progress`。
+
+F.2 `git mv` で `closed/` から戻す:
 
 ```bash
-git add docs/issues/<NNN>_<type>_<title>/issue.md
-git commit -m "docs(issues): Issue #NNN を reopen"
+git mv "docs/issues/closed/${NNN}_<title>" "docs/issues/${NNN}_<title>"
 ```
 
-E.4 再 close する場合は通常の Phase D を再実行 (git mv で再度 closed/ 配下へ)。
-
-## frontmatter スキーマ
-
-### 必須
-
-```yaml
-issue_number: 1                       # 整数
-title: "<title>"                       # 二重引用符
-status: open                           # open / in_progress / closed
-created_at: 2026-05-08                 # YYYY-MM-DD
-updated_at: 2026-05-08                 # status 変更や PR 追加時に更新
-closed_at: null                        # closed のとき YYYY-MM-DD、 それ以外は null
-```
-
-### 推奨 (運用が楽になる)
-
-```yaml
-priority: 2                            # 0 (即時対応) / 1 (他より優先) / 2 (空いたとき)
-parent_issue: null                     # 子 Issue のときのみ整数
-child_issues: []                       # 親 Issue のときのみ整数配列
-related_issues: []                     # 整数配列
-related_prs: []                        # 文字列配列、 例 ["#12"]
-branch: null                           # in_progress 時の作業ブランチ名
-```
-
-`priority` の決め方:
-- 子 Issue 起票時は **親から継承**
-- 親が無い / 不明 / 推測手がかりが無い場合は **default 2** (空いたとき)
-- GitHub Issues 移行時は label (`priority 0` / `bug` 等) から推測可能なら設定、 そうでなければ default 2
-
-### プロジェクト裁量 (CLAUDE.md で値セットを定義)
-
-```yaml
-component: <project-defined>           # 例: frontend / backend / infra
-type: <project-defined>                # 例: feature / fix / improve / refactor / docs
-source: <project-defined>              # GitHub Issues 併用時のみ。 例: github (移行) / in-repo (新規)
-```
-
-**フォーマット注意**:
-- YAML の `: ` (コロン+空白) を厳守。 grep で絞り込む生命線
-- 文字列値は二重引用符 (`"..."`)。 シングルクォートやクォートなしは禁止
-- 配列の空は `[]`、 値ありはフロー形式 `[1, 2]` で統一
-- null は文字列 `null` (YAML)
+F.3 1 コミット: `docs(issues): Issue #NNN を reopen`。 明示パス stage で frontmatter + rename を 1 コミットに収める。
 
 ## 検索手順
 
 ```bash
-# 全 open Issue (closed/ 配下と templates/ を除外するため [0-9]*/ で active のみ拾う)
+# 全 open Issue (closed/ と templates/ を除外)
 grep -lr '^status: open$' docs/issues/[0-9]*/issue.md
 
-# 特定 component + open
-grep -l '^component: frontend$' docs/issues/[0-9]*/issue.md \
-  | xargs grep -l '^status: open$'
+# 親 Issue 一覧 (children を持つ)
+grep -lr '^children:' docs/issues/[0-9]*/issue.md
 
-# priority 0 全件 (active のみ)
-grep -lr '^priority: 0$' docs/issues/[0-9]*/issue.md
-
-# 親 Issue 一覧 (child_issues 非空)
-grep -lr '^child_issues:' docs/issues/[0-9]*/issue.md \
-  | xargs grep -L '^child_issues: \[\]$'
-
-# 番号で開く (タイトルが分からなくても良い、 active と closed の両方を探す)
+# 番号で開く (active / closed 両方)
 ls docs/issues/5_*/issue.md docs/issues/closed/5_*/issue.md 2>/dev/null | head -1
 
-# closed 一覧 (Phase D で git mv 済みなのでディレクトリ列挙で十分)
+# closed 一覧
 ls docs/issues/closed/
 ```
 
 ## PR / コミット規約
 
-### コミットメッセージ
+PR タイトル: `<prefix>(<scope>): <subject> (Issue #NNN)`
 
-```
-<prefix>(<scope>): <subject>
-```
+PR 本文に Issue 本体への相対リンクと `Closes #NNN` を必ず書く (`Closes` キーワードが Phase C.1 のトリガーになる):
 
-`<prefix>` はプロジェクトが conventional commits を採用していれば使う (`feat`, `fix`, `improve`, `refactor`, `docs`, `chore`, etc.)。
-
-本文 or subject に `Issue #NNN` を含めて、 後で grep / git log で辿れるようにする。
-
-### PR
-
-PR タイトル (例):
-```
-<prefix>(<scope>): <subject> (Issue #NNN)
-```
-
-PR 本文に必ず Issue 本体への相対リンクを書く (PR 作成時は active のため `docs/issues/` 直下を指す。 close 後は `docs/issues/closed/` に移動するが、 PR 本文は履歴スナップショットとしてそのまま):
 ```markdown
-Closes [Issue #NNN](../../docs/issues/NNN_type_title/issue.md)
+Closes [Issue #NNN](../../docs/issues/NNN_title/issue.md)
 ```
 
-GitHub Issues を併用しないプロジェクトでも、 PR レビュー時に Issue 本体に飛べるリンクは必須。
+これがない PR は in-repo-issue では close されない。
 
-## オプション: Plan 結合
+## Red flags
 
-プロジェクト CLAUDE.md でこのフローを採用する場合のみ実行する。 採用しないプロジェクトでは Plan は `.claude/plans/` だけに置き、 Issue ディレクトリへコピーしない。
-
-ExitPlanMode 直後、 Claude Code は `.claude/plans/<random-name>.md` に Plan を書き出している。 これを対応 Issue ディレクトリに永続化する。
-
-1. 対応する Issue が無ければ Phase A で起票してから戻る
-2. 既に `plan.md` が存在する場合は **Phase C (分割) に進むシグナル**。 同じファイルを上書きしない (既存 Plan を失う)。 同一 Plan の改訂版なら直接 `plan.md` を Edit で更新 (git history で旧版を辿れる)
-3. コピー (元の `.claude/plans/*.md` は残す):
-
-   ```bash
-   cp .claude/plans/<plan-file>.md docs/issues/<NNN>_*/plan.md
-   ```
-
-4. frontmatter `updated_at` を今日の日付に更新する
-5. コミット:
-
-   ```
-   docs(issues): Issue #NNN に Plan を結合
-   ```
-
-## オプション: GitHub Issues 連携
-
-GitHub Issues を併用 / 移行するプロジェクトのみ。 採用しない場合は読み飛ばして良い。
-
-### 採番 (衝突回避)
-
-GitHub Issues 番号と in-repo 番号を共通の連番で運用する場合、 max を取って +1:
-
-```bash
-MAX_GH=$(gh issue list --state all --limit 1000 --json number \
-  | jq -r 'map(.number) | max // 0')
-MAX_LOCAL=$(find docs/issues -maxdepth 2 -type d -regex '.*/[0-9]+[_-].*' \
-  -not -path '*/templates/*' \
-  | sed -E 's|.*/([0-9]+)[_-].*|\1|' | sort -n | tail -1 || echo 0)
-GH=${MAX_GH:-0}
-LOCAL=${MAX_LOCAL:-0}
-NEXT=$(( ( 10#${GH} > 10#${LOCAL} ? 10#${GH} : 10#${LOCAL} ) + 1 ))
-```
-
-### 既存 GitHub Issue を in-repo に移行
-
-1. `gh issue view <NNN> --json number,title,body,labels,createdAt,updatedAt` で取得
-2. Phase A で `docs/issues/<NNN>_<type>_<sanitized-title>/issue.md` を作成 (番号は **GitHub Issue 番号と一致** させる)
-3. frontmatter `source: github` を付ける。 日付は次のように設定:
-   - `created_at`: GitHub 側 `createdAt` (元の作成日) を採用
-   - `updated_at`: 移行作業日 (今日)。 移行は frontmatter の構造変更を伴うため updated とみなす
-4. **必須**: GitHub 側 Issue に「Migrated to in-repo: docs/issues/NNN_type_title/」コメントを残す。 移行先パスを文字列で書き、 後日 GitHub 側で URL クリックで辿れるようにする
-5. **必須**: GitHub 側 Issue を close する。 コマンド:
-
-   ```bash
-   gh issue close <NNN> --reason "not planned" \
-     --comment "Migrated to in-repo. See comment above for the new location."
-   ```
-
-   `--reason "not planned"` を使う (GitHub の選択肢は `completed` / `not planned` の 2 値のみ。 「移行 / move」用 reason は無いため、 「実装としては未完で計画変更 = not planned」を慣例的に採用)
-
-一括移行する場合は `scripts/_oneshot/migrate_issues.py` のような uv スクリプトでまとめて処理する。
-
-### auto-close の代替
-
-GitHub Issues 廃止 / 移行後は GitHub 側 auto-close が走らないため、 PR がマージされたら必ず Phase D で in-repo 側を手動 close する。
-
-PR タイトル / コミットメッセージで `Issue #NNN` 形式を維持しておけば、 GitHub 側 #NNN が closed であっても「Migrated to in-repo」コメントから in-repo に辿れる。
-
-## Red flags / よくある失敗
-
-| 思考の罠                                 | 実態                                                                                                      |
-|--------------------------------------|---------------------------------------------------------------------------------------------------------|
-| 「Plan は別ディレクトリに置きたい」                 | NG。 1 Issue 1 Plan の規約を破ると Plan の在処が散逸し検索性が落ちる。 複数必要な時点で Issue 分割のシグナル                                  |
-| 「番号は適当でいい」                           | NG。 GitHub Issues 併用プロジェクトでは番号衝突。 単独プロジェクトでも採番が揺れると過去コミット内 `Issue #NNN` の指示先がブレる                        |
-| 「frontmatter は大体合ってればいい」             | NG。 `status: open` の grep が運用の生命線。 ハイフン / コロン / クォートのフォーマット崩壊で grep が漏れる                                |
-| 「PR 本文の Issue 相対リンクは省略 OK」           | NG。 PR レビュー時に Issue 本体に飛べないと未来の自分の認知負荷が上がる                                                              |
-| 「クローズ時 status だけ更新」                  | NG。 `closed_at` / `related_prs` の更新と Phase D.2 の git mv (`closed/` 配下へ) は常にセット                          |
-| 「テンプレなしで起票」                          | NG。 必ず `templates/issue.md` をコピー。 章欠落で後から書き直す手戻りが多発                                                  |
-| 「子 Issue 起票時に親の child_issues 更新を忘れる」 | NG。 親→子の片方向リンクだけだと「親はこれ?」を grep で逆引きできない                                                                |
-| 「複数 Plan を 1 Issue に並列で書く」           | NG。 Phase C で分割するシグナル。 親が肥大化すると「結局何の Issue?」が分からなくなる                                                    |
-| 「採番に bash 算術で `$((007 + 1))`」        | NG。 0 prefix は 8 進数解釈で `value too great for base` エラー。 `$((10#${MAX} + 1))` で 10 進強制                    |
-| 「ファイル名を `Issue_NNN_*.md` のままにしたい」    | NG。 ディレクトリ名 `<NNN>_<type>_<title>` に番号があるので冗長。 内側は固定名 `issue.md` / `plan.md`                            |
-| 「Plan 結合は全プロジェクトで必須」                 | NG。 これはオプション。 `.claude/plans/` をワーキングディレクトリとして使うか、 Issue 永続化するかはプロジェクト CLAUDE.md で宣言する                 |
-| 「reopen で番号を採り直す」                    | NG。 reopen は元番号を維持したまま `closed/` から戻す。 番号を採り直すと過去コミット内 `Issue #NNN` 参照がブレる                              |
-| 「再 close で git mv を忘れる」              | NG。 `status: closed` への遷移とディレクトリの `closed/` 配下移動は常にセット。 状態の単一真実原則を保つ                                   |
+| 思考の罠 | 実態 |
+|---|---|
+| 「frontmatter は適当でいい」 | NG。 `^status: open$` の grep が生命線。 クォート/コロンのフォーマット崩壊で grep が壊れる |
+| 「クローズ時 status だけ更新」 | NG。 `status: closed` への遷移と Phase D.2 の git mv (`closed/` 配下へ) は常にセット |
+| 「`## タスク` 不在でも自動 close したい」 | NG。 チェックリスト不在 Issue は手動 close。 自動 close はタスク全消化を判定する仕組みで、 起点が無いと暴走する |
+| 「reopen で番号を採り直す」 | NG。 reopen は元番号を維持したまま `closed/` から戻す。 過去コミット内 `Issue #NNN` 参照がブレる |
+| 「採番に bash 算術で `$((007 + 1))`」 | NG。 0 prefix は 8 進数解釈で `value too great for base` エラー。 `$((10#${MAX} + 1))` で 10 進強制 |
 
 ## 関連
 
 - `git-branch-switcher`: Issue 起票後、 必ずブランチ作成
-- `pre-merge-quality-gate`: PR マージ前、 `status: closed` 更新と PR リンク追加が完了していること
-- `empirical-prompt-tuning`: この skill 自体をチューニングするとき
-- プロジェクト `CLAUDE.md` — Plan 結合 / GitHub Issues 連携を有効化するか、 `component` / `type` / `source` の値セットを定義
+- `pre-merge-quality-gate`: Phase 5 から本 skill の Phase C を呼ぶ
+- プロジェクト `CLAUDE.md`: `docs/issues/` 配置のオーバーライドが必要な場合のみ
