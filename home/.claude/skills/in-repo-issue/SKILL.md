@@ -80,7 +80,13 @@ A.2 ディレクトリ名 `<NNN>_<title>` を作る。 タイトルから FS-saf
 - 長さ制限: Unicode コードポイント 50 文字以内
 - 末尾の半角/全角空白・`_`・`-`・`.` を除去
 
-それ以外 (日本語、 英数字、 半角空白、 全角空白、 括弧、 句読点、 ハイフン等) は全部そのまま保持。 結果が空文字列なら `untitled`。 conventional commits prefix (`feat:` `fix:` 等) はディレクトリ名から除外し、 本文 H1 で表現する。
+サニタイズ規則の境界 (規則を読む前に必ず確認):
+
+- **サニタイズ対象はディレクトリ名タイトル部のみ**。 本文 H1 は元タイトル (`:` を含む conventional commits prefix と記号類) を**そのまま保持**する
+- **conventional commits prefix の除外境界**: `feat:` 等の prefix とその**直後の半角空白 1 つ**を丸ごと除外してからサニタイズ規則を適用 (例: `feat: タイトル` → ディレクトリ名タイトル部 `タイトル`)
+- **シェル特殊文字を含むディレクトリ名**: `#` `!` `$` `` ` `` や半角空白を含む場合、 シェルコマンドでは**常にダブルクォート**で囲う (例: `git add "docs/issues/6_Issue #5 を子に分割 browser 側/issue.md"`)。 Markdown リンクで `#` を含むパスを書くときは URL エンコードせず素のパスで OK (git / 多くの renderer が解決する)
+
+それ以外 (日本語、 英数字、 半角空白、 全角空白、 括弧、 句読点、 ハイフン等) は全部そのまま保持。 結果が空文字列なら `untitled`。
 
 ```bash
 DIR="docs/issues/${NEXT}_<sanitized-title>"
@@ -95,7 +101,7 @@ A.3 issue.md を Edit:
 - H1 の `<タイトル>` を実タイトル (prefix 含む) に置換
 - `## タスク` セクションにチェックボックスを書き込む
 
-A.4 コミット: `docs(issues): Issue #NNN <title> を起票`
+A.4 コミット: `docs(issues): Issue #NNN <title> を起票` (`<title>` は本文 H1 と同じ元タイトル = conventional commits prefix を含むフルタイトル。 サニタイズ後のディレクトリ名タイトル部ではない)
 
 A.5 分割 (親 → 子 Issue):「Plan が複数必要」「PR が PR-A, PR-B に分かれる」場合、 子 Issue を順次起票して子 frontmatter に `parent: 5`、 親 frontmatter に `children: [6, 7]` を追記。 親 issue.md の `## タスク` を `- [ ] [Issue #6: <子タイトル>](../6_<子タイトル>/issue.md)` の形式に置き換えると、 親の自動クローズ判定が Phase E と同期する。 コミット: `docs(issues): Issue #NNN を子 Issue (#NN1, #NN2) に分割`
 
@@ -145,7 +151,9 @@ unchecked=$(grep -c '^- \[ \]' "$ISSUE_PATH")
 
 ### Phase D: クローズ実行
 
-D.1 frontmatter `status` を `closed` に書き換え。
+順序は **D.1 (Edit) → D.2 (git mv) → D.3 (add + commit)** で固定。 順序を入れ替えると stage 検出が不安定になる。
+
+D.1 frontmatter `status` を `closed` に書き換え (Edit ツールで `status: open` を `status: closed` に置換)。
 
 D.2 `git mv` で `closed/` 配下に移動 (ディレクトリ名は維持):
 
@@ -154,24 +162,28 @@ mkdir -p docs/issues/closed
 git mv "docs/issues/${NNN}_<title>" "docs/issues/closed/${NNN}_<title>"
 ```
 
-D.3 frontmatter 編集と git mv の rename を 1 コミットにまとめる。 明示パスのみ stage して他の変更を巻き込まない:
+D.3 frontmatter 編集と git mv の rename を 1 コミットにまとめる。 `git mv` 自体は rename を自動 stage するが、 D.1 の Edit 差分を確実に同コミットに収めかつ他の変更を巻き込まないため、 **新パスの明示 stage** を行う:
 
 ```bash
 git add "docs/issues/closed/${NNN}_<title>/issue.md"
 git commit -m "docs(issues): Issue #NNN をクローズ (PR #M)"
 ```
 
+`(PR #M)` の `M` はマージされた PR 番号。 後述 Phase E の親伝播 close では PR が紐づかないため別文言を使う (Phase E.4 参照)。
+
 D.4 Phase D 完了後、 close した Issue の `parent` を確認して Phase E に進む。
 
 ### Phase E: 親伝播 (子全 closed なら親 close を提案)
 
-E.1 D で close した Issue の `parent: N` を読む。 無ければ Phase E 終了。
+E.1 D で close した Issue の `parent` を `grep -E '^parent:' "docs/issues/closed/${NNN}_*/issue.md"` で読む。 無ければ Phase E 終了。
 
-E.2 親の `children: [...]` を読み、 各子のディレクトリ位置 (`docs/issues/${child}_*/` が active、 `closed/${child}_*/` が closed) を ls で確認。 全ての子が `closed/` 配下なら「親も close できる状態」。
+E.2 親の `children: [...]` を読み、 各子のディレクトリ位置 (`docs/issues/${child}_*/` が active、 `closed/${child}_*/` が closed) を ls で確認。 全ての子が `closed/` 配下なら「親も close できる状態」。 ディレクトリ位置と frontmatter の不整合 (例: closed/ にいるが status: open) は Phase D の手順違反なので、 E ではディレクトリ位置だけで判定する (frontmatter 再確認はしない)。
 
 E.3 AskUserQuestion で「Issue #N の子 Issue が全て closed です。 親 Issue #N も close しますか?」と提案。
 
 E.4 承認 → 親に対して Phase D を実行 → 親に祖父母がいれば E を再帰実行。 拒否 → 何もしない。
+
+親伝播による close のコミットメッセージは `(PR #M)` ではなく **`(子 Issue #N1, #N2 完了に伴う伝播)`** 形式を使う (例: `docs(issues): Issue #5 をクローズ (子 Issue #6, #7 完了に伴う伝播)`)。 PR が複数で紐づけきれないため。
 
 ### Phase F: Reopen
 
