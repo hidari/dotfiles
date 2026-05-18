@@ -79,4 +79,11 @@ See `schemas/security-profile.template.yml` for a fully annotated template and `
 
 ## Status
 
-v0.1.0 — Phase 1 (Red Team Layer 1-4 + machine-readable findings). Blue Team and cron integration in subsequent phases.
+v0.2.0 — Phase 2 (Red Team Layer 1-4 + machine-readable findings + Blue Team Mode A/B). Cron integration in subsequent phase.
+
+### Blue Team modes
+
+- **Mode A** (Red Team report response): consumes `findings.json` + `red-team.md` and produces a triaged plan (P0-P3 + S/M/L/XL implementation sizes, per-finding hints). Each finding is cross-referenced by `fingerprint` so a wrap skill can dedupe against an issue tracker.
+- **Mode B** (defensive surface audit): static analysis only (no HTTP). Audits five surfaces: authn/z flow trace, input validation coverage, security headers, RLS, logging coverage. Outputs a per-surface table with gaps and remediation pointers.
+
+Mode is auto-detected when `--mode` is omitted: if `--report` is supplied or a recent `docs/security-reviews/<date>/red-team.md` exists, Mode A; otherwise Mode B.
