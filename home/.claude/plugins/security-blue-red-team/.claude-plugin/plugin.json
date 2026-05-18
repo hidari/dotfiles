@@ -1,0 +1,9 @@
+{
+  "name": "security-blue-red-team",
+  "version": "0.1.0",
+  "description": "Product-agnostic Red Team / Blue Team security testing automation for Claude Code. Reads <project>/.claude/security-profile.yml and runs layered security tests (static analysis -> passive -> active -> high-risk static) with strict environment isolation and a production kill-switch.",
+  "author": {
+    "name": "Hidari",
+    "email": "ika5140@gmail.com"
+  }
+}
