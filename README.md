@@ -61,6 +61,7 @@ The following symlinks are created in your home directory:
 | `home/.claude/CLAUDE.md`             | `~/.claude/CLAUDE.md`             |
 | `home/.claude/.mcp.json`             | `~/.claude/.mcp.json`             |
 | `home/.claude/skills/*`              | `~/.claude/skills/*`              |
+| `home/.claude/plugins/security-blue-red-team` | `~/.claude/plugins/security-blue-red-team` |
 | `scripts/backup-tool/backup.sh`      | `~/.local/bin/backup.sh`          |
 
 Additionally, `home/.gitconfig.private.example` is copied to `~/.gitconfig.private` (if it doesn't exist).
