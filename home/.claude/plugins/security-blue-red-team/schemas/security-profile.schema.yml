@@ -1,3 +1,4 @@
+---
 "$schema": "http://json-schema.org/draft-07/schema#"
 title: "Security Profile for security-blue-red-team plugin"
 type: object
@@ -56,6 +57,7 @@ properties:
             description: "Identifier for credential lookup (NOT the credential itself). e.g. '1password://...'."
       rate_limits:
         type: object
+        description: "INFORMATIONAL ONLY. The agent ignores these values and applies the immutable budget defined in its Safety constraints (20 req / 100ms / 5 concurrent / 10s timeout). Listed here for profile authors to understand the enforced budget; modifying these values has no runtime effect."
         properties:
           max_requests_per_test: { type: integer, minimum: 1, default: 20 }
           min_interval_ms:       { type: integer, minimum: 0, default: 100 }
@@ -170,5 +172,5 @@ properties:
 
   environment_isolation_checks:
     type: object
-    description: "Pre-filled answers for isolation questions, keyed by stack subsystem (cloud_sql, supabase, etc.). Free-form; the agent reads .answer / .verify_command if present."
+    description: "Pre-filled answers for isolation questions, keyed by stack subsystem (cloud_sql, supabase, etc.). Free-form; the agent reads .answer / .verify_command if present. Valid .answer values: 'separate' (staging is isolated from production) | 'shared' (staging shares state with production, agent will skip dependent layers) | 'unknown' (treated as 'unknown' status downstream). The agent maps these to isolation_check[].status as: separate→ok, shared→ng, unknown/missing→unknown."
     additionalProperties: true

@@ -72,8 +72,8 @@
           },
           "fingerprint": {
             "type": "string",
-            "pattern": "^[a-f0-9]{16,64}$",
-            "description": "Stable hash over (category, attack_surface_id, normalized_title). Used for de-dup across reports and against issue tracker."
+            "pattern": "^[a-f0-9]{16}$",
+            "description": "Stable hash, exactly 16 hex chars: sha256(category + ':' + attack_surface_id + ':' + normalized_title)[:16]. Used for de-dup across reports and against issue tracker. Blue Team and any other consumer MUST use the same algorithm and truncation length (16) for deduplication to work. Changing this length is a breaking change."
           },
           "severity": {
             "type": "string",
