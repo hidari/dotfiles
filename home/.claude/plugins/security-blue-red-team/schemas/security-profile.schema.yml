@@ -57,12 +57,29 @@ properties:
             description: "Identifier for credential lookup (NOT the credential itself). e.g. '1password://...'."
       rate_limits:
         type: object
-        description: "INFORMATIONAL ONLY. The agent ignores these values and applies the immutable budget defined in its Safety constraints (20 req / 100ms / 5 concurrent / 10s timeout). Listed here for profile authors to understand the enforced budget; modifying these values has no runtime effect."
+        description: "INFORMATIONAL ONLY. The agent ignores these values and applies the immutable budget defined in its Safety constraints (20 req/test, 100ms interval, 5 concurrent, 10s timeout, 100 req/host total, 1 req/sec/host sustained). Listed here for profile authors to understand the enforced budget; modifying these values has no runtime effect."
         properties:
           max_requests_per_test: { type: integer, minimum: 1, default: 20 }
           min_interval_ms:       { type: integer, minimum: 0, default: 100 }
           max_concurrent:        { type: integer, minimum: 1, default: 5 }
           per_request_timeout_seconds: { type: integer, minimum: 1, default: 10 }
+          max_requests_per_host: { type: integer, minimum: 1, default: 100 }
+          max_rate_per_host_rps: { type: integer, minimum: 1, default: 1 }
+      cleanup:
+        type: object
+        description: "Layer 3 cleanup command templates. Consumed by /security-cleanup to purge resources seeded during active testing. The agent never executes cleanup itself; it only records resolved commands into cleanup-queue.json. /security-cleanup re-validates environment.kind != production before executing any command."
+        required: [seed_id_prefix, commands]
+        additionalProperties: false
+        properties:
+          seed_id_prefix:
+            type: string
+            default: "security_redteam_"
+            description: "All seeded resource IDs MUST start with this prefix. Defense against accidental cleanup of non-test data."
+          commands:
+            type: object
+            description: "Map of seed_type → shell command template. Use '{seed_id}' as the placeholder; the agent substitutes it when recording cleanup-queue.json entries."
+            additionalProperties:
+              type: string
 
   stack:
     type: object
