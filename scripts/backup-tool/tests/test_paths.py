@@ -20,7 +20,7 @@ class TestClassify:
         assert classify("/Volumes/Luna-P/Photos/2024") == "directory"
 
     def test_local_path_outside_volumes(self) -> None:
-        assert classify("/Users/sho/Documents") == "local"
+        assert classify("/Users/example/Documents") == "local"
 
     def test_root_is_local(self) -> None:
         assert classify("/Volumes") == "local"
@@ -34,7 +34,7 @@ class TestExtractVolumePath:
         assert extract_volume_path("/Volumes/Luna-P") == "/Volumes/Luna-P"
 
     def test_returns_none_for_non_volume_path(self) -> None:
-        assert extract_volume_path("/Users/sho/Documents") is None
+        assert extract_volume_path("/Users/example/Documents") is None
 
     def test_returns_none_for_volumes_root(self) -> None:
         assert extract_volume_path("/Volumes") is None
