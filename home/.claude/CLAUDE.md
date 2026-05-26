@@ -31,6 +31,7 @@
   - PR作成のためのPush
   - Simplify、レビュー、ボーイスカウトルール全てを適用後のPush
   - その他の調整が完了後のPush
+- `git push` を `| tail` 等のパイプや出力加工に繋がず、push 後は `git ls-remote --heads origin <branch>`（リモート ref 存在）と `git status -sb`（upstream tracking）で成否を直接確認すること（理由: パイプ先の exit code が push 本体の失敗/未完を隠し、pre-push hook 完走と ref transfer 完了を取り違える）
 
 ## 実装哲学
 
