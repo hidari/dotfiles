@@ -1,10 +1,11 @@
 # pre-commit 設定
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # セットアップ:
-#   brew install pre-commit
+#   brew install pre-commit gitleaks
 #   pre-commit install
 #
-# scripts/backup-tool の ruff / mypy を uv 仮想環境で実行する。
+# - scripts/backup-tool の ruff / mypy / pytest を uv 仮想環境で実行する。
+# - gitleaks で staged 差分の secret / ユーザー名パス (/Users/<name>) 漏洩を弾く (.gitleaks.toml)。
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 repos:
@@ -37,3 +38,10 @@ repos:
         entry: uv run --directory scripts/backup-tool pytest -q
         pass_filenames: false
         files: ^scripts/backup-tool/(src|tests)/.*\.py$
+
+      - id: gitleaks
+        name: gitleaks (secret / user-path leak guard)
+        language: system
+        entry: gitleaks git --staged --redact --no-banner -c .gitleaks.toml
+        pass_filenames: false
+        always_run: true

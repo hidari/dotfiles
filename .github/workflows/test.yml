@@ -50,3 +50,39 @@ jobs:
 
       - name: Pytest
         run: uv run pytest --cov=backup_tool --cov-report=term-missing
+
+  gitleaks:
+    name: gitleaks (leak guard)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bats
+        uses: bats-core/bats-action@472edde1138d59aca53ff162fb8d996666d21e4a # 2.0.0
+
+      - name: Install gitleaks
+        run: |
+          curl --proto '=https' --tlsv1.2 -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz" | tar -xz -C "$RUNNER_TEMP" gitleaks
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Validate gitleaks rules (bats)
+        run: bats scripts/tests/gitleaks.bats
+
+      # 履歴 (既知の過去パス) を蒸し返さないよう、PR/push の新規コミット範囲のみ走査する。
+      # SHA は env 経由で渡し ${{ }} の script injection を避ける。
+      - name: Scan new commits for leaks
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [ -n "$BASE_SHA" ]; then
+            RANGE="$BASE_SHA..HEAD"
+          elif [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            RANGE="$BEFORE_SHA..HEAD"
+          else
+            RANGE="HEAD~1..HEAD"
+          fi
+          echo "Scanning range: $RANGE"
+          gitleaks git --log-opts="$RANGE" --redact --no-banner -c .gitleaks.toml
