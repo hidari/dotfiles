@@ -62,15 +62,10 @@ The following symlinks are created in your home directory:
 | `home/.claude/CLAUDE.md`                          | `~/.claude/CLAUDE.md`                      |
 | `home/.claude/.mcp.json`                          | `~/.claude/.mcp.json`                      |
 | `home/.claude/skills`                             | `~/.claude/skills`                         |
-| `home/.claude/plugins/security-blue-red-team`     | `~/.claude/plugins/security-blue-red-team` |
 | `scripts/backup-tool/backup.sh`                   | `~/.local/bin/backup.sh`                   |
 | `scripts/util-tools/small-id-gen/small-id-gen.sh` | `~/.local/bin/small-id-gen`                |
 
 Additionally, `home/.gitconfig.private.example` is copied to `~/.gitconfig.private` (if it doesn't exist).
-
-## Claude Code Plugins
-
-How the bundled Claude Code plugins load, and the development / bootstrap workflow, is documented in [`home/.claude/plugins/README.md`](home/.claude/plugins/README.md). Note that the plugin marketplace registration in `settings.json` is kept machine-local via `git update-index --skip-worktree` and is **not** committed (it contains a machine-specific absolute path).
 
 ## Testing
 

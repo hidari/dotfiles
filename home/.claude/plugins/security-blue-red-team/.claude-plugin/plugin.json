@@ -1,9 +1,0 @@
-{
-  "name": "security-blue-red-team",
-  "version": "0.3.0",
-  "description": "Product-agnostic Vulnerability Assessment / Red Team / Blue Team security testing automation for Claude Code. v0.3.0 splits monthly SAST + passive into security-vulnerability-assessment (Layer 1+2), while security-red-team focuses on active attack simulation (Layer 3+4 default). Adds Layer 3 cleanup-queue + /security-cleanup, per-host rate limiting (100 req/host, 1 req/sec sustained), and Purple Team chaining (/security-redteam --purple).",
-  "author": {
-    "name": "Hidari",
-    "email": "ika5140@gmail.com"
-  }
-}
