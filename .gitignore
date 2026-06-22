@@ -20,3 +20,9 @@ scripts/backup-tool/.coverage
 # Claude
 **/.claude/settings.local.json
 **/.claude/plans/
+
+# Private (defense-in-depth: 実体は $HOME 側だが repo への誤コミット防止)
+**/.gitconfig.private
+.env
+*.env
+**/.env

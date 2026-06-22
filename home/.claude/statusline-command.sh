@@ -38,7 +38,7 @@ color_for_pct() {
 progress_bar() {
   local pct="$1"
   local filled
-  filled=$(awk "BEGIN{printf \"%d\", int($pct / 10 + 0.5)}" 2>/dev/null || echo 0)
+  filled=$(awk -v p="$pct" 'BEGIN{printf "%d", int(p / 10 + 0.5)}' 2>/dev/null || echo 0)
   [ "$filled" -gt 10 ] 2>/dev/null && filled=10
   [ "$filled" -lt 0 ] 2>/dev/null && filled=0
   local bar=""
@@ -123,7 +123,9 @@ if [ "$lines_added" -gt 0 ] 2>/dev/null || [ "$lines_removed" -gt 0 ] 2>/dev/nul
 fi
 
 # ---------- Rate limit via Haiku probe (cached 360s) ----------
-CACHE_FILE="/tmp/claude-usage-cache.json"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/claude"
+mkdir -p "$CACHE_DIR" 2>/dev/null && chmod 700 "$CACHE_DIR" 2>/dev/null
+CACHE_FILE="$CACHE_DIR/usage-cache.json"
 CACHE_TTL=360
 FIVE_HOUR_UTIL=""
 FIVE_HOUR_RESET=""
@@ -178,10 +180,10 @@ fetch_usage() {
 load_usage() {
   local data="$1"
   eval "$(echo "$data" | jq -r '
-    "FIVE_HOUR_UTIL=" + (.five_hour_util // empty),
-    "FIVE_HOUR_RESET=" + (.five_hour_reset // empty),
-    "SEVEN_DAY_UTIL=" + (.seven_day_util // empty),
-    "SEVEN_DAY_RESET=" + (.seven_day_reset // empty)
+    "FIVE_HOUR_UTIL=" + (.five_hour_util // "" | @sh),
+    "FIVE_HOUR_RESET=" + (.five_hour_reset // "" | @sh),
+    "SEVEN_DAY_UTIL=" + (.seven_day_util // "" | @sh),
+    "SEVEN_DAY_RESET=" + (.seven_day_reset // "" | @sh)
   ' 2>/dev/null)"
 }
 
@@ -211,7 +213,7 @@ to_pct() {
     echo ""
     return
   fi
-  awk "BEGIN{printf \"%.0f\", $val * 100}" 2>/dev/null || echo ""
+  awk -v v="$val" 'BEGIN{printf "%.0f", v * 100}' 2>/dev/null || echo ""
 }
 
 FIVE_HOUR_PCT=$(to_pct "$FIVE_HOUR_UTIL")
@@ -251,7 +253,7 @@ ctx_icon=$(ctx_gauge "$ctx_pct_int")
 line1="${TEXT}› ${model_name}${RESET}${SEP}${ctx_color}${ctx_icon} ${ctx_pct_int}%${RESET}"
 
 # Session cost + wall duration（cost が 0 のうちは表示しない: 起動直後のノイズ抑制）
-if [ -n "$cost_usd" ] && awk "BEGIN{exit !($cost_usd > 0)}"; then
+if [ -n "$cost_usd" ] && awk -v c="$cost_usd" 'BEGIN{exit !(c > 0)}'; then
   cost_fmt=$(printf '$%.2f' "$cost_usd")
   dur_fmt=$(fmt_duration "$duration_ms")
   line1+="${SEP}${SUB}${cost_fmt} · ${dur_fmt}${RESET}"

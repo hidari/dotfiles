@@ -187,7 +187,7 @@ install_homebrew() {
         return 0
     fi
 
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    /bin/bash -c "$(curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 }
 
 install_rust() {
@@ -217,7 +217,7 @@ install_volta() {
         return 0
     fi
 
-    curl https://get.volta.sh | bash
+    curl --proto '=https' --tlsv1.2 -fsSL https://get.volta.sh | bash
 }
 
 install_claude_code() {
@@ -232,7 +232,7 @@ install_claude_code() {
         return 0
     fi
 
-    curl -fsSL https://claude.ai/install.sh | bash
+    curl --proto '=https' --tlsv1.2 -fsSL https://claude.ai/install.sh | bash
 }
 
 # =============================================================================
