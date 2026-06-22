@@ -30,7 +30,6 @@ SYMLINK_PAIRS=(
     "home/.claude/CLAUDE.md|.claude/CLAUDE.md"
     "home/.claude/.mcp.json|.claude/.mcp.json"
     "home/.claude/skills|.claude/skills"
-    "home/.claude/plugins/security-blue-red-team|.claude/plugins/security-blue-red-team"
     "scripts/backup-tool/backup.sh|.local/bin/backup.sh"
     "scripts/util-tools/small-id-gen/small-id-gen.sh|.local/bin/small-id-gen"
 )
