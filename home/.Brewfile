@@ -32,6 +32,10 @@ brew "rsync"                              # ファイル同期ツール
 brew "tree"                               # ディレクトリツリー表示
 brew "hidari/tap/rip"                     # zipアーカイバ
 
+# --- コード品質 / セキュリティ ---
+brew "pre-commit"                         # git pre-commit フック管理
+brew "gitleaks"                           # secret / ユーザー名パス漏洩スキャナ
+
 # --- Go言語ツール ---
 go "golang.org/x/tools/gopls"             # Go言語サーバー（LSP）
 go "honnef.co/go/tools/cmd/staticcheck"   # Go静的解析ツール
