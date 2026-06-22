@@ -51,20 +51,20 @@ cd ~/Develop/dotfiles
 
 The following symlinks are created in your home directory:
 
-| Source                               | Target                            |
-|--------------------------------------|-----------------------------------|
-| `home/.Brewfile`                     | `~/.Brewfile`                     |
-| `home/.zshrc`                        | `~/.zshrc`                        |
-| `home/.gitconfig`                    | `~/.gitconfig`                    |
-| `home/.config/git/.gitignore_global` | `~/.config/git/.gitignore_global` |
-| `home/.claude/settings.json`         | `~/.claude/settings.json`         |
-| `home/.claude/statusline-command.sh` | `~/.claude/statusline-command.sh` |
-| `home/.claude/CLAUDE.md`             | `~/.claude/CLAUDE.md`             |
-| `home/.claude/.mcp.json`             | `~/.claude/.mcp.json`             |
-| `home/.claude/skills`                | `~/.claude/skills`                |
-| `home/.claude/plugins/security-blue-red-team` | `~/.claude/plugins/security-blue-red-team` |
-| `scripts/backup-tool/backup.sh`      | `~/.local/bin/backup.sh`          |
-| `scripts/util-tools/small-id-gen/small-id-gen.sh` | `~/.local/bin/small-id-gen` |
+| Source                                            | Target                                     |
+|---------------------------------------------------|--------------------------------------------|
+| `home/.Brewfile`                                  | `~/.Brewfile`                              |
+| `home/.zshrc`                                     | `~/.zshrc`                                 |
+| `home/.gitconfig`                                 | `~/.gitconfig`                             |
+| `home/.config/git/.gitignore_global`              | `~/.config/git/.gitignore_global`          |
+| `home/.claude/settings.json`                      | `~/.claude/settings.json`                  |
+| `home/.claude/statusline-command.sh`              | `~/.claude/statusline-command.sh`          |
+| `home/.claude/CLAUDE.md`                          | `~/.claude/CLAUDE.md`                      |
+| `home/.claude/.mcp.json`                          | `~/.claude/.mcp.json`                      |
+| `home/.claude/skills`                             | `~/.claude/skills`                         |
+| `home/.claude/plugins/security-blue-red-team`     | `~/.claude/plugins/security-blue-red-team` |
+| `scripts/backup-tool/backup.sh`                   | `~/.local/bin/backup.sh`                   |
+| `scripts/util-tools/small-id-gen/small-id-gen.sh` | `~/.local/bin/small-id-gen`                |
 
 Additionally, `home/.gitconfig.private.example` is copied to `~/.gitconfig.private` (if it doesn't exist).
 
