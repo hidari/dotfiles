@@ -70,10 +70,9 @@ Additionally, `home/.gitconfig.private.example` is copied to `~/.gitconfig.priva
 ## Testing
 
 ```bash
-# Run all tests
+# bootstrap (bats)
 bats scripts/tests/
 
-# Run specific test file
-bats scripts/tests/bootstrap.bats
-bats scripts/tests/backup.bats
+# backup-tool (Python / pytest)
+uv run --directory scripts/backup-tool pytest -q
 ```
