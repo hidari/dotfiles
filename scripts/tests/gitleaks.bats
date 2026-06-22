@@ -25,7 +25,10 @@ setup() {
 }
 
 teardown() {
-    [ -n "$SCAN_DIR" ] && rm -rf "$SCAN_DIR"
+    # skip 時は SCAN_DIR 未設定なので if 文で空を吸収する (&& 一行だと空時に exit 1 で teardown 失敗)
+    if [ -n "${SCAN_DIR:-}" ]; then
+        rm -rf "$SCAN_DIR"
+    fi
 }
 
 # SCAN_DIR を repo の config で走査し JSON レポートを出力する (leak 検出時 exit!=0)
