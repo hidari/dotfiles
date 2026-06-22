@@ -11,7 +11,6 @@
   "permissions": {
     "allow": [
       "Bash(cat:*)",
-      "Bash(curl:*)",
       "Bash(find:*)",
       "Bash(grep:*)",
       "Bash(tail:*)",
