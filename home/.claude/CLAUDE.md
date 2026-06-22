@@ -33,6 +33,9 @@
   - Simplify、レビュー、ボーイスカウトルール全てを適用後のPush
   - その他の調整が完了後のPush
 - `git push` を `| tail` 等のパイプや出力加工に繋がず、push 後は `git ls-remote --heads origin <branch>`（リモート ref 存在）と `git status -sb`（upstream tracking）で成否を直接確認すること（理由: パイプ先の exit code が push 本体の失敗/未完を隠し、pre-push hook 完走と ref transfer 完了を取り違える）
+- 成否を持つ長時間コマンド（`gh run watch`・`gh pr checks --watch`・`gh pr merge` 等）の結論は exit code ではなく専用クエリ（`gh run view <id> --json conclusion` 等）で直接確認し、`<cmd>; echo "EXIT: $?"` のように `$?` を上書きする後続コマンドを連結しないこと
+  - 理由: 末尾コマンドの exit が本体の結論を隠し、failure を success と誤認する。上の `git push` ルールの一般形
+- 1Passwordコマンド `op` の使用時、認証（`op signin`, `op whoami`）は使わなくともユーザーダイアログにて承認できるので、そのまま `op read` などを実行する
 
 ## 実装哲学
 
@@ -62,6 +65,11 @@
 - さらに必要な場合は後からテストコードを追加すること
 - ユニットテストではモックは使わないようにし、どうしても必要な場合のみシンプルなものに限って使用すること
 - プロダクトコードを変更する際は、変更後の動作をテストコードで表現してからプロダクトコードを書くこと
+- テストは「緑であること」だけで信用しない。各テストが (1) 仕様を表現しているか、(2) 対象を正確にテストしているかまで確かめること
+  - 何をしても必ずパスするテスト（assertionが弱い・実質assertionが無い）、テスト自身のセットアップやモックを検証しているだけのテスト（プロダクトコードを実際に通っていない）を防ぐ
+  - 弱いassertion（`any()`・存在チェックのみ等）は exact 値の検証と negative case（失敗する入力で確かに失敗すること）まで強化する
+  - 実装がテストを gaming していないか（テストに合わせた決め打ち実装になっていないか）を読んで確認すること
+  - テスト群を読めば仕様が分かる状態を目指すこと
 - E2Eテストは `playwright-e2e-generator` を使用して作成すること
 
 ## [GLOBAL MUST] 作業プロトコル
@@ -107,3 +115,4 @@ feat(wip): React Router v7フロントエンド基盤を実装
 
 - 複雑な問題の検証にはSubAgentsを積極的に使用する
 - 既存のPlugins, Skillsを積極的に活用する
+- 実装プランを実行する際は `superpowers:subagent-driven-development`（Subagent-Driven）を既定とする。タスクごとに新鮮なSubAgentをdispatchし、各境界でfmt+test緑をコントローラ側が検証し、報告とgit statusを突合してからコミットする
