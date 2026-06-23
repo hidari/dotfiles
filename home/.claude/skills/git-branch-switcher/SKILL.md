@@ -30,7 +30,7 @@ allowed-tools:
 ```bash
 git branch --show-current
 git status --short
-````
+```
 
 ### ステップ 2: タスクを理解する
 
