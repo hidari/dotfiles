@@ -14,6 +14,14 @@ scripts/backup-tool/.mypy_cache/
 scripts/backup-tool/.pytest_cache/
 scripts/backup-tool/.coverage
 
+# Python (config-guard)
+scripts/config-guard/.venv/
+scripts/config-guard/**/__pycache__/
+scripts/config-guard/.ruff_cache/
+scripts/config-guard/.mypy_cache/
+scripts/config-guard/.pytest_cache/
+scripts/config-guard/.coverage
+
 # Logs
 *.log
 
