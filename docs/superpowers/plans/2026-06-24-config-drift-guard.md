@@ -4,7 +4,7 @@
 
 **Goal:** skills の allowed-tools と committed settings.json の stale/不正なツール名参照、および committed settings.json の構造逸脱を CI と pre-commit で静的検出する Python ツール config-guard を作る。
 
-**Architecture:** `scripts/config-guard/` を uv プロジェクトとして新設する（backup-tool と対称の ruff/mypy strict/pytest 構成）。ツール名検証は純粋関数 `validate_tool_token`（Hybrid: denylist + shape）に集約し、SKILL.md frontmatter と settings.json permissions の 2 経路から再利用する。settings.json は skip-worktree のため必ず git（staged→HEAD）から読み、working tree は読まない。
+**Architecture:** `scripts/config-guard/` を uv プロジェクトとして新設する（backup-tool と対称の ruff/mypy strict/pytest 構成）。ツール名検証は純粋関数 `validate_tool_token`（Hybrid: denylist + shape）に集約し、SKILL.md frontmatter と settings.json permissions の 2 経路から再利用する。settings.json は skip-worktree のため必ず git の index から読み、working tree は読まない。
 
 **Tech Stack:** Python 3.12+, uv, hatchling, ruff, mypy(strict), pytest。外部依存ゼロ（標準ライブラリの json / re / subprocess / glob / pathlib のみ）。
 
@@ -458,6 +458,8 @@ Claude-Session: https://claude.ai/code/session_01LfXRyn6J2VWYgQmVw2npso"
 ```
 
 ### Task 3: git_source（committed settings.json を git から読む）
+
+> 実装メモ（as-built）: 以下の計画コードは staged→HEAD 二段フォールバックだが、実装時に index 一本（`git show :home/.claude/settings.json`）へ改訂した。理由は本タスクの `test_raises_when_absent`（`git rm` 後に RuntimeError 期待）と二段案が矛盾するため。index は clean commit 後は HEAD 等価・dance 後は staged 内容を持つので、一本で「staged 優先・HEAD 等価」の双方を満たす。test 名も実態に合わせ `test_returns_committed_content_when_only_working_differs` 等へ改めた。as-built は `scripts/config-guard/src/config_guard/git_source.py` を正とする。
 
 **Files:**
 - Create: `scripts/config-guard/src/config_guard/git_source.py`
