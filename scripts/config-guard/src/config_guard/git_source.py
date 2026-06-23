@@ -1,7 +1,8 @@
-"""committed（staged を優先し HEAD にフォールバック）な settings.json を git から読む。
+"""committed な settings.json を git の index（staged）経由で読む。
 
 settings.json は skip-worktree のため working tree = live superset である。
-working file を読むと個人トグルや /Users パスを誤検出するため、必ず git から読む。
+working file を読むと個人トグルや /Users パスを誤検出するため、必ず git の
+index から読む（clean commit 後は index = HEAD 内容、dance 後は staged 内容）。
 """
 
 from __future__ import annotations
