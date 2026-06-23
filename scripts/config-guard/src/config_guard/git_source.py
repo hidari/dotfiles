@@ -36,6 +36,8 @@ def read_committed_settings(repo_root: str) -> dict[str, Any]:
     # index からの読み取り。staged 削除時は :path が失敗するため RuntimeError になる
     content = _git_show(repo_root, f":{SETTINGS_PATH}")
     if content is not None:
-        parsed: dict[str, Any] = json.loads(content)
+        parsed = json.loads(content)
+        if not isinstance(parsed, dict):
+            raise RuntimeError(f"{SETTINGS_PATH} の JSON ルートがオブジェクトではありません")
         return parsed
     raise RuntimeError(f"git から {SETTINGS_PATH} を取得できませんでした (index に存在しない)")

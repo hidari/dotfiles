@@ -14,7 +14,7 @@ from config_guard.tool_refs import validate_tool_token
 
 _SRC = "settings.json (committed)"
 
-# committed に含めてはならないキー（PR #22 で消した dead config 等）
+# committed に含めてはならないキー（過去に混入した dead config の再滞留防止）
 _FORBIDDEN_KEYS: tuple[str, ...] = ("enabledMcpjsonServers",)
 
 # ユーザーのローカル絶対パス（gitleaks との多層防御）

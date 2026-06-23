@@ -47,7 +47,3 @@ def main(argv: list[str] | None = None) -> int:
         print(f"config-guard: {finding.source}: {finding.message} [{finding.detail}]")
     print(f"config-guard: {len(findings)} 件の問題を検出しました")
     return 1
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

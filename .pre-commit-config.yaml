@@ -4,7 +4,8 @@
 #   brew install pre-commit gitleaks
 #   pre-commit install
 #
-# - scripts/backup-tool の ruff / mypy / pytest を uv 仮想環境で実行する。
+# - scripts/backup-tool と scripts/config-guard の ruff / mypy / pytest を uv 仮想環境で実行する。
+# - config-guard で skills / committed settings.json の stale なツール名参照・構造逸脱を検出する。
 # - gitleaks で staged 差分の secret / ユーザー名パス (/Users/<name>) 漏洩を弾く (.gitleaks.toml)。
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

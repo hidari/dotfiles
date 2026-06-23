@@ -33,7 +33,7 @@ class TestInvariantViolations:
     def test_forbidden_key_enabled_mcp_servers(self) -> None:
         settings = {**GOOD, "enabledMcpjsonServers": ["chrome-devtools"]}
         findings = check_settings_invariants(settings)
-        assert any(f.detail == "enabledMcpjsonServers" for f in findings)
+        assert [f.detail for f in findings] == ["enabledMcpjsonServers"]
 
     def test_user_absolute_path(self) -> None:
         settings = {
@@ -43,9 +43,9 @@ class TestInvariantViolations:
             },
         }
         findings = check_settings_invariants(settings)
-        # ユーザーパス かつ directory marketplace の双方が検出される
-        assert any("絶対パス" in f.message for f in findings)
-        assert any("directory" in f.message for f in findings)
+        # ユーザーパス と directory marketplace の 2 件だけが検出される
+        assert {f.detail for f in findings} == {"/Users/example/x", "hidari-plugins"}
+        assert len(findings) == 2
 
     def test_non_public_marketplace_plugin(self) -> None:
         settings = {
@@ -53,9 +53,9 @@ class TestInvariantViolations:
             "enabledPlugins": {"security@hidari-plugins": True},
         }
         findings = check_settings_invariants(settings)
-        assert any("hidari-plugins" in f.detail for f in findings)
+        assert [f.detail for f in findings] == ["security@hidari-plugins"]
 
     def test_invalid_permission_tool_name(self) -> None:
         settings = {**GOOD, "permissions": {"deny": ["NoteboolEdit"]}}
         findings = check_settings_invariants(settings)
-        assert any(f.detail == "NoteboolEdit" for f in findings)
+        assert [f.detail for f in findings] == ["NoteboolEdit"]

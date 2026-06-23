@@ -41,7 +41,7 @@ def test_prefers_staged_over_head_and_ignores_working(tmp_path: Path) -> None:
     assert result == {"marker": "staged"}
 
 
-def test_falls_back_to_head_when_index_matches(tmp_path: Path) -> None:
+def test_returns_committed_content_when_only_working_differs(tmp_path: Path) -> None:
     _init_repo(tmp_path)
     _write_settings(tmp_path, {"marker": "head"})
     _run(tmp_path, "add", SETTINGS_PATH)
@@ -59,6 +59,23 @@ def test_raises_when_absent(tmp_path: Path) -> None:
     _run(tmp_path, "add", "home")
     _run(tmp_path, "commit", "-q", "-m", "init")
     _run(tmp_path, "rm", "-q", SETTINGS_PATH)
+
+    try:
+        read_committed_settings(str(tmp_path))
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("RuntimeError が送出されるべき")
+
+
+def test_raises_when_json_root_not_object(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    path = tmp_path / SETTINGS_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # ルートがオブジェクトでない（配列）不正な settings
+    path.write_text("[]", encoding="utf-8")
+    _run(tmp_path, "add", SETTINGS_PATH)
+    _run(tmp_path, "commit", "-q", "-m", "array root")
 
     try:
         read_committed_settings(str(tmp_path))
