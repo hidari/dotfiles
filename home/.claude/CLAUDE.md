@@ -70,7 +70,7 @@
   - 弱いassertion（`any()`・存在チェックのみ等）は exact 値の検証と negative case（失敗する入力で確かに失敗すること）まで強化する
   - 実装がテストを gaming していないか（テストに合わせた決め打ち実装になっていないか）を読んで確認すること
   - テスト群を読めば仕様が分かる状態を目指すこと
-- E2Eテストは `playwright-e2e-generator` を使用して作成すること
+- E2Eテストは公式 Playwright Test Agents（`npx playwright init-agents --loop=claude` で生成される Planner / Generator / Healer）を使用して作成すること
 
 ## [GLOBAL MUST] 作業プロトコル
 
