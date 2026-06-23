@@ -1,5 +1,5 @@
 ---
-status: open
+status: closed
 ---
 
 # docs: settings.json の live・committed 二重管理を文書化し curation を機械化
@@ -17,10 +17,10 @@ status: open
 
 ## タスク
 
-- [ ] skip-worktree 契約（committed = subset / live = superset、なぜそうしているか、編集手順）を README または docs に明記する
-- [ ] curation の機械化方針を検討する（案 A: committed template + live を生成する generator、案 B: committed が期待 shape の strict subset であることを検証する CI チェック）
-- [ ] 採用案を実装し、dead config が committed / live に滞留しないことを保証する
-- [ ] gitleaks ガードとの役割分担を整理する（gitleaks は秘匿検出、本機構は構造 curation）
+- [x] skip-worktree 契約（committed = subset / live = superset、なぜそうしているか、編集手順）を README または docs に明記する
+- [x] curation の機械化方針を検討する（案 A: committed template + live を生成する generator、案 B: committed が期待 shape の strict subset であることを検証する CI チェック）
+- [x] 採用案を実装し、dead config が committed / live に滞留しないことを保証する
+- [x] gitleaks ガードとの役割分担を整理する（gitleaks は秘匿検出、本機構は構造 curation）
 
 ## 関連
 
