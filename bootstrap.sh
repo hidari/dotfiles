@@ -262,6 +262,102 @@ setup_dotfiles() {
 }
 
 # =============================================================================
+# Claude plugin セットアップ関数
+# =============================================================================
+
+# settings.json から marketplace / plugin のインストール対象を抽出する（純粋関数・副作用なし）
+# 出力（タブ区切り、marketplace を先に出すことで install より前に登録される）:
+#   marketplace<TAB><名前><TAB><source>  ... extraKnownMarketplaces の github(repo)/git(url)/directory(path)
+#   plugin<TAB><id>                       ... enabledPlugins のうち値が true のもの
+# inline(settings) ソースの marketplace は add 不要なので出力しない
+claude_plugin_targets() {
+    local settings_file="$1"
+
+    # marketplace: source 種別ごとに add 引数（repo / url / path）を取り出す
+    jq -r '
+        .extraKnownMarketplaces // {} | to_entries[]
+        | .key as $name
+        | (.value.source.repo // .value.source.url // .value.source.path) as $arg
+        | select($arg != null)
+        | "marketplace\t\($name)\t\($arg)"
+    ' "$settings_file"
+
+    # plugin: enabled が true のものだけ
+    jq -r '
+        .enabledPlugins // {} | to_entries[]
+        | select(.value == true)
+        | "plugin\t\(.key)"
+    ' "$settings_file"
+}
+
+# settings.json の宣言に従って marketplace を登録し plugin をインストールする
+# - claude / jq が無ければ警告してスキップ（bootstrap 全体は止めない）
+# - 既に登録済み / インストール済みのものはスキップ（冪等）
+# - 個別の失敗は警告に留め best-effort で継続する（set -e 下なので明示的に分岐）
+# - extraKnownMarketplaces に無い marketplace（claude-plugins-official 等の組み込み）は
+#   claude が既知である前提で install する。未知なら install は best-effort で skip される
+setup_claude_plugins() {
+    local settings_file="${1:-$DOTFILES_DIR/home/.claude/settings.json}"
+    log "Setting up Claude Code plugins..."
+
+    if ! command -v claude &> /dev/null; then
+        warn "claude not found; skipping Claude plugin setup"
+        return 0
+    fi
+    if ! command -v jq &> /dev/null; then
+        warn "jq not found; skipping Claude plugin setup"
+        return 0
+    fi
+    if [ ! -f "$settings_file" ]; then
+        warn "settings.json not found; skipping Claude plugin setup: $settings_file"
+        return 0
+    fi
+
+    # 既存の marketplace 名 / plugin id を取得（冪等性チェック用。dry-run では不要）
+    # --json スキーマは claude 2.1 系で確認済み: marketplace list は .name、plugin list は .id
+    local existing_marketplaces="" existing_plugins=""
+    if [ "$DRY_RUN" = false ]; then
+        existing_marketplaces="$(claude plugin marketplace list --json 2>/dev/null | jq -r '.[].name' 2>/dev/null || true)"
+        existing_plugins="$(claude plugin list --json 2>/dev/null | jq -r '.[].id' 2>/dev/null || true)"
+    fi
+
+    # claude_plugin_targets の各行を処理（marketplace は plugin より前に出力される）
+    local kind name arg
+    while IFS=$'\t' read -r kind name arg; do
+        # 空行はスキップ（set -e 下で意図を明確にするため if 形式を使う）
+        if [ -z "$kind" ]; then continue; fi
+        case "$kind" in
+            marketplace)
+                # name=marketplace 名, arg=add に渡す source
+                if [ "$DRY_RUN" = true ]; then
+                    echo "[DRY-RUN] claude plugin marketplace add $arg --scope user"
+                elif printf '%s\n' "$existing_marketplaces" | grep -qxF "$name"; then
+                    log "Marketplace already registered: $name"
+                elif claude plugin marketplace add "$arg" --scope user; then
+                    log "Registered marketplace: $name ($arg)"
+                else
+                    warn "Failed to register marketplace (skipped): $name ($arg)"
+                fi
+                ;;
+            plugin)
+                # name=plugin id (<plugin>@<marketplace>)
+                if [ "$DRY_RUN" = true ]; then
+                    echo "[DRY-RUN] claude plugin install $name --scope user"
+                elif printf '%s\n' "$existing_plugins" | grep -qxF "$name"; then
+                    log "Plugin already installed: $name"
+                elif claude plugin install "$name" --scope user; then
+                    log "Installed plugin: $name"
+                else
+                    warn "Failed to install plugin (skipped): $name"
+                fi
+                ;;
+        esac
+    done < <(claude_plugin_targets "$settings_file")
+
+    log "Claude plugin setup complete!"
+}
+
+# =============================================================================
 # メイン処理
 # =============================================================================
 
@@ -302,6 +398,7 @@ main() {
         echo "This script will:"
         if [ "$DOTFILES_ONLY" = false ]; then
             echo "  - Install Homebrew, Rust, Volta, Claude Code"
+            echo "  - Install Claude Code plugins declared in settings.json"
         fi
         echo "  - Create symlinks for dotfiles"
         echo ""
@@ -325,6 +422,12 @@ main() {
 
     # dotfiles セットアップ
     setup_dotfiles
+
+    # Claude plugin セットアップ（settings.json symlink 後・claude 導入後に実行する。
+    # 先に実行すると claude が ~/.claude/settings.json を生成し setup_dotfiles の symlink と衝突するため）
+    if [ "$DOTFILES_ONLY" = false ]; then
+        setup_claude_plugins
+    fi
 
     echo ""
     log "Bootstrap complete!"

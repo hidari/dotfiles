@@ -46,6 +46,7 @@ cd ~/Develop/dotfiles
 - [Rust](https://rustup.rs/) - Rust toolchain
 - [Volta](https://volta.sh/) - Node.js version manager
 - [Claude Code](https://claude.ai/code) - AI coding assistant
+- Claude Code plugins - the marketplaces and plugins declared in `home/.claude/settings.json` (`extraKnownMarketplaces` + `enabledPlugins`) are registered and installed via `claude plugin`
 
 ### Dotfiles
 
