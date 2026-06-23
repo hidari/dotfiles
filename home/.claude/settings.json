@@ -38,7 +38,7 @@
       "Glob(.hidari/**)",
       "Grep(.hidari/**)",
       "Bash(pkill:*)",
-      "NoteboolEdit",
+      "NotebookEdit",
       "NotebookRead"
     ],
     "ask": [
