@@ -48,9 +48,6 @@
     ]
   },
   "model": "opus[1m]",
-  "enabledMcpjsonServers": [
-    "chrome-devtools"
-  ],
   "hooks": {
     "PreCompact": [],
     "SessionStart": [
@@ -81,13 +78,28 @@
     "superpowers-developing-for-claude-code@superpowers-marketplace": true,
     "pyright-lsp@claude-plugins-official": true,
     "swift-lsp@claude-plugins-official": true,
-    "kotlin-lsp@claude-plugins-official": true
+    "kotlin-lsp@claude-plugins-official": true,
+    "modern-web-guidance@googlechrome": true,
+    "superpowers-chrome@superpowers-marketplace": true,
+    "chrome-devtools-mcp@chrome-devtools-plugins": true
   },
   "extraKnownMarketplaces": {
     "superpowers-marketplace": {
       "source": {
         "source": "github",
         "repo": "obra/superpowers-marketplace"
+      }
+    },
+    "googlechrome": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/GoogleChrome/modern-web-guidance.git"
+      }
+    },
+    "chrome-devtools-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "ChromeDevTools/chrome-devtools-mcp"
       }
     }
   },

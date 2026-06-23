@@ -1,6 +1,6 @@
 ---
 name: playwright-cli
-description: Use when running Playwright via terminal CLI — `npx playwright test` (test runner), `codegen` (interactive recording), `screenshot` / `pdf` (one-off captures), and CI sharding. NOT for agent-driven real-time browser control (use `claude-in-chrome` MCP tools for that).
+description: Use when running Playwright via terminal CLI — `npx playwright test` (test runner), `codegen` (interactive recording), `screenshot` / `pdf` (one-off captures), and CI sharding. NOT for agent-driven real-time browser control (use the `superpowers-chrome:browsing` skill (`use_browser`) for that).
 ---
 
 # Playwright CLI
@@ -10,13 +10,13 @@ Terminal-based browser automation using `npx playwright`. This skill covers the 
 ## Scope boundary
 
 | I want to...                                                                  | Use                                                                                    |
-|-------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | Run E2E tests                                                                 | `npx playwright test` (this skill)                                                     |
 | Record a browser session → test code                                          | `npx playwright codegen` (this skill)                                                  |
 | One-off screenshot / PDF from a URL                                           | `npx playwright screenshot` / `pdf` (this skill)                                       |
 | Write / review / tune a Playwright test suite                                 | `playwright-test` skill                                                                |
-| **Agent-driven real-time browser control** (navigate → click → read → assert) | `mcp__claude-in-chrome__*` tools (not this skill)                                      |
-| Interactive data scraping / SPA exploration                                   | `claude-in-chrome` MCP tools or a Playwright script executed via `npx playwright test` |
+| **Agent-driven real-time browser control** (navigate → click → read → assert) | `superpowers-chrome:browsing` skill (`use_browser`), not this skill                    |
+| Interactive data scraping / SPA exploration                                   | `superpowers-chrome:browsing` skill (`use_browser`), or a `npx playwright test` script |
 
 For data scraping / SPA flows where you need to programmatically navigate, click "Load More", extract DOM, and save JSON: write a `tests/*.spec.ts` and run `npx playwright test`. See `playwright-test` skill for the test-authoring patterns.
 
