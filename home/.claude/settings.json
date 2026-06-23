@@ -48,9 +48,6 @@
     ]
   },
   "model": "opus[1m]",
-  "enabledMcpjsonServers": [
-    "chrome-devtools"
-  ],
   "hooks": {
     "PreCompact": [],
     "SessionStart": [

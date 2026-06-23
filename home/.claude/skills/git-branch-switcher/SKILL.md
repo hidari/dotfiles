@@ -5,7 +5,7 @@ allowed-tools:
   - Read
   - Grep
   - Glob
-  - Git
+  - Bash(git *)
 ---
 
 # Git Branch Switcher

@@ -2,12 +2,12 @@
 name: chrome-devtools-debugger
 description: 公式 chrome-devtools-mcp plugin の skill 群で収集したデバッグ結果を、標準化された日本語レポート (docs/debug-reports/) へ整形・機密マスクするレイヤー。ネットワーク/コンソール/パフォーマンス/UI の調査結果を既知エラーパターンに対応づけ、優先度付きでレポート化する際に使用する。
 allowed-tools:
-  - mcp__chrome-devtools__take_snapshot
-  - mcp__chrome-devtools__take_screenshot
-  - mcp__chrome-devtools__list_network_requests
-  - mcp__chrome-devtools__get_network_request
-  - mcp__chrome-devtools__list_console_messages
-  - mcp__chrome-devtools__get_console_message
+  - mcp__plugin_chrome-devtools-mcp_chrome-devtools__take_snapshot
+  - mcp__plugin_chrome-devtools-mcp_chrome-devtools__take_screenshot
+  - mcp__plugin_chrome-devtools-mcp_chrome-devtools__list_network_requests
+  - mcp__plugin_chrome-devtools-mcp_chrome-devtools__get_network_request
+  - mcp__plugin_chrome-devtools-mcp_chrome-devtools__list_console_messages
+  - mcp__plugin_chrome-devtools-mcp_chrome-devtools__get_console_message
   - Read
   - Write
 ---
