@@ -39,6 +39,41 @@ repos:
         pass_filenames: false
         files: ^scripts/backup-tool/(src|tests)/.*\.py$
 
+      - id: config-guard-ruff-check
+        name: config-guard ruff check
+        language: system
+        entry: uv run --directory scripts/config-guard ruff check src tests
+        pass_filenames: false
+        files: ^scripts/config-guard/(src|tests)/.*\.py$
+
+      - id: config-guard-ruff-format
+        name: config-guard ruff format --check
+        language: system
+        entry: uv run --directory scripts/config-guard ruff format --check src tests
+        pass_filenames: false
+        files: ^scripts/config-guard/(src|tests)/.*\.py$
+
+      - id: config-guard-mypy
+        name: config-guard mypy
+        language: system
+        entry: uv run --directory scripts/config-guard mypy src tests
+        pass_filenames: false
+        files: ^scripts/config-guard/(src|tests)/.*\.py$
+
+      - id: config-guard-pytest
+        name: config-guard pytest
+        language: system
+        entry: uv run --directory scripts/config-guard pytest -q
+        pass_filenames: false
+        files: ^scripts/config-guard/(src|tests)/.*\.py$
+
+      - id: config-guard-scan
+        name: config-guard scan (tool refs / settings invariants)
+        language: system
+        entry: bash -c 'uv run --directory scripts/config-guard config-guard "$(git rev-parse --show-toplevel)"'
+        pass_filenames: false
+        files: ^(home/\.claude/skills/.*/SKILL\.md|home/\.claude/settings\.json|scripts/config-guard/.*)$
+
       - id: gitleaks
         name: gitleaks (secret / user-path leak guard)
         language: system
