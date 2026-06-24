@@ -189,6 +189,9 @@ install_homebrew() {
     fi
 
     /bin/bash -c "$(curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+    # インストール直後は brew が現在のシェルの PATH に無いため、以降のステップ(install_mise 等)向けに読み込む
+    eval "$(/opt/homebrew/bin/brew shellenv)"
 }
 
 install_rust() {
