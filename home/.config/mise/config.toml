@@ -1,3 +1,4 @@
+# mise が管理する global ツールの pin。exact 指定で全マシンを完全再現する。
 [tools]
 node = "24.17.0"
 pnpm = "10.24.0"

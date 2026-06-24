@@ -109,4 +109,3 @@ exact pin の upgrade 手順は次の 3 手。
 - `~/.volta` 実体の自動削除（手動手順のみ）。
 - Volta global packages（wrangler 等）の自動移行。
 - pnpm を corepack で管理する方式（mise tool 管理を採用）。
-</content>
