@@ -32,3 +32,6 @@ scripts/config-guard/.coverage
 # Private (defense-in-depth: 実体は $HOME 側だが repo への誤コミット防止)
 **/.gitconfig.private
 *.env
+
+# 一時作業ファイル (scratch)
+tmp/
