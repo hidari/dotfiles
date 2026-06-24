@@ -44,7 +44,7 @@ cd ~/Develop/dotfiles
 
 - [Homebrew](https://brew.sh/) - Package manager
 - [Rust](https://rustup.rs/) - Rust toolchain
-- [Volta](https://volta.sh/) - Node.js version manager
+- [mise](https://mise.jdx.dev/) - dev tool / runtime version manager
 - [Claude Code](https://claude.ai/code) - AI coding assistant
 
 ### Dotfiles
@@ -57,6 +57,7 @@ The following symlinks are created in your home directory:
 | `home/.zshrc`                                     | `~/.zshrc`                                 |
 | `home/.gitconfig`                                 | `~/.gitconfig`                             |
 | `home/.config/git/.gitignore_global`              | `~/.config/git/.gitignore_global`          |
+| `home/.config/mise/config.toml`                   | `~/.config/mise/config.toml`               |
 | `home/.claude/settings.json`                      | `~/.claude/settings.json`                  |
 | `home/.claude/statusline-command.sh`              | `~/.claude/statusline-command.sh`          |
 | `home/.claude/CLAUDE.md`                          | `~/.claude/CLAUDE.md`                      |
