@@ -23,9 +23,6 @@ export HOMEBREW_NO_ENV_HINTS=1
 # Go言語の設定
 export GOPATH="$HOME/.go"
 
-# Voltaの設定
-export VOLTA_HOME="$HOME/.volta"
-
 # pnpmの設定
 export PNPM_HOME="$HOME/Library/pnpm"
 
@@ -37,7 +34,6 @@ path=(
     /opt/homebrew/bin(N-/)
     $path
     $PNPM_HOME(N-/)
-    $VOLTA_HOME/bin(N-/)
     $HOME/.bun/bin(N-/)
     $HOME/.cargo/bin(N-/)
     $HOME/.cargo/env(N-/)
