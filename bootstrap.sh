@@ -25,6 +25,7 @@ SYMLINK_PAIRS=(
     "home/.zshrc|.zshrc"
     "home/.gitconfig|.gitconfig"
     "home/.config/git/.gitignore_global|.config/git/.gitignore_global"
+    "home/.config/mise/config.toml|.config/mise/config.toml"
     "home/.claude/settings.json|.claude/settings.json"
     "home/.claude/statusline-command.sh|.claude/statusline-command.sh"
     "home/.claude/CLAUDE.md|.claude/CLAUDE.md"
@@ -205,19 +206,19 @@ install_rust() {
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 }
 
-install_volta() {
-    log "Installing Volta..."
-    if command -v volta &> /dev/null; then
-        log "Volta is already installed. Skipping..."
+install_mise() {
+    log "Installing mise..."
+    if command -v mise &> /dev/null; then
+        log "mise is already installed. Skipping..."
         return 0
     fi
 
     if [ "$DRY_RUN" = true ]; then
-        echo "[DRY-RUN] Install Volta"
+        echo "[DRY-RUN] Install mise"
         return 0
     fi
 
-    curl --proto '=https' --tlsv1.2 -fsSL https://get.volta.sh | bash
+    brew install mise
 }
 
 install_claude_code() {
@@ -244,6 +245,7 @@ setup_dotfiles() {
 
     # 必要なディレクトリを作成
     ensure_directory "$HOME/.config/git"
+    ensure_directory "$HOME/.config/mise"
     ensure_directory "$HOME/.local/bin"
 
     # シンボリックリンクを作成
@@ -301,7 +303,7 @@ main() {
     if [ "$YES_MODE" = false ] && [ "$DRY_RUN" = false ]; then
         echo "This script will:"
         if [ "$DOTFILES_ONLY" = false ]; then
-            echo "  - Install Homebrew, Rust, Volta, Claude Code"
+            echo "  - Install Homebrew, Rust, mise, Claude Code"
         fi
         echo "  - Create symlinks for dotfiles"
         echo ""
@@ -319,7 +321,7 @@ main() {
     if [ "$DOTFILES_ONLY" = false ]; then
         install_homebrew
         install_rust
-        install_volta
+        install_mise
         install_claude_code
     fi
 

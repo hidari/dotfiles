@@ -11,6 +11,7 @@ brew "go"                                 # Go言語
 brew "deno"                               # Denoランタイム
 brew "gh"                                 # GitHub CLI
 brew "libpq"                              # PostgreSQL通信するクライアントライブラリ
+brew "mise"                               # ランタイム/ツールバージョン管理 (node, pnpm)
 
 # --- Platform CLI
 brew "stripe/stripe-cli/stripe"           # Stripe決済プラットフォームCLI
