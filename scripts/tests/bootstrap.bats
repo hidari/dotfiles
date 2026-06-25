@@ -194,3 +194,36 @@ teardown() {
     # 元のファイルは残っている
     [ -f "$TEST_HOME/.config/test.txt" ]
 }
+
+# =============================================================================
+# render_launch_agent_plist tests
+# =============================================================================
+
+@test "render_launch_agent_plist: substitutes placeholders" {
+    local template="$TEST_HOME/tmpl.plist"
+    local dest="$TEST_HOME/Library/LaunchAgents/out.plist"
+    printf '%s\n' '__DOTFILES_DIR__/scripts/run.sh __HOME__/log' > "$template"
+    DOTFILES_DIR="/repo"
+
+    run render_launch_agent_plist "$template" "$dest"
+
+    [ "$status" -eq 0 ]
+    [ -f "$dest" ]
+    grep -q "/repo/scripts/run.sh" "$dest"
+    grep -q "$TEST_HOME/log" "$dest"
+    ! grep -q "__DOTFILES_DIR__" "$dest"
+    ! grep -q "__HOME__" "$dest"
+}
+
+@test "render_launch_agent_plist: dry-run does not write" {
+    local template="$TEST_HOME/tmpl.plist"
+    local dest="$TEST_HOME/out.plist"
+    printf '%s\n' 'x' > "$template"
+    DRY_RUN=true
+
+    run render_launch_agent_plist "$template" "$dest"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"[DRY-RUN]"* ]]
+    [ ! -f "$dest" ]
+}

@@ -263,7 +263,50 @@ setup_dotfiles() {
         copy_if_not_exists "$DOTFILES_DIR/home/.gitconfig.private.example" "$HOME/.gitconfig.private"
     fi
 
+    # node-security-notifier の LaunchAgent を導入
+    setup_launch_agent
+
     log "Dotfiles setup complete!"
+}
+
+# LaunchAgent plist をプレースホルダ置換してレンダリング（冪等）
+render_launch_agent_plist() {
+    local template="$1"
+    local dest="$2"
+
+    if [ "$DRY_RUN" = true ]; then
+        echo "[DRY-RUN] render $template -> $dest"
+        return 0
+    fi
+
+    ensure_directory "$(dirname "$dest")"
+    sed -e "s|__DOTFILES_DIR__|$DOTFILES_DIR|g" -e "s|__HOME__|$HOME|g" "$template" > "$dest"
+    log "Rendered LaunchAgent: $dest"
+}
+
+# node-security-notifier の LaunchAgent を導入（macOS のみ）
+setup_launch_agent() {
+    local label="com.hidari.node-security-notifier"
+    local template="$DOTFILES_DIR/scripts/node-security-notifier/$label.plist"
+    local dest="$HOME/Library/LaunchAgents/$label.plist"
+
+    render_launch_agent_plist "$template" "$dest"
+
+    if [ "$DRY_RUN" = true ]; then
+        echo "[DRY-RUN] launchctl reload $label"
+        return 0
+    fi
+
+    if ! command -v launchctl &> /dev/null; then
+        warn "launchctl not found; skipping LaunchAgent load"
+        return 0
+    fi
+
+    local uid
+    uid="$(id -u)"
+    launchctl bootout "gui/$uid/$label" 2> /dev/null || true
+    launchctl bootstrap "gui/$uid" "$dest"
+    log "Loaded LaunchAgent: $label"
 }
 
 # =============================================================================
