@@ -16,28 +16,28 @@ class TestLoadConfig:
         toml = """
 minimum_free_space_gb = 100
 log_retention_days = 90
-log_base_dir = "/Volumes/Luna-P/.backup_logs"
+log_base_dir = "/Volumes/Primary/.backup_logs"
 error_behavior = "stop"
 additional_excludes = ["*.tmp", "cache/"]
 
 [[backup_pairs]]
 name = "メインSSD"
-source = "/Volumes/Luna-P"
-destination = "/Volumes/Luna-S"
+source = "/Volumes/Primary"
+destination = "/Volumes/Secondary"
 excludes = ["node_modules"]
 """.encode()
         config = load_config(toml)
         assert config == Config(
             minimum_free_space_gb=100,
             log_retention_days=90,
-            log_base_dir="/Volumes/Luna-P/.backup_logs",
+            log_base_dir="/Volumes/Primary/.backup_logs",
             error_behavior="stop",
             additional_excludes=("*.tmp", "cache/"),
             backup_pairs=(
                 BackupPair(
                     name="メインSSD",
-                    source="/Volumes/Luna-P",
-                    destination="/Volumes/Luna-S",
+                    source="/Volumes/Primary",
+                    destination="/Volumes/Secondary",
                     excludes=("node_modules",),
                 ),
             ),

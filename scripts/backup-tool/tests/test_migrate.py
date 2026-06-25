@@ -13,11 +13,11 @@ SAMPLE_CONF = """
 # コメント行
 MINIMUM_FREE_SPACE_GB=100
 LOG_RETENTION_DAYS=90
-LOG_BASE_DIR="/Volumes/Luna-P/.backup_logs"
+LOG_BASE_DIR="/Volumes/Primary/.backup_logs"
 ERROR_BEHAVIOR="stop"
 
 BACKUP_PAIRS=(
-    "メインSSD|/Volumes/Luna-P|/Volumes/Luna-S"
+    "メインSSD|/Volumes/Primary|/Volumes/Secondary"
     "写真|/Volumes/Data/Photos|/Volumes/Backup/Photos|*.tmp,cache/"
 )
 
@@ -34,14 +34,14 @@ class TestParseBashConf:
         assert config == Config(
             minimum_free_space_gb=100,
             log_retention_days=90,
-            log_base_dir="/Volumes/Luna-P/.backup_logs",
+            log_base_dir="/Volumes/Primary/.backup_logs",
             error_behavior="stop",
             additional_excludes=("node_modules", ".venv"),
             backup_pairs=(
                 BackupPair(
                     name="メインSSD",
-                    source="/Volumes/Luna-P",
-                    destination="/Volumes/Luna-S",
+                    source="/Volumes/Primary",
+                    destination="/Volumes/Secondary",
                     excludes=(),
                 ),
                 BackupPair(
@@ -106,14 +106,14 @@ class TestToTomlString:
         config = Config(
             minimum_free_space_gb=100,
             log_retention_days=90,
-            log_base_dir="/Volumes/Luna-P/.backup_logs",
+            log_base_dir="/Volumes/Primary/.backup_logs",
             error_behavior="stop",
             additional_excludes=("node_modules",),
             backup_pairs=(
                 BackupPair(
                     name="メインSSD",
-                    source="/Volumes/Luna-P",
-                    destination="/Volumes/Luna-S",
+                    source="/Volumes/Primary",
+                    destination="/Volumes/Secondary",
                     excludes=("*.tmp",),
                 ),
             ),

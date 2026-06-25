@@ -37,7 +37,7 @@
 - `git push` を `| tail` 等のパイプや出力加工に繋がず、push 後は `git ls-remote --heads origin <branch>`（リモート ref 存在）と `git status -sb`（upstream tracking）で成否を直接確認すること（理由: パイプ先の exit code が push 本体の失敗/未完を隠し、pre-push hook 完走と ref transfer 完了を取り違える）
 - 成否を持つ長時間コマンド（`gh run watch`・`gh pr checks --watch`・`gh pr merge` 等）の結論は exit code ではなく専用クエリ（`gh run view <id> --json conclusion` 等）で直接確認し、`<cmd>; echo "EXIT: $?"` のように `$?` を上書きする後続コマンドを連結しないこと
   - 理由: 末尾コマンドの exit が本体の結論を隠し、failure を success と誤認する。上の `git push` ルールの一般形
-- 保護ブランチ（main 等）へ直 push する前の保護判定を、classic API (`gh api repos/<owner>/<repo>/branches/main/protection`) の 404 だけで「保護なし」と結論しないこと。repository ruleset は別系統で classic API に出ず 404 になるため、`gh api repos/<owner>/<repo>/rulesets`（必要なら `gh api repos/<owner>/<repo>/rules/branches/<branch>`）も確認すること（理由: classic 404 を「保護なし」と誤判定すると、ruleset 保護 [pull_request / required_status_checks 等] を bypass 特権で素通り push し、required checks / PR レビューを欠落させる。実際 relay/scriptoria は classic 404 だが ruleset で保護されていた）
+- 保護ブランチ（main 等）へ直 push する前の保護判定を、classic API (`gh api repos/<owner>/<repo>/branches/main/protection`) の 404 だけで「保護なし」と結論しないこと。repository ruleset は別系統で classic API に出ず 404 になるため、`gh api repos/<owner>/<repo>/rulesets`（必要なら `gh api repos/<owner>/<repo>/rules/branches/<branch>`）も確認すること（理由: classic 404 を「保護なし」と誤判定すると、ruleset 保護 [pull_request / required_status_checks 等] を bypass 特権で素通り push し、required checks / PR レビューを欠落させる。実際 classic 404 でも ruleset で保護されているリポジトリが存在する）
 - 1Passwordコマンド `op` の使用時、認証（`op signin`, `op whoami`）は使わなくともユーザーダイアログにて承認できるので、そのまま `op read` などを実行する
 
 ## 実装哲学
