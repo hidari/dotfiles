@@ -60,3 +60,36 @@ def test_cmd_resolve_ip_no_lease_is_nonzero(tmp_path):
     leases.write_text(LEASES, encoding="utf-8")
     assert winvm.main(["resolve-ip", "--vmx", str(vmx), "--leases", str(leases)]) == 1
 
+
+def test_files_to_sync_dedups_blank_strips_sorts():
+    got = winvm.files_to_sync("b/x.rs\na.rs\n", "a.rs\n\n  c.rs  \n", "d.rs\n")
+    assert got == ["a.rs", "b/x.rs", "c.rs", "d.rs"]
+
+
+def test_files_to_sync_empty_inputs_return_empty():
+    assert winvm.files_to_sync("", "  \n", "\n") == []
+
+
+def test_to_windows_path():
+    assert winvm.to_windows_path("C:/proj/app") == "C:\\proj\\app"
+    assert winvm.to_windows_path("a") == "a"
+
+
+def test_resolve_diff_base():
+    assert winvm.resolve_diff_base("abc123", True, "main") == "abc123"
+    assert winvm.resolve_diff_base("deadbeef", False, "main") == "main"
+
+
+def test_mkdir_command_dedups_parents():
+    files = ["crates/xtask/src/a.rs", "crates/xtask/src/b.rs", "crates/core/c.rs"]
+    cmd = winvm.mkdir_command("C:\\repo", files)
+    assert cmd == (
+        'if not exist "C:\\repo\\crates\\core" mkdir "C:\\repo\\crates\\core" & '
+        'if not exist "C:\\repo\\crates\\xtask\\src" mkdir "C:\\repo\\crates\\xtask\\src"'
+    )
+
+
+def test_mkdir_command_root_only_returns_none():
+    assert winvm.mkdir_command("C:\\repo", ["Cargo.toml", "README.md"]) is None
+
+

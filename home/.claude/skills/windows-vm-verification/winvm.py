@@ -63,6 +63,39 @@ def cmd_resolve_ip(args: argparse.Namespace) -> int:
     return 0
 
 
+def files_to_sync(branch_delta: str, working_delta: str, untracked: str) -> list[str]:
+    """行をトリム/空行除去/重複排除/安定ソート."""
+    s: set[str] = set()
+    for block in (branch_delta, working_delta, untracked):
+        for line in block.splitlines():
+            t = line.strip()
+            if t:
+                s.add(t)
+    return sorted(s)
+
+
+def to_windows_path(path: str) -> str:
+    r"""`/` を `\` に変換."""
+    return path.replace("/", "\\")
+
+
+def resolve_diff_base(vm_head: str, vm_head_known: bool, fallback: str) -> str:
+    """vm_head_known なら vm_head を返す、さもなければ fallback を返す."""
+    return vm_head if vm_head_known else fallback
+
+
+def mkdir_command(repo_win: str, files: list[str]) -> str | None:
+    """親ディレクトリを dedup し `if not exist ... mkdir ...` を ` & ` 連結。直下のみなら `None`."""
+    parents = set()
+    for f in files:
+        parent = str(Path(f).parent)
+        if parent and parent != ".":
+            parents.add(f"{repo_win}\\{to_windows_path(parent)}")
+    if not parents:
+        return None
+    return " & ".join(f'if not exist "{p}" mkdir "{p}"' for p in sorted(parents))
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="winvm", description="VMware Fusion Windows VM ops/verify")
     sub = p.add_subparsers(dest="command", required=True)
