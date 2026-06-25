@@ -15,7 +15,7 @@
 - CLI 本体に VM 固有値をハードコードしない。設定は引数 + env (`WINVM_VMX` / `WINVM_HOST` / `WINVM_REPO` / `WINVM_BASE` / `WINVM_LEASES`)、引数が env を上書き
 - 公開リポ (dotfiles) に置くため秘密・個人パスを含めない (テストは temp ファイル/合成データで行う)
 - MAC は `.vmx` の `ethernet0.generatedAddress` (static 時 `ethernet0.address`) から導出。ハードコード禁止
-- 純粋ロジックは exact assertion + negative case で固定。`uv run python -m pytest` で skill 単体で緑
+- 純粋ロジックは exact assertion + negative case で固定。`uv run --with pytest python -m pytest` で skill 単体で緑 (pyproject.toml は作らない = 単一ファイル設計を維持)
 - PowerShell は scp + `powershell -File` で渡す (cmd 8191 字制限回避)。スクリプトは ASCII ラベル + `[Console]::OutputEncoding=UTF8`
 - `recover` は `vmware-vmx` プロセス稼働中は中止 (多層防御)、既定は backup へ移動 (可逆)
 - lease ファイル既定 `/var/db/vmware/vmnet-dhcpd-vmnet8.leases`
@@ -62,7 +62,7 @@ def test_extract_mac_returns_none_when_absent():
 
 - [ ] **Step 2: テストが失敗することを確認**
 
-Run: `cd home/.claude/skills/windows-vm-verification && uv run python -m pytest test_winvm.py -v`
+Run: `cd home/.claude/skills/windows-vm-verification && uv run --with pytest python -m pytest test_winvm.py -v`
 Expected: FAIL (`AttributeError: module 'winvm' has no attribute 'extract_mac_from_vmx'` または import 失敗)
 
 - [ ] **Step 3: 最小実装**
@@ -92,7 +92,7 @@ def extract_mac_from_vmx(vmx_text: str) -> str | None:
 
 - [ ] **Step 4: テストが通ることを確認**
 
-Run: `cd home/.claude/skills/windows-vm-verification && uv run python -m pytest test_winvm.py -v`
+Run: `cd home/.claude/skills/windows-vm-verification && uv run --with pytest python -m pytest test_winvm.py -v`
 Expected: PASS (3 passed)
 
 - [ ] **Step 5: コミット**
@@ -148,7 +148,7 @@ def test_parse_latest_lease_ip_returns_none_when_no_match():
 
 - [ ] **Step 2: テストが失敗することを確認**
 
-Run: `uv run python -m pytest test_winvm.py -k lease -v`
+Run: `uv run --with pytest python -m pytest test_winvm.py -k lease -v`
 Expected: FAIL (`parse_latest_lease_ip` 未定義)
 
 - [ ] **Step 3: 最小実装**
@@ -174,7 +174,7 @@ def parse_latest_lease_ip(leases_text: str, mac: str) -> str | None:
 
 - [ ] **Step 4: テストが通ることを確認**
 
-Run: `uv run python -m pytest test_winvm.py -k lease -v`
+Run: `uv run --with pytest python -m pytest test_winvm.py -k lease -v`
 Expected: PASS (3 passed)
 
 - [ ] **Step 5: `resolve-ip` subcommand + argparse 骨格を実装**
@@ -257,7 +257,7 @@ def test_cmd_resolve_ip_no_lease_is_nonzero(tmp_path):
     assert winvm.main(["resolve-ip", "--vmx", str(vmx), "--leases", str(leases)]) == 1
 ```
 
-Run: `uv run python -m pytest test_winvm.py -v`
+Run: `uv run --with pytest python -m pytest test_winvm.py -v`
 Expected: PASS (all)
 
 - [ ] **Step 7: コミット**
@@ -323,7 +323,7 @@ def test_mkdir_command_root_only_returns_none():
 
 - [ ] **Step 2: テストが失敗することを確認**
 
-Run: `uv run python -m pytest test_winvm.py -k "files_to_sync or windows_path or diff_base or mkdir" -v`
+Run: `uv run --with pytest python -m pytest test_winvm.py -k "files_to_sync or windows_path or diff_base or mkdir" -v`
 Expected: FAIL (未定義)
 
 - [ ] **Step 3: 最小実装**
@@ -362,7 +362,7 @@ def mkdir_command(repo_win: str, files: list[str]) -> str | None:
 
 - [ ] **Step 4: テストが通ることを確認**
 
-Run: `uv run python -m pytest test_winvm.py -v`
+Run: `uv run --with pytest python -m pytest test_winvm.py -v`
 Expected: PASS (all)
 
 - [ ] **Step 5: コミット**
@@ -406,7 +406,7 @@ def test_remote_exec_command():
 
 - [ ] **Step 2: 失敗を確認**
 
-Run: `uv run python -m pytest test_winvm.py -k "reset_command or exec_command" -v`
+Run: `uv run --with pytest python -m pytest test_winvm.py -k "reset_command or exec_command" -v`
 Expected: FAIL (未定義)
 
 - [ ] **Step 3: 実装 (pure helpers + orchestration)**
@@ -505,7 +505,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 - [ ] **Step 4: テストが通ることを確認**
 
-Run: `uv run python -m pytest test_winvm.py -v`
+Run: `uv run --with pytest python -m pytest test_winvm.py -v`
 Expected: PASS (all)
 
 - [ ] **Step 5: コミット**
@@ -548,7 +548,7 @@ def test_build_health_powershell_no_repo_omits_repo_section():
 
 - [ ] **Step 2: 失敗を確認**
 
-Run: `uv run python -m pytest test_winvm.py -k health -v`
+Run: `uv run --with pytest python -m pytest test_winvm.py -k health -v`
 Expected: FAIL (未定義)
 
 - [ ] **Step 3: 実装**
@@ -622,7 +622,7 @@ def cmd_health(args: argparse.Namespace) -> int:
 
 - [ ] **Step 4: テストが通ることを確認**
 
-Run: `uv run python -m pytest test_winvm.py -v`
+Run: `uv run --with pytest python -m pytest test_winvm.py -v`
 Expected: PASS (all)
 
 - [ ] **Step 5: コミット**
@@ -665,7 +665,7 @@ def test_find_stale_lock_dirs_none(tmp_path):
 
 - [ ] **Step 2: 失敗を確認**
 
-Run: `uv run python -m pytest test_winvm.py -k stale_lock -v`
+Run: `uv run --with pytest python -m pytest test_winvm.py -k stale_lock -v`
 Expected: FAIL (未定義)
 
 - [ ] **Step 3: 実装**
@@ -725,7 +725,7 @@ def cmd_recover(args: argparse.Namespace) -> int:
 
 - [ ] **Step 4: テストが通ることを確認**
 
-Run: `uv run python -m pytest test_winvm.py -v`
+Run: `uv run --with pytest python -m pytest test_winvm.py -v`
 Expected: PASS (all)
 
 - [ ] **Step 5: コミット**
