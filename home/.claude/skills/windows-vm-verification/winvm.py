@@ -9,9 +9,11 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 
@@ -227,6 +229,53 @@ def cmd_health(args: argparse.Namespace) -> int:
         Path(local).unlink(missing_ok=True)
 
 
+def find_stale_lock_dirs(bundle_dir: Path) -> list[Path]:
+    return sorted(p for p in bundle_dir.glob("*.lck") if p.is_dir())
+
+
+def _vmware_vmx_running() -> bool:
+    out = subprocess.run(["pgrep", "-f", "vmware-vmx"], capture_output=True, text=True)
+    return out.returncode == 0
+
+
+def cmd_recover(args: argparse.Namespace, *, vmware_running=_vmware_vmx_running) -> int:
+    vmx = _env_or(args.vmx, "WINVM_VMX")
+    if not vmx:
+        print("error: --vmx (または WINVM_VMX) が必要です", file=sys.stderr)
+        return 2
+    bundle = Path(vmx).parent
+    if vmware_running():
+        print("中止: vmware-vmx プロセスが稼働中です。VM を停止してから実行してください", file=sys.stderr)
+        return 1
+    locks = find_stale_lock_dirs(bundle)
+    if not locks:
+        print("stale ロックはありません")
+        return 0
+    # 既定は可逆 move。--delete 明示時のみ不可逆削除。
+    if args.delete:
+        for lk in locks:
+            if args.dry_run:
+                print(f"[dry-run] 削除対象: {lk}")
+                continue
+            shutil.rmtree(lk)
+            print(f"削除: {lk}")
+        return 0
+    backup_root = (
+        Path(args.backup)
+        if args.backup
+        else bundle / f".winvm-lck-backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    )
+    for lk in locks:
+        if args.dry_run:
+            print(f"[dry-run] 退避対象: {lk} -> {backup_root / lk.name}")
+            continue
+        backup_root.mkdir(parents=True, exist_ok=True)
+        dest = backup_root / lk.name
+        shutil.move(str(lk), str(dest))
+        print(f"退避: {lk} -> {dest}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="winvm", description="VMware Fusion Windows VM ops/verify")
     sub = p.add_subparsers(dest="command", required=True)
@@ -249,6 +298,13 @@ def build_parser() -> argparse.ArgumentParser:
     hp.add_argument("--repo")
     hp.add_argument("--check-tools", help="カンマ区切り (例: node,pnpm,cargo,rustc,git)")
     hp.set_defaults(func=cmd_health)
+
+    cp = sub.add_parser("recover", help="stale *.lck を除去し起動不能を解消")
+    cp.add_argument("--vmx")
+    cp.add_argument("--backup", help="退避先 (省略時はバンドル内の timestamp 付き .winvm-lck-backup-*)")
+    cp.add_argument("--delete", action="store_true", help="退避でなく不可逆削除")
+    cp.add_argument("--dry-run", action="store_true")
+    cp.set_defaults(func=cmd_recover)
 
     return p
 

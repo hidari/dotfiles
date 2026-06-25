@@ -1,3 +1,5 @@
+import argparse
+
 import winvm
 
 LEASES = """
@@ -123,3 +125,60 @@ def test_build_health_powershell_no_repo_omits_repo_section():
     assert "repo state" not in ps
 
 
+def test_find_stale_lock_dirs(tmp_path):
+    (tmp_path / "disk.vmdk.lck").mkdir()
+    (tmp_path / "disk.vmdk.lck" / "M1.lck").write_text("x")
+    (tmp_path / "disk.vmdk").write_text("descriptor")
+    found = winvm.find_stale_lock_dirs(tmp_path)
+    assert [p.name for p in found] == ["disk.vmdk.lck"]
+
+
+def test_find_stale_lock_dirs_none(tmp_path):
+    (tmp_path / "disk.vmdk").write_text("x")
+    assert winvm.find_stale_lock_dirs(tmp_path) == []
+
+
+def _recover_args(vmx, *, backup=None, delete=False, dry_run=False):
+    return argparse.Namespace(vmx=str(vmx), backup=backup, delete=delete, dry_run=dry_run)
+
+
+def _planted_lock(tmp_path):
+    bundle = tmp_path / "vm.vmwarevm"
+    bundle.mkdir()
+    vmx = bundle / "vm.vmx"
+    vmx.write_text('ethernet0.generatedAddress = "00:0c:29:00:00:01"\n')
+    lock = bundle / "disk.vmdk.lck"
+    lock.mkdir()
+    (lock / "M1.lck").write_text("x")
+    return bundle, vmx, lock
+
+
+def test_cmd_recover_default_moves_reversibly(tmp_path):
+    bundle, vmx, lock = _planted_lock(tmp_path)
+    rc = winvm.cmd_recover(_recover_args(vmx), vmware_running=lambda: False)
+    assert rc == 0
+    assert not lock.exists()  # moved out of the bundle
+    moved = list(bundle.glob(".winvm-lck-backup-*/disk.vmdk.lck"))
+    assert len(moved) == 1 and moved[0].is_dir()  # reversible: still recoverable
+
+
+def test_cmd_recover_delete_flag_is_irreversible(tmp_path):
+    bundle, vmx, lock = _planted_lock(tmp_path)
+    rc = winvm.cmd_recover(_recover_args(vmx, delete=True), vmware_running=lambda: False)
+    assert rc == 0
+    assert not lock.exists()
+    assert list(bundle.glob(".winvm-lck-backup-*")) == []  # deleted, no backup
+
+
+def test_cmd_recover_dry_run_changes_nothing(tmp_path):
+    bundle, vmx, lock = _planted_lock(tmp_path)
+    rc = winvm.cmd_recover(_recover_args(vmx, dry_run=True), vmware_running=lambda: False)
+    assert rc == 0
+    assert lock.exists()  # untouched
+
+
+def test_cmd_recover_refuses_when_vm_running(tmp_path):
+    bundle, vmx, lock = _planted_lock(tmp_path)
+    rc = winvm.cmd_recover(_recover_args(vmx), vmware_running=lambda: True)
+    assert rc == 1
+    assert lock.exists()  # guard prevented any change
