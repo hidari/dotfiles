@@ -21,6 +21,11 @@ class TestState:
         path.write_text("{ not json", encoding="utf-8")
         assert load_seen(path) == set()
 
+    def test_load_non_list_returns_empty(self, tmp_path: Path) -> None:
+        path = tmp_path / "seen.json"
+        path.write_text("{}", encoding="utf-8")
+        assert load_seen(path) == set()
+
     def test_save_creates_parent_dirs(self, tmp_path: Path) -> None:
         path = tmp_path / "nested" / "deep" / "seen.json"
         save_seen(path, {"g-a"})

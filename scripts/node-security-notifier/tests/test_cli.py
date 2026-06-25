@@ -65,3 +65,29 @@ class TestRun:
         assert rc == 1
         assert rec.sent == []
         assert load_seen(state) == {GUID_MARCH}  # 状態は不変
+
+    def test_parse_failure_is_safe(self, tmp_path: Path) -> None:
+        state = tmp_path / "seen.json"
+        save_seen(state, {GUID_MARCH})
+
+        def _fetch_garbage() -> bytes:
+            return b"<rss><channel><item>"
+
+        rec = Recorder()
+        rc = run(fetcher=_fetch_garbage, notifier=rec, state_path=state)
+        assert rc == 1
+        assert rec.sent == []
+        assert load_seen(state) == {GUID_MARCH}
+
+    def test_empty_feed_is_safe(self, tmp_path: Path) -> None:
+        state = tmp_path / "seen.json"
+        save_seen(state, {GUID_MARCH})
+
+        def _fetch_empty() -> bytes:
+            return b'<?xml version="1.0"?><rss version="2.0"><channel></channel></rss>'
+
+        rec = Recorder()
+        rc = run(fetcher=_fetch_empty, notifier=rec, state_path=state)
+        assert rc == 1
+        assert rec.sent == []
+        assert load_seen(state) == {GUID_MARCH}
