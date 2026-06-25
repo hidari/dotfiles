@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -96,6 +97,80 @@ def mkdir_command(repo_win: str, files: list[str]) -> str | None:
     return " & ".join(f'if not exist "{p}" mkdir "{p}"' for p in sorted(parents))
 
 
+def remote_reset_command(repo_win: str) -> str:
+    return f'cd /d "{repo_win}" && git checkout -- . && git clean -fd'
+
+
+def remote_exec_command(repo_win: str, remote_cmd: str) -> str:
+    return f'cd /d "{repo_win}" && {remote_cmd}'
+
+
+def git_local(args: list[str]) -> str:
+    return subprocess.run(["git", *args], capture_output=True, text=True).stdout
+
+
+def ssh_capture(host: str, remote: str) -> str:
+    return subprocess.run(["ssh", host, remote], capture_output=True, text=True).stdout
+
+
+def run_ssh(host: str, remote: str) -> bool:
+    return subprocess.run(["ssh", host, remote]).returncode == 0
+
+
+def scp(host: str, local: str, dest: str) -> bool:
+    return subprocess.run(["scp", "-q", local, f"{host}:{dest}"]).returncode == 0
+
+
+def cmd_run(args: argparse.Namespace) -> int:
+    host = _env_or(args.host, "WINVM_HOST")
+    repo = _env_or(args.repo, "WINVM_REPO")
+    base = _env_or(args.base, "WINVM_BASE", "main")
+    if not host or not repo:
+        print("error: --host と --repo (または env) が必要です", file=sys.stderr)
+        return 2
+    repo_win = to_windows_path(repo)
+
+    vm_head = ssh_capture(host, f'cd /d "{repo_win}" && git rev-parse HEAD').strip()
+    vm_head_known = bool(vm_head) and (
+        subprocess.run(["git", "cat-file", "-e", f"{vm_head}^{{commit}}"]).returncode == 0
+    )
+    diff_base = resolve_diff_base(vm_head, vm_head_known, base)
+    if not vm_head_known:
+        print(f"警告: VM HEAD ({vm_head[:7]}) をローカル解決できず base={base} にフォールバック", file=sys.stderr)
+
+    files = [
+        f
+        for f in files_to_sync(
+            git_local(["diff", "--name-only", diff_base, "HEAD"]),
+            git_local(["diff", "--name-only", "HEAD"]),
+            git_local(["ls-files", "--others", "--exclude-standard"]),
+        )
+        if Path(f).is_file()
+    ]
+    if not files:
+        if args.skip_when_no_changes:
+            print(f"同期する変更ファイルがありません ({diff_base}..HEAD + working tree)")
+            return 0
+        print(f"同期対象なし。VM の現状で実行します ({diff_base}..HEAD)")
+
+    if not run_ssh(host, remote_reset_command(repo_win)):
+        print("VM の reset に失敗しました", file=sys.stderr)
+        return 1
+    if files:
+        mk = mkdir_command(repo_win, files)
+        if mk and not run_ssh(host, mk):
+            print("VM のディレクトリ作成に失敗しました", file=sys.stderr)
+            return 1
+        for f in files:
+            if not scp(host, f, f"{repo}/{f}"):
+                print(f"scp 失敗: {f}", file=sys.stderr)
+                return 1
+
+    remote_cmd = " ".join(args.remote)
+    print(f"=== VM で {remote_cmd} を実行 ===")
+    return 0 if run_ssh(host, remote_exec_command(repo_win, remote_cmd)) else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="winvm", description="VMware Fusion Windows VM ops/verify")
     sub = p.add_subparsers(dest="command", required=True)
@@ -104,6 +179,14 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--vmx")
     sp.add_argument("--leases")
     sp.set_defaults(func=cmd_resolve_ip)
+
+    rp = sub.add_parser("run", help="git 差分を scp 同期して remote コマンド実行")
+    rp.add_argument("--host")
+    rp.add_argument("--repo")
+    rp.add_argument("--base")
+    rp.add_argument("--skip-when-no-changes", action="store_true")
+    rp.add_argument("remote", nargs=argparse.REMAINDER, help="-- の後に remote コマンド")
+    rp.set_defaults(func=cmd_run)
 
     return p
 
@@ -116,4 +199,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -93,3 +93,18 @@ def test_mkdir_command_root_only_returns_none():
     assert winvm.mkdir_command("C:\\repo", ["Cargo.toml", "README.md"]) is None
 
 
+def test_remote_reset_command():
+    assert winvm.remote_reset_command("C:\\repo") == (
+        'cd /d "C:\\repo" && git checkout -- . && git clean -fd'
+    )
+    # parameterization (negative case): different repo path -> different, correct output (not hardcoded)
+    assert winvm.remote_reset_command("D:\\other") == (
+        'cd /d "D:\\other" && git checkout -- . && git clean -fd'
+    )
+
+
+def test_remote_exec_command():
+    assert winvm.remote_exec_command("C:\\repo", "cargo xtask check-desktop") == (
+        'cd /d "C:\\repo" && cargo xtask check-desktop'
+    )
+    assert winvm.remote_exec_command("D:\\other", "echo hi") == 'cd /d "D:\\other" && echo hi'
