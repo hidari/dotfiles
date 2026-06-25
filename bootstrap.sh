@@ -290,6 +290,7 @@ setup_launch_agent() {
     local template="$DOTFILES_DIR/scripts/node-security-notifier/$label.plist"
     local dest="$HOME/Library/LaunchAgents/$label.plist"
 
+    # DRY_RUN 時は render_launch_agent_plist 内部でガードされ副作用なし。以降の DRY_RUN 判定は launchctl のみを skip する
     render_launch_agent_plist "$template" "$dest"
 
     if [ "$DRY_RUN" = true ]; then
