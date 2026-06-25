@@ -11,6 +11,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -171,6 +172,61 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0 if run_ssh(host, remote_exec_command(repo_win, remote_cmd)) else 1
 
 
+def build_health_powershell(check_tools: list[str], repo: str | None) -> str:
+    """ASCII ラベル + `[Console]::OutputEncoding=UTF8` を含み、指定 tool の `--version` チェック行を含む PowerShell 本文。"""
+    tools = ", ".join(f"'{t}'" for t in check_tools)
+    lines = [
+        "$ErrorActionPreference = 'Continue'",
+        "try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}",
+        "Write-Output '===== OS / Boot ====='",
+        "$os = Get-CimInstance Win32_OperatingSystem",
+        "Write-Output ('LastBootUp : ' + $os.LastBootUpTime)",
+        "Write-Output '===== Volumes (Healthy is OK) ====='",
+        "Get-Volume | Where-Object { $_.DriveLetter } | Format-Table DriveLetter, FileSystemType, HealthStatus -AutoSize | Out-String -Width 200",
+        "Write-Output '===== NTFS dirty bit (NOT Dirty is OK) ====='",
+        "(& cmd /c 'fsutil dirty query C:') 2>&1 | Out-String",
+        "Write-Output '===== Unexpected shutdown (41/6008/1001) ====='",
+        "Get-WinEvent -FilterHashtable @{LogName='System'; Id=41,6008,1001} -MaxEvents 6 -ErrorAction SilentlyContinue | Select-Object TimeCreated, Id | Format-Table -AutoSize | Out-String",
+        "Write-Output '===== NTFS corruption events (0 is OK) ====='",
+        "$ntfs = Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Windows-Ntfs'} -MaxEvents 15 -ErrorAction SilentlyContinue | Where-Object { $_.LevelDisplayName -in 'Error','Warning' }",
+        "if ($ntfs) { $ntfs | Format-Table TimeCreated, Id, LevelDisplayName -AutoSize | Out-String } else { Write-Output '  (none = OK)' }",
+        "Write-Output '===== dev toolchain ====='",
+        f"foreach ($t in @({tools})) {{ $c = Get-Command $t -ErrorAction SilentlyContinue; if ($c) {{ Write-Output ('  ' + $t + ': ' + ((& $t --version 2>&1 | Select-Object -First 1))) }} else {{ Write-Output ('  ' + $t + ': (not found)') }} }}",
+    ]
+    if repo:
+        lines += [
+            "Write-Output '===== repo state ====='",
+            f"if (Test-Path '{repo}') {{ Push-Location '{repo}'; Write-Output ('  HEAD: ' + (git rev-parse --short HEAD 2>&1) + ' ' + (git rev-parse --abbrev-ref HEAD 2>&1)); Pop-Location }}",
+        ]
+    lines.append("Write-Output '===== HEALTHCHECK DONE ====='")
+    return "\n".join(lines) + "\n"
+
+
+def cmd_health(args: argparse.Namespace) -> int:
+    """.ps1 を scp して `powershell -File` 実行、後始末。"""
+    host = _env_or(args.host, "WINVM_HOST")
+    repo = _env_or(args.repo, "WINVM_REPO")
+    if not host:
+        print("error: --host (または WINVM_HOST) が必要です", file=sys.stderr)
+        return 2
+    tools = args.check_tools.split(",") if args.check_tools else []
+    ps = build_health_powershell([t for t in tools if t], repo)
+
+    with tempfile.NamedTemporaryFile("w", suffix=".ps1", delete=False, encoding="utf-8") as fh:
+        fh.write(ps)
+        local = fh.name
+    remote = "C:/Users/Public/winvm_health.ps1"
+    try:
+        if not scp(host, local, remote):
+            print("health スクリプトの scp に失敗しました", file=sys.stderr)
+            return 1
+        ok = run_ssh(host, f"powershell -NoProfile -ExecutionPolicy Bypass -File {remote}")
+        run_ssh(host, f"powershell -NoProfile -Command Remove-Item -Force {remote}")
+        return 0 if ok else 1
+    finally:
+        Path(local).unlink(missing_ok=True)
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="winvm", description="VMware Fusion Windows VM ops/verify")
     sub = p.add_subparsers(dest="command", required=True)
@@ -187,6 +243,12 @@ def build_parser() -> argparse.ArgumentParser:
     rp.add_argument("--skip-when-no-changes", action="store_true")
     rp.add_argument("remote", nargs=argparse.REMAINDER, help="-- の後に remote コマンド")
     rp.set_defaults(func=cmd_run)
+
+    hp = sub.add_parser("health", help="SSH 越しに VM の健全性を検査")
+    hp.add_argument("--host")
+    hp.add_argument("--repo")
+    hp.add_argument("--check-tools", help="カンマ区切り (例: node,pnpm,cargo,rustc,git)")
+    hp.set_defaults(func=cmd_health)
 
     return p
 

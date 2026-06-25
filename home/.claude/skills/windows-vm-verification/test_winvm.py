@@ -108,3 +108,18 @@ def test_remote_exec_command():
         'cd /d "C:\\repo" && cargo xtask check-desktop'
     )
     assert winvm.remote_exec_command("D:\\other", "echo hi") == 'cd /d "D:\\other" && echo hi'
+
+
+def test_build_health_powershell_includes_encoding_and_tools():
+    ps = winvm.build_health_powershell(["node", "cargo"], "C:/proj/app")
+    assert "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8" in ps
+    assert "fsutil dirty query C:" in ps
+    assert "'node'" in ps and "'cargo'" in ps
+    assert "C:/proj/app" in ps
+
+
+def test_build_health_powershell_no_repo_omits_repo_section():
+    ps = winvm.build_health_powershell(["node"], None)
+    assert "repo state" not in ps
+
+
