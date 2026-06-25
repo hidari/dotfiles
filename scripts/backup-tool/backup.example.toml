@@ -33,7 +33,7 @@ log_retention_days = 90
 # ログディレクトリ (省略可)
 # -----------------------------------------------------------------------------
 # 未指定時は設定ファイルと同じ階層の .backup_logs/ に出力します。
-# log_base_dir = "/Volumes/Luna-P/.backup_logs"
+# log_base_dir = "/Volumes/Primary/.backup_logs"
 
 # -----------------------------------------------------------------------------
 # エラー時の動作 (省略可)
@@ -66,8 +66,8 @@ additional_excludes = []
 # 例:
 # [[backup_pairs]]
 # name = "メインSSD"
-# source = "/Volumes/Luna-P"
-# destination = "/Volumes/Luna-S"
+# source = "/Volumes/Primary"
+# destination = "/Volumes/Secondary"
 #
 # [[backup_pairs]]
 # name = "写真フォルダ"
