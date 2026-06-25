@@ -43,16 +43,17 @@ def run(
         logger.error("フィードが空でした。状態は更新しません")
         return 1
 
+    current_guids = {e.guid for e in current}
     seen = load_seen(state_path)
     if not seen:
-        save_seen(state_path, {e.guid for e in current})
+        save_seen(state_path, current_guids)
         logger.info("初回実行のため現状を seed しました (%d 件)", len(current))
         return 0
 
     fresh = new_entries(current, seen)
     for notification in build_notifications(fresh, max_individual):
         notifier(notification)
-    save_seen(state_path, seen | {e.guid for e in current})
+    save_seen(state_path, seen | current_guids)
     logger.info("新着 %d 件を処理しました", len(fresh))
     return 0
 
