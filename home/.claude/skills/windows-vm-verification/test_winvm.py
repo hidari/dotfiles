@@ -81,17 +81,17 @@ def test_resolve_diff_base():
     assert winvm.resolve_diff_base("deadbeef", False, "main") == "main"
 
 
-def test_mkdir_command_dedups_parents():
+def test_parent_mkdir_commands_one_per_parent_deduped():
     files = ["crates/xtask/src/a.rs", "crates/xtask/src/b.rs", "crates/core/c.rs"]
-    cmd = winvm.mkdir_command("C:\\repo", files)
-    assert cmd == (
-        'if not exist "C:\\repo\\crates\\core" mkdir "C:\\repo\\crates\\core" & '
-        'if not exist "C:\\repo\\crates\\xtask\\src" mkdir "C:\\repo\\crates\\xtask\\src"'
-    )
+    cmds = winvm.parent_mkdir_commands("C:\\repo", files)
+    assert cmds == [
+        'if not exist "C:\\repo\\crates\\core" mkdir "C:\\repo\\crates\\core"',
+        'if not exist "C:\\repo\\crates\\xtask\\src" mkdir "C:\\repo\\crates\\xtask\\src"',
+    ]
 
 
-def test_mkdir_command_root_only_returns_none():
-    assert winvm.mkdir_command("C:\\repo", ["Cargo.toml", "README.md"]) is None
+def test_parent_mkdir_commands_root_only_is_empty():
+    assert winvm.parent_mkdir_commands("C:\\repo", ["Cargo.toml", "README.md"]) == []
 
 
 def test_remote_reset_command():

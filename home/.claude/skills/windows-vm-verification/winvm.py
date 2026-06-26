@@ -96,16 +96,16 @@ def resolve_diff_base(vm_head: str, vm_head_known: bool, fallback: str) -> str:
     return vm_head if vm_head_known else fallback
 
 
-def mkdir_command(repo_win: str, files: list[str]) -> str | None:
-    """親ディレクトリを dedup し `if not exist ... mkdir ...` を ` & ` 連結。直下のみなら `None`."""
-    parents = set()
+def parent_mkdir_commands(repo_win: str, files: list[str]) -> list[str]:
+    """各ファイルの親ディレクトリを作る cmd コマンドのリストを返す (1 親 1 コマンド)。
+    cmd の `if ... & if ...` 連結は最初の if が偽だと連鎖全体が束縛され実行されないため、
+    親ごとに独立コマンドとして発行する (連結バグ回避)。"""
+    parents: set[str] = set()
     for f in files:
         parent = str(Path(f).parent)
         if parent and parent != ".":
             parents.add(f"{repo_win}\\{to_windows_path(parent)}")
-    if not parents:
-        return None
-    return " & ".join(f'if not exist "{p}" mkdir "{p}"' for p in sorted(parents))
+    return [f'if not exist "{p}" mkdir "{p}"' for p in sorted(parents)]
 
 
 def remote_reset_command(repo_win: str) -> str:
@@ -180,10 +180,10 @@ def cmd_run(args: argparse.Namespace) -> int:
         print("VM の reset に失敗しました", file=sys.stderr)
         return 1
     if files:
-        mk = mkdir_command(repo_win, files)
-        if mk and not run_ssh(host, mk):
-            print("VM のディレクトリ作成に失敗しました", file=sys.stderr)
-            return 1
+        for mk in parent_mkdir_commands(repo_win, files):
+            if not run_ssh(host, mk):
+                print("VM のディレクトリ作成に失敗しました", file=sys.stderr)
+                return 1
         for f in files:
             if not scp(host, f, f"{repo}/{f}"):
                 print(f"scp 失敗: {f}", file=sys.stderr)
