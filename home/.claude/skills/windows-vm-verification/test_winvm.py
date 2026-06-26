@@ -6,7 +6,7 @@ LEASES = """
 lease 172.16.237.130 {
 \thardware ethernet 00:0c:29:bb:8b:20;
 }
-lease 172.16.237.129 {
+lease 172.16.237.128 {
 \thardware ethernet 00:0c:29:b0:ea:5a;
 }
 lease 172.16.237.129 {
@@ -17,8 +17,7 @@ lease 172.16.237.129 {
 
 def test_extract_mac_prefers_generated_address():
     vmx = (
-        'ethernet0.connectionType = "nat"\n'
-        'ethernet0.addressType = "generated"\n'
+        'ethernet0.address = "00:50:56:AA:BB:CC"\n'
         'ethernet0.generatedAddress = "00:0C:29:B0:EA:5A"\n'
     )
     assert winvm.extract_mac_from_vmx(vmx) == "00:0c:29:b0:ea:5a"
@@ -182,3 +181,21 @@ def test_cmd_recover_refuses_when_vm_running(tmp_path):
     rc = winvm.cmd_recover(_recover_args(vmx), vmware_running=lambda: True)
     assert rc == 1
     assert lock.exists()  # guard prevented any change
+
+
+def test_remote_command_from_args_strips_leading_separator():
+    assert winvm.remote_command_from_args(["--", "cargo xtask check-desktop"]) == "cargo xtask check-desktop"
+
+
+def test_remote_command_from_args_without_separator():
+    assert winvm.remote_command_from_args(["cargo", "xtask", "check-desktop"]) == "cargo xtask check-desktop"
+
+
+def test_remote_command_from_args_empty_is_none():
+    assert winvm.remote_command_from_args([]) is None
+    assert winvm.remote_command_from_args(["--"]) is None
+
+
+def test_cmd_resolve_ip_missing_vmx_is_exit_2(monkeypatch):
+    monkeypatch.delenv("WINVM_VMX", raising=False)
+    assert winvm.main(["resolve-ip"]) == 2

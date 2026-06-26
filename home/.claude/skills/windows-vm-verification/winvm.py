@@ -55,11 +55,19 @@ def cmd_resolve_ip(args: argparse.Namespace) -> int:
     if not vmx:
         print("error: --vmx (または WINVM_VMX) が必要です", file=sys.stderr)
         return 2
-    mac = extract_mac_from_vmx(Path(vmx).read_text(encoding="utf-8", errors="replace"))
+    try:
+        mac = extract_mac_from_vmx(Path(vmx).read_text(encoding="utf-8", errors="replace"))
+    except OSError as e:
+        print(f"error: {vmx} を開けません: {e}", file=sys.stderr)
+        return 1
     if not mac:
         print(f"error: .vmx から MAC を導出できません: {vmx}", file=sys.stderr)
         return 1
-    ip = parse_latest_lease_ip(Path(leases).read_text(encoding="utf-8", errors="replace"), mac)
+    try:
+        ip = parse_latest_lease_ip(Path(leases).read_text(encoding="utf-8", errors="replace"), mac)
+    except OSError as e:
+        print(f"error: {leases} を開けません: {e}", file=sys.stderr)
+        return 1
     if not ip:
         print(f"error: MAC {mac} に一致する lease がありません (VM 未起動?)", file=sys.stderr)
         return 1
@@ -108,6 +116,13 @@ def remote_exec_command(repo_win: str, remote_cmd: str) -> str:
     return f'cd /d "{repo_win}" && {remote_cmd}'
 
 
+def remote_command_from_args(remote: list[str]) -> str | None:
+    """argparse REMAINDER から先頭の '--' を除き remote コマンド文字列を返す。空なら None。"""
+    if remote and remote[0] == "--":
+        remote = remote[1:]
+    return " ".join(remote) if remote else None
+
+
 def git_local(args: list[str]) -> str:
     return subprocess.run(["git", *args], capture_output=True, text=True).stdout
 
@@ -132,6 +147,11 @@ def cmd_run(args: argparse.Namespace) -> int:
         print("error: --host と --repo (または env) が必要です", file=sys.stderr)
         return 2
     repo_win = to_windows_path(repo)
+
+    remote_cmd = remote_command_from_args(args.remote)
+    if remote_cmd is None:
+        print("error: run には -- の後に remote コマンドが必要です", file=sys.stderr)
+        return 2
 
     vm_head = ssh_capture(host, f'cd /d "{repo_win}" && git rev-parse HEAD').strip()
     vm_head_known = bool(vm_head) and (
@@ -169,7 +189,6 @@ def cmd_run(args: argparse.Namespace) -> int:
                 print(f"scp 失敗: {f}", file=sys.stderr)
                 return 1
 
-    remote_cmd = " ".join(args.remote)
     print(f"=== VM で {remote_cmd} を実行 ===")
     return 0 if run_ssh(host, remote_exec_command(repo_win, remote_cmd)) else 1
 
