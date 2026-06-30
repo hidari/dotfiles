@@ -50,6 +50,17 @@
   "model": "opus[1m]",
   "hooks": {
     "PreCompact": [],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.claude/hooks/tirith-check.py\""
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "matcher": "",

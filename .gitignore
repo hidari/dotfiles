@@ -30,6 +30,17 @@ scripts/node-security-notifier/.mypy_cache/
 scripts/node-security-notifier/.pytest_cache/
 scripts/node-security-notifier/.coverage
 
+# Python (tirith-hook)
+scripts/tirith-hook/.venv/
+scripts/tirith-hook/**/__pycache__/
+scripts/tirith-hook/.ruff_cache/
+scripts/tirith-hook/.mypy_cache/
+scripts/tirith-hook/.pytest_cache/
+scripts/tirith-hook/.coverage
+
+# Python (Claude Code hooks — フック実行/テストで生成される bytecode)
+home/.claude/hooks/__pycache__/
+
 # Logs
 *.log
 

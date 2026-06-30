@@ -49,22 +49,8 @@ cd ~/Develop/dotfiles
 
 ### Dotfiles
 
-The following symlinks are created in your home directory:
-
-| Source                                            | Target                                     |
-|---------------------------------------------------|--------------------------------------------|
-| `home/.Brewfile`                                  | `~/.Brewfile`                              |
-| `home/.zshrc`                                     | `~/.zshrc`                                 |
-| `home/.gitconfig`                                 | `~/.gitconfig`                             |
-| `home/.config/git/.gitignore_global`              | `~/.config/git/.gitignore_global`          |
-| `home/.config/mise/config.toml`                   | `~/.config/mise/config.toml`               |
-| `home/.claude/settings.json`                      | `~/.claude/settings.json`                  |
-| `home/.claude/statusline-command.sh`              | `~/.claude/statusline-command.sh`          |
-| `home/.claude/CLAUDE.md`                          | `~/.claude/CLAUDE.md`                      |
-| `home/.claude/.mcp.json`                          | `~/.claude/.mcp.json`                      |
-| `home/.claude/skills`                             | `~/.claude/skills`                         |
-| `scripts/backup-tool/backup.sh`                   | `~/.local/bin/backup.sh`                   |
-| `scripts/util-tools/small-id-gen/small-id-gen.sh` | `~/.local/bin/small-id-gen`                |
+ホームディレクトリに張る symlink の正本は `bootstrap.sh` の `SYMLINK_PAIRS`（source と target の対応）。
+追加・変更はそこを編集する（README に一覧を再掲すると必ず drift するため載せない）。
 
 Additionally, `home/.gitconfig.private.example` is copied to `~/.gitconfig.private` (if it doesn't exist).
 
@@ -93,6 +79,13 @@ committed 側は CI で 2 つの仕組みが守る。
 - gitleaks: secret とユーザー名パス (`/Users/<name>`) の漏洩を検出する。
 - config-guard: 構造 curation (禁止キー・directory marketplace・dead config・不正なツール名) を検出する。
 
+## tirith によるコマンドセキュリティ
+
+`tirith`（URL/コマンドセキュリティ CLI, mise 管理）で実行前チェックを二層に張る。
+
+- 対話シェル: `home/.zshrc` の `tirith init` が zsh のコマンド実行前に検査する。
+- Claude Code: `home/.claude/hooks/tirith-check.py` を PreToolUse(Bash) フックに登録し、エージェントの Bash 実行前に `tirith check` へ委譲する。判定ロジックとテストは `scripts/tirith-hook` を参照。
+
 ## Testing
 
 ```bash
@@ -107,4 +100,7 @@ uv run --directory scripts/config-guard pytest -q
 
 # config-guard スキャン (skills + settings の stale 参照・構造逸脱検出)
 uv run --directory scripts/config-guard config-guard .
+
+# tirith-hook (Python / pytest) — Claude Code PreToolUse フックの統合テスト
+uv run --directory scripts/tirith-hook pytest -q
 ```

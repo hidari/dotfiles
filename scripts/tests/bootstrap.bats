@@ -227,3 +227,29 @@ teardown() {
     [[ "$output" == *"[DRY-RUN]"* ]]
     [ ! -f "$dest" ]
 }
+
+# =============================================================================
+# install_mise_tools tests
+# =============================================================================
+
+@test "install_mise_tools: dry-run shows mise install without executing" {
+    DRY_RUN=true
+
+    run install_mise_tools
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"[DRY-RUN] mise install"* ]]
+    # dry-run は早期 return するため mise 存在チェックまで進まない（early-return を担保する negative）
+    [[ "$output" != *"mise not found"* ]]
+}
+
+@test "install_mise_tools: warns and skips when mise is not on PATH" {
+    DRY_RUN=false
+    local empty_dir="$TEST_HOME/empty-path"
+    mkdir -p "$empty_dir"
+
+    PATH="$empty_dir" run install_mise_tools
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"mise not found"* ]]
+}

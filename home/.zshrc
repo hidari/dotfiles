@@ -202,3 +202,8 @@ eval "$(/opt/homebrew/bin/brew shellenv)"
 
 # miseのやつ
 eval "$(mise activate zsh)"
+
+# tirith (ターミナルのセキュリティツール)
+# tirith は mise 提供のため mise activate より後に置く。未インストールのマシンで
+# command not found を出さないよう、command -v で存在確認してから init する。
+command -v tirith >/dev/null 2>&1 && eval "$(tirith init --shell zsh)"
