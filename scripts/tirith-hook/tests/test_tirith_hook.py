@@ -326,6 +326,8 @@ def test_tirith_invoked_with_correct_argv(tmp_path: Path) -> None:
     assert "check" in argv
     assert "--json" in argv
     assert "--non-interactive" in argv
+    # --shell と posix を別々に検証する（--shell 欠落で posix が位置引数化する回帰を捕捉）
+    assert "--shell" in argv
     assert "posix" in argv
     # command は argv 末尾、その直前は '--'（後続フラグ注入を防ぐ区切り）
     assert argv[-1] == "echo hello world"

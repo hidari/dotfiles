@@ -1,32 +1,32 @@
 #!/usr/bin/env python3
-"""Claude Code PreToolUse hook — runs tirith check on Bash tool calls.
+"""Claude Code の PreToolUse フック — Bash ツール呼び出しを tirith で検査する。
 
-Reads JSON from stdin (Claude Code hook protocol), extracts the command,
-and delegates to `tirith check --json` for security analysis.
+stdin から hook JSON（Claude Code hook プロトコル）を読み、command を取り出して
+`tirith check --json` に委譲しセキュリティ解析する。
 
-Exit codes:
-  0 — hook completed successfully (decision in stdout JSON)
-  Non-zero — hook error (fail-closed by default; set TIRITH_FAIL_OPEN=1 for fail-open)
+Exit code:
+  0     — フックは正常終了（判定は stdout の JSON に入る）
+  非 0  — フックエラー（既定は fail-closed。TIRITH_FAIL_OPEN=1 で fail-open）
 
-Output (stdout):
-  For deny:
+出力（stdout）:
+  deny の場合:
     {"hookSpecificOutput": {"hookEventName": "PreToolUse",
       "permissionDecision": "deny", "permissionDecisionReason": "..."}}
-  For warn-allow:
+  warn-allow の場合:
     {"hookSpecificOutput": {"hookEventName": "PreToolUse",
       "permissionDecision": "allow", "permissionDecisionReason": "...",
       "additionalContext": "..."}}
 
-Fail policy:
+Fail ポリシー:
   ほとんどのエラー経路（空/不正な stdin、timeout、想定外 exit code 等）は fail-closed
   （TIRITH_FAIL_OPEN=1 で fail-open に切替）。例外は「tirith バイナリ未検出」で、これは
   脅威検出ではなくインフラ未整備（tirith 未インストール）なので、User スコープで全プロジェクトに
   効く本フックがシェルを全死にさせないよう意図的に fail-open する。ただし TIRITH_BIN を明示
   指定したのにそのパスが存在しない場合は設定ミス（typo 等）とみなし fail-closed に倒す。
 
-Environment:
-  TIRITH_BIN              — path to tirith binary (default: "tirith")
-  TIRITH_HOOK_WARN_ACTION — "allow" (default) or "deny"
+環境変数:
+  TIRITH_BIN              — tirith バイナリのパス（既定: "tirith"）
+  TIRITH_HOOK_WARN_ACTION — "allow"（既定）または "deny"
   TIRITH_FAIL_OPEN        — "1" でエラー時 fail-open（既定は fail-closed）
   TIRITH_TIMEOUT          — tirith check のタイムアウト秒（既定 10、不正値は既定にフォールバック）
 """
@@ -42,7 +42,7 @@ DEFAULT_TIMEOUT = 10.0
 
 
 def get(data: dict[str, object], *keys: str) -> object | None:
-    """Return the first matching key from data (supports dual-case fields)."""
+    """data から最初に見つかったキーの値を返す（camelCase/snake_case の双方に対応）。"""
     for k in keys:
         if k in data:
             return data[k]
@@ -75,7 +75,7 @@ def _timeout_seconds() -> float:
 
 
 def deny(reason: str) -> None:
-    """Print a deny decision using hookSpecificOutput and exit 0."""
+    """hookSpecificOutput で deny 判定を出力して exit 0 する。"""
     print(
         json.dumps(
             {
@@ -90,22 +90,15 @@ def deny(reason: str) -> None:
     sys.exit(0)
 
 
-def fail_action() -> str:
-    """Return the fail action: deny (default, fail-closed) or allow (fail-open via env)."""
-    return "allow" if os.environ.get("TIRITH_FAIL_OPEN") == "1" else "deny"
-
-
 def fail_closed(reason: str) -> None:
-    """Deny or allow based on TIRITH_FAIL_OPEN, for error/missing-binary paths."""
-    action = fail_action()
-    if action == "deny":
-        deny(reason)
-    else:
+    """エラー/バイナリ不在経路の fail-closed。TIRITH_FAIL_OPEN=1 のときだけ allow(exit 0)。"""
+    if os.environ.get("TIRITH_FAIL_OPEN") == "1":
         sys.exit(0)
+    deny(reason)
 
 
 def _hook_event(event: str, detail: str | None = None) -> None:
-    """Log a hook telemetry event via tirith hook-event (fire-and-forget)."""
+    """tirith hook-event でフックのテレメトリイベントを記録する（fire-and-forget）。"""
     tirith_bin = _resolve_tirith_bin()
     try:
         cmd = [
@@ -133,7 +126,7 @@ def _hook_event(event: str, detail: str | None = None) -> None:
 
 
 def _build_warning_text(stdout: str) -> str:
-    """Extract finding titles from tirith JSON output into a human-readable string.
+    """tirith の JSON 出力から finding のタイトルを抽出し、人間可読な文字列にする。
 
     tirith が --json 契約から外れた出力（非オブジェクト、findings が dict 配列でない等）を返しても
     例外で decision 経路を落とさず、生テキストの reason に degrade する（isinstance で防御）。"""
@@ -163,7 +156,7 @@ def main() -> None:
     try:
         raw = sys.stdin.read()
         if not raw.strip():
-            # Empty input — cannot determine command, fail-closed
+            # 入力が空 = command を判定できない。安全側に倒して fail-closed する。
             fail_closed("tirith: empty hook input — blocked for safety")
             return
         data = json.loads(raw)
@@ -176,12 +169,12 @@ def main() -> None:
         fail_closed("tirith: invalid hook input format — blocked for safety")
         return
 
-    # Dual-case field extraction (camelCase and snake_case)
+    # camelCase / snake_case の双方からフィールドを取り出す
     event = get(data, "hook_event_name", "hookEventName")
     tool = get(data, "tool_name", "toolName")
     tool_input = get(data, "tool_input", "toolInput") or {}
 
-    # Only intercept PreToolUse + Bash
+    # PreToolUse + Bash のみ介在する
     if event != "PreToolUse" or tool != "Bash":
         sys.exit(0)
 
@@ -194,7 +187,6 @@ def main() -> None:
         fail_closed("tirith: no command found in hook input — blocked for safety")
         return
 
-    # Locate tirith binary
     tirith_bin = _resolve_tirith_bin()
 
     env = os.environ.copy()
@@ -229,7 +221,7 @@ def main() -> None:
             return
         # TIRITH_BIN 未指定での未検出は tirith 未インストール = インフラ未整備。User スコープで
         # 全プロジェクトに効くため、ここだけ意図的に fail-open し、tirith 不在がシェルを全死に
-        # させないようにする（docstring の Fail policy 参照）。
+        # させないようにする（docstring の Fail ポリシー参照）。
         print(
             f"tirith: {tirith_bin} not found — skipping check (install tirith to re-enable)",
             file=sys.stderr,
@@ -244,7 +236,7 @@ def main() -> None:
         fail_closed(f"tirith: OS error running check — {e}")
         return
 
-    # Unexpected exit code — fail-closed
+    # 想定外の exit code は fail-closed
     if result.returncode not in (0, 1, 2):
         _hook_event("unexpected_exit", f"exit code {result.returncode}")
         fail_closed(f"tirith: unexpected exit code {result.returncode} — blocked for safety")
@@ -254,12 +246,12 @@ def main() -> None:
         fail_closed("tirith: check returned non-zero with no output — blocked for safety")
         return
 
-    # Exit 0 = clean, allow
+    # exit 0 = clean。許可する
     if result.returncode == 0:
         _hook_event("check_ok")
         sys.exit(0)
 
-    # Exit 2 = warn — check TIRITH_HOOK_WARN_ACTION
+    # exit 2 = warn。TIRITH_HOOK_WARN_ACTION に従う
     if result.returncode == 2:
         warn_action = os.environ.get("TIRITH_HOOK_WARN_ACTION", "allow").lower()
         if warn_action not in ("allow", "deny"):
@@ -286,7 +278,7 @@ def main() -> None:
             )
             sys.exit(0)
 
-    # Exit 1 = block, Exit 2 + deny = block
+    # exit 1 = block、exit 2 + deny = block
     if result.returncode == 1:
         _hook_event("check_block")
     else:
@@ -299,21 +291,5 @@ if __name__ == "__main__":
     try:
         main()
     except Exception:
-        # Fail-closed on unexpected errors (respects TIRITH_FAIL_OPEN)
-        if os.environ.get("TIRITH_FAIL_OPEN") == "1":
-            sys.exit(0)
-        # Deny — print structured output so Claude Code shows a message
-        print(
-            json.dumps(
-                {
-                    "hookSpecificOutput": {
-                        "hookEventName": "PreToolUse",
-                        "permissionDecision": "deny",
-                        "permissionDecisionReason": (
-                            "tirith: unexpected hook error — blocked for safety"
-                        ),
-                    }
-                }
-            )
-        )
-        sys.exit(0)
+        # 想定外エラーは fail-closed（TIRITH_FAIL_OPEN=1 のときのみ fail-open）
+        fail_closed("tirith: unexpected hook error — blocked for safety")
