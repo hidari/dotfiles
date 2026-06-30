@@ -32,9 +32,11 @@ def make_fake_tirith(
     """指定の stdout / exit code / sleep を持つ偽 tirith 実行可能スクリプトを生成して返す。
     ARG_LOG 環境変数が設定されていれば受領した argv を 1 行 1 引数で書き出す（argv 検証用）。"""
     script = directory / "fake-tirith.sh"
+    # ARG_LOG は check サブコマンドの argv のみ記録する。fire-and-forget な hook-event 呼び出しが
+    # 同じファイルを上書きして check の argv を消す race を避ける（CI で顕在化した）。
     lines = [
         "#!/bin/sh",
-        '[ -n "$ARG_LOG" ] && printf \'%s\\n\' "$@" > "$ARG_LOG"',
+        '[ "$1" = check ] && [ -n "$ARG_LOG" ] && printf \'%s\\n\' "$@" > "$ARG_LOG"',
     ]
     if sleep:
         lines.append(f"sleep {sleep}")
