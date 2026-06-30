@@ -30,6 +30,7 @@ SYMLINK_PAIRS=(
     "home/.claude/statusline-command.sh|.claude/statusline-command.sh"
     "home/.claude/CLAUDE.md|.claude/CLAUDE.md"
     "home/.claude/.mcp.json|.claude/.mcp.json"
+    "home/.claude/hooks|.claude/hooks"
     "home/.claude/skills|.claude/skills"
     "home/.claude/skills/windows-vm-verification/winvm.py|.local/bin/winvm"
     "scripts/backup-tool/backup.sh|.local/bin/backup.sh"
@@ -240,6 +241,26 @@ install_claude_code() {
     curl --proto '=https' --tlsv1.2 -fsSL https://claude.ai/install.sh | bash
 }
 
+# mise が管理する pin ツール (config.toml の [tools]: node/pnpm/tirith) を実体化する（冪等）。
+# config.toml の symlink は setup_dotfiles が張るため、必ず setup_dotfiles の後に呼ぶこと。
+install_mise_tools() {
+    log "Installing mise-managed tools (node/pnpm/tirith)..."
+
+    if [ "$DRY_RUN" = true ]; then
+        echo "[DRY-RUN] mise install"
+        return 0
+    fi
+
+    if ! command -v mise &> /dev/null; then
+        warn "mise not found; skipping mise-managed tool installation"
+        return 0
+    fi
+
+    # mise install は global config (~/.config/mise/config.toml) の pin を解決し、
+    # 既にインストール済みのバージョンはスキップする冪等な操作。
+    mise install
+}
+
 # =============================================================================
 # dotfiles セットアップ関数
 # =============================================================================
@@ -352,6 +373,7 @@ main() {
         echo "This script will:"
         if [ "$DOTFILES_ONLY" = false ]; then
             echo "  - Install Homebrew, Rust, mise, Claude Code"
+            echo "  - Install mise-managed tools (node, pnpm, tirith)"
         fi
         echo "  - Create symlinks for dotfiles"
         echo ""
@@ -375,6 +397,11 @@ main() {
 
     # dotfiles セットアップ
     setup_dotfiles
+
+    # mise の pin ツールを実体化する（config.toml の symlink を張った後でなければならない）
+    if [ "$DOTFILES_ONLY" = false ]; then
+        install_mise_tools
+    fi
 
     echo ""
     log "Bootstrap complete!"
