@@ -1,0 +1,5 @@
+# apm (Agent Package Manager) が生成するもの — bootstrap の `apm install --frozen` で再現する
+# fetch キャッシュ (node_modules 相当)
+apm_modules/
+# apm が deploy する vendored skill (apm.yml + apm.lock.yaml が真実源、ここは再生成物)
+.claude/skills/playwright-cli/

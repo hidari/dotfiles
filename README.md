@@ -46,6 +46,7 @@ cd ~/Develop/dotfiles
 - [Rust](https://rustup.rs/) - Rust toolchain
 - [mise](https://mise.jdx.dev/) - dev tool / runtime version manager
 - [Claude Code](https://claude.ai/code) - AI coding assistant
+- [apm](https://github.com/microsoft/apm) - Agent Package Manager (skill/plugin の宣言的配信)
 
 ### Dotfiles
 
@@ -86,6 +87,14 @@ committed 側は CI で 2 つの仕組みが守る。
 - 対話シェル: `home/.zshrc` の `tirith init` が zsh のコマンド実行前に検査する。
 - Claude Code: `home/.claude/hooks/tirith-check.py` を PreToolUse(Bash) フックに登録し、エージェントの Bash 実行前に `tirith check` へ委譲する。判定ロジックとテストは `scripts/tirith-hook` を参照。
 
+## apm による skill 配信 (vendored skills)
+
+一部の Claude Code skill は自作せず、upstream (`mizchi/skills` 等) から apm (Agent Package Manager) 経由で取り込む。宣言の正本は `home/apm.yml`、解決した commit と content hash の pin は `home/apm.lock.yaml`。
+
+- 取り込み: `home/` で `apm install --frozen`（bootstrap の `install_apm_skills` が実行）。commit SHA pin で再現性を担保する。
+- deploy 先 skill (`home/.claude/skills/<name>/`) と fetch キャッシュ (`home/apm_modules/`) は再生成物なので gitignore する（`home/.gitignore`）。自作 skill は従来どおり tracked。
+- upstream 追従は `apm outdated` / `apm update` で確認・更新する。
+
 ## Testing
 
 ```bash
@@ -103,4 +112,7 @@ uv run --directory scripts/config-guard config-guard .
 
 # tirith-hook (Python / pytest) — Claude Code PreToolUse フックの統合テスト
 uv run --directory scripts/tirith-hook pytest -q
+
+# apm 配信 skill の drift 検査 (apm.lock.yaml の hash vs deploy 済みファイル)
+( cd home && apm audit )
 ```

@@ -253,3 +253,61 @@ teardown() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"mise not found"* ]]
 }
+
+# =============================================================================
+# install_apm tests (apm CLI 本体の brew インストール)
+# =============================================================================
+
+@test "install_apm: skips when apm is already installed" {
+    DRY_RUN=false
+    # apm を PATH 上に stub して「導入済み」分岐を厳密に検証する
+    local bin_dir="$TEST_HOME/fake-bin"
+    mkdir -p "$bin_dir"
+    printf '#!/bin/sh\nexit 0\n' > "$bin_dir/apm"
+    chmod +x "$bin_dir/apm"
+
+    PATH="$bin_dir:$PATH" run install_apm
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"already installed"* ]]
+}
+
+@test "install_apm: dry-run shows install without executing" {
+    DRY_RUN=true
+    # apm 未導入状態を再現（PATH を空にして brew 到達前の dry-run 分岐を強制）
+    local empty_dir="$TEST_HOME/empty-path"
+    mkdir -p "$empty_dir"
+
+    PATH="$empty_dir" run install_apm
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"[DRY-RUN] Install apm"* ]]
+    # dry-run で brew に到達していない（到達すれば空 PATH で command not found になる）
+    [[ "$output" != *"already installed"* ]]
+}
+
+# =============================================================================
+# install_apm_skills tests (apm.yml 宣言スキルの実体化)
+# =============================================================================
+
+@test "install_apm_skills: dry-run shows apm install without executing" {
+    DRY_RUN=true
+
+    run install_apm_skills
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"[DRY-RUN] apm install"* ]]
+    # dry-run は早期 return するため apm 存在チェックまで進まない（early-return を担保する negative）
+    [[ "$output" != *"apm not found"* ]]
+}
+
+@test "install_apm_skills: warns and skips when apm is not on PATH" {
+    DRY_RUN=false
+    local empty_dir="$TEST_HOME/empty-path"
+    mkdir -p "$empty_dir"
+
+    PATH="$empty_dir" run install_apm_skills
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"apm not found"* ]]
+}
