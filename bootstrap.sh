@@ -241,6 +241,22 @@ install_claude_code() {
     curl --proto '=https' --tlsv1.2 -fsSL https://claude.ai/install.sh | bash
 }
 
+install_apm() {
+    log "Installing apm (Agent Package Manager)..."
+    if command -v apm &> /dev/null; then
+        log "apm is already installed. Skipping..."
+        return 0
+    fi
+
+    if [ "$DRY_RUN" = true ]; then
+        echo "[DRY-RUN] Install apm"
+        return 0
+    fi
+
+    # tap 修飾名 microsoft/apm/apm で入れると microsoft/apm tap を自動 tap して formula apm を導入する
+    brew install microsoft/apm/apm
+}
+
 # mise が管理する pin ツール (config.toml の [tools]: node/pnpm/tirith) を実体化する（冪等）。
 # config.toml の symlink は setup_dotfiles が張るため、必ず setup_dotfiles の後に呼ぶこと。
 install_mise_tools() {
@@ -259,6 +275,26 @@ install_mise_tools() {
     # mise install は global config (~/.config/mise/config.toml) の pin を解決し、
     # 既にインストール済みのバージョンはスキップする冪等な操作。
     mise install
+}
+
+# apm.yml (home/) が宣言するスキルを apm.lock.yaml の pin 通りに実体化する（冪等）。
+# apm は cwd の apm.yml/apm.lock.yaml を基準に home/.claude/skills へ展開するため、必ず home/ で実行する。
+install_apm_skills() {
+    log "Installing apm-managed skills..."
+
+    if [ "$DRY_RUN" = true ]; then
+        echo "[DRY-RUN] apm install --frozen (in $DOTFILES_DIR/home)"
+        return 0
+    fi
+
+    if ! command -v apm &> /dev/null; then
+        warn "apm not found; skipping apm-managed skill installation"
+        return 0
+    fi
+
+    # --frozen は lockfile 不在/不整合時に install を拒否し、pin されたスキルの再現性を担保する。
+    # サブシェルで cd し、呼び出し元の cwd を汚さない。
+    ( cd "$DOTFILES_DIR/home" && apm install --frozen )
 }
 
 # =============================================================================
@@ -372,8 +408,9 @@ main() {
     if [ "$YES_MODE" = false ] && [ "$DRY_RUN" = false ]; then
         echo "This script will:"
         if [ "$DOTFILES_ONLY" = false ]; then
-            echo "  - Install Homebrew, Rust, mise, Claude Code"
+            echo "  - Install Homebrew, Rust, mise, Claude Code, apm"
             echo "  - Install mise-managed tools (node, pnpm, tirith)"
+            echo "  - Install apm-managed skills"
         fi
         echo "  - Create symlinks for dotfiles"
         echo ""
@@ -393,14 +430,18 @@ main() {
         install_rust
         install_mise
         install_claude_code
+        install_apm
     fi
 
     # dotfiles セットアップ
     setup_dotfiles
 
-    # mise の pin ツールを実体化する（config.toml の symlink を張った後でなければならない）
+    # mise の pin ツールと apm スキルを実体化する。
+    # mise install は config.toml の symlink 後でなければならない（setup_dotfiles が張る）。
+    # apm は home/ の repo dir へ直接展開するため ~/.claude/skills の symlink 順序には非依存。
     if [ "$DOTFILES_ONLY" = false ]; then
         install_mise_tools
+        install_apm_skills
     fi
 
     echo ""

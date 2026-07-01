@@ -1,0 +1,21 @@
+lockfile_version: '1'
+generated_at: '2026-07-01T06:09:23.965817+00:00'
+apm_version: 0.23.1
+dependencies:
+- repo_url: mizchi/skills
+  name: skills
+  host: github.com
+  resolved_commit: d7999453cdb4e0e09df1c7f82fd23752539c546c
+  resolved_ref: d7999453cdb4e0e09df1c7f82fd23752539c546c
+  version: unknown
+  virtual_path: testing/playwright-cli
+  is_virtual: true
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/playwright-cli
+  - .claude/skills/playwright-cli/README.md
+  - .claude/skills/playwright-cli/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/playwright-cli/README.md: sha256:0b6236838eaeac59ee64828cb86b485e7318a8162da65f31e9064e14b39b7b38
+    .claude/skills/playwright-cli/SKILL.md: sha256:dc6f7e100b20369010393b116f3d748cfa7d3b298046638e854b5a02d4e0e7f7
+  content_hash: sha256:91b5ce28a1c5080740817a5977279c60d9467aeeb1aa992ea4363c8d148dca43
