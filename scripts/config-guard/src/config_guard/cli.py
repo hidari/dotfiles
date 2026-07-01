@@ -6,6 +6,7 @@ import glob
 import sys
 from pathlib import Path
 
+from config_guard.apm_gitignore import check_apm_deployed_files_ignored
 from config_guard.extractors import extract_skill_tokens
 from config_guard.git_source import read_committed_settings
 from config_guard.models import Finding
@@ -32,6 +33,9 @@ def scan(repo_root: str) -> list[Finding]:
     # committed settings.json の不変条件（permissions のツール名検証を含む）
     settings = read_committed_settings(str(root))
     findings.extend(check_settings_invariants(settings))
+
+    # apm.lock.yaml の deployed_files が全て gitignore されているか（追記漏れ検出）
+    findings.extend(check_apm_deployed_files_ignored(str(root)))
 
     return findings
 

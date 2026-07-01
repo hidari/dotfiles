@@ -19,3 +19,68 @@ dependencies:
     .claude/skills/playwright-cli/README.md: sha256:0b6236838eaeac59ee64828cb86b485e7318a8162da65f31e9064e14b39b7b38
     .claude/skills/playwright-cli/SKILL.md: sha256:dc6f7e100b20369010393b116f3d748cfa7d3b298046638e854b5a02d4e0e7f7
   content_hash: sha256:91b5ce28a1c5080740817a5977279c60d9467aeeb1aa992ea4363c8d148dca43
+- repo_url: mizchi/skills
+  name: skills
+  host: github.com
+  resolved_commit: d7999453cdb4e0e09df1c7f82fd23752539c546c
+  resolved_ref: d7999453cdb4e0e09df1c7f82fd23752539c546c
+  version: unknown
+  virtual_path: meta/empirical-prompt-tuning
+  is_virtual: true
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/empirical-prompt-tuning
+  - .claude/skills/empirical-prompt-tuning/README.md
+  - .claude/skills/empirical-prompt-tuning/SKILL-ja.md
+  - .claude/skills/empirical-prompt-tuning/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/empirical-prompt-tuning/README.md: sha256:c7db7d27122bcffe416e5607700a7cd1778cad260d3e104c5bb6da7b7f976b3d
+    .claude/skills/empirical-prompt-tuning/SKILL-ja.md: sha256:0a38d830802c2e08a7faca13928fedf6911e00b896946b4b03910d662de6dea5
+    .claude/skills/empirical-prompt-tuning/SKILL.md: sha256:252418e7ef022981d2dda2e3ec57fa1c786d30af68c50b7e062edf1d7361b0cb
+  content_hash: sha256:20e7fba93c7267ba6e3a7b27787ca49191b762dffcfb804b01da9183b1b0c891
+- repo_url: mizchi/skills
+  name: skills
+  host: github.com
+  resolved_commit: d7999453cdb4e0e09df1c7f82fd23752539c546c
+  resolved_ref: d7999453cdb4e0e09df1c7f82fd23752539c546c
+  version: unknown
+  virtual_path: testing/playwright-test
+  is_virtual: true
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/playwright-test
+  - .claude/skills/playwright-test/README.md
+  - .claude/skills/playwright-test/SKILL-ja.md
+  - .claude/skills/playwright-test/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/playwright-test/README.md: sha256:71567cf469a618744f63e72578d189a4dda5ef81c6e60169348579af3f0112fb
+    .claude/skills/playwright-test/SKILL-ja.md: sha256:63d2cd55468c576e986fe4eb7b799d9203f38540688a8988588c551d8b19548e
+    .claude/skills/playwright-test/SKILL.md: sha256:b66dbd57a461cfd40c7a2b91af156b6923b3bba39a4ae712528b5c0ce3dba3fd
+  content_hash: sha256:7f85a2a1a1b2c96604c97676239c2df91558fb6c1fa5a89c78683bb68375026a
+- repo_url: mizchi/skills
+  name: skills
+  host: github.com
+  resolved_commit: d7999453cdb4e0e09df1c7f82fd23752539c546c
+  resolved_ref: d7999453cdb4e0e09df1c7f82fd23752539c546c
+  version: unknown
+  virtual_path: tooling/ast-grep-practice
+  is_virtual: true
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/ast-grep-practice
+  - .claude/skills/ast-grep-practice/README.md
+  - .claude/skills/ast-grep-practice/SKILL-ja.md
+  - .claude/skills/ast-grep-practice/SKILL.md
+  - .claude/skills/ast-grep-practice/references/cli.md
+  - .claude/skills/ast-grep-practice/references/kind-catalog.md
+  - .claude/skills/ast-grep-practice/references/rule-yaml.md
+  - .claude/skills/ast-grep-practice/references/testing.md
+  deployed_file_hashes:
+    .claude/skills/ast-grep-practice/README.md: sha256:117059807d964371b7006bcc5ec24512bb992ecd643c128281be3ba760cf9a47
+    .claude/skills/ast-grep-practice/SKILL-ja.md: sha256:dbe683eb03d6c32f5bb1c254adf77a20c20625de0bb4b40f43a890d617709e60
+    .claude/skills/ast-grep-practice/SKILL.md: sha256:9183634a2e375f826fede62515b8d1414200cdc3643d93393ed1c3b36e45beeb
+    .claude/skills/ast-grep-practice/references/cli.md: sha256:20f47f7693019f6e392cf59a2bb0f938c3763ff177f7eb5f6ed1360bc9b78938
+    .claude/skills/ast-grep-practice/references/kind-catalog.md: sha256:0a616ac78efa38aeeee5b8afc939bee0489c5d1d92b82475480e429d03a14ec4
+    .claude/skills/ast-grep-practice/references/rule-yaml.md: sha256:1b801dd897252f442384980235eaf06354bb6dc0ac8378f196e4e20746e1c7c0
+    .claude/skills/ast-grep-practice/references/testing.md: sha256:d7e2282b5b6ef954891af059adbe9b8ae23edcc385ba00f6a9e80e42ac6607d7
+  content_hash: sha256:2c39f6e925845efc15cff26d3aecf5dd5f1acc8f62dd06524bf98b7ac0bde7a6

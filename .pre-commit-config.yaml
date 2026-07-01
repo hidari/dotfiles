@@ -69,11 +69,11 @@ repos:
         files: ^scripts/config-guard/(src|tests)/.*\.py$
 
       - id: config-guard-scan
-        name: config-guard scan (tool refs / settings invariants)
+        name: config-guard scan (tool refs / settings / apm gitignore)
         language: system
         entry: bash -c 'uv run --directory scripts/config-guard config-guard "$(git rev-parse --show-toplevel)"'
         pass_filenames: false
-        files: ^(home/\.claude/skills/.*/SKILL\.md|home/\.claude/settings\.json|scripts/config-guard/.*)$
+        files: ^(home/\.claude/skills/.*/SKILL\.md|home/\.claude/settings\.json|home/apm\.lock\.yaml|home/\.gitignore|scripts/config-guard/.*)$
 
       - id: tirith-hook-ruff-check
         name: tirith-hook ruff check
