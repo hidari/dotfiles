@@ -92,7 +92,7 @@ committed 側は CI で 2 つの仕組みが守る。
 一部の Claude Code skill は自作せず、upstream (`mizchi/skills` 等) から apm (Agent Package Manager) 経由で取り込む。宣言の正本は `home/apm.yml`、解決した commit と content hash の pin は `home/apm.lock.yaml`。
 
 - 取り込み: `home/` で `apm install --frozen`（bootstrap の `install_apm_skills` が実行）。commit SHA pin で再現性を担保する。
-- deploy 先 skill (`home/.claude/skills/<name>/`) と fetch キャッシュ (`home/apm_modules/`) は再生成物なので gitignore する（`home/.gitignore`）。自作 skill は従来どおり tracked。
+- deploy 先 skill (`home/.claude/skills/<name>/`) と fetch キャッシュ (`home/apm_modules/`) は再生成物なので gitignore する（`home/.gitignore`）。gitignore の追記漏れは config-guard が apm.lock.yaml の deployed_files と突合して検出する。自作 skill は従来どおり tracked。
 - upstream 追従は `apm outdated` / `apm update` で確認・更新する。
 - apm 管理 skill は gitignore されるため fresh checkout（CI 含む）では未展開で、config-guard の allowed-tools 検査対象外。整合性は apm.lock.yaml の content_hash pin と `apm audit --ci` で担保する（自作 skill の config-guard 検査とはスコープを分離）。
 
