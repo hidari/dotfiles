@@ -1,5 +1,7 @@
 # apm (Agent Package Manager) が生成するもの — bootstrap の `apm install --frozen` で再現する
 # fetch キャッシュ (node_modules 相当)
 apm_modules/
-# apm が deploy する vendored skill (apm.yml + apm.lock.yaml が真実源、ここは再生成物)
+# apm が deploy する vendored skill (再生成物)。真実源は apm.lock.yaml の deployed_files で、
+# ここはそれを手写しした subset のため skill 追加時に要追記。skill #2 で lockfile 由来の
+# git check-ignore 検査に置き換え、この二重管理を解消する。
 .claude/skills/playwright-cli/

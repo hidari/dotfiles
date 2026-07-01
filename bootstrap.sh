@@ -436,7 +436,9 @@ main() {
     # dotfiles セットアップ
     setup_dotfiles
 
-    # mise の pin ツールと apm スキルを実体化する（config.toml / apm.yml の symlink・配置を張った後でなければならない）
+    # mise の pin ツールと apm スキルを実体化する。
+    # mise install は config.toml の symlink 後でなければならない（setup_dotfiles が張る）。
+    # apm は home/ の repo dir へ直接展開するため ~/.claude/skills の symlink 順序には非依存。
     if [ "$DOTFILES_ONLY" = false ]; then
         install_mise_tools
         install_apm_skills

@@ -311,3 +311,31 @@ teardown() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"apm not found"* ]]
 }
+
+@test "install_apm_skills: runs 'apm install --frozen' with cwd = DOTFILES_DIR/home" {
+    DRY_RUN=false
+    # apm を stub して呼び出し時の cwd と引数を記録し、実作業行 (cd home && apm install --frozen) を検証する。
+    # 早期 return ガードだけでなく唯一の実作業行を通す（shell-out の cd 先・flag はユニットで担保する）。
+    local bin_dir="$TEST_HOME/fake-bin"
+    local rec="$TEST_HOME/apm-invocation.txt"
+    mkdir -p "$bin_dir"
+    cat > "$bin_dir/apm" <<'STUB'
+#!/bin/sh
+pwd -P > "$APM_STUB_REC"
+printf '%s\n' "$*" >> "$APM_STUB_REC"
+STUB
+    chmod +x "$bin_dir/apm"
+    export APM_STUB_REC="$rec"
+    DOTFILES_DIR="$TEST_HOME/dotfiles"
+    mkdir -p "$DOTFILES_DIR/home"
+
+    PATH="$bin_dir:$PATH" run install_apm_skills
+
+    [ "$status" -eq 0 ]
+    # symlink 差を排すため両辺 pwd -P で比較する
+    local expected_cwd
+    expected_cwd="$(cd "$DOTFILES_DIR/home" && pwd -P)"
+    [ "$(sed -n '1p' "$rec")" = "$expected_cwd" ]
+    [[ "$(sed -n '2p' "$rec")" == *"install"* ]]
+    [[ "$(sed -n '2p' "$rec")" == *"--frozen"* ]]
+}

@@ -94,6 +94,7 @@ committed 側は CI で 2 つの仕組みが守る。
 - 取り込み: `home/` で `apm install --frozen`（bootstrap の `install_apm_skills` が実行）。commit SHA pin で再現性を担保する。
 - deploy 先 skill (`home/.claude/skills/<name>/`) と fetch キャッシュ (`home/apm_modules/`) は再生成物なので gitignore する（`home/.gitignore`）。自作 skill は従来どおり tracked。
 - upstream 追従は `apm outdated` / `apm update` で確認・更新する。
+- apm 管理 skill は gitignore されるため fresh checkout（CI 含む）では未展開で、config-guard の allowed-tools 検査対象外。整合性は apm.lock.yaml の content_hash pin と `apm audit --ci` で担保する（自作 skill の config-guard 検査とはスコープを分離）。
 
 ## Testing
 
@@ -113,6 +114,6 @@ uv run --directory scripts/config-guard config-guard .
 # tirith-hook (Python / pytest) — Claude Code PreToolUse フックの統合テスト
 uv run --directory scripts/tirith-hook pytest -q
 
-# apm 配信 skill の drift 検査 (apm.lock.yaml の hash vs deploy 済みファイル)
-( cd home && apm audit )
+# apm 配信 skill の lockfile 整合性 / drift ゲート (違反時 exit 1)
+( cd home && apm audit --ci )
 ```
