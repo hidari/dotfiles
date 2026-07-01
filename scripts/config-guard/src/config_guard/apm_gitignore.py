@@ -44,6 +44,12 @@ def _is_ignored(repo_root: str, repo_rel_path: str) -> bool:
         capture_output=True,
         check=False,
     )
+    # 0=ignored / 1=not ignored。それ以外(128 fatal: git repo でない等)を「not ignored」と
+    # 誤解して findings を量産せず、明示的に失敗させる(git エラーと追記漏れを取り違えない)。
+    if proc.returncode not in (0, 1):
+        raise RuntimeError(
+            f"git check-ignore が失敗しました (exit {proc.returncode}): {repo_rel_path}"
+        )
     return proc.returncode == 0
 
 
@@ -59,11 +65,12 @@ def check_apm_deployed_files_ignored(repo_root: str) -> list[Finding]:
     deployed = parse_deployed_files(lockfile.read_text(encoding="utf-8"))
     findings: list[Finding] = []
     for rel in deployed:
-        # ディレクトリ placeholder(配下に別エントリを持つ)は検査しない。配下ファイルの
-        # 検査で ignore はカバーされ、かつ fresh checkout では未展開ディレクトリを
-        # git check-ignore が trailing-slash パターンにマッチさせないため誤検出になる
-        # (非存在でもファイルパスは親ディレクトリパターンに正しくマッチする)。
-        if any(other != rel and other.startswith(rel + "/") for other in deployed):
+        # git は file のみ track するため、検査対象は leaf ファイルのみ。dir エントリ
+        # (配下に別エントリを持つ placeholder) は apm の bookkeeping であって git-trackable な
+        # 実体ではないので scope 外。加えて未展開 dir は trailing-slash パターンに
+        # git check-ignore がマッチせず false-positive になる(非存在でもファイルパスは親
+        # ディレクトリパターンに正しくマッチする)ため、いずれの観点でも leaf に絞る。
+        if any(other.startswith(rel + "/") for other in deployed):
             continue
         # deployed_files は home/(apm.yml の位置)基準。repo root 基準に home/ を前置する。
         repo_rel = f"home/{rel}"

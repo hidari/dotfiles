@@ -1,4 +1,8 @@
-"""リポジトリをスキャンして stale なツール名参照と settings.json の逸脱を検出する。"""
+"""リポジトリをスキャンして構造逸脱を検出する。
+
+stale なツール名参照 / committed settings.json の不変条件 / apm.lock.yaml の
+deployed_files が gitignore されているか(追記漏れ)を検査する。
+"""
 
 from __future__ import annotations
 

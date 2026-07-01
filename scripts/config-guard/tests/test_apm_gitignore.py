@@ -102,3 +102,16 @@ def test_check_flags_unignored_deployed_file(tmp_path: Path) -> None:
 def test_check_empty_when_no_lockfile(tmp_path: Path) -> None:
     _init_repo(tmp_path)
     assert check_apm_deployed_files_ignored(str(tmp_path)) == []
+
+
+def test_check_raises_on_git_error(tmp_path: Path) -> None:
+    # git repo でないディレクトリでは git check-ignore が 128 を返す。追記漏れ(1)と
+    # git エラー(128)を取り違えず、明示的に失敗することを検証する(git init しない)。
+    _write(tmp_path, LOCKFILE_PATH, SAMPLE_LOCKFILE)
+
+    try:
+        check_apm_deployed_files_ignored(str(tmp_path))
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("git エラー時は RuntimeError が送出されるべき")
