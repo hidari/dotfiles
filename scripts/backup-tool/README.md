@@ -154,7 +154,7 @@ backup --config /path/to/custom.toml
 `log_base_dir` を設定すれば出力先を変更できます。
 
 ```
-/Volumes/Luna-P/.backup_logs/
+/Volumes/Primary/.backup_logs/
   ├── backup_20260401_143000.log
   ├── backup_20260402_093000.log
   └── ...
@@ -191,22 +191,6 @@ uv run pytest --cov=backup_tool --cov-report=term-missing
 uv run ruff check src tests
 uv run ruff format src tests
 uv run mypy src tests
-```
-
-### モジュール構成
-
-```
-src/backup_tool/
-  ├── __main__.py       # エントリポイント
-  ├── cli.py            # argparse サブコマンド定義
-  ├── config.py         # TOML 読み込み・バリデーション
-  ├── runner.py         # バックアップ全体の orchestration
-  ├── disk.py           # 容量計算・du/df 呼び出し
-  ├── paths.py          # パス種別判定・マウント確認
-  ├── rsync.py          # rsync 起動・出力フィルタリング
-  ├── logging_setup.py  # text / json ロガー・ローテーション
-  ├── migrate.py        # backup.conf → backup.toml 変換
-  └── excludes.py       # 基本除外リスト
 ```
 
 ## トラブルシューティング

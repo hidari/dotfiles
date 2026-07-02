@@ -7,17 +7,17 @@ from backup_tool.paths import classify, extract_volume_path
 
 class TestClassify:
     def test_volume_root(self) -> None:
-        assert classify("/Volumes/Luna-P") == "volume"
+        assert classify("/Volumes/Primary") == "volume"
 
     def test_volume_with_trailing_slash(self) -> None:
         # ボリューム直下にスラッシュが付いていても volume 扱い
-        assert classify("/Volumes/Luna-P/") == "volume"
+        assert classify("/Volumes/Primary/") == "volume"
 
     def test_directory_under_volume(self) -> None:
-        assert classify("/Volumes/Luna-P/Photos") == "directory"
+        assert classify("/Volumes/Primary/Photos") == "directory"
 
     def test_nested_directory_under_volume(self) -> None:
-        assert classify("/Volumes/Luna-P/Photos/2024") == "directory"
+        assert classify("/Volumes/Primary/Photos/2024") == "directory"
 
     def test_local_path_outside_volumes(self) -> None:
         assert classify("/Users/example/Documents") == "local"
@@ -28,10 +28,10 @@ class TestClassify:
 
 class TestExtractVolumePath:
     def test_extracts_volume_from_directory_path(self) -> None:
-        assert extract_volume_path("/Volumes/Luna-P/Photos/2024") == "/Volumes/Luna-P"
+        assert extract_volume_path("/Volumes/Primary/Photos/2024") == "/Volumes/Primary"
 
     def test_returns_same_path_for_volume_root(self) -> None:
-        assert extract_volume_path("/Volumes/Luna-P") == "/Volumes/Luna-P"
+        assert extract_volume_path("/Volumes/Primary") == "/Volumes/Primary"
 
     def test_returns_none_for_non_volume_path(self) -> None:
         assert extract_volume_path("/Users/example/Documents") is None

@@ -4,7 +4,8 @@
 #   brew install pre-commit gitleaks
 #   pre-commit install
 #
-# - scripts/backup-tool の ruff / mypy / pytest を uv 仮想環境で実行する。
+# - scripts/backup-tool, scripts/config-guard, scripts/tirith-hook の ruff / mypy / pytest を uv 仮想環境で実行する。
+# - config-guard で skills / committed settings.json の stale なツール名参照・構造逸脱を検出する。
 # - gitleaks で staged 差分の secret / ユーザー名パス (/Users/<name>) 漏洩を弾く (.gitleaks.toml)。
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -38,6 +39,69 @@ repos:
         entry: uv run --directory scripts/backup-tool pytest -q
         pass_filenames: false
         files: ^scripts/backup-tool/(src|tests)/.*\.py$
+
+      - id: config-guard-ruff-check
+        name: config-guard ruff check
+        language: system
+        entry: uv run --directory scripts/config-guard ruff check src tests
+        pass_filenames: false
+        files: ^scripts/config-guard/(src|tests)/.*\.py$
+
+      - id: config-guard-ruff-format
+        name: config-guard ruff format --check
+        language: system
+        entry: uv run --directory scripts/config-guard ruff format --check src tests
+        pass_filenames: false
+        files: ^scripts/config-guard/(src|tests)/.*\.py$
+
+      - id: config-guard-mypy
+        name: config-guard mypy
+        language: system
+        entry: uv run --directory scripts/config-guard mypy src tests
+        pass_filenames: false
+        files: ^scripts/config-guard/(src|tests)/.*\.py$
+
+      - id: config-guard-pytest
+        name: config-guard pytest
+        language: system
+        entry: uv run --directory scripts/config-guard pytest -q
+        pass_filenames: false
+        files: ^scripts/config-guard/(src|tests)/.*\.py$
+
+      - id: config-guard-scan
+        name: config-guard scan (tool refs / settings / apm gitignore)
+        language: system
+        entry: bash -c 'uv run --directory scripts/config-guard config-guard "$(git rev-parse --show-toplevel)"'
+        pass_filenames: false
+        files: ^(home/\.claude/skills/.*/SKILL\.md|home/\.claude/settings\.json|home/apm\.lock\.yaml|home/\.gitignore|scripts/config-guard/.*)$
+
+      - id: tirith-hook-ruff-check
+        name: tirith-hook ruff check
+        language: system
+        entry: uv run --directory scripts/tirith-hook ruff check --config pyproject.toml ../../home/.claude/hooks/tirith-check.py tests
+        pass_filenames: false
+        files: ^(home/\.claude/hooks/tirith-check\.py|scripts/tirith-hook/.*)$
+
+      - id: tirith-hook-ruff-format
+        name: tirith-hook ruff format --check
+        language: system
+        entry: uv run --directory scripts/tirith-hook ruff format --check --config pyproject.toml ../../home/.claude/hooks/tirith-check.py tests
+        pass_filenames: false
+        files: ^(home/\.claude/hooks/tirith-check\.py|scripts/tirith-hook/.*)$
+
+      - id: tirith-hook-mypy
+        name: tirith-hook mypy
+        language: system
+        entry: uv run --directory scripts/tirith-hook mypy --config-file pyproject.toml ../../home/.claude/hooks/tirith-check.py tests
+        pass_filenames: false
+        files: ^(home/\.claude/hooks/tirith-check\.py|scripts/tirith-hook/.*)$
+
+      - id: tirith-hook-pytest
+        name: tirith-hook pytest
+        language: system
+        entry: uv run --directory scripts/tirith-hook pytest -q
+        pass_filenames: false
+        files: ^(home/\.claude/hooks/tirith-check\.py|scripts/tirith-hook/.*)$
 
       - id: gitleaks
         name: gitleaks (secret / user-path leak guard)

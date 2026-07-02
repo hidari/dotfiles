@@ -23,9 +23,6 @@ export HOMEBREW_NO_ENV_HINTS=1
 # Go言語の設定
 export GOPATH="$HOME/.go"
 
-# Voltaの設定
-export VOLTA_HOME="$HOME/.volta"
-
 # pnpmの設定
 export PNPM_HOME="$HOME/Library/pnpm"
 
@@ -37,7 +34,6 @@ path=(
     /opt/homebrew/bin(N-/)
     $path
     $PNPM_HOME(N-/)
-    $VOLTA_HOME/bin(N-/)
     $HOME/.bun/bin(N-/)
     $HOME/.cargo/bin(N-/)
     $HOME/.cargo/env(N-/)
@@ -155,8 +151,8 @@ setopt nonomatch
 ########################################
 # エイリアス
 
-# ファイル一覧を詳細表示（隠しファイル含む、色付き）
-alias ls='ls -aGl'
+# ファイル一覧を表示（隠しファイル含む、色付き）
+alias ls='ls -aG'
 
 # Git履歴を見やすく表示（直近15件、グラフ付き）
 alias gitl='git log -15 --graph --date-order --decorate=short --date=iso --format="%C(yellow)%h%C(reset) %C(magenta)[%ad]%C(reset)%C(auto)%d%C(reset) %s %C(cyan)Author:%an%C(reset)"'
@@ -206,3 +202,8 @@ eval "$(/opt/homebrew/bin/brew shellenv)"
 
 # miseのやつ
 eval "$(mise activate zsh)"
+
+# tirith (ターミナルのセキュリティツール)
+# tirith は mise 提供のため mise activate より後に置く。未インストールのマシンで
+# command not found を出さないよう、command -v で存在確認してから init する。
+command -v tirith >/dev/null 2>&1 && eval "$(tirith init --shell zsh)"
