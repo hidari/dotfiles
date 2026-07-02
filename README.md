@@ -46,6 +46,7 @@ cd ~/Develop/dotfiles
 - [Rust](https://rustup.rs/) - Rust toolchain
 - [mise](https://mise.jdx.dev/) - dev tool / runtime version manager
 - [Claude Code](https://claude.ai/code) - AI coding assistant
+- Claude Code plugins - the marketplaces and plugins declared in `home/.claude/settings.json` (`extraKnownMarketplaces` + `enabledPlugins`) are registered and installed via `claude plugin`
 - [apm](https://github.com/microsoft/apm) - Agent Package Manager (skill/plugin の宣言的配信)
 
 ### Dotfiles

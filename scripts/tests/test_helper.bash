@@ -72,3 +72,49 @@ load_bootstrap_functions() {
     source "$temp_func_file"
     rm -f "$temp_func_file"
 }
+
+# テスト用の偽 claude バイナリを PATH 先頭に用意する
+# - plugin list / marketplace list --json は環境変数で制御した JSON を返す
+#   （FAKE_PLUGINS_JSON / FAKE_MARKETPLACES_JSON、既定は空配列）
+# - marketplace add / install は引数を FAKE_CLAUDE_LOG に記録する
+# - FAKE_INSTALL_FAIL に一致する plugin id の install は非ゼロ終了する（best-effort 検証用）
+setup_fake_claude() {
+    local fake_bin="$TEST_HOME/fakebin"
+    mkdir -p "$fake_bin"
+    export FAKE_CLAUDE_LOG="$TEST_HOME/claude_calls.log"
+    : > "$FAKE_CLAUDE_LOG"
+
+    cat > "$fake_bin/claude" <<'FAKE'
+#!/usr/bin/env bash
+if [ "$1" = "plugin" ]; then
+    case "$2" in
+        list)
+            echo "${FAKE_PLUGINS_JSON:-[]}"
+            exit 0
+            ;;
+        marketplace)
+            case "$3" in
+                list)
+                    echo "${FAKE_MARKETPLACES_JSON:-[]}"
+                    exit 0
+                    ;;
+                add)
+                    echo "marketplace add $4" >> "$FAKE_CLAUDE_LOG"
+                    exit 0
+                    ;;
+            esac
+            ;;
+        install)
+            echo "install $3" >> "$FAKE_CLAUDE_LOG"
+            if [ -n "${FAKE_INSTALL_FAIL:-}" ] && [ "$3" = "${FAKE_INSTALL_FAIL}" ]; then
+                exit 1
+            fi
+            exit 0
+            ;;
+    esac
+fi
+exit 0
+FAKE
+    chmod +x "$fake_bin/claude"
+    export PATH="$fake_bin:$PATH"
+}
