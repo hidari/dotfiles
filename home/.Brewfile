@@ -2,6 +2,7 @@
 tap "hidari/tap"
 tap "stripe/stripe-cli"
 tap "supabase/tap"
+tap "microsoft/apm"
 
 # --- 開発ツール ---
 brew "git"                                # バージョン管理システム
@@ -11,6 +12,8 @@ brew "go"                                 # Go言語
 brew "deno"                               # Denoランタイム
 brew "gh"                                 # GitHub CLI
 brew "libpq"                              # PostgreSQL通信するクライアントライブラリ
+brew "mise"                               # ランタイム/ツールバージョン管理 (node, pnpm)
+brew "microsoft/apm/apm"                  # Agent Package Manager (skill/plugin の宣言的配信)
 
 # --- Platform CLI
 brew "stripe/stripe-cli/stripe"           # Stripe決済プラットフォームCLI

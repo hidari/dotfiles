@@ -25,11 +25,14 @@ SYMLINK_PAIRS=(
     "home/.zshrc|.zshrc"
     "home/.gitconfig|.gitconfig"
     "home/.config/git/.gitignore_global|.config/git/.gitignore_global"
+    "home/.config/mise/config.toml|.config/mise/config.toml"
     "home/.claude/settings.json|.claude/settings.json"
     "home/.claude/statusline-command.sh|.claude/statusline-command.sh"
     "home/.claude/CLAUDE.md|.claude/CLAUDE.md"
     "home/.claude/.mcp.json|.claude/.mcp.json"
+    "home/.claude/hooks|.claude/hooks"
     "home/.claude/skills|.claude/skills"
+    "home/.claude/skills/windows-vm-verification/winvm.py|.local/bin/winvm"
     "scripts/backup-tool/backup.sh|.local/bin/backup.sh"
     "scripts/util-tools/small-id-gen/small-id-gen.sh|.local/bin/small-id-gen"
 )
@@ -188,6 +191,9 @@ install_homebrew() {
     fi
 
     /bin/bash -c "$(curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+    # インストール直後は brew が現在のシェルの PATH に無いため、以降のステップ(install_mise 等)向けに読み込む
+    eval "$(/opt/homebrew/bin/brew shellenv)"
 }
 
 install_rust() {
@@ -205,19 +211,19 @@ install_rust() {
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 }
 
-install_volta() {
-    log "Installing Volta..."
-    if command -v volta &> /dev/null; then
-        log "Volta is already installed. Skipping..."
+install_mise() {
+    log "Installing mise..."
+    if command -v mise &> /dev/null; then
+        log "mise is already installed. Skipping..."
         return 0
     fi
 
     if [ "$DRY_RUN" = true ]; then
-        echo "[DRY-RUN] Install Volta"
+        echo "[DRY-RUN] Install mise"
         return 0
     fi
 
-    curl --proto '=https' --tlsv1.2 -fsSL https://get.volta.sh | bash
+    brew install mise
 }
 
 install_claude_code() {
@@ -235,6 +241,62 @@ install_claude_code() {
     curl --proto '=https' --tlsv1.2 -fsSL https://claude.ai/install.sh | bash
 }
 
+install_apm() {
+    log "Installing apm (Agent Package Manager)..."
+    if command -v apm &> /dev/null; then
+        log "apm is already installed. Skipping..."
+        return 0
+    fi
+
+    if [ "$DRY_RUN" = true ]; then
+        echo "[DRY-RUN] Install apm"
+        return 0
+    fi
+
+    # tap 修飾名 microsoft/apm/apm で入れると microsoft/apm tap を自動 tap して formula apm を導入する
+    brew install microsoft/apm/apm
+}
+
+# mise が管理する pin ツール (config.toml の [tools]: node/pnpm/tirith) を実体化する（冪等）。
+# config.toml の symlink は setup_dotfiles が張るため、必ず setup_dotfiles の後に呼ぶこと。
+install_mise_tools() {
+    log "Installing mise-managed tools (node/pnpm/tirith)..."
+
+    if [ "$DRY_RUN" = true ]; then
+        echo "[DRY-RUN] mise install"
+        return 0
+    fi
+
+    if ! command -v mise &> /dev/null; then
+        warn "mise not found; skipping mise-managed tool installation"
+        return 0
+    fi
+
+    # mise install は global config (~/.config/mise/config.toml) の pin を解決し、
+    # 既にインストール済みのバージョンはスキップする冪等な操作。
+    mise install
+}
+
+# apm.yml (home/) が宣言するスキルを apm.lock.yaml の pin 通りに実体化する（冪等）。
+# apm は cwd の apm.yml/apm.lock.yaml を基準に home/.claude/skills へ展開するため、必ず home/ で実行する。
+install_apm_skills() {
+    log "Installing apm-managed skills..."
+
+    if [ "$DRY_RUN" = true ]; then
+        echo "[DRY-RUN] apm install --frozen (in $DOTFILES_DIR/home)"
+        return 0
+    fi
+
+    if ! command -v apm &> /dev/null; then
+        warn "apm not found; skipping apm-managed skill installation"
+        return 0
+    fi
+
+    # --frozen は lockfile 不在/不整合時に install を拒否し、pin されたスキルの再現性を担保する。
+    # サブシェルで cd し、呼び出し元の cwd を汚さない。
+    ( cd "$DOTFILES_DIR/home" && apm install --frozen )
+}
+
 # =============================================================================
 # dotfiles セットアップ関数
 # =============================================================================
@@ -244,6 +306,7 @@ setup_dotfiles() {
 
     # 必要なディレクトリを作成
     ensure_directory "$HOME/.config/git"
+    ensure_directory "$HOME/.config/mise"
     ensure_directory "$HOME/.local/bin"
 
     # シンボリックリンクを作成
@@ -258,7 +321,51 @@ setup_dotfiles() {
         copy_if_not_exists "$DOTFILES_DIR/home/.gitconfig.private.example" "$HOME/.gitconfig.private"
     fi
 
+    # node-security-notifier の LaunchAgent を導入
+    setup_launch_agent
+
     log "Dotfiles setup complete!"
+}
+
+# LaunchAgent plist をプレースホルダ置換してレンダリング（冪等）
+render_launch_agent_plist() {
+    local template="$1"
+    local dest="$2"
+
+    if [ "$DRY_RUN" = true ]; then
+        echo "[DRY-RUN] render $template -> $dest"
+        return 0
+    fi
+
+    ensure_directory "$(dirname "$dest")"
+    sed -e "s|__DOTFILES_DIR__|$DOTFILES_DIR|g" -e "s|__HOME__|$HOME|g" "$template" > "$dest"
+    log "Rendered LaunchAgent: $dest"
+}
+
+# node-security-notifier の LaunchAgent を導入（macOS のみ）
+setup_launch_agent() {
+    local label="com.hidari.node-security-notifier"
+    local template="$DOTFILES_DIR/scripts/node-security-notifier/$label.plist"
+    local dest="$HOME/Library/LaunchAgents/$label.plist"
+
+    # DRY_RUN 時は render_launch_agent_plist 内部でガードされ副作用なし。以降の DRY_RUN 判定は launchctl のみを skip する
+    render_launch_agent_plist "$template" "$dest"
+
+    if [ "$DRY_RUN" = true ]; then
+        echo "[DRY-RUN] launchctl reload $label"
+        return 0
+    fi
+
+    if ! command -v launchctl &> /dev/null; then
+        warn "launchctl not found; skipping LaunchAgent load"
+        return 0
+    fi
+
+    local uid
+    uid="$(id -u)"
+    launchctl bootout "gui/$uid/$label" 2> /dev/null || true
+    launchctl bootstrap "gui/$uid" "$dest"
+    log "Loaded LaunchAgent: $label"
 }
 
 # =============================================================================
@@ -397,7 +504,9 @@ main() {
     if [ "$YES_MODE" = false ] && [ "$DRY_RUN" = false ]; then
         echo "This script will:"
         if [ "$DOTFILES_ONLY" = false ]; then
-            echo "  - Install Homebrew, Rust, Volta, Claude Code"
+            echo "  - Install Homebrew, Rust, mise, Claude Code, apm"
+            echo "  - Install mise-managed tools (node, pnpm, tirith)"
+            echo "  - Install apm-managed skills"
             echo "  - Install Claude Code plugins declared in settings.json"
         fi
         echo "  - Create symlinks for dotfiles"
@@ -416,16 +525,22 @@ main() {
     if [ "$DOTFILES_ONLY" = false ]; then
         install_homebrew
         install_rust
-        install_volta
+        install_mise
         install_claude_code
+        install_apm
     fi
 
     # dotfiles セットアップ
     setup_dotfiles
 
-    # Claude plugin セットアップ（settings.json symlink 後・claude 導入後に実行する。
-    # 先に実行すると claude が ~/.claude/settings.json を生成し setup_dotfiles の symlink と衝突するため）
+    # mise の pin ツールと apm スキルを実体化する。
+    # mise install は config.toml の symlink 後でなければならない（setup_dotfiles が張る）。
+    # apm は home/ の repo dir へ直接展開するため ~/.claude/skills の symlink 順序には非依存。
+    # Claude plugin セットアップも settings.json symlink 後・claude 導入後に実行する
+    # （先に実行すると claude が ~/.claude/settings.json を生成し setup_dotfiles の symlink と衝突するため）。
     if [ "$DOTFILES_ONLY" = false ]; then
+        install_mise_tools
+        install_apm_skills
         setup_claude_plugins
     fi
 

@@ -25,6 +25,8 @@
 - コマンドを実行する際は実行前に `pwd` で現在のディレクトリを確認すること
 - Markdown形式の文章では可能な限り「強調（`**こういうの**`）」や「区切り線（`---`）」、そして過剰な「絵文字」を使用しないこと
 - README などのドキュメントにディレクトリ構成ツリーを載せないこと（`ls` の二重管理になり必ず drift する）。新規参入者の orientation はトップレベルの役割を示す簡潔な説明で足り、rot した既存ツリーは更新ではなくセクションごと削除を優先する
+- 機械検証可能な制約（regex・長さ上限・enum など）を schema/型定義と散文（指示文・README・コメント）の両方に literal で書かないこと。canonical な定義を単一の真実とし、散文は値を再掲せずファイル名で参照する（理由: 同一制約の二重記述は CI が捕捉できない形で drift する。例: seed_id charset を schema `{1,128}` と指示文 `+$` に二重記述して上限が drift し、長い入力で全体が reject される回帰を埋め込んだ。上の「ディレクトリツリー drift」と同じ二重管理の問題）
+- `node --test` にはテストファイルか glob を渡すこと。ディレクトリ形式は使わない（理由: Node のバージョンによってはディレクトリをエントリモジュールとして解決し `MODULE_NOT_FOUND` で失敗する。Node 26 で確認）
 - ログメッセージを追加する際はシンプルで判別しやすい書き方をし、絵文字は控えること。
 - ログメッセージはシステム内部ログは日本語で、フロント側など外部に見えるものは英語にすること
 - コード内のコメントは日本語で行う
@@ -35,7 +37,9 @@
 - `git push` を `| tail` 等のパイプや出力加工に繋がず、push 後は `git ls-remote --heads origin <branch>`（リモート ref 存在）と `git status -sb`（upstream tracking）で成否を直接確認すること（理由: パイプ先の exit code が push 本体の失敗/未完を隠し、pre-push hook 完走と ref transfer 完了を取り違える）
 - 成否を持つ長時間コマンド（`gh run watch`・`gh pr checks --watch`・`gh pr merge` 等）の結論は exit code ではなく専用クエリ（`gh run view <id> --json conclusion` 等）で直接確認し、`<cmd>; echo "EXIT: $?"` のように `$?` を上書きする後続コマンドを連結しないこと
   - 理由: 末尾コマンドの exit が本体の結論を隠し、failure を success と誤認する。上の `git push` ルールの一般形
+- 保護ブランチ（main 等）へ直 push する前の保護判定を、classic API (`gh api repos/<owner>/<repo>/branches/main/protection`) の 404 だけで「保護なし」と結論しないこと。repository ruleset は別系統で classic API に出ず 404 になるため、`gh api repos/<owner>/<repo>/rulesets`（必要なら `gh api repos/<owner>/<repo>/rules/branches/<branch>`）も確認すること（理由: classic 404 を「保護なし」と誤判定すると、ruleset 保護 [pull_request / required_status_checks 等] を bypass 特権で素通り push し、required checks / PR レビューを欠落させる。実際 classic 404 でも ruleset で保護されているリポジトリが存在する）
 - 1Passwordコマンド `op` の使用時、認証（`op signin`, `op whoami`）は使わなくともユーザーダイアログにて承認できるので、そのまま `op read` などを実行する
+- 非常に重要なこととして、ユーザー（Hidari）は個人開発者です。そのためCIコストがかなり負担となります。そこで可能な限りローカル環境のVM、Linuxコンテナ、Mac上で検証を行い、CIでの検証はmainマージとリリース時にのみ抑える方針とする
 
 ## 実装哲学
 
@@ -58,6 +62,7 @@
 - a11yを重視しフォーカス可能な要素にはキーボード操作を確保する
 - i18n対応する場合は aria-label や aria-describedby などのARIA属性も対応する
 - デザインでは色だけに依存しない情報伝達を行う
+- レスポンシブ画像で CLS 予約用の `width`/`height` 属性と CSS の `aspect-ratio` を併用するときは、CSS に必ず `height: auto`（縦基準なら `width: auto`）を入れる（理由: `width` と `height` の両方が確定すると CSS の `aspect-ratio` は無視され、`height` 属性の値で画像が縦伸び・クロップする。`height: auto` で属性値による固定を外し `aspect-ratio` に高さを算出させる）
 
 ### [MUST] テストコード
 
@@ -70,13 +75,14 @@
   - 弱いassertion（`any()`・存在チェックのみ等）は exact 値の検証と negative case（失敗する入力で確かに失敗すること）まで強化する
   - 実装がテストを gaming していないか（テストに合わせた決め打ち実装になっていないか）を読んで確認すること
   - テスト群を読めば仕様が分かる状態を目指すこと
-- E2Eテストは `playwright-e2e-generator` を使用して作成すること
+- shell-out / 外部CLIオーケストレーション（`Command`/subprocess 起動、ssh/scp 連鎖、cmd.exe/sh のクォート・連結を組み立てるコード）は、純粋ロジック（argv 構築・パス変換等）のユニットテストが緑でも「完了」としないこと。full chain を実環境で一度 live smoke 実行し、シェル/CLIのセマンティクス（連結・クォート・PATH 解決・exit code・OS 差）がランタイムで壊れていないことを確認する（理由: cmd.exe の `&` 連鎖が最初の if 偽で全体 no-op になる類のバグはユニットテストでは原理的に捕捉できず、実機実行でしか露見しない。winvm の mkdir→scp→remote-exec 連鎖で実際に踏んだ。subagent-driven で委譲する場合も各境界の検証に live smoke を含めること）
+- E2Eテストは公式 Playwright Test Agents（`npx playwright init-agents --loop=claude` で生成される Planner / Generator / Healer）を使用して作成すること
 
 ## [GLOBAL MUST] 作業プロトコル
 
 ### セッション開始・再開プロトコル
 1. タスクに入る前にテストやLint/Formatを実施して事前状態に問題ないことを確かめること
-2. これから行うタスクに `git-branch-switcher` を使用して適切なブランチで作業を開始すること
+2. これから行うタスクに `dev-workflow:git-branch-switcher` を使用して適切なブランチで作業を開始すること
 
 ### セッション終了プロトコル
 1. Lint/Format・ビルド・テストで **全てのエラーや警告がない状態** になったことを確認してPRマージ・タスク完了処理を行うこと
