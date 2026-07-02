@@ -76,7 +76,7 @@
   - 実装がテストを gaming していないか（テストに合わせた決め打ち実装になっていないか）を読んで確認すること
   - テスト群を読めば仕様が分かる状態を目指すこと
 - shell-out / 外部CLIオーケストレーション（`Command`/subprocess 起動、ssh/scp 連鎖、cmd.exe/sh のクォート・連結を組み立てるコード）は、純粋ロジック（argv 構築・パス変換等）のユニットテストが緑でも「完了」としないこと。full chain を実環境で一度 live smoke 実行し、シェル/CLIのセマンティクス（連結・クォート・PATH 解決・exit code・OS 差）がランタイムで壊れていないことを確認する（理由: cmd.exe の `&` 連鎖が最初の if 偽で全体 no-op になる類のバグはユニットテストでは原理的に捕捉できず、実機実行でしか露見しない。winvm の mkdir→scp→remote-exec 連鎖で実際に踏んだ。subagent-driven で委譲する場合も各境界の検証に live smoke を含めること）
-- E2Eテストは `playwright-e2e-generator` を使用して作成すること
+- E2Eテストは公式 Playwright Test Agents（`npx playwright init-agents --loop=claude` で生成される Planner / Generator / Healer）を使用して作成すること
 
 ## [GLOBAL MUST] 作業プロトコル
 
