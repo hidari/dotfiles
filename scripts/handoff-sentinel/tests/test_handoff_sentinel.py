@@ -192,3 +192,114 @@ class TestPostToolContextWatch:
         )
         assert result.returncode == 0
         assert result.stdout == ""
+
+
+LEAKED_TOOL_CALL = (
+    'court\n<invoke name="Bash">\n<parameter name="command">echo ready</parameter>\n</invoke>'
+)
+
+
+def assistant_text(text: str, *, with_tool_use: bool = False) -> dict[str, object]:
+    content: list[dict[str, object]] = [{"type": "text", "text": text}]
+    if with_tool_use:
+        content.append({"type": "tool_use", "id": "toolu_x", "name": "Bash", "input": {}})
+    return {"type": "assistant", "message": {"content": content}}
+
+
+def tool_result(*, is_error: bool) -> dict[str, object]:
+    return {
+        "type": "user",
+        "message": {
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "toolu_x",
+                    "is_error": is_error,
+                    "content": "",
+                }
+            ]
+        },
+    }
+
+
+def stop_input(tmp_path: Path, transcript: Path) -> dict[str, object]:
+    return {
+        "session_id": "sess-1",
+        "transcript_path": str(transcript),
+        "cwd": str(tmp_path),
+        "hook_event_name": "Stop",
+        "stop_hook_active": False,
+    }
+
+
+class TestStopBrokenStreak:
+    """stop: 末尾から連続する破損イベントが規定数に達したら 1 回だけ停止をブロックする。"""
+
+    def leaks(self, n: int) -> list[dict[str, object]]:
+        return [assistant_text(LEAKED_TOOL_CALL) for _ in range(n)]
+
+    def test_破損5連続でblockしreasonにskill名を含む(self, tmp_path: Path) -> None:
+        transcript = tmp_path / "t.jsonl"
+        write_transcript(transcript, [tool_result(is_error=False), *self.leaks(5)])
+        result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=base_env(tmp_path))
+        assert result.returncode == 0
+        output = json.loads(result.stdout)
+        assert output["decision"] == "block"
+        assert "session-handoff" in output["reason"]
+        assert (tmp_path / "state" / "sess-1.blocked").is_file()
+
+    def test_破損4連続では発火しない(self, tmp_path: Path) -> None:
+        transcript = tmp_path / "t.jsonl"
+        write_transcript(transcript, self.leaks(4))
+        result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=base_env(tmp_path))
+        assert result.stdout == ""
+
+    def test_正常なtool_resultでカウントがリセットされる(self, tmp_path: Path) -> None:
+        transcript = tmp_path / "t.jsonl"
+        write_transcript(transcript, [*self.leaks(4), tool_result(is_error=False), *self.leaks(4)])
+        result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=base_env(tmp_path))
+        assert result.stdout == ""  # リセット後の 4 連続のみで判定
+
+    def test_エラーtool_resultも破損イベントとして数える(self, tmp_path: Path) -> None:
+        transcript = tmp_path / "t.jsonl"
+        write_transcript(
+            transcript,
+            [
+                *self.leaks(2),
+                tool_result(is_error=True),
+                tool_result(is_error=True),
+                *self.leaks(1),
+            ],
+        )
+        result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=base_env(tmp_path))
+        assert json.loads(result.stdout)["decision"] == "block"
+
+    def test_正常なtool_use付きメッセージの断片は数えない(self, tmp_path: Path) -> None:
+        transcript = tmp_path / "t.jsonl"
+        entries = [assistant_text(LEAKED_TOOL_CALL, with_tool_use=True) for _ in range(5)]
+        write_transcript(transcript, entries)
+        result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=base_env(tmp_path))
+        assert result.stdout == ""
+
+    def test_断片を含まない通常テキストは数えない(self, tmp_path: Path) -> None:
+        transcript = tmp_path / "t.jsonl"
+        write_transcript(transcript, [assistant_text("普通の応答です") for _ in range(5)])
+        result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=base_env(tmp_path))
+        assert result.stdout == ""
+
+    def test_stop_hook_activeのときはblockしない(self, tmp_path: Path) -> None:
+        transcript = tmp_path / "t.jsonl"
+        write_transcript(transcript, self.leaks(5))
+        hook_input = stop_input(tmp_path, transcript)
+        hook_input["stop_hook_active"] = True
+        result = run_hook("stop", hook_input, extra_env=base_env(tmp_path))
+        assert result.stdout == ""
+
+    def test_block済みセッションでは再blockしない(self, tmp_path: Path) -> None:
+        transcript = tmp_path / "t.jsonl"
+        write_transcript(transcript, self.leaks(5))
+        env = base_env(tmp_path)
+        first = run_hook("stop", stop_input(tmp_path, transcript), extra_env=env)
+        second = run_hook("stop", stop_input(tmp_path, transcript), extra_env=env)
+        assert json.loads(first.stdout)["decision"] == "block"
+        assert second.stdout == ""

@@ -125,8 +125,90 @@ def handle_posttool(payload: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+# 本文に漏れた tool-call 断片の目印 (破損イベントの判定に使う)
+BROKEN_MARKERS = ("<invoke", "</invoke>", "<parameter", "antml")
+
+
+def _classify(entry: dict[str, Any]) -> str:
+    """entry を broken / reset / neutral に分類する。
+
+    broken: 正常な tool_use を伴わない text への tool-call 断片の漏れ、
+            または is_error な tool_result。
+    reset: 正常に完了した tool_result (is_error が偽)。
+    """
+    message = entry.get("message")
+    if not isinstance(message, dict):
+        return "neutral"
+    content = message.get("content")
+    if not isinstance(content, list):
+        return "neutral"
+    if entry.get("type") == "assistant":
+        has_tool_use = any(
+            isinstance(block, dict) and block.get("type") == "tool_use" for block in content
+        )
+        if has_tool_use:
+            # tool-call 記法を話題として扱う会話の誤検知ガード
+            return "neutral"
+        for block in content:
+            if not (isinstance(block, dict) and block.get("type") == "text"):
+                continue
+            text = block.get("text")
+            if isinstance(text, str) and any(marker in text for marker in BROKEN_MARKERS):
+                return "broken"
+        return "neutral"
+    if entry.get("type") == "user":
+        results = [
+            block
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "tool_result"
+        ]
+        if not results:
+            return "neutral"
+        if any(block.get("is_error") for block in results):
+            return "broken"
+        return "reset"
+    return "neutral"
+
+
+def _broken_streak(entries: list[dict[str, Any]]) -> int:
+    """末尾から遡り、最新イベントで終わる破損イベントの連続数を数える。"""
+    streak = 0
+    for entry in reversed(entries):
+        kind = _classify(entry)
+        if kind == "broken":
+            streak += 1
+        elif kind == "reset":
+            break
+    return streak
+
+
+def handle_stop(payload: dict[str, Any]) -> dict[str, Any] | None:
+    if payload.get("stop_hook_active"):
+        # block 由来の再入では判定しない (無限 block ループ防止の一段目)
+        return None
+    session_id = payload.get("session_id")
+    transcript_path = payload.get("transcript_path")
+    if not (isinstance(session_id, str) and session_id):
+        return None
+    if not (isinstance(transcript_path, str) and os.path.isfile(transcript_path)):
+        return None
+    streak_limit = _env_int("HANDOFF_BROKEN_STREAK", DEFAULT_BROKEN_STREAK)
+    if _broken_streak(_read_tail_entries(transcript_path)) < streak_limit:
+        return None
+    if not _notify_once(_state_dir() / f"{session_id}.blocked"):
+        # 1 セッション 1 回 (無限 block ループ防止の二段目)
+        return None
+    reason = (
+        "ツール呼び出しの破損が連続して検知された。停止する前に session-handoff スキルを"
+        "発動して引き継ぎを tmp/handoff.md に書き出し、ユーザーに Claude Code の再起動を"
+        "促してから停止すること。"
+    )
+    return {"decision": "block", "reason": reason}
+
+
 HANDLERS: dict[str, Callable[[dict[str, Any]], dict[str, Any] | None]] = {
     "posttool": handle_posttool,
+    "stop": handle_stop,
 }
 
 
