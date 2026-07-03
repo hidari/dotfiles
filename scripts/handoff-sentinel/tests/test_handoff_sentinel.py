@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -343,3 +344,76 @@ class TestStopBrokenStreak:
         write_transcript(hit_transcript, self.leaks(3))
         hit = run_hook("stop", stop_input(tmp_path, hit_transcript), extra_env=env)
         assert json.loads(hit.stdout)["decision"] == "block"
+
+
+def session_input(cwd: Path) -> dict[str, object]:
+    return {"session_id": "sess-1", "cwd": str(cwd), "hook_event_name": "SessionStart"}
+
+
+class TestSessionStartInject:
+    """session: tmp/handoff.md があれば注入して consumed へリネームする。"""
+
+    def test_handoffを注入しconsumedへリネームする(self, tmp_path: Path) -> None:
+        handoff_dir = tmp_path / "tmp"
+        handoff_dir.mkdir()
+        (handoff_dir / "handoff.md").write_text("# 引き継ぎ\n次は X をやる\n", encoding="utf-8")
+        result = run_hook("session", session_input(tmp_path), extra_env=base_env(tmp_path))
+        assert result.returncode == 0
+        output = json.loads(result.stdout)
+        assert output["hookSpecificOutput"]["hookEventName"] == "SessionStart"
+        assert "次は X をやる" in output["hookSpecificOutput"]["additionalContext"]
+        assert not (handoff_dir / "handoff.md").exists()
+        consumed = [p.name for p in handoff_dir.iterdir()]
+        assert len(consumed) == 1
+        assert re.fullmatch(r"handoff-consumed-\d{8}T\d{6}Z\.md", consumed[0])
+
+    def test_gitリポ内はサブディレクトリのcwdでもルートのhandoffを拾う(
+        self, tmp_path: Path
+    ) -> None:
+        repo = tmp_path / "repo"
+        sub = repo / "src"
+        sub.mkdir(parents=True)
+        subprocess.run(["git", "init", "-q", str(repo)], check=True, timeout=10)
+        (repo / "tmp").mkdir()
+        (repo / "tmp" / "handoff.md").write_text("root handoff\n", encoding="utf-8")
+        result = run_hook("session", session_input(sub), extra_env=base_env(tmp_path))
+        output = json.loads(result.stdout)
+        assert "root handoff" in output["hookSpecificOutput"]["additionalContext"]
+
+    def test_handoff不在は無出力でexit0(self, tmp_path: Path) -> None:
+        result = run_hook("session", session_input(tmp_path), extra_env=base_env(tmp_path))
+        assert result.returncode == 0
+        assert result.stdout == ""
+
+    def test_巨大なhandoffは先頭のみ注入し切り詰めを明記する(self, tmp_path: Path) -> None:
+        handoff_dir = tmp_path / "tmp"
+        handoff_dir.mkdir()
+        (handoff_dir / "handoff.md").write_text("A" * 5000, encoding="utf-8")
+        env = base_env(tmp_path) | {"HANDOFF_INJECT_MAX_BYTES": "100"}
+        result = run_hook("session", session_input(tmp_path), extra_env=env)
+        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        assert "A" * 100 in context
+        assert "A" * 101 not in context
+        assert "先頭のみ注入" in context
+
+    def test_agent_id付きのsubagentでは注入しない(self, tmp_path: Path) -> None:
+        handoff_dir = tmp_path / "tmp"
+        handoff_dir.mkdir()
+        (handoff_dir / "handoff.md").write_text("x\n", encoding="utf-8")
+        hook_input = session_input(tmp_path)
+        hook_input["agent_id"] = "agent-x"
+        result = run_hook("session", hook_input, extra_env=base_env(tmp_path))
+        assert result.stdout == ""
+        assert (handoff_dir / "handoff.md").exists()  # リネームもしない
+
+    def test_リネーム失敗時は注入しない(self, tmp_path: Path) -> None:
+        handoff_dir = tmp_path / "tmp"
+        handoff_dir.mkdir()
+        (handoff_dir / "handoff.md").write_text("x\n", encoding="utf-8")
+        handoff_dir.chmod(0o555)  # ディレクトリ書き込み不可で rename を失敗させる
+        try:
+            result = run_hook("session", session_input(tmp_path), extra_env=base_env(tmp_path))
+            assert result.returncode == 0
+            assert result.stdout == ""  # 注入だけ成功して毎回再注入される重複を防ぐ
+        finally:
+            handoff_dir.chmod(0o755)

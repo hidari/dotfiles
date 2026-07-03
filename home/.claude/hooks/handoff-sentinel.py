@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -212,9 +213,54 @@ def handle_stop(payload: dict[str, Any]) -> dict[str, Any] | None:
     return {"decision": "block", "reason": reason}
 
 
+def _repo_root(cwd: str) -> Path:
+    """cwd の git リポルートを返す。リポ外・git 不在は cwd に落とす。"""
+    try:
+        result = subprocess.run(
+            ["git", "-C", cwd, "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return Path(cwd)
+    top = result.stdout.strip()
+    return Path(top) if result.returncode == 0 and top else Path(cwd)
+
+
+def handle_session(payload: dict[str, Any]) -> dict[str, Any] | None:
+    cwd = payload.get("cwd")
+    if not (isinstance(cwd, str) and os.path.isdir(cwd)):
+        return None
+    handoff = _repo_root(cwd) / "tmp" / "handoff.md"
+    if not handoff.is_file():
+        return None
+    max_bytes = _env_int("HANDOFF_INJECT_MAX_BYTES", DEFAULT_INJECT_MAX_BYTES)
+    raw = handoff.read_bytes()
+    text = raw[:max_bytes].decode("utf-8", errors="replace")
+    if len(raw) > max_bytes:
+        text += "\n\n(引き継ぎ書が大きいため先頭のみ注入した。全文は consumed リネーム先を読むこと)"
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    consumed = handoff.with_name(f"handoff-consumed-{stamp}.md")
+    try:
+        handoff.rename(consumed)
+    except OSError:
+        # リネームに失敗したら注入もしない (毎セッション再注入される重複より欠落を選ぶ)
+        return None
+    context = f"前セッションからの引き継ぎ (tmp/{consumed.name} として保存済み):\n\n{text}"
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "SessionStart",
+            "additionalContext": context,
+        }
+    }
+
+
 HANDLERS: dict[str, Callable[[dict[str, Any]], dict[str, Any] | None]] = {
     "posttool": handle_posttool,
     "stop": handle_stop,
+    "session": handle_session,
 }
 
 
