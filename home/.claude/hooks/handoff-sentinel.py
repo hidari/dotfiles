@@ -171,7 +171,13 @@ def _classify(entry: dict[str, Any]) -> str:
 
 
 def _broken_streak(entries: list[dict[str, Any]]) -> int:
-    """末尾から遡り、最新イベントで終わる破損イベントの連続数を数える。"""
+    """末尾から遡り、最新イベントで終わる破損イベントの連続数を数える。
+
+    reset (正常完了の tool_result) のときのみ連続を打ち切る。neutral
+    (通常の会話や tool_use のみのメッセージ) はカウントもリセットもせず
+    素通りするため、間に neutral を挟んでいても broken は連続として数える
+    (成功した tool_result が挟まらない限り連続とみなす、という仕様通りの挙動)。
+    """
     streak = 0
     for entry in reversed(entries):
         kind = _classify(entry)

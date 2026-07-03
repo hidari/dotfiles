@@ -303,3 +303,43 @@ class TestStopBrokenStreak:
         second = run_hook("stop", stop_input(tmp_path, transcript), extra_env=env)
         assert json.loads(first.stdout)["decision"] == "block"
         assert second.stdout == ""
+
+    def test_成功と失敗が混在するtool_resultは破損として数える(self, tmp_path: Path) -> None:
+        """並列ツール呼び出しで1エントリに成功/失敗が混在する場合、any(is_error) で broken 扱い。"""
+        transcript = tmp_path / "t.jsonl"
+        mixed_result: dict[str, object] = {
+            "type": "user",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_ok",
+                        "is_error": False,
+                        "content": "",
+                    },
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_ng",
+                        "is_error": True,
+                        "content": "",
+                    },
+                ]
+            },
+        }
+        write_transcript(transcript, [*self.leaks(4), mixed_result])
+        result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=base_env(tmp_path))
+        assert json.loads(result.stdout)["decision"] == "block"  # 4連続+混在1件=5でblock
+
+    def test_HANDOFF_BROKEN_STREAKの上書きが閾値に反映される(self, tmp_path: Path) -> None:
+        """既定の5ではなく3を境界値として使うことで、env override が実際に読まれることを示す。"""
+        env = base_env(tmp_path) | {"HANDOFF_BROKEN_STREAK": "3"}
+
+        miss_transcript = tmp_path / "miss.jsonl"
+        write_transcript(miss_transcript, self.leaks(2))
+        miss = run_hook("stop", stop_input(tmp_path, miss_transcript), extra_env=env)
+        assert miss.stdout == ""
+
+        hit_transcript = tmp_path / "hit.jsonl"
+        write_transcript(hit_transcript, self.leaks(3))
+        hit = run_hook("stop", stop_input(tmp_path, hit_transcript), extra_env=env)
+        assert json.loads(hit.stdout)["decision"] == "block"
