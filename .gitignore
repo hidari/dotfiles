@@ -38,6 +38,13 @@ scripts/tirith-hook/.mypy_cache/
 scripts/tirith-hook/.pytest_cache/
 scripts/tirith-hook/.coverage
 
+# Python (handoff-sentinel)
+scripts/handoff-sentinel/.venv/
+scripts/handoff-sentinel/**/__pycache__/
+scripts/handoff-sentinel/.ruff_cache/
+scripts/handoff-sentinel/.mypy_cache/
+scripts/handoff-sentinel/.pytest_cache/
+
 # Python (Claude Code hooks — フック実行/テストで生成される bytecode)
 home/.claude/hooks/__pycache__/
 

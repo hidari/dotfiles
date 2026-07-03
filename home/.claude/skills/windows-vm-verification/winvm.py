@@ -86,6 +86,21 @@ def files_to_sync(branch_delta: str, working_delta: str, untracked: str) -> list
     return sorted(s)
 
 
+def files_to_delete(branch_deleted: str, working_deleted: str) -> list[str]:
+    """diff_base..HEAD と working tree で削除されたファイルの和集合 (トリム/空行除去/重複排除/安定ソート)。
+
+    scp は追加/上書きしかできず、reset (`git checkout -- .`) は VM HEAD の tracked ファイルを
+    復元するため、ローカルで削除 (rename 含む) されたファイルは明示的に VM 側で消す必要がある。
+    消し漏れると VM 側 tsc/cargo が stale ファイルを拾い偽陰性になる。"""
+    s: set[str] = set()
+    for block in (branch_deleted, working_deleted):
+        for line in block.splitlines():
+            t = line.strip()
+            if t:
+                s.add(t)
+    return sorted(s)
+
+
 def to_windows_path(path: str) -> str:
     r"""`/` を `\` に変換."""
     return path.replace("/", "\\")
@@ -106,6 +121,15 @@ def parent_mkdir_commands(repo_win: str, files: list[str]) -> list[str]:
         if parent and parent != ".":
             parents.add(f"{repo_win}\\{to_windows_path(parent)}")
     return [f'if not exist "{p}" mkdir "{p}"' for p in sorted(parents)]
+
+
+def remote_delete_commands(repo_win: str, files: list[str]) -> list[str]:
+    """削除ファイルを VM 側で消す cmd コマンドのリスト (1 ファイル 1 独立コマンド)。
+    parent_mkdir_commands と同じ理由で `&` 連結せず独立発行する。"""
+    return [
+        f'if exist "{repo_win}\\{to_windows_path(f)}" del /f /q "{repo_win}\\{to_windows_path(f)}"'
+        for f in sorted(files)
+    ]
 
 
 def remote_reset_command(repo_win: str) -> str:
@@ -161,16 +185,22 @@ def cmd_run(args: argparse.Namespace) -> int:
     if not vm_head_known:
         print(f"警告: VM HEAD ({vm_head[:7]}) をローカル解決できず base={base} にフォールバック", file=sys.stderr)
 
+    # --no-renames で rename を D+A に分解する (rename 検出されると --diff-filter=D が
+    # 旧パスを拾えず、VM に stale ファイルが残って偽陰性になる)
     files = [
         f
         for f in files_to_sync(
-            git_local(["diff", "--name-only", diff_base, "HEAD"]),
-            git_local(["diff", "--name-only", "HEAD"]),
+            git_local(["diff", "--name-only", "--no-renames", diff_base, "HEAD"]),
+            git_local(["diff", "--name-only", "--no-renames", "HEAD"]),
             git_local(["ls-files", "--others", "--exclude-standard"]),
         )
         if Path(f).is_file()
     ]
-    if not files:
+    deleted = files_to_delete(
+        git_local(["diff", "--name-only", "--no-renames", "--diff-filter=D", diff_base, "HEAD"]),
+        git_local(["diff", "--name-only", "--no-renames", "--diff-filter=D", "HEAD"]),
+    )
+    if not files and not deleted:
         if args.skip_when_no_changes:
             print(f"同期する変更ファイルがありません ({diff_base}..HEAD + working tree)")
             return 0
@@ -179,6 +209,12 @@ def cmd_run(args: argparse.Namespace) -> int:
     if not run_ssh(host, remote_reset_command(repo_win)):
         print("VM の reset に失敗しました", file=sys.stderr)
         return 1
+    if deleted:
+        print(f"削除を同期: {len(deleted)} ファイル")
+        for rm in remote_delete_commands(repo_win, deleted):
+            if not run_ssh(host, rm):
+                print("VM のファイル削除に失敗しました", file=sys.stderr)
+                return 1
     if files:
         for mk in parent_mkdir_commands(repo_win, files):
             if not run_ssh(host, mk):

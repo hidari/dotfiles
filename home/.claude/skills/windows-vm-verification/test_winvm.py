@@ -71,6 +71,31 @@ def test_files_to_sync_empty_inputs_return_empty():
     assert winvm.files_to_sync("", "  \n", "\n") == []
 
 
+def test_files_to_delete_unions_dedups_strips_sorts():
+    # committed 削除 (diff_base..HEAD) と working tree 削除の和集合
+    got = winvm.files_to_delete("b/old.ts\na/gone.rs\n", "a/gone.rs\n\n  c/x.ts  \n")
+    assert got == ["a/gone.rs", "b/old.ts", "c/x.ts"]
+
+
+def test_files_to_delete_empty_inputs_return_empty():
+    assert winvm.files_to_delete("", "  \n") == []
+
+
+def test_remote_delete_commands_one_per_file_windows_paths():
+    # cmd の & 連結バグ回避のため 1 ファイル 1 独立コマンド、パスは \ 区切り
+    cmds = winvm.remote_delete_commands(
+        "C:\\repo", ["src/hooks/useOld.ts", "Cargo.lock"]
+    )
+    assert cmds == [
+        'if exist "C:\\repo\\Cargo.lock" del /f /q "C:\\repo\\Cargo.lock"',
+        'if exist "C:\\repo\\src\\hooks\\useOld.ts" del /f /q "C:\\repo\\src\\hooks\\useOld.ts"',
+    ]
+
+
+def test_remote_delete_commands_empty_is_empty():
+    assert winvm.remote_delete_commands("C:\\repo", []) == []
+
+
 def test_to_windows_path():
     assert winvm.to_windows_path("C:/proj/app") == "C:\\proj\\app"
     assert winvm.to_windows_path("a") == "a"

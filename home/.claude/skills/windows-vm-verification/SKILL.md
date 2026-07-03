@@ -102,8 +102,9 @@ macOS 上のローカル変更を Windows VM に同期して remote コマンド
 
 1. VM の現在 HEAD を差分基点として計算（ローカルで解決できなければ `--base`）
 2. VM を git でプリスティン状態にリセット（`git checkout -- . && git clean -fd`）
-3. `git delta`・working tree・untracked の変更ファイルを `scp` で同期（親ディレクトリは自動作成）
-4. 指定のリモートコマンドを実行（カレントディレクトリは `--repo` に自動 `cd` 済み。リモートコマンド側で `cd` 不要）
+3. ローカルで削除・リネームされたファイルを VM 側でも削除（`--no-renames --diff-filter=D` で列挙。reset は VM HEAD の tracked ファイルを復元するため、明示削除しないと stale ファイルが tsc/cargo に拾われ偽陰性になる）
+4. `git delta`・working tree・untracked の変更ファイルを `scp` で同期（親ディレクトリは自動作成）
+5. 指定のリモートコマンドを実行（カレントディレクトリは `--repo` に自動 `cd` 済み。リモートコマンド側で `cd` 不要）
 
 `--skip-when-no-changes`: 差分がない場合はスキップ（CI 的ユースケース）
 
