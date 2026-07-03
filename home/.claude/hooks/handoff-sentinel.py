@@ -2,7 +2,7 @@
 """Claude Code hook: セッション引き継ぎ検知器 (handoff-sentinel)。
 
 第1引数で分岐する: posttool (コンテキスト使用率の監視) / stop (ツール呼び出し破損の
-連続検知) / session (tmp/handoff.md の自動注入) / record (skill からの provenance 記録)。
+通算検知) / session (tmp/handoff.md の自動注入) / record (skill からの provenance 記録)。
 しきい値等の canonical はこのファイルの定数であり、HANDOFF_* 環境変数で上書きできる。
 検知機構の故障で作業を止めないため、全経路 fail-safe (無出力 + exit 0)。
 仕様: docs/superpowers/specs/2026-07-03-session-handoff-design.md
@@ -24,14 +24,17 @@ from typing import Any
 # canonical な既定値。他ファイル (SKILL.md / template.md) はこれらの値を再掲しない。
 DEFAULT_CONTEXT_WINDOW_TOKENS = 1_000_000
 DEFAULT_CONTEXT_THRESHOLD_PCT = 50
-DEFAULT_BROKEN_STREAK = 5
+DEFAULT_BROKEN_COUNT = 5
 DEFAULT_INJECT_MAX_BYTES = 32_768
 DEFAULT_TAIL_BYTES = 1_048_576
 
 # 本文に漏れた tool-call の開始署名 (破損イベントの判定に使う)。
-# `<invoke name=` / `<parameter name=` (名前空間 antml: 付きを含む) という実漏洩の構造に限定し、
-# 'antml' や '<invoke>' 単体の散文言及を broken と誤判定しない。
-BROKEN_TOOL_CALL_RE = re.compile(r"<(?:antml:)?(?:invoke|parameter)\s+name=")
+# 実漏洩は崩れたトークンに続いて桁0の行頭に tool-call ブロックが現れる構造なので、
+# `<invoke name=` / `<parameter name=` (antml: 付き含む) が桁0の行頭に来る場合のみ数える。
+# これで 'antml'/'<invoke>' 単体の言及、name= 付き署名のインライン引用、字下げした例示は数えない。
+# ただし桁0の独立行やコードフェンス内に marker を書いた散文は依然数えうる (漏洩ブロックと文字列上
+# 完全同型で弁別不能)。has_tool_use ガード (_is_broken) と併せ現実的な自己誤検知を減らす狙い。
+BROKEN_TOOL_CALL_RE = re.compile(r"(?:^|\n)<(?:antml:)?(?:invoke|parameter)\s+name=")
 
 
 def _sanitize(name: str) -> str:
@@ -97,7 +100,7 @@ def _read_tail_entries(transcript_path: str) -> list[dict[str, Any]]:
     """transcript JSONL の末尾 (既定 DEFAULT_TAIL_BYTES) を読み、entry 一覧を返す。
 
     ツール実行ごとに走るため全量パースを避けてコストを一定に抑える。判定に必要なのは
-    末尾近傍のみ (最後の usage / 破損 streak)。壊れた行と subagent の isSidechain な
+    末尾近傍のみ (最後の usage / 破損の通算)。壊れた行と subagent の isSidechain な
     entry は捨てる。行分割は JSONL の区切り (\\n) のみで行う (str.splitlines は U+2028 等の
     Unicode 行境界でも割ってしまい、それらを含む正当な JSON 行を取りこぼすため使わない)。
     """
@@ -164,63 +167,53 @@ def handle_posttool(payload: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
-def _classify(entry: dict[str, Any]) -> str:
-    """entry を broken / reset / neutral に分類する。
+def _is_broken(entry: dict[str, Any]) -> bool:
+    """entry が破損イベントかを判定する。
 
-    broken: 正常な tool_use を伴わない text への tool-call 開始署名の漏れ、
-            または is_error な tool_result。
-    reset: 正常に完了した tool_result (is_error が偽)。
+    破損は次の 2 種:
+    - 正常な tool_use を伴わない assistant の text に漏れた tool-call の開始署名
+    - is_error が真の tool_result
+    正常完了した tool_result・通常会話・tool_use のみのメッセージは破損ではない。
     """
     message = entry.get("message")
     if not isinstance(message, dict):
-        return "neutral"
+        return False
     content = message.get("content")
     if not isinstance(content, list):
-        return "neutral"
+        return False
     if entry.get("type") == "assistant":
         has_tool_use = any(
             isinstance(block, dict) and block.get("type") == "tool_use" for block in content
         )
         if has_tool_use:
             # tool-call 記法を話題として扱う会話の誤検知ガード
-            return "neutral"
+            return False
         for block in content:
             if not (isinstance(block, dict) and block.get("type") == "text"):
                 continue
             text = block.get("text")
             if isinstance(text, str) and BROKEN_TOOL_CALL_RE.search(text):
-                return "broken"
-        return "neutral"
+                return True
+        return False
     if entry.get("type") == "user":
-        results = [
-            block
+        return any(
+            isinstance(block, dict) and block.get("type") == "tool_result" and block.get("is_error")
             for block in content
-            if isinstance(block, dict) and block.get("type") == "tool_result"
-        ]
-        if not results:
-            return "neutral"
-        if any(block.get("is_error") for block in results):
-            return "broken"
-        return "reset"
-    return "neutral"
+        )
+    return False
 
 
-def _broken_streak(entries: list[dict[str, Any]]) -> int:
-    """末尾から遡り、最新イベントで終わる破損イベントの連続数を数える。
+def _broken_count(entries: list[dict[str, Any]]) -> int:
+    """tail ウィンドウ内の破損イベントの通算数を数える。
 
-    reset (正常完了の tool_result) のときのみ連続を打ち切る。neutral
-    (通常の会話や tool_use のみのメッセージ) はカウントもリセットもせず
-    素通りするため、間に neutral を挟んでいても broken は連続として数える
-    (成功した tool_result が挟まらない限り連続とみなす、という仕様通りの挙動)。
+    連続 (streak) ではなく累積。成功した tool_result が間に挟まってもリセットしない。
+    実セッションの劣化はモデルが「壊れる→出し直して成功→また壊れる」を繰り返すため、
+    連続判定では成功のたびにリセットされ、破損が多数あるセッションでも一度も発火しなかった
+    (破損 14〜20 件でも連続は最大 1〜3 に留まる実測)。通算なら劣化を取りこぼさない。
+    tail ウィンドウ (DEFAULT_TAIL_BYTES) が古い破損を自然にスクロールアウトさせるため、
+    完全復調した長寿命セッションで古い破損まで数え続けることはない。
     """
-    streak = 0
-    for entry in reversed(entries):
-        kind = _classify(entry)
-        if kind == "broken":
-            streak += 1
-        elif kind == "reset":
-            break
-    return streak
+    return sum(1 for entry in entries if _is_broken(entry))
 
 
 def handle_stop(payload: dict[str, Any]) -> dict[str, Any] | None:
@@ -231,14 +224,14 @@ def handle_stop(payload: dict[str, Any]) -> dict[str, Any] | None:
     if pair is None:
         return None
     session_id, transcript_path = pair
-    streak_limit = _env_int("HANDOFF_BROKEN_STREAK", DEFAULT_BROKEN_STREAK)
-    if _broken_streak(_read_tail_entries(transcript_path)) < streak_limit:
+    count_limit = _env_int("HANDOFF_BROKEN_COUNT", DEFAULT_BROKEN_COUNT)
+    if _broken_count(_read_tail_entries(transcript_path)) < count_limit:
         return None
     if not _notify_once(_session_state_file(session_id, "blocked")):
         # 1 セッション 1 回 (無限 block ループ防止の二段目)
         return None
     reason = (
-        "ツール呼び出しの破損が連続して検知された。停止する前に session-handoff スキルを"
+        "ツール呼び出しの破損が通算で規定回数に達した。停止する前に session-handoff スキルを"
         "発動して引き継ぎを tmp/handoff.md に書き出し、ユーザーに Claude Code の再起動を"
         "促してから停止すること。"
     )

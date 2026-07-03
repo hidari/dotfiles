@@ -125,7 +125,7 @@ def base_env(tmp_path: Path) -> dict[str, str]:
         "HANDOFF_STATE_DIR": str(tmp_path / "state"),
         "HANDOFF_CONTEXT_WINDOW_TOKENS": "1000",
         "HANDOFF_CONTEXT_THRESHOLD_PCT": "50",
-        "HANDOFF_BROKEN_STREAK": "5",
+        "HANDOFF_BROKEN_COUNT": "5",
     }
 
 
@@ -309,13 +309,13 @@ def stop_input(tmp_path: Path, transcript: Path) -> dict[str, object]:
     }
 
 
-class TestStopBrokenStreak:
-    """stop: 末尾から連続する破損イベントが規定数に達したら 1 回だけ停止をブロックする。"""
+class TestStopBrokenCount:
+    """stop: tail 内の破損イベントの通算数が規定数に達したら 1 回だけ停止をブロックする。"""
 
     def leaks(self, n: int) -> list[dict[str, object]]:
         return [assistant_text(LEAKED_TOOL_CALL) for _ in range(n)]
 
-    def test_破損5連続でblockしreasonにskill名を含む(self, tmp_path: Path) -> None:
+    def test_破損5件でblockしreasonにskill名を含む(self, tmp_path: Path) -> None:
         transcript = tmp_path / "t.jsonl"
         write_transcript(transcript, [tool_result(is_error=False), *self.leaks(5)])
         result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=base_env(tmp_path))
@@ -325,17 +325,30 @@ class TestStopBrokenStreak:
         assert "session-handoff" in output["reason"]
         assert (tmp_path / "state" / "sess-1.blocked").is_file()
 
-    def test_破損4連続では発火しない(self, tmp_path: Path) -> None:
+    def test_破損4件では発火しない(self, tmp_path: Path) -> None:
         transcript = tmp_path / "t.jsonl"
         write_transcript(transcript, self.leaks(4))
         result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=base_env(tmp_path))
         assert result.stdout == ""
 
-    def test_正常なtool_resultでカウントがリセットされる(self, tmp_path: Path) -> None:
+    def test_成功tool_resultを挟んでも通算5件でblockする(self, tmp_path: Path) -> None:
+        """破損→成功→破損…と成功ツール実行が挟まっても、破損の通算が閾値でblockする。
+
+        実セッションの劣化 (モデルが壊れる→出し直して成功→また壊れる) を再現する。連続 (streak)
+        判定は成功ツール実行で毎回リセットされ、破損14件のセッションでも streak=1 に留まり一度も
+        発火しなかった実バグの回帰テスト。末尾を成功で終える (旧 streak なら末尾から遡り即 0 に
+        なる最難ケース) ことで、成功で通算をリセットしないことを exact に固定する。
+        """
         transcript = tmp_path / "t.jsonl"
-        write_transcript(transcript, [*self.leaks(4), tool_result(is_error=False), *self.leaks(4)])
+        interspersed: list[dict[str, object]] = []
+        for leak in self.leaks(5):
+            interspersed.append(leak)
+            interspersed.append(
+                tool_result(is_error=False)
+            )  # 破損の間に挟まる成功実行 (末尾も成功)
+        write_transcript(transcript, interspersed)
         result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=base_env(tmp_path))
-        assert result.stdout == ""  # リセット後の 4 連続のみで判定
+        assert json.loads(result.stdout)["decision"] == "block"
 
     def test_エラーtool_resultも破損イベントとして数える(self, tmp_path: Path) -> None:
         transcript = tmp_path / "t.jsonl"
@@ -377,13 +390,38 @@ class TestStopBrokenStreak:
         result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=base_env(tmp_path))
         assert result.stdout == ""
 
-    def test_neutralを挟んだ非連続の破損も連続として数える(self, tmp_path: Path) -> None:
-        """neutral (通常会話) は素通りする仕様。間に挟んでも成功 tool_result が無ければ連続扱い。"""
+    def test_署名をインラインコードで引用した散文は破損としない(self, tmp_path: Path) -> None:
+        """`<invoke name=...>` と name= 付き署名をインラインで引用しても破損としない。
+
+        本物の漏れは崩れたトークンに続いて行頭に tool-call ブロックが現れる。この dotfiles
+        自体が hook のマーカー (name= 付き署名) を散文で扱う題材のため、行頭に漏れた本物の
+        ブロックのみを破損とみなす。通算化で顕在化した実セッションの自己誤検知の回帰テスト。
+        """
+        transcript = tmp_path / "t.jsonl"
+        prose = "署名 `<invoke name=` を厳格化し `<parameter name=` も検知対象にする話"
+        write_transcript(transcript, [assistant_text(prose) for _ in range(6)])
+        result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=base_env(tmp_path))
+        assert result.stdout == ""
+
+    def test_字下げした署名例示は破損としない(self, tmp_path: Path) -> None:
+        """箇条書き/インデントで字下げした行の署名例示は破損としない。
+
+        実漏洩は崩れたトークンに続いて桁0の行頭に現れる (字下げされない)。行頭判定に字下げ
+        許容を入れると例示引用の誤検知面だけ広がり実漏洩の検知に寄与しないため、桁0に限定する。
+        """
+        transcript = tmp_path / "t.jsonl"
+        prose = '例:\n    <invoke name="Bash">\n    <parameter name="command">ls</parameter>'
+        write_transcript(transcript, [assistant_text(prose) for _ in range(6)])
+        result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=base_env(tmp_path))
+        assert result.stdout == ""
+
+    def test_通常会話を挟んでも通算で数える(self, tmp_path: Path) -> None:
+        """通常会話ターンは破損でも成功でもないため、通算に影響せず素通りする。"""
         transcript = tmp_path / "t.jsonl"
         entries = [*self.leaks(2), assistant_text("通常の会話ターン"), *self.leaks(3)]
         write_transcript(transcript, entries)
         result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=base_env(tmp_path))
-        # 2 + 3 = 5 (neutral 素通り) で block する
+        # 2 + 3 = 通算 5 (会話ターンは素通り) で block する
         assert json.loads(result.stdout)["decision"] == "block"
 
     def test_stop_hook_activeのときはblockしない(self, tmp_path: Path) -> None:
@@ -427,11 +465,11 @@ class TestStopBrokenStreak:
         }
         write_transcript(transcript, [*self.leaks(4), mixed_result])
         result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=base_env(tmp_path))
-        assert json.loads(result.stdout)["decision"] == "block"  # 4連続+混在1件=5でblock
+        assert json.loads(result.stdout)["decision"] == "block"  # 破損4件+混在1件=通算5でblock
 
-    def test_HANDOFF_BROKEN_STREAKの上書きが閾値に反映される(self, tmp_path: Path) -> None:
+    def test_HANDOFF_BROKEN_COUNTの上書きが閾値に反映される(self, tmp_path: Path) -> None:
         """既定の5ではなく3を境界値として使うことで、env override が実際に読まれることを示す。"""
-        env = base_env(tmp_path) | {"HANDOFF_BROKEN_STREAK": "3"}
+        env = base_env(tmp_path) | {"HANDOFF_BROKEN_COUNT": "3"}
 
         miss_transcript = tmp_path / "miss.jsonl"
         write_transcript(miss_transcript, self.leaks(2))
@@ -450,7 +488,7 @@ class TestStopBrokenStreak:
         small = assistant_text(LEAKED_TOOL_CALL)  # 末尾に収まる小行
         write_transcript(transcript, [big, big, big, small, small])
 
-        # 末尾2件だけが収まる tail: 前方3件 (broken) が読まれず streak=2 < 5 で block しない
+        # 末尾2件だけが収まる tail: 前方3件 (broken) が読まれず通算=2 < 5 で block しない
         small_tail = base_env(tmp_path) | {"HANDOFF_TAIL_BYTES": "400"}
         cut = run_hook("stop", stop_input(tmp_path, transcript), extra_env=small_tail)
         assert cut.stdout == ""
