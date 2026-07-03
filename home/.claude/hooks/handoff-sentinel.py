@@ -238,7 +238,7 @@ def handle_session(payload: dict[str, Any]) -> dict[str, Any] | None:
         return None
     max_bytes = _env_int("HANDOFF_INJECT_MAX_BYTES", DEFAULT_INJECT_MAX_BYTES)
     raw = handoff.read_bytes()
-    text = raw[:max_bytes].decode("utf-8", errors="replace")
+    text = raw[:max_bytes].decode("utf-8", errors="ignore")
     if len(raw) > max_bytes:
         text += "\n\n(引き継ぎ書が大きいため先頭のみ注入した。全文は consumed リネーム先を読むこと)"
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")

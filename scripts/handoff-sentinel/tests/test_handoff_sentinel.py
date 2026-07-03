@@ -396,6 +396,31 @@ class TestSessionStartInject:
         assert "A" * 101 not in context
         assert "先頭のみ注入" in context
 
+    def test_マルチバイトの切り詰めで文字化けしない(self, tmp_path: Path) -> None:
+        """3バイト文字 (日本語) がバイト境界の途中で切れても replacement 文字を注入しない。"""
+        handoff_dir = tmp_path / "tmp"
+        handoff_dir.mkdir()
+        (handoff_dir / "handoff.md").write_text("あ" * 200, encoding="utf-8")
+        env = base_env(tmp_path) | {"HANDOFF_INJECT_MAX_BYTES": "100"}
+        result = run_hook("session", session_input(tmp_path), extra_env=env)
+        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        assert "�" not in context
+        _header, body, _notice = context.split("\n\n")
+        assert body == "あ" * 33  # 100 // 3 = 33 文字ぶんの完全な文字のみ (端数1バイトは破棄される)
+        assert "先頭のみ注入" in context
+
+    def test_ちょうど上限のバイト数では切り詰めない(self, tmp_path: Path) -> None:
+        """判定が len(raw) > max_bytes のため、ちょうど上限ぴったりは切り詰め扱いにしない境界。"""
+        handoff_dir = tmp_path / "tmp"
+        handoff_dir.mkdir()
+        content = "B" * 64
+        (handoff_dir / "handoff.md").write_text(content, encoding="utf-8")
+        env = base_env(tmp_path) | {"HANDOFF_INJECT_MAX_BYTES": str(len(content))}
+        result = run_hook("session", session_input(tmp_path), extra_env=env)
+        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        assert content in context
+        assert "先頭のみ注入" not in context
+
     def test_agent_id付きのsubagentでは注入しない(self, tmp_path: Path) -> None:
         handoff_dir = tmp_path / "tmp"
         handoff_dir.mkdir()
