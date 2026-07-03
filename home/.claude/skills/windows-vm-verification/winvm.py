@@ -286,10 +286,13 @@ def cmd_health(args: argparse.Namespace, *, run=run_ssh) -> int:
         print("error: --host (または WINVM_HOST) が必要です", file=sys.stderr)
         return 2
     if not run(host, pwsh_probe_command()):
+        # probe 失敗は pwsh 未導入とは限らず、SSH 未到達 (VM 未起動 / stale IP) でも起きる。
+        # 両方の可能性を示し、pwsh 未導入と断定して誤誘導しない。
         print(
-            "error: VM に PowerShell 7 (pwsh) が見つかりません。"
-            "pwsh をインストールして PATH に通してください "
-            "(winget install --id Microsoft.PowerShell)",
+            "error: VM 上で pwsh(7) を確認できませんでした "
+            "(VM 未起動 / SSH 未到達、または pwsh 未導入の可能性)。"
+            "VM が起動していること・pwsh が PATH にあること "
+            "(winget install --id Microsoft.PowerShell) を確認してください",
             file=sys.stderr,
         )
         return 1
