@@ -189,6 +189,16 @@ def test_cmd_health_errors_when_pwsh_absent(capsys):
     assert "pwsh" in capsys.readouterr().err
 
 
+def test_cmd_health_probe_error_message_is_not_misleading(capsys):
+    # probe 失敗は SSH 未到達 (VM 未起動 / stale IP) の可能性もある。
+    # pwsh 未導入と断定せず両方の可能性を示す診断にする (誤誘導の回避)。
+    args = argparse.Namespace(host="vm", repo=None, check_tools=None)
+    winvm.cmd_health(args, run=lambda host, remote: False)
+    err = capsys.readouterr().err
+    assert "pwsh" in err  # pwsh 未導入の可能性
+    assert "未起動" in err  # SSH 未到達 (VM 未起動) の可能性にも言及
+
+
 def test_find_stale_lock_dirs(tmp_path):
     (tmp_path / "disk.vmdk.lck").mkdir()
     (tmp_path / "disk.vmdk.lck" / "M1.lck").write_text("x")

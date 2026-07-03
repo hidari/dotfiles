@@ -7,5 +7,5 @@
 | SSH banner exchange timeout | VM 起動直後で sshd がまだ起動していない | 30〜60 秒待ってから再接続。VM ブート完了を待つか、`ssh -o ConnectTimeout=60 <alias>` で待機時間を伸ばす |
 | SSH known_hosts mismatch | VM 再構築で HostKey が変わった | `~/.ssh/known_hosts` から `HostKeyAlias` に対応するエントリを削除。`StrictHostKeyChecking accept-new` 設定済みであれば次回接続時に自動登録される |
 | PowerShell 出力が文字化け | cmd.exe 経由の cp932 エンコード問題 | `winvm health` / `winvm run` は `[Console]::OutputEncoding = UTF8` を自動設定済み。手動で PowerShell を実行する場合は同様の設定を追加する |
-| `winvm health` が "PowerShell 7 (pwsh) が見つかりません" で停止 | VM に pwsh(7) が未インストール、または PATH 未通し | `winget install --id Microsoft.PowerShell` で導入して PATH を通す。`winvm health` は WinPS 5.1 の Restricted を `-ExecutionPolicy Bypass` で回避せず pwsh を必須とする |
+| `winvm health` が "pwsh(7) を確認できませんでした" で停止 | VM 未起動 / SSH 未到達、または VM に pwsh(7) 未インストール・PATH 未通し | まず VM 起動と SSH 到達を確認 (`winvm resolve-ip` / `ssh <alias> hostname`)。到達できて pwsh 未導入なら `winget install --id Microsoft.PowerShell` で導入し PATH を通す。`winvm health` は WinPS 5.1 の Restricted を `-ExecutionPolicy Bypass` で回避せず pwsh を必須とする |
 | `winvm recover` が拒否される | `vmware-vmx` プロセスが実行中 | `pgrep -l vmware-vmx` で確認し、VMware Fusion から VM を完全停止してから再実行 |
