@@ -5,5 +5,4 @@
 .venv/
 
 # Private directories
-.PrivateBox/
 .hidari/
