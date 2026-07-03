@@ -259,13 +259,40 @@ def build_health_powershell(check_tools: list[str], repo: str | None) -> str:
     return "\n".join(lines) + "\n"
 
 
-def cmd_health(args: argparse.Namespace) -> int:
-    """.ps1 を scp して `powershell -File` 実行、後始末。"""
+def health_exec_command(remote: str) -> str:
+    """転送した health .ps1 を pwsh(7) の -File で実行するコマンド。
+    pwsh は RemoteSigned かつ scp 転送物には Mark-of-the-Web が付かないため
+    -ExecutionPolicy Bypass 無しで実行できる (WinPS 5.1 の Restricted を Bypass で
+    上書きする多層防御の穴を避ける。#119)。"""
+    return f"pwsh -NoProfile -File {remote}"
+
+
+def health_cleanup_command(remote: str) -> str:
+    """転送した health .ps1 を削除する後始末コマンド (実行系と同じ pwsh に揃える)。"""
+    return f"pwsh -NoProfile -Command Remove-Item -Force {remote}"
+
+
+def pwsh_probe_command() -> str:
+    """VM の PATH に pwsh(7) があるか判定する cmd.exe コマンド。
+    見つかれば exit 0、無ければ非 0。パス出力は抑制する。"""
+    return "where pwsh >nul 2>nul"
+
+
+def cmd_health(args: argparse.Namespace, *, run=run_ssh) -> int:
+    """.ps1 を scp して pwsh(7) の -File で実行、後始末。pwsh 必須 (不在ならエラー)。"""
     host = _env_or(args.host, "WINVM_HOST")
     repo = _env_or(args.repo, "WINVM_REPO")
     if not host:
         print("error: --host (または WINVM_HOST) が必要です", file=sys.stderr)
         return 2
+    if not run(host, pwsh_probe_command()):
+        print(
+            "error: VM に PowerShell 7 (pwsh) が見つかりません。"
+            "pwsh をインストールして PATH に通してください "
+            "(winget install --id Microsoft.PowerShell)",
+            file=sys.stderr,
+        )
+        return 1
     tools = args.check_tools.split(",") if args.check_tools else []
     ps = build_health_powershell([t for t in tools if t], repo)
 
@@ -277,8 +304,8 @@ def cmd_health(args: argparse.Namespace) -> int:
         if not scp(host, local, remote):
             print("health スクリプトの scp に失敗しました", file=sys.stderr)
             return 1
-        ok = run_ssh(host, f"powershell -NoProfile -ExecutionPolicy Bypass -File {remote}")
-        run_ssh(host, f"powershell -NoProfile -Command Remove-Item -Force {remote}")
+        ok = run(host, health_exec_command(remote))
+        run(host, health_cleanup_command(remote))
         return 0 if ok else 1
     finally:
         Path(local).unlink(missing_ok=True)
