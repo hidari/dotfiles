@@ -4,7 +4,7 @@
 #   brew install pre-commit gitleaks
 #   pre-commit install
 #
-# - scripts/backup-tool, scripts/config-guard, scripts/tirith-hook の ruff / mypy / pytest を uv 仮想環境で実行する。
+# - scripts/backup-tool, scripts/config-guard, scripts/tirith-hook, scripts/handoff-sentinel の ruff / mypy / pytest を uv 仮想環境で実行する。
 # - config-guard で skills / committed settings.json の stale なツール名参照・構造逸脱を検出する。
 # - gitleaks で staged 差分の secret / ユーザー名パス (/Users/<name>) 漏洩を弾く (.gitleaks.toml)。
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -102,6 +102,34 @@ repos:
         entry: uv run --directory scripts/tirith-hook pytest -q
         pass_filenames: false
         files: ^(home/\.claude/hooks/tirith-check\.py|scripts/tirith-hook/.*)$
+
+      - id: handoff-sentinel-ruff-check
+        name: handoff-sentinel ruff check
+        language: system
+        entry: uv run --directory scripts/handoff-sentinel ruff check --config pyproject.toml ../../home/.claude/hooks/handoff-sentinel.py tests
+        pass_filenames: false
+        files: ^(home/\.claude/hooks/handoff-sentinel\.py|scripts/handoff-sentinel/.*)$
+
+      - id: handoff-sentinel-ruff-format
+        name: handoff-sentinel ruff format --check
+        language: system
+        entry: uv run --directory scripts/handoff-sentinel ruff format --check --config pyproject.toml ../../home/.claude/hooks/handoff-sentinel.py tests
+        pass_filenames: false
+        files: ^(home/\.claude/hooks/handoff-sentinel\.py|scripts/handoff-sentinel/.*)$
+
+      - id: handoff-sentinel-mypy
+        name: handoff-sentinel mypy
+        language: system
+        entry: uv run --directory scripts/handoff-sentinel mypy --config-file pyproject.toml ../../home/.claude/hooks/handoff-sentinel.py tests
+        pass_filenames: false
+        files: ^(home/\.claude/hooks/handoff-sentinel\.py|scripts/handoff-sentinel/.*)$
+
+      - id: handoff-sentinel-pytest
+        name: handoff-sentinel pytest
+        language: system
+        entry: uv run --directory scripts/handoff-sentinel pytest -q
+        pass_filenames: false
+        files: ^(home/\.claude/hooks/handoff-sentinel\.py|scripts/handoff-sentinel/.*)$
 
       - id: gitleaks
         name: gitleaks (secret / user-path leak guard)
