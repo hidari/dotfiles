@@ -56,3 +56,139 @@ class TestFailSafeSkeleton:
         result = run_hook("posttool", None)
         assert result.returncode == 0
         assert result.stdout == ""
+
+
+def assistant_usage(tokens: int, *, sidechain: bool = False) -> dict[str, object]:
+    """usage 合算が tokens になる assistant entry を作る (input に全量を寄せる)。"""
+    entry: dict[str, object] = {
+        "type": "assistant",
+        "message": {
+            "usage": {
+                "input_tokens": tokens,
+                "cache_read_input_tokens": 0,
+                "cache_creation_input_tokens": 0,
+            },
+            "content": [],
+        },
+    }
+    if sidechain:
+        entry["isSidechain"] = True
+    return entry
+
+
+def write_transcript(path: Path, entries: list[dict[str, object]]) -> None:
+    path.write_text("\n".join(json.dumps(e) for e in entries) + "\n", encoding="utf-8")
+
+
+def base_env(tmp_path: Path) -> dict[str, str]:
+    """テスト用の小さいしきい値: window=1000 tokens, 50% (= 500 tokens で発火)。"""
+    return {
+        "HANDOFF_STATE_DIR": str(tmp_path / "state"),
+        "HANDOFF_CONTEXT_WINDOW_TOKENS": "1000",
+        "HANDOFF_CONTEXT_THRESHOLD_PCT": "50",
+        "HANDOFF_BROKEN_STREAK": "5",
+    }
+
+
+def posttool_input(tmp_path: Path, transcript: Path) -> dict[str, object]:
+    return {
+        "session_id": "sess-1",
+        "transcript_path": str(transcript),
+        "cwd": str(tmp_path),
+        "hook_event_name": "PostToolUse",
+    }
+
+
+class TestPostToolContextWatch:
+    """posttool: 最後の assistant usage 合算がしきい値以上のとき、1 回だけ通知する。"""
+
+    def test_しきい値直下では発火しない(self, tmp_path: Path) -> None:
+        transcript = tmp_path / "t.jsonl"
+        write_transcript(transcript, [assistant_usage(499)])
+        result = run_hook(
+            "posttool", posttool_input(tmp_path, transcript), extra_env=base_env(tmp_path)
+        )
+        assert result.returncode == 0
+        assert result.stdout == ""
+
+    def test_しきい値ちょうどで発火しskill名を含む(self, tmp_path: Path) -> None:
+        transcript = tmp_path / "t.jsonl"
+        write_transcript(transcript, [assistant_usage(500)])
+        result = run_hook(
+            "posttool", posttool_input(tmp_path, transcript), extra_env=base_env(tmp_path)
+        )
+        assert result.returncode == 0
+        output = json.loads(result.stdout)
+        assert output["hookSpecificOutput"]["hookEventName"] == "PostToolUse"
+        assert "session-handoff" in output["hookSpecificOutput"]["additionalContext"]
+        assert (tmp_path / "state" / "sess-1.notified").is_file()
+
+    def test_usage3フィールドは合算される(self, tmp_path: Path) -> None:
+        transcript = tmp_path / "t.jsonl"
+        entry = assistant_usage(0)
+        message = entry["message"]
+        assert isinstance(message, dict)
+        message["usage"] = {
+            "input_tokens": 100,
+            "cache_read_input_tokens": 300,
+            "cache_creation_input_tokens": 100,
+        }
+        write_transcript(transcript, [entry])
+        result = run_hook(
+            "posttool", posttool_input(tmp_path, transcript), extra_env=base_env(tmp_path)
+        )
+        assert result.stdout != ""  # 100+300+100=500 >= 500 で発火
+
+    def test_通知済みセッションでは再発火しない(self, tmp_path: Path) -> None:
+        transcript = tmp_path / "t.jsonl"
+        write_transcript(transcript, [assistant_usage(999)])
+        env = base_env(tmp_path)
+        first = run_hook("posttool", posttool_input(tmp_path, transcript), extra_env=env)
+        second = run_hook("posttool", posttool_input(tmp_path, transcript), extra_env=env)
+        assert first.stdout != ""
+        assert second.returncode == 0
+        assert second.stdout == ""
+
+    def test_sidechainのassistantは無視される(self, tmp_path: Path) -> None:
+        transcript = tmp_path / "t.jsonl"
+        write_transcript(
+            transcript,
+            [assistant_usage(200), assistant_usage(9999, sidechain=True)],
+        )
+        result = run_hook(
+            "posttool", posttool_input(tmp_path, transcript), extra_env=base_env(tmp_path)
+        )
+        assert result.stdout == ""  # 本編の 200 tokens のみで判定される
+
+    def test_agent_id付きのsubagentでは発火しない(self, tmp_path: Path) -> None:
+        transcript = tmp_path / "t.jsonl"
+        write_transcript(transcript, [assistant_usage(999)])
+        hook_input = posttool_input(tmp_path, transcript)
+        hook_input["agent_id"] = "agent-x"
+        result = run_hook("posttool", hook_input, extra_env=base_env(tmp_path))
+        assert result.returncode == 0
+        assert result.stdout == ""
+
+    def test_transcript不在は無出力でexit0(self, tmp_path: Path) -> None:
+        hook_input = posttool_input(tmp_path, tmp_path / "missing.jsonl")
+        result = run_hook("posttool", hook_input, extra_env=base_env(tmp_path))
+        assert result.returncode == 0
+        assert result.stdout == ""
+
+    def test_壊れたJSONL行は無視して判定する(self, tmp_path: Path) -> None:
+        transcript = tmp_path / "t.jsonl"
+        valid = json.dumps(assistant_usage(999))
+        transcript.write_text(f"{{broken json\n{valid}\n[1,2]\n", encoding="utf-8")
+        result = run_hook(
+            "posttool", posttool_input(tmp_path, transcript), extra_env=base_env(tmp_path)
+        )
+        assert result.stdout != ""  # 有効行のみで判定して発火
+
+    def test_空のtranscriptは無出力でexit0(self, tmp_path: Path) -> None:
+        transcript = tmp_path / "t.jsonl"
+        transcript.write_text("", encoding="utf-8")
+        result = run_hook(
+            "posttool", posttool_input(tmp_path, transcript), extra_env=base_env(tmp_path)
+        )
+        assert result.returncode == 0
+        assert result.stdout == ""
