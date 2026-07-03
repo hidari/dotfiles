@@ -112,6 +112,11 @@ record (provenance 記録):
   `os.getcwd()` からリポルートを解決し、`<ルート>/tmp/handoff.md` の内容ハッシュを
   user スコープの state (`~/.cache/claude/handoff-sentinel/<repo-id>.provenance`) に記録する。
   この記録があって初めて SessionStart が当該 handoff.md を信頼して注入する
+- 信頼境界は「このリポで record が呼ばれたか」であり「内容を skill が生成したか」ではない。
+  よってリポにコミットされた第三者作成の handoff.md (受動的攻撃) は弾けるが、セッション中の
+  別経路 (悪性 PR 説明・fetch した web 等) の indirect prompt injection でモデルが handoff.md を
+  書いて record させられるケースまでは防げない (その時点でモデルは既に攻撃指示下にある)。
+  構造検証まで踏み込むと false-security を招くため、この境界は明示的な設計判断として受容する
 
 ### SKILL.md
 

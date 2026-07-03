@@ -70,6 +70,15 @@ def _notify_once(state_file: Path) -> bool:
     return True
 
 
+def _session_state_file(session_id: str, suffix: str) -> Path:
+    """session_id 起点の state ファイルパスを作る唯一の経路。必ず _sanitize を通す。
+
+    .notified / .blocked を両方これ経由にすることで、traversal ガード (_sanitize) の適用を
+    call site の記憶に依存させず構造的に強制する (_provenance_path と対称)。
+    """
+    return _state_dir() / f"{_sanitize(session_id)}.{suffix}"
+
+
 def _session_and_transcript(payload: dict[str, Any]) -> tuple[str, str] | None:
     """payload から session_id と実在する transcript_path を検証付きで取り出す。
 
@@ -140,7 +149,7 @@ def handle_posttool(payload: dict[str, Any]) -> dict[str, Any] | None:
     tokens = _context_tokens(_read_tail_entries(transcript_path))
     if tokens * 100 < window * threshold_pct:
         return None
-    if not _notify_once(_state_dir() / f"{_sanitize(session_id)}.notified"):
+    if not _notify_once(_session_state_file(session_id, "notified")):
         return None
     context = (
         f"コンテキスト使用率がしきい値を超えた (推定 {tokens} tokens)。"
@@ -225,7 +234,7 @@ def handle_stop(payload: dict[str, Any]) -> dict[str, Any] | None:
     streak_limit = _env_int("HANDOFF_BROKEN_STREAK", DEFAULT_BROKEN_STREAK)
     if _broken_streak(_read_tail_entries(transcript_path)) < streak_limit:
         return None
-    if not _notify_once(_state_dir() / f"{_sanitize(session_id)}.blocked"):
+    if not _notify_once(_session_state_file(session_id, "blocked")):
         # 1 セッション 1 回 (無限 block ループ防止の二段目)
         return None
     reason = (
@@ -252,18 +261,23 @@ def _repo_root(cwd: str) -> Path:
     return Path(top) if result.returncode == 0 and top else Path(cwd)
 
 
+def _hash_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
 def _repo_id(repo_root: Path) -> str:
     """リポルートのパスから安定した識別子を作る (provenance state のキー)。"""
-    return hashlib.sha256(str(repo_root).encode("utf-8")).hexdigest()[:16]
+    return _hash_bytes(str(repo_root).encode("utf-8"))[:16]
+
+
+def _handoff_path(repo_root: Path) -> Path:
+    """引き継ぎ書のパス。record と session が同一パスを共有するための単一の真実。"""
+    return repo_root / "tmp" / "handoff.md"
 
 
 def _provenance_path(repo_root: Path) -> Path:
     """このリポの handoff provenance (内容ハッシュ) を置く user スコープの state ファイル。"""
     return _state_dir() / f"{_repo_id(repo_root)}.provenance"
-
-
-def _hash_bytes(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
 
 
 def _read_provenance(prov: Path) -> str | None:
@@ -281,7 +295,7 @@ def handle_record(cwd: str) -> None:
     provenance。skill が書き出し直後に `handoff-sentinel.py record` として呼ぶ。
     """
     repo_root = _repo_root(cwd)
-    handoff = repo_root / "tmp" / "handoff.md"
+    handoff = _handoff_path(repo_root)
     if not handoff.is_file():
         return
     prov = _provenance_path(repo_root)
@@ -294,7 +308,7 @@ def handle_session(payload: dict[str, Any]) -> dict[str, Any] | None:
     if not (isinstance(cwd, str) and os.path.isdir(cwd)):
         return None
     repo_root = _repo_root(cwd)
-    handoff = repo_root / "tmp" / "handoff.md"
+    handoff = _handoff_path(repo_root)
     if not handoff.is_file():
         return None
     raw = handoff.read_bytes()
