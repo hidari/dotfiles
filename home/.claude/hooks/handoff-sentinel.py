@@ -2,16 +2,18 @@
 """Claude Code hook: セッション引き継ぎ検知器 (handoff-sentinel)。
 
 第1引数で分岐する: posttool (コンテキスト使用率の監視) / stop (ツール呼び出し破損の
-連続検知) / session (tmp/handoff.md の自動注入)。しきい値等の canonical はこのファイルの
-定数であり、HANDOFF_* 環境変数で上書きできる。検知機構の故障で作業を止めないため、
-全経路 fail-safe (無出力 + exit 0)。
+連続検知) / session (tmp/handoff.md の自動注入) / record (skill からの provenance 記録)。
+しきい値等の canonical はこのファイルの定数であり、HANDOFF_* 環境変数で上書きできる。
+検知機構の故障で作業を止めないため、全経路 fail-safe (無出力 + exit 0)。
 仕様: docs/superpowers/specs/2026-07-03-session-handoff-design.md
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Callable
@@ -20,11 +22,25 @@ from pathlib import Path
 from typing import Any
 
 # canonical な既定値。他ファイル (SKILL.md / template.md) はこれらの値を再掲しない。
-DEFAULT_CONTEXT_WINDOW_TOKENS = 200_000
+DEFAULT_CONTEXT_WINDOW_TOKENS = 1_000_000
 DEFAULT_CONTEXT_THRESHOLD_PCT = 50
 DEFAULT_BROKEN_STREAK = 5
 DEFAULT_INJECT_MAX_BYTES = 32_768
 DEFAULT_TAIL_BYTES = 1_048_576
+
+# 本文に漏れた tool-call の開始署名 (破損イベントの判定に使う)。
+# `<invoke name=` / `<parameter name=` (名前空間 antml: 付きを含む) という実漏洩の構造に限定し、
+# 'antml' や '<invoke>' 単体の散文言及を broken と誤判定しない。
+BROKEN_TOOL_CALL_RE = re.compile(r"<(?:antml:)?(?:invoke|parameter)\s+name=")
+
+
+def _sanitize(name: str) -> str:
+    """state ファイル名に使う識別子から区切り文字等を潰し、_state_dir 外への書き込みを防ぐ。
+
+    session_id は Claude Code 内部フィールドで攻撃者非制御だが、path separator や `..` を
+    含む値が来ても _state_dir 内に閉じ込める多層防御。canonical な charset はこの1箇所のみ。
+    """
+    return re.sub(r"[^A-Za-z0-9_-]", "_", name)
 
 
 def _env_int(name: str, default: int) -> int:
@@ -54,12 +70,27 @@ def _notify_once(state_file: Path) -> bool:
     return True
 
 
+def _session_and_transcript(payload: dict[str, Any]) -> tuple[str, str] | None:
+    """payload から session_id と実在する transcript_path を検証付きで取り出す。
+
+    posttool / stop 共通の入力ガード。どちらか欠ければ None を返し呼び出し側は no-op。
+    """
+    session_id = payload.get("session_id")
+    transcript_path = payload.get("transcript_path")
+    if not (isinstance(session_id, str) and session_id):
+        return None
+    if not (isinstance(transcript_path, str) and os.path.isfile(transcript_path)):
+        return None
+    return session_id, transcript_path
+
+
 def _read_tail_entries(transcript_path: str) -> list[dict[str, Any]]:
     """transcript JSONL の末尾 (既定 DEFAULT_TAIL_BYTES) を読み、entry 一覧を返す。
 
     ツール実行ごとに走るため全量パースを避けてコストを一定に抑える。判定に必要なのは
     末尾近傍のみ (最後の usage / 破損 streak)。壊れた行と subagent の isSidechain な
-    entry は捨てる。
+    entry は捨てる。行分割は JSONL の区切り (\\n) のみで行う (str.splitlines は U+2028 等の
+    Unicode 行境界でも割ってしまい、それらを含む正当な JSON 行を取りこぼすため使わない)。
     """
     tail_bytes = _env_int("HANDOFF_TAIL_BYTES", DEFAULT_TAIL_BYTES)
     size = os.path.getsize(transcript_path)
@@ -69,7 +100,7 @@ def _read_tail_entries(transcript_path: str) -> list[dict[str, Any]]:
             fp.readline()  # seek で切れた部分行を捨てる
         data = fp.read()
     entries: list[dict[str, Any]] = []
-    for line in data.decode("utf-8", errors="replace").splitlines():
+    for line in data.decode("utf-8", errors="replace").split("\n"):
         try:
             entry = json.loads(line)
         except json.JSONDecodeError:
@@ -100,18 +131,16 @@ def _context_tokens(entries: list[dict[str, Any]]) -> int:
 
 
 def handle_posttool(payload: dict[str, Any]) -> dict[str, Any] | None:
-    session_id = payload.get("session_id")
-    transcript_path = payload.get("transcript_path")
-    if not (isinstance(session_id, str) and session_id):
+    pair = _session_and_transcript(payload)
+    if pair is None:
         return None
-    if not (isinstance(transcript_path, str) and os.path.isfile(transcript_path)):
-        return None
+    session_id, transcript_path = pair
     window = _env_int("HANDOFF_CONTEXT_WINDOW_TOKENS", DEFAULT_CONTEXT_WINDOW_TOKENS)
     threshold_pct = _env_int("HANDOFF_CONTEXT_THRESHOLD_PCT", DEFAULT_CONTEXT_THRESHOLD_PCT)
     tokens = _context_tokens(_read_tail_entries(transcript_path))
     if tokens * 100 < window * threshold_pct:
         return None
-    if not _notify_once(_state_dir() / f"{session_id}.notified"):
+    if not _notify_once(_state_dir() / f"{_sanitize(session_id)}.notified"):
         return None
     context = (
         f"コンテキスト使用率がしきい値を超えた (推定 {tokens} tokens)。"
@@ -126,14 +155,10 @@ def handle_posttool(payload: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
-# 本文に漏れた tool-call 断片の目印 (破損イベントの判定に使う)
-BROKEN_MARKERS = ("<invoke", "</invoke>", "<parameter", "antml")
-
-
 def _classify(entry: dict[str, Any]) -> str:
     """entry を broken / reset / neutral に分類する。
 
-    broken: 正常な tool_use を伴わない text への tool-call 断片の漏れ、
+    broken: 正常な tool_use を伴わない text への tool-call 開始署名の漏れ、
             または is_error な tool_result。
     reset: 正常に完了した tool_result (is_error が偽)。
     """
@@ -154,7 +179,7 @@ def _classify(entry: dict[str, Any]) -> str:
             if not (isinstance(block, dict) and block.get("type") == "text"):
                 continue
             text = block.get("text")
-            if isinstance(text, str) and any(marker in text for marker in BROKEN_MARKERS):
+            if isinstance(text, str) and BROKEN_TOOL_CALL_RE.search(text):
                 return "broken"
         return "neutral"
     if entry.get("type") == "user":
@@ -193,16 +218,14 @@ def handle_stop(payload: dict[str, Any]) -> dict[str, Any] | None:
     if payload.get("stop_hook_active"):
         # block 由来の再入では判定しない (無限 block ループ防止の一段目)
         return None
-    session_id = payload.get("session_id")
-    transcript_path = payload.get("transcript_path")
-    if not (isinstance(session_id, str) and session_id):
+    pair = _session_and_transcript(payload)
+    if pair is None:
         return None
-    if not (isinstance(transcript_path, str) and os.path.isfile(transcript_path)):
-        return None
+    session_id, transcript_path = pair
     streak_limit = _env_int("HANDOFF_BROKEN_STREAK", DEFAULT_BROKEN_STREAK)
     if _broken_streak(_read_tail_entries(transcript_path)) < streak_limit:
         return None
-    if not _notify_once(_state_dir() / f"{session_id}.blocked"):
+    if not _notify_once(_state_dir() / f"{_sanitize(session_id)}.blocked"):
         # 1 セッション 1 回 (無限 block ループ防止の二段目)
         return None
     reason = (
@@ -229,15 +252,58 @@ def _repo_root(cwd: str) -> Path:
     return Path(top) if result.returncode == 0 and top else Path(cwd)
 
 
+def _repo_id(repo_root: Path) -> str:
+    """リポルートのパスから安定した識別子を作る (provenance state のキー)。"""
+    return hashlib.sha256(str(repo_root).encode("utf-8")).hexdigest()[:16]
+
+
+def _provenance_path(repo_root: Path) -> Path:
+    """このリポの handoff provenance (内容ハッシュ) を置く user スコープの state ファイル。"""
+    return _state_dir() / f"{_repo_id(repo_root)}.provenance"
+
+
+def _hash_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _read_provenance(prov: Path) -> str | None:
+    try:
+        return prov.read_text(encoding="utf-8").strip() or None
+    except OSError:
+        return None
+
+
+def handle_record(cwd: str) -> None:
+    """session-handoff skill が書き出した handoff.md の provenance (内容ハッシュ) を記録する。
+
+    SessionStart はこの記録に一致する handoff.md のみ注入する。リポにコミットされた第三者作成の
+    handoff.md を信頼された引き継ぎとして注入しない (prompt injection 防御) ための user スコープの
+    provenance。skill が書き出し直後に `handoff-sentinel.py record` として呼ぶ。
+    """
+    repo_root = _repo_root(cwd)
+    handoff = repo_root / "tmp" / "handoff.md"
+    if not handoff.is_file():
+        return
+    prov = _provenance_path(repo_root)
+    prov.parent.mkdir(parents=True, exist_ok=True)
+    prov.write_text(_hash_bytes(handoff.read_bytes()) + "\n", encoding="utf-8")
+
+
 def handle_session(payload: dict[str, Any]) -> dict[str, Any] | None:
     cwd = payload.get("cwd")
     if not (isinstance(cwd, str) and os.path.isdir(cwd)):
         return None
-    handoff = _repo_root(cwd) / "tmp" / "handoff.md"
+    repo_root = _repo_root(cwd)
+    handoff = repo_root / "tmp" / "handoff.md"
     if not handoff.is_file():
         return None
-    max_bytes = _env_int("HANDOFF_INJECT_MAX_BYTES", DEFAULT_INJECT_MAX_BYTES)
     raw = handoff.read_bytes()
+    prov = _provenance_path(repo_root)
+    if _read_provenance(prov) != _hash_bytes(raw):
+        # skill が record した内容と一致しない handoff は信頼しない (prompt injection 防御)。
+        # 未記録・改竄・第三者作成はすべてここで弾く (fail-closed)
+        return None
+    max_bytes = _env_int("HANDOFF_INJECT_MAX_BYTES", DEFAULT_INJECT_MAX_BYTES)
     text = raw[:max_bytes].decode("utf-8", errors="ignore")
     if len(raw) > max_bytes:
         text += "\n\n(引き継ぎ書が大きいため先頭のみ注入した。全文は consumed リネーム先を読むこと)"
@@ -248,6 +314,7 @@ def handle_session(payload: dict[str, Any]) -> dict[str, Any] | None:
     except OSError:
         # リネームに失敗したら注入もしない (毎セッション再注入される重複より欠落を選ぶ)
         return None
+    prov.unlink(missing_ok=True)  # 消費した provenance を片付ける (二重注入防止)
     context = f"前セッションからの引き継ぎ (tmp/{consumed.name} として保存済み):\n\n{text}"
     return {
         "hookSpecificOutput": {
@@ -267,6 +334,10 @@ HANDLERS: dict[str, Callable[[dict[str, Any]], dict[str, Any] | None]] = {
 def main() -> int:
     try:
         action = sys.argv[1] if len(sys.argv) > 1 else ""
+        if action == "record":
+            # skill から呼ばれる副作用コマンド (hook JSON は受けず cwd から解決する)
+            handle_record(os.getcwd())
+            return 0
         handler = HANDLERS.get(action)
         if handler is None:
             return 0
