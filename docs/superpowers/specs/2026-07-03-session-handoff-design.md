@@ -182,6 +182,6 @@ stdin / transcript として食わせて判定ロジックを検証する。
 ## 受け入れ条件
 
 - pytest が全緑で、警告ゼロ
-- live smoke 2 種が実機で確認できている
+- live smoke 3 種 (SessionStart 注入 / コンテキスト超過通知 / 手動 `/session-handoff`) が実機で確認できている
 - SKILL.md にしきい値の数値と引き継ぎ書構造の再掲がない
 - settings.json の committed 版と live 版の両方に配線があり、gitleaks を通過する
