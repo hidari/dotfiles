@@ -149,6 +149,46 @@ def test_build_health_powershell_no_repo_omits_repo_section():
     assert "repo state" not in ps
 
 
+def test_health_exec_command_uses_pwsh_file_without_bypass():
+    # #119: WinPS 5.1 の Restricted を Bypass で回避せず、pwsh(7) の -File で実行する
+    # (RemoteSigned + Mark-of-the-Web 無しで Bypass 不要)。
+    remote = "C:/Users/Public/winvm_health.ps1"
+    cmd = winvm.health_exec_command(remote)
+    assert cmd == f"pwsh -NoProfile -File {remote}"
+    assert "-ExecutionPolicy Bypass" not in cmd
+    assert "powershell" not in cmd  # pwsh(7) であって WinPS 5.1 ではない
+    # parameterization (negative): 別 remote -> 別出力 (ハードコードでない)
+    assert winvm.health_exec_command("D:/x.ps1") == "pwsh -NoProfile -File D:/x.ps1"
+
+
+def test_health_cleanup_command_uses_pwsh():
+    remote = "C:/Users/Public/winvm_health.ps1"
+    cmd = winvm.health_cleanup_command(remote)
+    assert cmd == f"pwsh -NoProfile -Command Remove-Item -Force {remote}"
+    assert cmd.startswith("pwsh ")
+    assert "-ExecutionPolicy Bypass" not in cmd
+
+
+def test_pwsh_probe_command_probes_pwsh_quietly():
+    # cmd.exe 経由: pwsh が PATH にあれば exit 0、無ければ非 0。出力は抑制する。
+    assert winvm.pwsh_probe_command() == "where pwsh >nul 2>nul"
+
+
+def test_cmd_health_errors_when_pwsh_absent(capsys):
+    # pwsh 必須。不在なら scp/exec へ進まずエラーで short-circuit する (#119)。
+    calls: list[str] = []
+
+    def fake_run(host, remote):
+        calls.append(remote)
+        return False  # pwsh probe 失敗 = pwsh 不在
+
+    args = argparse.Namespace(host="vm", repo=None, check_tools=None)
+    rc = winvm.cmd_health(args, run=fake_run)
+    assert rc == 1
+    assert calls == [winvm.pwsh_probe_command()]  # probe だけ、scp/exec は走らない
+    assert "pwsh" in capsys.readouterr().err
+
+
 def test_find_stale_lock_dirs(tmp_path):
     (tmp_path / "disk.vmdk.lck").mkdir()
     (tmp_path / "disk.vmdk.lck" / "M1.lck").write_text("x")

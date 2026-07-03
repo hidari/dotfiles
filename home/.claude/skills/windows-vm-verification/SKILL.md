@@ -88,9 +88,11 @@ SSH 越しに以下を確認する:
 
 **実装の注意点**:
 
-- PowerShell スクリプトは `scp` で転送し `powershell -File` で実行する。`-EncodedCommand` は cmd.exe の 8191 文字制限に引っかかる長いコマンドで失敗するため使用しない
-- 出力文字化けを防ぐため `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8` をスクリプト冒頭に設定する
-- ラベルは ASCII にして cp932 モジュラリティの問題を回避する
+- PowerShell スクリプトは `scp` で転送し pwsh(7) の `-File` で実行する。pwsh は RemoteSigned かつ scp 転送物に Mark-of-the-Web が付かないため `-ExecutionPolicy Bypass` 無しで実行できる（WinPS 5.1 の Restricted を Bypass で上書きする多層防御の穴を避ける）
+- pwsh は必須。VM に pwsh が無ければ `winvm health` はエラーで停止する（`winget install --id Microsoft.PowerShell` で導入して PATH を通す）
+- `-EncodedCommand` は cmd.exe の 8191 文字制限に引っかかる長いコマンドで失敗するため使用しない
+- 出力文字化けを防ぐため `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8` をスクリプト冒頭に設定する（SSH 越しの `OutputEncoding` は pwsh でも既定 shift_jis のため PS バージョン非依存で必要）
+- ラベルは ASCII にして cp932 モジュラリティの問題を回避する（pwsh は BOM 無し UTF-8 を正読するため必須ではないが、フォールバックの安全側として維持）
 
 ### `run`
 
