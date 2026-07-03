@@ -70,6 +70,39 @@
             "command": "echo '{\"additionalContext\": \"今日は '$(TZ=Asia/Tokyo date '+%Y年%m月%d日')' です。\"}'"
           }
         ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.claude/hooks/handoff-sentinel.py\" session",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.claude/hooks/handoff-sentinel.py\" posttool",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.claude/hooks/handoff-sentinel.py\" stop",
+            "timeout": 10
+          }
+        ]
       }
     ]
   },
