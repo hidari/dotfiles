@@ -73,6 +73,22 @@ load_bootstrap_functions() {
     rm -f "$temp_func_file"
 }
 
+# bootstrap.sh の SYMLINK_PAIRS 配列ブロックだけを切り出して source し、
+# テストシェルに実配列を定義する。load_bootstrap_functions と同じ marker-slice 方式。
+# ブロックは純データ (set -euo pipefail 等の副作用を含まない) なので、
+# whole-file source を避けている理由がここにも当てはまる。実配列を source すれば
+# テキスト parse の脆さ (配列内コメントを phantom source と誤読する等) を避けられる。
+load_symlink_pairs() {
+    local temp_pairs_file
+    temp_pairs_file=$(mktemp)
+
+    sed -n '/^SYMLINK_PAIRS=(/,/^)/p' "$BOOTSTRAP_SCRIPT" > "$temp_pairs_file"
+
+    # shellcheck source=/dev/null
+    source "$temp_pairs_file"
+    rm -f "$temp_pairs_file"
+}
+
 # テスト用の偽 claude バイナリを PATH 先頭に用意する
 # - plugin list / marketplace list --json は環境変数で制御した JSON を返す
 #   （FAKE_PLUGINS_JSON / FAKE_MARKETPLACES_JSON、既定は空配列）

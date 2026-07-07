@@ -344,19 +344,13 @@ STUB
 # SYMLINK_PAIRS 整合性テスト
 # =============================================================================
 
-# bootstrap.sh の SYMLINK_PAIRS 配列から source 側 (| の前) をテキスト抽出する。
-# load_bootstrap_functions は関数スライスのみ source し配列を含めないため、
-# bootstrap.sh 本体を直接 parse する。
-extract_symlink_sources() {
-    sed -n '/^SYMLINK_PAIRS=(/,/^)/p' "$BOOTSTRAP_SCRIPT" \
-        | grep -oE '"[^"]+"' | tr -d '"' | sed 's/|.*//'
-}
-
-# stdin から repo-relative source を1行ずつ受け取り、REPO_ROOT に実在しないものを echo する。
-report_missing_sources() {
-    local source
-    while IFS= read -r source; do
-        [ -n "$source" ] || continue
+# "source|target" pair 列を受け取り、source (| の前) が REPO_ROOT に実在しない
+# ものを echo する。分割は bootstrap.sh の setup_dotfiles と同じ ${pair%%|*} を
+# 使い、区切り規約を単一の真実源に保つ。
+missing_symlink_sources() {
+    local pair source
+    for pair in "$@"; do
+        source="${pair%%|*}"
         [ -e "$REPO_ROOT/$source" ] || echo "$source"
     done
 }
@@ -364,19 +358,21 @@ report_missing_sources() {
 @test "SYMLINK_PAIRS: all sources exist in repo" {
     # source を欠いた pair は fresh マシンの bootstrap で create_symlink が
     # 存在しないファイルを指す壊れた symlink を張るため、ここで drift を捕捉する。
-    local missing count
-    missing="$(extract_symlink_sources | report_missing_sources)"
-    count="$(extract_symlink_sources | grep -c .)"
+    # 実配列を source して回すことで、テキスト parse の脆さ (配列内コメントを
+    # phantom source と誤読する等) を避ける。
+    load_symlink_pairs
+    # 空配列 (slice 破綻) での vacuous pass を防ぐ negative guard
+    [ "${#SYMLINK_PAIRS[@]}" -gt 0 ]
 
-    # 抽出が空（parse 破綻）で vacuous pass するのを防ぐ negative guard
-    [ "$count" -gt 0 ]
+    local missing
+    missing="$(missing_symlink_sources "${SYMLINK_PAIRS[@]}")"
     [ -z "$missing" ] || { echo "repo に存在しない source:"; echo "$missing"; false; }
 }
 
-@test "report_missing_sources: passes existing and flags missing sources" {
+@test "missing_symlink_sources: passes existing and flags missing pairs" {
     # 実装が gaming していないことを担保するため両方向を検証する。
     local out
-    out="$(printf '%s\n' 'home/.zshrc' 'home/__does_not_exist__/nope' | report_missing_sources)"
+    out="$(missing_symlink_sources 'home/.zshrc|.zshrc' 'home/__does_not_exist__/x|.x')"
     # 実在する source は missing に含めない（false positive を防ぐ）
     [[ "$out" != *".zshrc"* ]]
     # 欠落 source は検出する（false negative を防ぐ）
