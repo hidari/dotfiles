@@ -33,7 +33,7 @@ SYMLINK_PAIRS=(
     "home/.claude/hooks|.claude/hooks"
     "home/.claude/skills|.claude/skills"
     "home/.claude/skills/windows-vm-verification/winvm.py|.local/bin/winvm"
-    "scripts/backup-tool/backup.sh|.local/bin/backup.sh"
+    "scripts/backup-tool/backup|.local/bin/backup"
     "scripts/util-tools/small-id-gen/small-id-gen.sh|.local/bin/small-id-gen"
 )
 
