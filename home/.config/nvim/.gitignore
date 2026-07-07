@@ -1,0 +1,4 @@
+# nvim がランタイムに生成するスクラッチと macOS のメタデータ。
+# 設定本体 (init.lua / lua / resources 等) は追跡し、これらは除外する。
+.DS_Store
+tmp/

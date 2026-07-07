@@ -1,0 +1,8 @@
+# rules/bats-test-name-ascii-only.yml のテスト。id は rule と一致させる。
+id: bats-test-name-ascii-only
+valid:
+  - '@test "ascii name" { [ 1 -eq 1 ]; }'
+  - '@test "create_symlink: creates symlink for new file" { run create_symlink; }'
+invalid:
+  - '@test "日本語の名前" { [ 1 -eq 1 ]; }'
+  - '@test "SYMLINK_PAIRS: 全 source が実在する" { true; }'

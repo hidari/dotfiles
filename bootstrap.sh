@@ -26,6 +26,9 @@ SYMLINK_PAIRS=(
     "home/.gitconfig|.gitconfig"
     "home/.config/git/.gitignore_global|.config/git/.gitignore_global"
     "home/.config/mise/config.toml|.config/mise/config.toml"
+    "home/.config/herdr/config.toml|.config/herdr/config.toml"
+    "home/.config/herdr/scripts/herdr-unread|.config/herdr/scripts/herdr-unread"
+    "home/.config/nvim|.config/nvim"
     "home/.claude/settings.json|.claude/settings.json"
     "home/.claude/statusline-command.sh|.claude/statusline-command.sh"
     "home/.claude/CLAUDE.md|.claude/CLAUDE.md"
@@ -33,7 +36,7 @@ SYMLINK_PAIRS=(
     "home/.claude/hooks|.claude/hooks"
     "home/.claude/skills|.claude/skills"
     "home/.claude/skills/windows-vm-verification/winvm.py|.local/bin/winvm"
-    "scripts/backup-tool/backup.sh|.local/bin/backup.sh"
+    "scripts/backup-tool/backup|.local/bin/backup"
     "scripts/util-tools/small-id-gen/small-id-gen.sh|.local/bin/small-id-gen"
 )
 

@@ -169,7 +169,8 @@ alias disk='diskutil info / | grep -E "Free|Available"'
 # $PATHを見やすく表示
 alias path='echo $PATH | tr ":" "\n" | nl'
 
-alias claude-mem='$HOME/.bun/bin/bun "$HOME/.claude/plugins/marketplaces/thedotmack/plugin/scripts/worker-service.cjs"'
+# herdr の設定再読み込み
+alias herdr-reload='herdr server reload-config'
 
 ########################################
 # シェル関数

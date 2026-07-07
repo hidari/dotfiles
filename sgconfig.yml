@@ -1,0 +1,10 @@
+# ast-grep プロジェクト設定
+# 一般的な linter で表現できない構文レベルのルールを rules/ で管理する。
+# .bats は bats 拡張だが中身は bash なので languageGlobs で bash として解釈させる。
+ruleDirs:
+  - rules
+testConfigs:
+  - testDir: rule-tests
+languageGlobs:
+  bash:
+    - '*.bats'

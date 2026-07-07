@@ -339,3 +339,42 @@ STUB
     [[ "$(sed -n '2p' "$rec")" == *"install"* ]]
     [[ "$(sed -n '2p' "$rec")" == *"--frozen"* ]]
 }
+
+# =============================================================================
+# SYMLINK_PAIRS 整合性テスト
+# =============================================================================
+
+# "source|target" pair 列を受け取り、source (| の前) が REPO_ROOT に実在しない
+# ものを echo する。分割は bootstrap.sh の setup_dotfiles と同じ ${pair%%|*} を
+# 使い、区切り規約を単一の真実源に保つ。
+missing_symlink_sources() {
+    local pair source
+    for pair in "$@"; do
+        source="${pair%%|*}"
+        [ -e "$REPO_ROOT/$source" ] || echo "$source"
+    done
+}
+
+@test "SYMLINK_PAIRS: all sources exist in repo" {
+    # source を欠いた pair は fresh マシンの bootstrap で create_symlink が
+    # 存在しないファイルを指す壊れた symlink を張るため、ここで drift を捕捉する。
+    # 実配列を source して回すことで、テキスト parse の脆さ (配列内コメントを
+    # phantom source と誤読する等) を避ける。
+    load_symlink_pairs
+    # 空配列 (slice 破綻) での vacuous pass を防ぐ negative guard
+    [ "${#SYMLINK_PAIRS[@]}" -gt 0 ]
+
+    local missing
+    missing="$(missing_symlink_sources "${SYMLINK_PAIRS[@]}")"
+    [ -z "$missing" ] || { echo "repo に存在しない source:"; echo "$missing"; false; }
+}
+
+@test "missing_symlink_sources: passes existing and flags missing pairs" {
+    # 実装が gaming していないことを担保するため両方向を検証する。
+    local out
+    out="$(missing_symlink_sources 'home/.zshrc|.zshrc' 'home/__does_not_exist__/x|.x')"
+    # 実在する source は missing に含めない（false positive を防ぐ）
+    [[ "$out" != *".zshrc"* ]]
+    # 欠落 source は検出する（false negative を防ぐ）
+    [[ "$out" == *"__does_not_exist__"* ]]
+}
