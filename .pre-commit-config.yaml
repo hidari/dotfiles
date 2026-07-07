@@ -1,12 +1,13 @@
 # pre-commit 設定
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # セットアップ:
-#   brew install pre-commit gitleaks
+#   brew install pre-commit gitleaks ast-grep
 #   pre-commit install
 #
 # - scripts/backup-tool, scripts/config-guard, scripts/tirith-hook, scripts/handoff-sentinel の ruff / mypy / pytest を uv 仮想環境で実行する。
 # - config-guard で skills / committed settings.json の stale なツール名参照・構造逸脱を検出する。
 # - gitleaks で staged 差分の secret / ユーザー名パス (/Users/<name>) 漏洩を弾く (.gitleaks.toml)。
+# - ast-grep で一般的な linter で表現できない構文レベルのルール (rules/) を検査する (sgconfig.yml)。
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 repos:
@@ -137,3 +138,17 @@ repos:
         entry: gitleaks git --staged --redact --no-banner -c .gitleaks.toml
         pass_filenames: false
         always_run: true
+
+      - id: ast-grep-scan
+        name: ast-grep scan (構文レベル lint / rules)
+        language: system
+        entry: ast-grep scan
+        pass_filenames: false
+        files: ^(.*\.bats|sgconfig\.yml|rules/.*)$
+
+      - id: ast-grep-test
+        name: ast-grep test (rule 分類テスト)
+        language: system
+        entry: ast-grep test --skip-snapshot-tests
+        pass_filenames: false
+        files: ^(sgconfig\.yml|rules/.*|rule-tests/.*)$

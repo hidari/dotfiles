@@ -1,0 +1,13 @@
+# bats の @test 名にマルチバイト文字を使うと、bats がテスト名を関数名へ
+# エンコードする際にマングルし "unknown test name" で黙って未実行になる
+# (実例: 日本語名で "Executed 21 instead of expected 23 tests")。
+# 説明が必要ならテスト本文のコメントで日本語を書く。
+id: bats-test-name-ascii-only
+language: bash
+severity: error
+rule:
+  pattern: '@test $NAME'
+constraints:
+  NAME:
+    regex: '[^\x00-\x7f]'
+message: bats の @test 名は ASCII のみにする (マルチバイトは関数名エンコードでマングルし未実行になる)。説明はテスト本文コメントで日本語可。
