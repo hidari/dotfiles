@@ -14,10 +14,10 @@ jobs:
     name: bootstrap.sh (bats)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Setup Bats
-        uses: bats-core/bats-action@472edde1138d59aca53ff162fb8d996666d21e4a # 2.0.0
+        uses: ./.github/actions/setup-bats
 
       - name: Run Bats tests
         run: bats scripts/tests/
@@ -29,12 +29,10 @@ jobs:
       run:
         working-directory: scripts/backup-tool
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
-        with:
-          enable-cache: true
+        uses: ./.github/actions/setup-uv
 
       - name: Sync dependencies
         run: uv sync --frozen
@@ -55,12 +53,12 @@ jobs:
     name: gitleaks (leak guard)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
 
       - name: Setup Bats
-        uses: bats-core/bats-action@472edde1138d59aca53ff162fb8d996666d21e4a # 2.0.0
+        uses: ./.github/actions/setup-bats
 
       - name: Install gitleaks
         run: |
@@ -94,12 +92,10 @@ jobs:
       run:
         working-directory: scripts/config-guard
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
-        with:
-          enable-cache: true
+        uses: ./.github/actions/setup-uv
 
       - name: Sync dependencies
         run: uv sync --frozen
@@ -127,12 +123,10 @@ jobs:
       run:
         working-directory: scripts/node-security-notifier
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
-        with:
-          enable-cache: true
+        uses: ./.github/actions/setup-uv
 
       - name: Sync dependencies
         run: uv sync --frozen
@@ -156,12 +150,10 @@ jobs:
       run:
         working-directory: scripts/tirith-hook
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
-        with:
-          enable-cache: true
+        uses: ./.github/actions/setup-uv
 
       - name: Sync dependencies
         run: uv sync --frozen
@@ -187,12 +179,10 @@ jobs:
       run:
         working-directory: scripts/handoff-sentinel
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
-        with:
-          enable-cache: true
+        uses: ./.github/actions/setup-uv
 
       - name: Sync dependencies
         run: uv sync --frozen

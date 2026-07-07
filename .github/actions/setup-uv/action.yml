@@ -1,0 +1,9 @@
+name: Setup uv
+description: astral-sh/setup-uv を SHA pin して呼び出し uv 依存キャッシュを有効化するローカル composite action。pin を単一箇所へ集約し複数 job 間の drift を防ぐ。
+
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1 # v8.3.1
+      with:
+        enable-cache: true
