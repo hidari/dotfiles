@@ -29,6 +29,9 @@ export PNPM_HOME="$HOME/Library/pnpm"
 # Android開発の設定
 export ANDROID_HOME="$HOME/Library/Android/sdk"
 
+# herdr
+export HERDR_ENV=1
+
 # path配列を使ってパスを通す
 path=(
     /opt/homebrew/bin(N-/)
@@ -169,7 +172,8 @@ alias disk='diskutil info / | grep -E "Free|Available"'
 # $PATHを見やすく表示
 alias path='echo $PATH | tr ":" "\n" | nl'
 
-alias claude-mem='$HOME/.bun/bin/bun "$HOME/.claude/plugins/marketplaces/thedotmack/plugin/scripts/worker-service.cjs"'
+# herdr の設定再読み込み
+alias herdr-reload='herdr server reload-config'
 
 ########################################
 # シェル関数
@@ -207,3 +211,4 @@ eval "$(mise activate zsh)"
 # tirith は mise 提供のため mise activate より後に置く。未インストールのマシンで
 # command not found を出さないよう、command -v で存在確認してから init する。
 command -v tirith >/dev/null 2>&1 && eval "$(tirith init --shell zsh)"
+
