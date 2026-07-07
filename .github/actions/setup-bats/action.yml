@@ -1,0 +1,12 @@
+name: Setup Bats
+description: bats-core を SHA pin した tarball から取得し PATH に追加するローカル composite action。bats-action 依存を排し、その内部 actions/cache@v4 由来の node20 警告を出さない。
+
+runs:
+  using: composite
+  steps:
+    - name: Install bats-core
+      shell: bash
+      run: |
+        bats_sha="3bca150ec86275d6d9d5a4fd7d48ab8b6c6f3d87" # v1.13.0
+        curl --proto '=https' --tlsv1.2 -fsSL "https://github.com/bats-core/bats-core/archive/${bats_sha}.tar.gz" | tar -xz -C "$RUNNER_TEMP"
+        echo "$RUNNER_TEMP/bats-core-${bats_sha}/bin" >> "$GITHUB_PATH"
