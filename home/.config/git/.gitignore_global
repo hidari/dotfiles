@@ -6,3 +6,6 @@
 
 # Private directories
 .hidari/
+
+# Affinity（編集中に生成される一時ロックファイル。拡張子に依らず全ロックを無視）
+*~lock~

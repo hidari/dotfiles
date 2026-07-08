@@ -31,6 +31,7 @@ SYMLINK_PAIRS=(
     "home/.config/herdr/resources/herdr-cheatsheet.svg|.config/herdr/resources/herdr-cheatsheet.svg"
     "home/.config/herdr/resources/herdr-cheatsheet.png|.config/herdr/resources/herdr-cheatsheet.png"
     "home/.config/nvim|.config/nvim"
+    "home/.config/raycast/scripts|.config/raycast/scripts"
     "home/.claude/settings.json|.claude/settings.json"
     "home/.claude/statusline-command.sh|.claude/statusline-command.sh"
     "home/.claude/CLAUDE.md|.claude/CLAUDE.md"
@@ -554,6 +555,10 @@ main() {
     if [ "$DRY_RUN" = false ]; then
         echo "Run the following to update your PATH:"
         echo "  source ~/.zshrc"
+        echo ""
+        echo "Manual step: Raycast Script Commands cannot be auto-registered by bootstrap."
+        echo "  Add this directory in Raycast Settings > Extensions > Script Commands:"
+        echo "    ~/.config/raycast/scripts"
     fi
 }
 
