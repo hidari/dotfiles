@@ -48,31 +48,31 @@ probe_without_extends() {
 
 @test "markdown palette: six heading levels are defined" {
     run probe_with_extends
-    [[ "$output" == *"HEADING_LEVELS=6"* ]]
+    assert_contains "$output" "HEADING_LEVELS=6"
 }
 
 @test "markdown palette: heading levels have distinct foreground colors" {
     # 見出しが同色だと階層が読めない。これが元の不満そのもの
     run probe_with_extends
-    [[ "$output" == *"HEADING_FG_DUPLICATES=0"* ]]
+    assert_contains "$output" "HEADING_FG_DUPLICATES=0"
 }
 
 @test "markdown palette: every group exists as a treesitter capture" {
     # 存在しないグループへ色を定義しても Neovim は黙って無視するので静的に弾く
     run probe_with_extends
-    [[ "$output" == *"MISSING_CAPTURES="* ]]
-    [[ "$output" != *"MISSING_CAPTURES=@"* ]]
+    assert_contains "$output" "MISSING_CAPTURES="
+    refute_contains "$output" "MISSING_CAPTURES=@"
 }
 
 @test "extends query captures all six atx heading markers" {
     run probe_with_extends
-    [[ "$output" == *"MARKER_CAPTURES=6"* ]]
+    assert_contains "$output" "MARKER_CAPTURES=6"
 }
 
 @test "without the extends query the marker checks fail" {
     # 上の 2 つの検査が拡張クエリに支えられていることを示す
     # (拡張を外しても緑のままなら、その検査は何も守っていない)
     run probe_without_extends
-    [[ "$output" == *"MARKER_CAPTURES=0"* ]]
-    [[ "$output" == *"MISSING_CAPTURES=@markup.heading.marker"* ]]
+    assert_contains "$output" "MARKER_CAPTURES=0"
+    assert_contains "$output" "MISSING_CAPTURES=@markup.heading.marker"
 }
