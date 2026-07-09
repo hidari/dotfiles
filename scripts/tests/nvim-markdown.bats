@@ -76,3 +76,20 @@ probe_without_extends() {
     assert_contains "$output" "MARKER_CAPTURES=0"
     assert_contains "$output" "MISSING_CAPTURES=@markup.heading.marker"
 }
+
+@test "appearance keeps the Normal background transparent" {
+    # Normal の bg=NONE を壊すと端末背景の透過が失われる
+    run probe_with_extends
+    assert_contains "$output" "NORMAL_BG=nil"
+}
+
+@test "highlights survive a colorscheme load" {
+    # colorscheme は hi clear を伴う。ColorScheme autocmd が無いと透過も配色も消える
+    run probe_with_extends
+    before=$(printf '%s\n' "$output" | sed -n 's/^H1_FG=//p')
+    after=$(printf '%s\n' "$output" | sed -n 's/^AFTER_CS_H1_FG=//p')
+    [ -n "$before" ]
+    [ "$before" != "nil" ]
+    [ "$before" = "$after" ]
+    assert_contains "$output" "AFTER_CS_NORMAL_BG=nil"
+}
