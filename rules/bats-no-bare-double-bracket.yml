@@ -1,0 +1,45 @@
+# bats の @test 本体は set -eE + trap ERR で走る。macOS 標準の bash 3.2 は
+# 「@test 本体の最終文ではない位置」の裸の [[ ]] が偽でも ERR トラップを発火させない
+# (bash 5.3 は発火する)。ローカルの bats は bash 3.2、CI は bash 5 で走るため、
+# [[ ]] のままだと「CI では落ちるがローカルでは素通りする」アサーションが生まれる
+# (実測: Task 1 の RED フェーズで実際に嘘の緑が出た)。
+# scripts/tests/test_helper.bash の assert_contains / refute_contains 等、
+# シェル関数呼び出し (単純コマンド) に置き換える。単一角括弧 [ ] や run 後の
+# [ "$status" -eq N ] は対象外 (test builtin はどちらの bash でも ERR を発火させる)。
+#
+# 実現方法: 条件位置 (if / elif / while / until の条件) だけを除外し、それ以外の
+# [[ ]] (文位置、statement position) を全て検出する。
+# tree-sitter-bash の grammar.js を実測すると、if_statement は条件のみ
+# field('condition', ...) で名前付けし、本体 (then 節) は無名で直下に置く。
+# while_statement は条件・本体 (do_group) の両方を名前付けする。elif_clause は
+# 条件・本体のどちらにも field 名が無く、直下の子として区別できない。
+# そのため elif_clause 直下だけは (本体側の検出漏れを許容してでも) 丸ごと除外し、
+# if_statement / while_statement は field: condition のみを狙い撃ちで除外する。
+# これにより if の本体側 ([[ ]] を単なる文として書いた場合) は正しく検出しつつ、
+# elif の条件を誤検知しない。
+id: bats-no-bare-double-bracket
+language: bash
+severity: error
+files:
+  - '**/*.bats'
+rule:
+  pattern: '[[ $A ]]'
+  not:
+    any:
+      - inside:
+          kind: if_statement
+          field: condition
+          stopBy: neighbor
+      - inside:
+          kind: while_statement
+          field: condition
+          stopBy: neighbor
+      - inside:
+          kind: elif_clause
+          stopBy: neighbor
+message: >-
+  bats の @test 本体で裸の [[ ]] をアサーションとして使わない。
+  macOS 標準の bash 3.2 は非最終行の [[ ]] が失敗しても ERR トラップを発火させず
+  テストが空虚に緑になる (bash 5.3 は発火する)。
+  scripts/tests/test_helper.bash の assert_contains / refute_contains などの
+  シェル関数呼び出しに置き換える。
