@@ -35,6 +35,24 @@ valid:
     @test "single bracket is out of scope" {
       [ "$a" = "b" ]
     }
+  - |
+    @test "negated if condition" {
+      if ! [[ "$a" == "b" ]]; then
+        true
+      fi
+    }
+  - |
+    @test "and chain inside if condition" {
+      if [[ "$a" == "b" ]] && [[ "$c" == "d" ]]; then
+        true
+      fi
+    }
+  - |
+    @test "and chain inside while condition" {
+      while [[ "$a" == "b" ]] && [[ "$c" == "d" ]]; do
+        true
+      done
+    }
 invalid:
   - |
     @test "bare double bracket" {
