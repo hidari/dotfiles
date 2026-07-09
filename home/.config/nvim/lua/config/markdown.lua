@@ -30,6 +30,9 @@ return {
     -- リストマーカー ( - や 1. )
     ["@markup.list"] = { fg = "#56b6c2" },
 
+    -- インラインの記号 ( * ~ ` ) を引っ込める。markdown_inline の @conceal キャプチャ
+    ["@conceal"] = { fg = MUTED },
+
     -- 強調
     ["@markup.strong"] = { fg = "#dcdfe4", bold = true },
     ["@markup.italic"] = { italic = true },
