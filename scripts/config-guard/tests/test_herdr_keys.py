@@ -195,6 +195,29 @@ def test_check_ignores_actions_without_direction_in_name(tmp_path: Path) -> None
     assert check_herdr_keys(str(tmp_path)) == []
 
 
+def test_check_direction_message_names_expected_then_actual(tmp_path: Path) -> None:
+    # previous のアクションに next 方向のキー
+    _write_config(tmp_path, '[keys]\nprevious_agent = "prefix+shift+j"\n')
+
+    (finding,) = check_herdr_keys(str(tmp_path))
+
+    assert finding.message == (
+        "previous 方向のアクションに next 方向のキーが割り当てられています (最終キー: j)"
+    )
+
+
+def test_check_direction_message_is_not_symmetric(tmp_path: Path) -> None:
+    # 逆向きの取り違え。expected と actual を入れ替えた実装は上のテストと同じ文面を出すため、
+    # 両方向を固定して初めて swap を捕捉できる (是正の向きを逆に案内する回帰の防止)
+    _write_config(tmp_path, '[keys]\nnext_agent = "prefix+shift+k"\n')
+
+    (finding,) = check_herdr_keys(str(tmp_path))
+
+    assert finding.message == (
+        "next 方向のアクションに previous 方向のキーが割り当てられています (最終キー: k)"
+    )
+
+
 # ---------------------------------------------------------------------------
 # check_herdr_keys (chord 重複)
 # ---------------------------------------------------------------------------
@@ -234,6 +257,51 @@ def test_check_duplicate_detection_is_case_insensitive(tmp_path: Path) -> None:
 def test_check_allows_same_chord_listed_once_per_action(tmp_path: Path) -> None:
     # 1 アクションに複数 chord を割り当てるのは正常(重複ではない)
     _write_config(tmp_path, '[keys]\ncycle_pane_next = ["prefix+tab", "ctrl+alt+]"]\n')
+
+    assert check_herdr_keys(str(tmp_path)) == []
+
+
+def test_check_flags_duplicate_chord_across_modifier_orders(tmp_path: Path) -> None:
+    # herdr は修飾キーを集合として解釈する。綴りの順が違うだけの chord は同じ chord。
+    _write_config(
+        tmp_path,
+        '[keys]\nnext_agent = "ctrl+alt+shift+j"\nlast_pane = "alt+ctrl+shift+j"\n',
+    )
+
+    findings = check_herdr_keys(str(tmp_path))
+
+    # 検出結果は herdr が diagnostics で示す正規順で報告する
+    assert [f.detail for f in findings] == ["ctrl+alt+shift+j"]
+    # どちらの綴りがどのアクションのものか、config を開かずに分かること
+    assert findings[0].message == (
+        "同一 chord が複数のアクションに割り当てられています: "
+        "last_pane = alt+ctrl+shift+j, next_agent = ctrl+alt+shift+j"
+    )
+
+
+def test_check_normalizes_modifier_order_under_prefix(tmp_path: Path) -> None:
+    # prefix 配下でも修飾キーは集合。prefix は先頭に残す
+    _write_config(
+        tmp_path,
+        '[keys]\nrename_pane = "prefix+shift+ctrl+p"\nlast_pane = "prefix+ctrl+shift+p"\n',
+    )
+
+    assert [f.detail for f in check_herdr_keys(str(tmp_path))] == ["prefix+ctrl+shift+p"]
+
+
+def test_check_allows_same_key_with_different_modifier_sets(tmp_path: Path) -> None:
+    # 修飾キーの集合が違えば別の chord。正規化が過剰に畳まないこと(negative)
+    _write_config(
+        tmp_path,
+        '[keys]\nnext_agent = "ctrl+alt+shift+j"\nfocus_pane_down = "ctrl+alt+j"\n',
+    )
+
+    assert check_herdr_keys(str(tmp_path)) == []
+
+
+def test_check_treats_prefix_as_mode_marker_not_modifier(tmp_path: Path) -> None:
+    # prefix は先頭固定のモード標識であり修飾キーではない。prefix+shift+p と shift+p は別 chord
+    _write_config(tmp_path, '[keys]\nrename_pane = "prefix+shift+p"\nlast_pane = "shift+p"\n')
 
     assert check_herdr_keys(str(tmp_path)) == []
 

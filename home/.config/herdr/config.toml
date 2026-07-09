@@ -75,8 +75,10 @@ prefix = "ctrl+b"
 # remove_worktree = ""  # optional, unset by default; opens confirmation
 # rename_workspace = "prefix+shift+w"
 # close_workspace = "prefix+shift+d"
-previous_workspace = ["prefix+shift+left", "ctrl+shift+alt+["]
-next_workspace = ["prefix+shift+right", "ctrl+shift+alt+]"]
+# 修飾キーは herdr の正規順 (ctrl -> alt -> shift) で綴る。順が違っても herdr は同じ chord と
+# 見なすため、綴りを揃えないと目視で重複に気づけない。
+previous_workspace = ["prefix+shift+left", "ctrl+alt+shift+["]
+next_workspace = ["prefix+shift+right", "ctrl+alt+shift+]"]
 # agent pane をサイドバーの並び順で上下に巡回する。
 # k=上=previous / j=下=next とし、focus_pane_up/down (prefix+k / prefix+j) と揃える。
 # 直接 chord (ctrl+alt+shift+*) は prefix を挟まないので押しっぱなしで流し見できる。
