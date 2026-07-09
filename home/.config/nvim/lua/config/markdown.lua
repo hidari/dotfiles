@@ -3,7 +3,8 @@
 -- 副作用を持たず、ハイライトグループ名から nvim_set_hl の引数テーブルへの写像だけを返す。
 -- 適用は config.appearance の apply() が一手に引き受ける (colorscheme で消えるため再適用が要る)。
 --
--- conceal は使わない。記号を隠す代わりに MUTED で暗くして視覚的に後退させる。
+-- conceal 機能 (テキストを隠す conceallevel) は使わず、conceallevel は 0 のまま。
+-- @conceal は tree-sitter のキャプチャ名であり、記号を隠さず MUTED で色を当てるためだけに使う。
 -- 見出しは明度を上げて本文より目立たせ、階層は色相で分ける。
 --
 -- @markup.heading.marker は after/queries/markdown/highlights.scm が定義する拡張キャプチャで、
