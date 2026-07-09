@@ -1,0 +1,7 @@
+<!-- 左向き（上の完全な鏡像） -->
+<svg viewBox="0 0 24 24" width="24" height="24" fill="none" style="color:#f0a030">
+  <g transform="scale(-1,1) translate(-24,0)">
+    <path d="M3 12 H14" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>
+    <path d="M12.5 6.5 L19.5 12 L12.5 17.5 Z" fill="currentColor"/>
+  </g>
+</svg>

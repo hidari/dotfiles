@@ -1,0 +1,5 @@
+<!-- 右向き（➜っぽいheavy round-tipped風） -->
+<svg viewBox="0 0 24 24" width="24" height="24" fill="none" style="color:#f0a030">
+  <path d="M3 12 H14" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M12.5 6.5 L19.5 12 L12.5 17.5 Z" fill="currentColor"/>
+</svg>
