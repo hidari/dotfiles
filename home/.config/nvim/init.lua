@@ -1,4 +1,4 @@
--- encodingの設定 vim.scriptencoding       = "utf-8"
+-- encodingの設定
 vim.opt.fileencoding     = "utf-8"
 vim.opt.encoding         = "utf-8"
 
