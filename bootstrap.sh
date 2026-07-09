@@ -28,7 +28,7 @@ SYMLINK_PAIRS=(
     "home/.config/mise/config.toml|.config/mise/config.toml"
     "home/.config/herdr/config.toml|.config/herdr/config.toml"
     "home/.config/herdr/scripts/herdr-unread|.config/herdr/scripts/herdr-unread"
-    "home/.config/herdr/resources/herdr-cheatsheet.svg|.config/herdr/resources/herdr-cheatsheet.svg"
+    "home/.config/herdr/resources/herdr-cheatsheet.af|.config/herdr/resources/herdr-cheatsheet.af"
     "home/.config/herdr/resources/herdr-cheatsheet.png|.config/herdr/resources/herdr-cheatsheet.png"
     "home/.config/nvim|.config/nvim"
     "home/.config/raycast/scripts|.config/raycast/scripts"
