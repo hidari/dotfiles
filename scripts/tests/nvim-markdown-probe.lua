@@ -56,3 +56,19 @@ for id in query:iter_captures(tree:root(), buffer, 0, -1) do
     end
 end
 print("MARKER_CAPTURES=" .. markers)
+
+-- ここから適用側の観測。config.appearance は require した時点で apply() を 1 回走らせ、
+-- ColorScheme autocmd を登録する。
+require("config.appearance")
+
+local function highlight(name)
+    return vim.api.nvim_get_hl(0, { name = name, link = false })
+end
+
+print("NORMAL_BG=" .. tostring(highlight("Normal").bg))
+print("H1_FG=" .. tostring(highlight("@markup.heading.1").fg))
+
+-- colorscheme の読み込みは hi clear を伴うため、autocmd が無いと定義が消える
+vim.cmd("colorscheme habamax")
+print("AFTER_CS_NORMAL_BG=" .. tostring(highlight("Normal").bg))
+print("AFTER_CS_H1_FG=" .. tostring(highlight("@markup.heading.1").fg))
