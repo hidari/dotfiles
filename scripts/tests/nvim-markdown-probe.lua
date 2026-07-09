@@ -23,19 +23,49 @@ print("HEADING_FG_DUPLICATES=" .. duplicates)
 
 -- 定義したグループ名が実際のキャプチャ集合に含まれること。
 -- 含まれないグループへ色を定義しても Neovim はエラーを出さず黙って無視する。
--- 強調やリンクは markdown_inline 由来なので両方の和集合をとる。
-local captures = {}
+--
+-- キーは 2 種類ある。
+-- - 素のキー (@markup.strong 等) は markdown / markdown_inline どちらのキャプチャでもよいので
+--   両方の和集合で照合する。
+-- - 言語サフィックス付きのキー (@<capture>.markdown / @<capture>.markdown_inline) は汎用キャプチャを
+--   特定言語へスコープするためのもの。素の @<capture> がその言語のクエリに実在することまで確かめる
+--   (provenance を固定する。和集合照合より厳しい)。
+local captures_by_lang = {}
+local union = {}
 for _, lang in ipairs({ "markdown", "markdown_inline" }) do
+    local set = {}
     local query = vim.treesitter.query.get(lang, "highlights")
     if query then
         for _, name in ipairs(query.captures) do
-            captures["@" .. name] = true
+            set["@" .. name] = true
+            union["@" .. name] = true
         end
     end
+    captures_by_lang[lang] = set
 end
+
+-- キーが言語サフィックス付きなら {素のキャプチャ名, 言語} を返す。素のキーなら nil。
+-- markdown_inline を先に見る (markdown より長い接尾辞なので取りこぼさない)。
+local function split_lang(group)
+    for _, lang in ipairs({ "markdown_inline", "markdown" }) do
+        local suffix = "." .. lang
+        if group:sub(-#suffix) == suffix then
+            return group:sub(1, #group - #suffix), lang
+        end
+    end
+    return nil, nil
+end
+
 local missing = {}
 for group in pairs(palette) do
-    if not captures[group] then
+    local base, lang = split_lang(group)
+    local present
+    if lang then
+        present = captures_by_lang[lang][base] == true
+    else
+        present = union[group] == true
+    end
+    if not present then
         missing[#missing + 1] = group
     end
 end
@@ -93,6 +123,33 @@ end
 
 print("NORMAL_BG=" .. tostring(highlight("Normal").bg))
 print("H1_FG=" .. tostring(highlight("@markup.heading.1").fg))
+
+-- 汎用キャプチャ名がグローバルへ MUTED を漏らしていないことを保証する (このブランチの核心)。
+-- markdown.lua は @<capture>.<lang> でスコープするので、他言語が共有する素の @<capture> は
+-- MUTED を帯びてはならない。MUTED はスコープした @conceal.markdown_inline の色から逆算する
+-- (markdown.lua 内の local MUTED を二重定義しないため)。
+local MUTED_FG = tonumber(palette["@conceal.markdown_inline"].fg:sub(2), 16)
+local bleed = 0
+for _, name in ipairs({ "@punctuation.special", "@conceal", "@label" }) do
+    if highlight(name).fg == MUTED_FG then
+        bleed = 1
+    end
+end
+print("GLOBAL_BLEED=" .. bleed)
+
+-- 逆に、スコープした markdown 用グループには MUTED が実際に乗っていること。
+-- 漏れを止めた結果 markdown 側まで無色になっていないかを確かめる。
+local scoped_applied = 1
+for _, name in ipairs({
+    "@punctuation.special.markdown",
+    "@conceal.markdown_inline",
+    "@label.markdown",
+}) do
+    if highlight(name).fg ~= MUTED_FG then
+        scoped_applied = 0
+    end
+end
+print("SCOPED_MUTED_APPLIED=" .. scoped_applied)
 
 -- colorscheme の読み込みは hi clear を伴うため、autocmd が無いと定義が消える
 vim.cmd("colorscheme habamax")
