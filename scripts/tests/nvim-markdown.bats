@@ -94,6 +94,16 @@ probe_without_extends() {
     assert_contains "$output" "AFTER_CS_NORMAL_BG=nil"
 }
 
+@test "scoped palette does not bleed muted into global capture groups" {
+    # @punctuation.special / @conceal / @label は他文法と共有する汎用キャプチャ名。
+    # 素で定義すると非 markdown のバッファへ markdown の MUTED 灰色が漏れる。
+    # 言語サフィックス付きへ逃がし、グローバル群が MUTED を帯びないことを保証する
+    # (このブランチの核心)。同時にスコープした markdown 用グループには MUTED が乗っていること
+    run probe_with_extends
+    assert_contains "$output" "GLOBAL_BLEED=0"
+    assert_contains "$output" "SCOPED_MUTED_APPLIED=1"
+}
+
 @test "conceal capture wins over strong at delimiter" {
     # **bold** の先頭 * 列は @markup.strong と @conceal の両方が捕捉する。
     # 同一優先度では後発キャプチャが勝つため、記号を暗くするには @conceal が
