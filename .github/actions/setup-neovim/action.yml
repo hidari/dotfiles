@@ -1,0 +1,12 @@
+name: Setup Neovim
+description: Neovim をバージョン pin した公式 tarball から取得し PATH に追加するローカル composite action。markdown パーサは本体同梱のため tree-sitter CLI も C コンパイラも不要。
+
+runs:
+  using: composite
+  steps:
+    - name: Install Neovim
+      shell: bash
+      run: |
+        nvim_version="v0.12.3" # 開発機と揃える
+        curl --proto '=https' --tlsv1.2 -fsSL "https://github.com/neovim/neovim/releases/download/${nvim_version}/nvim-linux-x86_64.tar.gz" | tar -xz -C "$RUNNER_TEMP"
+        echo "$RUNNER_TEMP/nvim-linux-x86_64/bin" >> "$GITHUB_PATH"

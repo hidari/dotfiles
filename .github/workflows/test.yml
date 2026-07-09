@@ -19,6 +19,9 @@ jobs:
       - name: Setup Bats
         uses: ./.github/actions/setup-bats
 
+      - name: Setup Neovim
+        uses: ./.github/actions/setup-neovim
+
       - name: Run Bats tests
         run: bats scripts/tests/
 
