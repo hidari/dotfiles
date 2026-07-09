@@ -72,7 +72,10 @@ teardown() {
     run create_symlink "$source" "$target"
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Already linked"* ]] || [[ "$output" == *"既にリンク"* ]]
+    # bootstrap.sh の該当分岐は log "Already linked: $target" ([INFO] 接頭辞) のみを
+    # 出力し、日本語版のメッセージは存在しない (コメントに 既にリンク の語があるだけ)。
+    # any-of で弱めていた元のアサーションを厳密な単一アサーションへ強化する。
+    assert_contains "$output" "[INFO] Already linked: $target"
 }
 
 @test "create_symlink: fails if target exists and not in force mode" {
@@ -160,7 +163,10 @@ teardown() {
     run create_symlink "$source" "$target"
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"[DRY-RUN]"* ]] || [[ "$output" == *"dry"* ]] || [[ "$output" == *"Dry"* ]]
+    # bootstrap.sh の該当分岐は echo "[DRY-RUN] ln -sf $source $target" しか出力せず、
+    # "dry" / "Dry" 表記は存在しない。any-of で弱めていた元のアサーションを
+    # 実際の出力全体に一致する厳密な単一アサーションへ強化する。
+    assert_contains "$output" "[DRY-RUN] ln -sf $source $target"
     [ ! -L "$target" ]
 }
 
@@ -190,7 +196,7 @@ teardown() {
     run backup_file "$TEST_HOME/.config/test.txt"
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"[DRY-RUN]"* ]]
+    assert_contains "$output" "[DRY-RUN]"
     # 元のファイルは残っている
     [ -f "$TEST_HOME/.config/test.txt" ]
 }
@@ -224,7 +230,7 @@ teardown() {
     run render_launch_agent_plist "$template" "$dest"
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"[DRY-RUN]"* ]]
+    assert_contains "$output" "[DRY-RUN]"
     [ ! -f "$dest" ]
 }
 
@@ -238,9 +244,9 @@ teardown() {
     run install_mise_tools
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"[DRY-RUN] mise install"* ]]
+    assert_contains "$output" "[DRY-RUN] mise install"
     # dry-run は早期 return するため mise 存在チェックまで進まない（early-return を担保する negative）
-    [[ "$output" != *"mise not found"* ]]
+    refute_contains "$output" "mise not found"
 }
 
 @test "install_mise_tools: warns and skips when mise is not on PATH" {
@@ -251,7 +257,7 @@ teardown() {
     PATH="$empty_dir" run install_mise_tools
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"mise not found"* ]]
+    assert_contains "$output" "mise not found"
 }
 
 # =============================================================================
@@ -269,7 +275,7 @@ teardown() {
     PATH="$bin_dir:$PATH" run install_apm
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"already installed"* ]]
+    assert_contains "$output" "already installed"
 }
 
 @test "install_apm: dry-run shows install without executing" {
@@ -281,9 +287,9 @@ teardown() {
     PATH="$empty_dir" run install_apm
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"[DRY-RUN] Install apm"* ]]
+    assert_contains "$output" "[DRY-RUN] Install apm"
     # dry-run で brew に到達していない（到達すれば空 PATH で command not found になる）
-    [[ "$output" != *"already installed"* ]]
+    refute_contains "$output" "already installed"
 }
 
 # =============================================================================
@@ -296,9 +302,9 @@ teardown() {
     run install_apm_skills
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"[DRY-RUN] apm install"* ]]
+    assert_contains "$output" "[DRY-RUN] apm install"
     # dry-run は早期 return するため apm 存在チェックまで進まない（early-return を担保する negative）
-    [[ "$output" != *"apm not found"* ]]
+    refute_contains "$output" "apm not found"
 }
 
 @test "install_apm_skills: warns and skips when apm is not on PATH" {
@@ -309,7 +315,7 @@ teardown() {
     PATH="$empty_dir" run install_apm_skills
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"apm not found"* ]]
+    assert_contains "$output" "apm not found"
 }
 
 @test "install_apm_skills: runs 'apm install --frozen' with cwd = DOTFILES_DIR/home" {
@@ -336,8 +342,8 @@ STUB
     local expected_cwd
     expected_cwd="$(cd "$DOTFILES_DIR/home" && pwd -P)"
     [ "$(sed -n '1p' "$rec")" = "$expected_cwd" ]
-    [[ "$(sed -n '2p' "$rec")" == *"install"* ]]
-    [[ "$(sed -n '2p' "$rec")" == *"--frozen"* ]]
+    assert_contains "$(sed -n '2p' "$rec")" "install"
+    assert_contains "$(sed -n '2p' "$rec")" "--frozen"
 }
 
 # =============================================================================
@@ -374,7 +380,7 @@ missing_symlink_sources() {
     local out
     out="$(missing_symlink_sources 'home/.zshrc|.zshrc' 'home/__does_not_exist__/x|.x')"
     # 実在する source は missing に含めない（false positive を防ぐ）
-    [[ "$out" != *".zshrc"* ]]
+    refute_contains "$out" ".zshrc"
     # 欠落 source は検出する（false negative を防ぐ）
-    [[ "$out" == *"__does_not_exist__"* ]]
+    assert_contains "$out" "__does_not_exist__"
 }

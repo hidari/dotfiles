@@ -95,8 +95,8 @@ JSON
     run setup_claude_plugins "$TEST_HOME/settings.json"
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"[DRY-RUN] claude plugin marketplace add obra/superpowers-marketplace"* ]]
-    [[ "$output" == *"[DRY-RUN] claude plugin install code-review@claude-plugins-official"* ]]
+    assert_contains "$output" "[DRY-RUN] claude plugin marketplace add obra/superpowers-marketplace"
+    assert_contains "$output" "[DRY-RUN] claude plugin install code-review@claude-plugins-official"
     # dry-run では実際の claude を一切呼ばない（ログが空）
     [ ! -s "$FAKE_CLAUDE_LOG" ]
 }
@@ -113,7 +113,7 @@ JSON
 
     [ "$status" -eq 0 ]
     # スキップ理由を示す正確なメッセージを検証する（部分一致の弱い assertion を避ける）
-    [[ "$output" == *"claude not found; skipping Claude plugin setup"* ]]
+    assert_contains "$output" "claude not found; skipping Claude plugin setup"
 }
 
 @test "setup_claude_plugins: registers new marketplaces and installs new plugins" {
@@ -150,7 +150,7 @@ JSON
     grep -qF 'marketplace add obra/superpowers-marketplace' "$FAKE_CLAUDE_LOG"
     grep -qF 'install code-review@claude-plugins-official' "$FAKE_CLAUDE_LOG"
     # スキップしたことがログに出る
-    [[ "$output" == *"already"* ]]
+    assert_contains "$output" "already"
 }
 
 @test "setup_claude_plugins: continues best-effort when one install fails" {
@@ -169,7 +169,7 @@ JSON
     # 失敗した install の「後に」後続の install が試行される（= best-effort で継続している証跡）
     local log_content
     log_content="$(cat "$FAKE_CLAUDE_LOG")"
-    [[ "$log_content" == *"install code-review@claude-plugins-official"*"install modern-web-guidance@googlechrome"* ]]
+    assert_contains_in_order "$log_content" "install code-review@claude-plugins-official" "install modern-web-guidance@googlechrome"
     # 失敗は正確なメッセージで警告される
-    [[ "$output" == *"Failed to install plugin (skipped):"* ]]
+    assert_contains "$output" "Failed to install plugin (skipped):"
 }

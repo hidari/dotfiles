@@ -134,3 +134,58 @@ FAKE
     chmod +x "$fake_bin/claude"
     export PATH="$fake_bin:$PATH"
 }
+
+# =============================================================================
+# アサーションヘルパー
+# =============================================================================
+#
+# 裸の [[ ]] は bash 3.2 で偽でも ERR トラップを発火させずアサーションが空虚に緑になるため、
+# 以降は単純コマンド (シェル関数呼び出し) で書く。詳細は rules/bats-no-bare-double-bracket.yml を参照。
+
+# haystack が needle を部分文字列として含むことを確認する。
+# 照合は case のクォート付きパターンで行う。needle をクォートせずに
+# *$needle* と書くと [ ] を含む needle (例: [DRY-RUN]) が glob の文字クラスとして
+# 解釈され、意図と違う 1 文字マッチになってしまうため、必ずクォートしてリテラル一致にする。
+assert_contains() {
+    local haystack="$1"
+    local needle="$2"
+    case "$haystack" in
+        *"$needle"*) return 0 ;;
+    esac
+    echo "assert_contains: expected substring not found" >&2
+    echo "  expected to contain: $needle" >&2
+    echo "  actual: $haystack" >&2
+    return 1
+}
+
+# haystack が needle を含まないことを確認する (assert_contains の否定形)。
+refute_contains() {
+    local haystack="$1"
+    local needle="$2"
+    case "$haystack" in
+        *"$needle"*)
+            echo "refute_contains: unexpected substring found" >&2
+            echo "  expected NOT to contain: $needle" >&2
+            echo "  actual: $haystack" >&2
+            return 1
+            ;;
+    esac
+    return 0
+}
+
+# haystack 内で needle_a の後に needle_b がこの順で現れることを確認する。
+# 「両方含む」ではなく前後関係そのものが仕様であるケース専用
+# (例: 1 件目の install 失敗後も 2 件目の install を試みる best-effort 継続の検証)。
+# 単に両方含むかだけを見たいなら assert_contains を 2 回呼べばよい。
+assert_contains_in_order() {
+    local haystack="$1"
+    local needle_a="$2"
+    local needle_b="$3"
+    case "$haystack" in
+        *"$needle_a"*"$needle_b"*) return 0 ;;
+    esac
+    echo "assert_contains_in_order: expected order not found" >&2
+    echo "  expected order: $needle_a -> $needle_b" >&2
+    echo "  actual: $haystack" >&2
+    return 1
+}
