@@ -93,3 +93,11 @@ probe_without_extends() {
     [ "$before" = "$after" ]
     assert_contains "$output" "AFTER_CS_NORMAL_BG=nil"
 }
+
+@test "conceal capture wins over strong at delimiter" {
+    # **bold** の先頭 * 列は @markup.strong と @conceal の両方が捕捉する。
+    # 同一優先度では後発キャプチャが勝つため、記号を暗くするには @conceal が
+    # @markup.strong より後にイテレートされている必要がある (これがブランチの目玉挙動)
+    run probe_with_extends
+    assert_contains "$output" "CONCEAL_AFTER_STRONG=1"
+}
