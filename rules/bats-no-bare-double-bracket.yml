@@ -34,6 +34,11 @@
 # `&&` 連結) を誤検知する方が、この検出漏れよりも害が大きいと判断してこの妥協を
 # 選んだ。仮に elif 本体に空虚に緑となるアサーションが書かれても、CI の bash 5 では
 # ERR トラップが正しく発火するため最終的には捕捉される。
+#
+# 既知のギャップ (その2、逆向きの誤検知、実測済み): elif の条件位置にある合法な
+# guard 記述 `elif ! [[ A ]]; then` や `elif [[ A ]] && [[ B ]]; then` はエラー
+# として誤検知される。elif_clause は field 名が無く stopBy: neighbor しか使えず、
+# 条件が negated_command / list に包まれると直接の親が elif_clause でなくなり除外から漏れる。
 id: bats-no-bare-double-bracket
 language: bash
 severity: error
