@@ -134,3 +134,63 @@ FAKE
     chmod +x "$fake_bin/claude"
     export PATH="$fake_bin:$PATH"
 }
+
+# =============================================================================
+# アサーションヘルパー
+# =============================================================================
+#
+# bats の @test 本体は set -eE + trap ERR で走るが、macOS 標準の /bin/bash 3.2 は
+# 「@test 本体の最終文ではない位置」の裸の [[ ]] が偽でも ERR トラップを発火させない
+# (bash 5.3 は発火する)。ローカルの bats はこの bash 3.2 で、CI (ubuntu) は bash 5 で
+# 走るため、[[ ]] のままだと「CI では落ちるがローカルでは素通りする」アサーションが
+# 生まれる (実際に Task 1 の RED フェーズで嘘の緑が出た)。
+# シェル関数呼び出しは単純コマンドなので、どちらの bash でも return 1 が確実に
+# ERR を発火させる。以降のアサーションはこの形で書く。
+
+# haystack が needle を部分文字列として含むことを確認する。
+# 照合は case のクォート付きパターンで行う。needle をクォートせずに
+# *$needle* と書くと [ ] を含む needle (例: [DRY-RUN]) が glob の文字クラスとして
+# 解釈され、意図と違う 1 文字マッチになってしまうため、必ずクォートしてリテラル一致にする。
+assert_contains() {
+    local haystack="$1"
+    local needle="$2"
+    case "$haystack" in
+        *"$needle"*) return 0 ;;
+    esac
+    echo "assert_contains: expected substring not found" >&2
+    echo "  expected to contain: $needle" >&2
+    echo "  actual: $haystack" >&2
+    return 1
+}
+
+# haystack が needle を含まないことを確認する (assert_contains の否定形)。
+refute_contains() {
+    local haystack="$1"
+    local needle="$2"
+    case "$haystack" in
+        *"$needle"*)
+            echo "refute_contains: unexpected substring found" >&2
+            echo "  expected NOT to contain: $needle" >&2
+            echo "  actual: $haystack" >&2
+            return 1
+            ;;
+    esac
+    return 0
+}
+
+# haystack 内で needle_a の後に needle_b がこの順で現れることを確認する。
+# 「両方含む」ではなく前後関係そのものが仕様であるケース専用
+# (例: 1 件目の install 失敗後も 2 件目の install を試みる best-effort 継続の検証)。
+# 単に両方含むかだけを見たいなら assert_contains を 2 回呼べばよい。
+assert_contains_in_order() {
+    local haystack="$1"
+    local needle_a="$2"
+    local needle_b="$3"
+    case "$haystack" in
+        *"$needle_a"*"$needle_b"*) return 0 ;;
+    esac
+    echo "assert_contains_in_order: expected order not found" >&2
+    echo "  expected order: $needle_a -> $needle_b" >&2
+    echo "  actual: $haystack" >&2
+    return 1
+}
