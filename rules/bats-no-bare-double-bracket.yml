@@ -2,7 +2,7 @@
 # 「@test 本体の最終文ではない位置」の裸の [[ ]] が偽でも ERR トラップを発火させない
 # (bash 5.3 は発火する)。ローカルの bats は bash 3.2、CI は bash 5 で走るため、
 # [[ ]] のままだと「CI では落ちるがローカルでは素通りする」アサーションが生まれる
-# (実測: Task 1 の RED フェーズで実際に嘘の緑が出た)。
+# (実測: TDD の RED フェーズで実際に嘘の緑が出た)。
 # scripts/tests/test_helper.bash の assert_contains / refute_contains 等、
 # シェル関数呼び出し (単純コマンド) に置き換える。単一角括弧 [ ] や run 後の
 # [ "$status" -eq N ] は対象外 (test builtin はどちらの bash でも ERR を発火させる)。
