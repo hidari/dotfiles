@@ -9,14 +9,31 @@
 #
 # 実現方法: 条件位置 (if / elif / while / until の条件) だけを除外し、それ以外の
 # [[ ]] (文位置、statement position) を全て検出する。
+#
+# if_statement / while_statement の条件除外は stopBy: end を使う。stopBy: neighbor
+# (直接の親だけを見る) だと [[ ]] の直接の親が if_statement / while_statement
+# そのものではないケースを取りこぼし、errexit 対象外の安全な条件式を誤検知する。実測:
+#   - `if ! [[ A ]]; then`               直接の親は negated_command
+#   - `if [[ A ]] && [[ B ]]; then`      直接の親は list
+#   - `while [[ A ]] && [[ B ]]; do`     直接の親は list
+# いずれも neighbor では if_statement / while_statement に届かない。field: condition
+# は保ったまま stopBy: end (祖先を最後まで遡る) にすると、negated_command や list に
+# 包まれた条件式も条件位置として正しく拾える。then / do 節の本体は field 名を持たず
+# field: condition の経路には繋がらないため、stopBy: end にしても本体側への漏れは
+# 起きない (`if true; then [[ A ]]; fi` は変わらず検出される)。
+#
 # tree-sitter-bash の grammar.js を実測すると、if_statement は条件のみ
 # field('condition', ...) で名前付けし、本体 (then 節) は無名で直下に置く。
 # while_statement は条件・本体 (do_group) の両方を名前付けする。elif_clause は
 # 条件・本体のどちらにも field 名が無く、直下の子として区別できない。
-# そのため elif_clause 直下だけは (本体側の検出漏れを許容してでも) 丸ごと除外し、
-# if_statement / while_statement は field: condition のみを狙い撃ちで除外する。
-# これにより if の本体側 ([[ ]] を単なる文として書いた場合) は正しく検出しつつ、
-# elif の条件を誤検知しない。
+# そのため elif_clause 直下だけは stopBy: neighbor のまま丸ごと除外する。
+#
+# 既知のギャップ: elif の本体 (`elif true; then [[ A ]]; fi`) にある裸の [[ ]] は
+# このルールでは検出できない。elif_clause は field 名で条件と本体を区別できず、
+# 条件だけを狙い撃ちで除外する手段が無いため。合法な guard 記述 (`if ! [[ ]]` や
+# `&&` 連結) を誤検知する方が、この検出漏れよりも害が大きいと判断してこの妥協を
+# 選んだ。仮に elif 本体に空虚に緑となるアサーションが書かれても、CI の bash 5 では
+# ERR トラップが正しく発火するため最終的には捕捉される。
 id: bats-no-bare-double-bracket
 language: bash
 severity: error
@@ -29,11 +46,11 @@ rule:
       - inside:
           kind: if_statement
           field: condition
-          stopBy: neighbor
+          stopBy: end
       - inside:
           kind: while_statement
           field: condition
-          stopBy: neighbor
+          stopBy: end
       - inside:
           kind: elif_clause
           stopBy: neighbor
