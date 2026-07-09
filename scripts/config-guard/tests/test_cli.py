@@ -74,3 +74,15 @@ def test_bad_settings_is_detected(tmp_path: Path) -> None:
     repo = _make_repo(tmp_path, "good", GOOD_SKILL, bad_settings)
     findings = scan(str(repo))
     assert any(f.detail == "enabledMcpjsonServers" for f in findings)
+
+
+def test_bad_herdr_keys_is_detected(tmp_path: Path) -> None:
+    # herdr の keybinding 検査が scan に配線されていること (next に前方向キー)
+    repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
+    config = repo / "home/.config/herdr/config.toml"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text('[keys]\nnext_workspace = "ctrl+alt+["\n', encoding="utf-8")
+
+    findings = scan(str(repo))
+
+    assert any(f.detail == "next_workspace = ctrl+alt+[" for f in findings)

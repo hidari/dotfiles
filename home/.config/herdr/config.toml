@@ -75,10 +75,15 @@ prefix = "ctrl+b"
 # remove_worktree = ""  # optional, unset by default; opens confirmation
 # rename_workspace = "prefix+shift+w"
 # close_workspace = "prefix+shift+d"
-previous_workspace = ["prefix+shift+left", "ctrl+shift+alt+]"]
-next_workspace = ["prefix+shift+right", "ctrl+shift+alt+["]
-# previous_agent = ""     # optional, unset by default
-# next_agent = ""         # optional, unset by default
+previous_workspace = ["prefix+shift+left", "ctrl+shift+alt+["]
+next_workspace = ["prefix+shift+right", "ctrl+shift+alt+]"]
+# agent pane をサイドバーの並び順で上下に巡回する。
+# k=上=previous / j=下=next とし、focus_pane_up/down (prefix+k / prefix+j) と揃える。
+# 直接 chord (ctrl+alt+shift+*) は prefix を挟まないので押しっぱなしで流し見できる。
+# 状態では絞らないので idle な agent も巡回に含まれる。
+# 注意が必要な agent だけを辿るなら prefix+shift+u (herdr-unread) を使う。
+previous_agent = ["prefix+shift+k", "ctrl+alt+shift+k"]
+next_agent = ["prefix+shift+j", "ctrl+alt+shift+j"]
 # focus_agent = ""        # optional indexed binding, e.g. "prefix+alt+1..9"
 # remote_image_paste = "ctrl+v" # only active in herdr --remote; empty disables raw-key image paste
 # new_tab = "prefix+c"
