@@ -1,0 +1,56 @@
+# rules/bats-no-bare-double-bracket.yml のテスト。id は rule と一致させる。
+# bats の @test ブロックは開き { を行末、閉じ } を単独行にする (実運用の書式に揃える)。
+# 1 行で書くと ({ ... } を同じ行に収めると) tree-sitter-bash は [[ を予約語ではなく
+# ただの単語として読み test_command ノードを作らず、ルールが素通りしてしまう。
+id: bats-no-bare-double-bracket
+valid:
+  # if / elif / while / until の条件位置は制御フローで守られているため対象外
+  - |
+    @test "if condition" {
+      if [[ "$a" == "b" ]]; then
+        true
+      fi
+    }
+  - |
+    @test "elif condition" {
+      if false; then
+        true
+      elif [[ "$a" == "b" ]]; then
+        true
+      fi
+    }
+  - |
+    @test "while condition" {
+      while [[ "$a" == "b" ]]; do
+        true
+      done
+    }
+  - |
+    @test "until condition" {
+      until [[ "$a" == "b" ]]; do
+        true
+      done
+    }
+  - |
+    @test "single bracket is out of scope" {
+      [ "$a" = "b" ]
+    }
+invalid:
+  - |
+    @test "bare double bracket" {
+      [[ "$a" == "b" ]]
+    }
+  - |
+    @test "or chain of two brackets" {
+      [[ "$a" == "b" ]] || [[ "$c" == "d" ]]
+    }
+  - |
+    @test "and chain of two brackets" {
+      [[ "$a" == "b" ]] && [[ "$c" == "d" ]]
+    }
+  - |
+    @test "bracket inside if body, not condition" {
+      if true; then
+        [[ "$a" == "b" ]]
+      fi
+    }
