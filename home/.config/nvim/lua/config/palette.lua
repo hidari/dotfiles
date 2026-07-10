@@ -32,8 +32,15 @@ M.minimum_contrast = {
     decoration = 2.0, -- 装飾
 }
 
+-- 知覚可能な最小の色差 (OKLab のユークリッド距離)。
+-- これを下回る 2 色は人間には同じ色に見える。
+-- 彩度で後退させた色どうしが tier の下限に張り付いて同化するのを防ぐ。
+M.minimum_delta_e = 0.02
+
 -- 複数のトークンが共有する色。hex を一箇所にまとめて drift を防ぐ。
-local RECEDED = "#aab6e4"
+-- 後退した記号とファイル名。彩度をほぼ捨てて dotfile の青みから離す。
+-- 輝度は symbol tier の下限を満たす位置に保つ
+local RECEDED = "#b1b7cf"
 local LEAF_GREEN = "#a7d388"
 
 M.colors = {

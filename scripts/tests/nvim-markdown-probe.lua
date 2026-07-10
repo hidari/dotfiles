@@ -273,3 +273,89 @@ print("PALETTE_VIOLATION_COUNT=" .. #violations)
 local sentinel_ratio = contrast_ratio("#5c6370", palette.reference_background)
 print("VIOLATION_DETECTOR_WORKS=" .. ((sentinel_ratio < palette.minimum_contrast.symbol) and 1 or 0))
 print(string.format("SENTINEL_RATIO=%.2f", sentinel_ratio))
+
+-- ---------------------------------------------------------------------------
+-- パレットの区別可能性の検査
+--
+-- コントラスト検査は各色が tier の下限を超えるかしか見ない。
+-- 下限に張り付いた色どうしが同化しても検出できないため、色差を別に測る。
+--
+-- OKLab は知覚的におおむね均等な色空間で、L は 0 から 1 に収まる。
+-- 2 色のユークリッド距離が知覚閾値 (JND) を下回ると人間には同じ色に見える。
+--
+-- 意図的に同色のトークンは palette の中で同じリテラルを共有する。
+-- したがって相異なる hex どうしだけを比べれば、区別すべき色だけが対象になる。
+--
+-- linearize は WCAG の閾値 0.03928 を使う。sRGB 規格は 0.04045 だが、
+-- 8bit 入力では 10/255 = 0.0392 が両方を下回り 11/255 = 0.0431 が両方を上回るため、
+-- 0 から 255 のどの値でも分岐は変わらない。よってここで使い回せる。
+-- ---------------------------------------------------------------------------
+
+local function to_oklab(hex)
+    local r = linearize(tonumber(hex:sub(2, 3), 16))
+    local g = linearize(tonumber(hex:sub(4, 5), 16))
+    local b = linearize(tonumber(hex:sub(6, 7), 16))
+
+    local l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b
+    local m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b
+    local s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b
+
+    local l_, m_, s_ = l ^ (1 / 3), m ^ (1 / 3), s ^ (1 / 3)
+
+    return 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+        1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+        0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_
+end
+
+local function delta_e(hex_a, hex_b)
+    local la, aa, ba = to_oklab(hex_a)
+    local lb, ab, bb = to_oklab(hex_b)
+    return math.sqrt((la - lb) ^ 2 + (aa - ab) ^ 2 + (ba - bb) ^ 2)
+end
+
+-- 検査ロジック自体の較正。OKLab の L は 0 から 1 なので白と黒はちょうど 1.0、
+-- 同色どうしは 0.0 になる。ここが崩れたら以降の判定は全て無意味なので先に固定する
+print(string.format("DELTA_E_SELFTEST_MAX=%.4f", delta_e("#ffffff", "#000000")))
+print(string.format(
+    "DELTA_E_SELFTEST_MIN=%.4f",
+    delta_e(palette.reference_background, palette.reference_background)
+))
+
+-- 相異なる hex ごとに代表トークンを 1 つ選ぶ。辞書順で最小を取れば出力が安定する
+local representative = {}
+for token, spec in pairs(palette.colors) do
+    if representative[spec.hex] == nil or token < representative[spec.hex] then
+        representative[spec.hex] = token
+    end
+end
+
+local distinct = {}
+for hex in pairs(representative) do
+    distinct[#distinct + 1] = hex
+end
+table.sort(distinct)
+print("PALETTE_DISTINCT_HEX_COUNT=" .. #distinct)
+print("PALETTE_JND_PAIR_COUNT=" .. (#distinct * (#distinct - 1) / 2))
+
+local jnd_violations = {}
+for i = 1, #distinct do
+    for j = i + 1, #distinct do
+        local distance = delta_e(distinct[i], distinct[j])
+        if distance < palette.minimum_delta_e then
+            jnd_violations[#jnd_violations + 1] = string.format(
+                "%s|%s:%.4f",
+                representative[distinct[i]],
+                representative[distinct[j]],
+                distance
+            )
+        end
+    end
+end
+table.sort(jnd_violations)
+print("PALETTE_JND_VIOLATIONS=" .. table.concat(jnd_violations, ","))
+print("PALETTE_JND_VIOLATION_COUNT=" .. #jnd_violations)
+
+-- 検出器が働いていることを示す negative case。
+-- 旧 RECEDED (#aab6e4) は dotfile (#a8b6e7) と色差 0.0049 で同化していた。
+-- ここが 0 になったら区別可能性の検査は何も守っていない
+print("JND_DETECTOR_WORKS=" .. ((delta_e("#a8b6e7", "#aab6e4") < palette.minimum_delta_e) and 1 or 0))

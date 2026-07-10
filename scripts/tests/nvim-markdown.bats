@@ -194,3 +194,23 @@ probe_without_extends() {
         assert_contains "$source_text" "\"$group\""
     done
 }
+
+@test "delta e helper is calibrated against known values" {
+    # OKLab の L は 0 から 1 なので白と黒はちょうど 1.0 になる
+    run probe_with_extends
+    assert_contains "$output" "DELTA_E_SELFTEST_MAX=1.0000"
+    assert_contains "$output" "DELTA_E_SELFTEST_MIN=0.0000"
+}
+
+@test "palette: the distinguishability check detects two colors that look alike" {
+    # 実際に同化していた組を sentinel に使う
+    run probe_with_extends
+    assert_contains "$output" "JND_DETECTOR_WORKS=1"
+}
+
+@test "palette: every pair of distinct colors is perceptibly different" {
+    # 比べる組が 0 だと下のループが回らず違反 0 のまま通ってしまう
+    run probe_with_extends
+    refute_contains "$output" "PALETTE_JND_PAIR_COUNT=0"
+    assert_contains "$output" "PALETTE_JND_VIOLATION_COUNT=0"
+}
