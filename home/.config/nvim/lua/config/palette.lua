@@ -104,4 +104,14 @@ for token, spec in pairs(M.colors) do
     M.hex[token] = spec.hex
 end
 
+-- 存在しないトークン名を引いたら nil ではなく error にする。
+-- nil を返すと nvim_set_hl が fg 未指定と解釈して色を既定へ黙って戻すため、
+-- トークンを改名しただけで色が消えても全テストが緑のまま通ってしまう。
+-- ここで大声で落として、ごく普通のリファクタが色を消す事故を防ぐ。
+setmetatable(M.hex, {
+    __index = function(_, key)
+        error("palette.hex に存在しないトークン名を参照した: " .. tostring(key))
+    end,
+})
+
 return M

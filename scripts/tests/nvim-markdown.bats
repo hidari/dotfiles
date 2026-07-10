@@ -176,6 +176,14 @@ probe_without_extends() {
     assert_contains "$output" "NEOTREE_APPLIED=1"
 }
 
+@test "palette hex raises on an unknown token instead of returning nil" {
+    # トークンを改名すると palette.hex.<旧名> が nil を返し、nvim_set_hl はそれを
+    # fg 未指定と解釈して既定色へ黙って戻す。__index ガードで nil ではなく error にし、
+    # ごく普通のリファクタで色が消えて全テスト緑になる事故を塞ぐ
+    run probe_with_extends
+    assert_contains "$output" "HEX_UNKNOWN_KEY_ERRORS=1"
+}
+
 @test "neo-tree highlight group names exist in the plugin source" {
     # グループ名は treesitter のキャプチャではないので、綴りを間違えても Neovim は黙る。
     # CI にはプラグインを入れないため、その場合は検査できない

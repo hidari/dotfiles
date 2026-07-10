@@ -196,17 +196,27 @@ print("NEOTREE_GROUPS=" .. table.concat(neotree_groups, ","))
 print("NEOTREE_GROUP_COUNT=" .. #neotree_groups)
 
 -- 定義した色が実際に適用されていること。
--- link を張られている既定グループを上書きできているかもここで分かる
+-- link を張られている既定グループを上書きできているかもここで分かる。
+-- fg を持たない group を skip すると、色が黙って消えても NEOTREE_APPLIED=1 のまま通る。
+-- 現状すべての neotree group は fg を持つので、skip せず fg 前提で回して失敗させる
 local neotree_applied = 1
 for group, opts in pairs(neotree) do
-    if opts.fg ~= nil then
-        local want = tonumber(opts.fg:sub(2), 16)
-        if highlight(group).fg ~= want then
-            neotree_applied = 0
-        end
+    local want = tonumber(opts.fg:sub(2), 16)
+    if highlight(group).fg ~= want then
+        neotree_applied = 0
     end
 end
 print("NEOTREE_APPLIED=" .. neotree_applied)
+
+-- 未知のトークン名を palette.hex から引くと error になること。
+-- トークンを改名すると palette.hex.<旧名> が nil を返し、nvim_set_hl はそれを
+-- fg 未指定と解釈して既定色へ黙って戻してしまう。palette.hex に __index ガードを
+-- 掛けて nil ではなく error にすることで、改名が全テスト緑のまま色を消す事故を塞ぐ。
+-- ここが 0 になったらガードが外れており、silent nil default への回帰を検出できない
+local hex_guard_ok = pcall(function()
+    return palette.hex.this_token_does_not_exist
+end)
+print("HEX_UNKNOWN_KEY_ERRORS=" .. (hex_guard_ok and 0 or 1))
 
 -- colorscheme の読み込みは hi clear を伴うため、autocmd が無いと定義が消える
 vim.cmd("colorscheme habamax")
