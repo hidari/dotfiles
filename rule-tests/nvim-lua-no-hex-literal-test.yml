@@ -5,14 +5,14 @@ valid:
   - 'return { X = { fg = hex.muted } }'
   # コメントの中の hex は文字列ノードではないので検出しない。
   # 実測値を根拠として書き残せることが重要
-  - '-- 実測した実効背景は #5d646b である'
+  - '-- コメントの中の hex #123abc は検出しない'
   # 色ではない文字列
   - 'local s = "NONE"'
   - 'local group = "@markup.heading.1"'
   # 数値リテラルの色 (nvim_set_hl は数値も受け付ける) は別問題なので対象外
-  - 'local n = 0x5d646b'
+  - 'local n = 0xaabbcc'
 invalid:
   - 'local MUTED = "#5c6370"'
   - 'return { X = { fg = "#aabbcc" } }'
   - 'local t = { bg = "#FFFFFF" }'
-  - 'vim.api.nvim_set_hl(0, "LineNr", { fg = "#53c9b8" })'
+  - 'vim.api.nvim_set_hl(0, "LineNr", { fg = "#0f1e2d" })'

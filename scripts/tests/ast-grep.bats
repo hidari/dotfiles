@@ -65,7 +65,7 @@ scan_exit() {
 }
 
 @test "a comment holding a hex value is not a violation" {
-    printf -- '-- 実効背景は #5d646b である\nreturn { X = { fg = hex.muted } }\n' \
+    printf -- '-- コメントの中の hex #123abc は検出しない\nreturn { X = { fg = hex.muted } }\n' \
         > "$FIXTURE/home/.config/nvim/lua/config/markdown.lua"
 
     run scan
@@ -85,4 +85,22 @@ scan_exit() {
 
     run bash -c "cd '$FIXTURE' && ast-grep scan >/dev/null 2>&1"
     [ "$status" -eq 0 ] || return 1
+}
+
+@test "every ast-grep scan invocation searches hidden directories" {
+    # --no-ignore hidden が無いと nvim の Lua を 1 件も検査しないまま緑になる。
+    # ルールの検出力は上のテストが守るが、呼び出し側の配線を守るのはここだけである。
+    #
+    # 実行行だけを見るため entry: と run: で錨を打つ。
+    # そうしないと pre-commit の name: ast-grep scan (...) という表示名まで拾って常に赤くなる。
+    # CI の workflow は Task 5 が追加するので、そのときここへ足す
+    pre_commit="$REPO_ROOT/.pre-commit-config.yaml"
+    invocation='(entry|run):[[:space:]]*ast-grep scan'
+
+    # 呼び出しが 0 件だと下の検査が空回りして緑になる
+    calls=$(grep -cE "$invocation" "$pre_commit" || true)
+    [ "$calls" -ge 1 ] || return 1
+
+    missing=$(grep -hE "$invocation" "$pre_commit" | grep -cv -- '--no-ignore hidden' || true)
+    [ "$missing" = "0" ] || return 1
 }
