@@ -176,6 +176,15 @@ probe_without_extends() {
     assert_contains "$output" "NEOTREE_APPLIED=1"
 }
 
+@test "non-color attributes bold and italic are actually applied" {
+    # NeoTreeGitUntracked と NeoTreeGitConflict は fg が同一で bold だけが両者を分ける。
+    # 見出しも色相に頼らず bold を併用する。fg 比較だけでは守れないので属性まで突き合わせる。
+    # 検査対象が 0 件だと空回りして緑になるため件数も固定する
+    run probe_with_extends
+    refute_contains "$output" "ATTRIBUTE_CHECK_COUNT=0"
+    assert_contains "$output" "ATTRIBUTE_VIOLATION_COUNT=0"
+}
+
 @test "palette hex raises on an unknown token instead of returning nil" {
     # トークンを改名すると palette.hex.<旧名> が nil を返し、nvim_set_hl はそれを
     # fg 未指定と解釈して既定色へ黙って戻す。__index ガードで nil ではなく error にし、

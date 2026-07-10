@@ -218,6 +218,44 @@ local hex_guard_ok = pcall(function()
 end)
 print("HEX_UNKNOWN_KEY_ERRORS=" .. (hex_guard_ok and 0 or 1))
 
+-- 色だけに頼らない情報伝達 (グローバル CLAUDE.md の MUST) を固定する。
+-- 適用結果 (highlight) から直接読むので、写像の bold / italic 宣言を消しても
+-- 検査が空回りして緑になることはない。fg 比較だけを見る NEOTREE_APPLIED では守れない不変条件。
+-- 検査対象が 0 件だと空回りするので件数も出す
+local attribute_violations = {}
+local attribute_checks = 0
+
+-- 見出しは色相だけでなく bold でも本文と区別する。全 6 レベルが bold であること
+for level = 1, 6 do
+    attribute_checks = attribute_checks + 1
+    if highlight("@markup.heading." .. level).bold ~= true then
+        attribute_violations[#attribute_violations + 1] = "heading_" .. level .. ":not-bold"
+    end
+end
+
+-- git の未追跡と衝突はファイル名に同一の色 (git_attention) が乗る。
+-- bold の有無だけが両者を分けるので、その区別が生きていること。
+-- 色を読んで同一であることも確かめる (bold が真の区別子であることを保証する)
+local untracked = highlight("NeoTreeGitUntracked")
+local conflict = highlight("NeoTreeGitConflict")
+attribute_checks = attribute_checks + 1
+if untracked.fg ~= conflict.fg then
+    attribute_violations[#attribute_violations + 1] = "git_states:fg-not-shared"
+end
+attribute_checks = attribute_checks + 1
+if conflict.bold ~= true then
+    attribute_violations[#attribute_violations + 1] = "git_conflict:not-bold"
+end
+attribute_checks = attribute_checks + 1
+if untracked.bold == true then
+    attribute_violations[#attribute_violations + 1] = "git_untracked:unexpected-bold"
+end
+
+table.sort(attribute_violations)
+print("ATTRIBUTE_CHECK_COUNT=" .. attribute_checks)
+print("ATTRIBUTE_VIOLATIONS=" .. table.concat(attribute_violations, ","))
+print("ATTRIBUTE_VIOLATION_COUNT=" .. #attribute_violations)
+
 -- colorscheme の読み込みは hi clear を伴うため、autocmd が無いと定義が消える
 vim.cmd("colorscheme habamax")
 print("AFTER_CS_NORMAL_BG=" .. tostring(highlight("Normal").bg))
