@@ -89,7 +89,7 @@ M.colors = {
 -- Ghostty の background-opacity はウィンドウ背景にだけ掛かり、
 -- 明示的な背景色を持つセルは不透明に描かれる (background-opacity-cells が既定の false のとき)。
 -- したがって reference_background ではなく自前の bg に対して評価し、
--- 不透明である以上 WCAG AA の 4.5:1 を課す。
+-- 不透明である以上、WCAG AA (通常テキスト) の基準を課せる。
 M.surface_minimum_contrast = 4.5
 
 M.surfaces = {

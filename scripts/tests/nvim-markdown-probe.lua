@@ -389,7 +389,11 @@ print("SURFACE_VIOLATIONS=" .. table.concat(surface_violations, ","))
 print("SURFACE_VIOLATION_COUNT=" .. #surface_violations)
 
 -- lualine の spec の入れ子から指定キーを再帰的に探す。
--- 添字を決め打ちにすると spec の並べ替えで壊れるため、キー名で辿る
+-- 添字を決め打ちにすると spec の並べ替えで壊れるため、キー名で辿る。
+--
+-- 前提: spec は循環参照の無い有限の木であり buffers_color は 1 箇所にしか現れない。
+--       循環があればスタックオーバーフローで落ちるが、それは検査が壊れたことを示す赤である。
+--       この前提が崩れる spec を書いたら、ここに visited 集合を足す
 local function find_key(node, key)
     if type(node) ~= "table" then
         return nil
