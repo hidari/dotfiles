@@ -107,9 +107,7 @@ scan_exit() {
     # --no-ignore hidden が無いと nvim の Lua を 1 件も検査しないまま緑になる。
     # ルールの検出力は上のテストが守るが、呼び出し側の配線を守るのはここだけである。
     #
-    # 旧実装は 2 つの YAML を regex で text-parse していたが、行頭錨が無いため
-    # コメントアウトした run 行を false pass し、run: | のブロックスカラーを false fail した。
-    # YAML を safe_load して構造として読む (グローバル CLAUDE.md の MUST:
+    # 配線は YAML を safe_load して構造として読む (グローバル CLAUDE.md の MUST:
     # 設定のデータ構造を検証するときは regex ではなく言語自身に解釈させる)。
     if ! command -v uv >/dev/null 2>&1; then
         # CI では uv の導入失敗を skip で隠さない (ast-grep / nvim と同じ流儀)
