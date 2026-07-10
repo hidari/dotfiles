@@ -1,0 +1,35 @@
+# 色の hex リテラルは config/palette.lua にのみ書く。
+#
+# 理由:
+#   同じ色を複数のファイルに literal で書くと、片方だけを直して drift する。
+#   基準背景に対するコントラストの検査 (scripts/tests/nvim-markdown.bats) は
+#   palette.lua の colors を走査するので、写像側に直接書かれた色は検査を素通りする。
+#
+# kind: string に regex を掛けているのがこのルールの要点である。
+#   grep だとコメントに書いた実測値まで誤検出するが、
+#   ast-grep は文字列ノードだけを見るのでコメントは無視される。
+#   実効背景の実測値を根拠としてコメントに残せることは重要なので、この区別が要る。
+#
+# 数値リテラル (0x5d646b) は対象外にしている。nvim_set_hl は数値も受け付けるが、
+# 現状どこにも書かれておらず、書きたくなる動機も無い。必要になったら足す。
+#
+# 注意: ast-grep scan は既定で隠しディレクトリを走査しない。
+#   nvim の設定は home/.config/ 配下 (ドットで始まる) にあるため、
+#   --no-ignore hidden を付けないと 1 件も検査されず exit 0 で素通りする。
+#   pre-commit と CI の両方でこのフラグを付けている。
+#   ast-grep test は仮想のスニペットに対して走るため files と ignores を通らない。
+#   したがってこの glob を検査できるのは scripts/tests/ast-grep.bats の fixture だけである。
+id: nvim-lua-no-hex-literal
+language: lua
+severity: error
+message: 色の hex リテラルは config/palette.lua にのみ書く
+note: |
+  palette.lua の M.colors へトークンとして足し、ここでは require("config.palette").hex を参照する。
+  tier を宣言しないとコントラスト検査を通らない。
+files:
+  - 'home/.config/nvim/lua/**/*.lua'
+ignores:
+  - 'home/.config/nvim/lua/config/palette.lua'
+rule:
+  kind: string
+  regex: '#[0-9a-fA-F]{6}'
