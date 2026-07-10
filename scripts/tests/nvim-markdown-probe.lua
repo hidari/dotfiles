@@ -177,6 +177,37 @@ for _, name in ipairs({
 end
 print("SCOPED_MUTED_APPLIED=" .. scoped_applied)
 
+-- ---------------------------------------------------------------------------
+-- ファイラの配色
+--
+-- NeoTree のグループ名は tree-sitter のキャプチャではないため、綴りを間違えても
+-- Neovim は黙って無視する。ここではグループ名を出力し、実在の検査は bats が
+-- neo-tree のソースに対して行う。
+-- ---------------------------------------------------------------------------
+
+local neotree = require("config.neotree")
+
+local neotree_groups = {}
+for name in pairs(neotree) do
+    neotree_groups[#neotree_groups + 1] = name
+end
+table.sort(neotree_groups)
+print("NEOTREE_GROUPS=" .. table.concat(neotree_groups, ","))
+print("NEOTREE_GROUP_COUNT=" .. #neotree_groups)
+
+-- 定義した色が実際に適用されていること。
+-- link を張られている既定グループを上書きできているかもここで分かる
+local neotree_applied = 1
+for group, opts in pairs(neotree) do
+    if opts.fg ~= nil then
+        local want = tonumber(opts.fg:sub(2), 16)
+        if highlight(group).fg ~= want then
+            neotree_applied = 0
+        end
+    end
+end
+print("NEOTREE_APPLIED=" .. neotree_applied)
+
 -- colorscheme の読み込みは hi clear を伴うため、autocmd が無いと定義が消える
 vim.cmd("colorscheme habamax")
 print("AFTER_CS_NORMAL_BG=" .. tostring(highlight("Normal").bg))

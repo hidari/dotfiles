@@ -152,3 +152,45 @@ probe_without_extends() {
     run probe_with_extends
     assert_contains "$output" "MARKER_INHERITS_HEADING=1"
 }
+
+@test "neo-tree palette defines the groups that were measured as unreadable" {
+    # gitignored と未追跡ファイルは名前そのものに色が乗る。
+    # インデント線と薄字は NeoTreeDimText に由来する
+    run probe_with_extends
+    assert_contains "$output" "NeoTreeGitIgnored"
+    assert_contains "$output" "NeoTreeDotfile"
+    assert_contains "$output" "NeoTreeHiddenByName"
+    assert_contains "$output" "NeoTreeGitUntracked"
+    assert_contains "$output" "NeoTreeGitConflict"
+    assert_contains "$output" "NeoTreeDimText"
+    assert_contains "$output" "NeoTreeExpander"
+    assert_contains "$output" "NeoTreeIndentMarker"
+    assert_contains "$output" "NeoTreeMessage"
+}
+
+@test "neo-tree palette is actually applied" {
+    # グループが空だと下のループが回らず NEOTREE_APPLIED=1 のまま通ってしまう。
+    # 空でないことを先に固定して偽の緑を塞ぐ
+    run probe_with_extends
+    refute_contains "$output" "NEOTREE_GROUP_COUNT=0"
+    assert_contains "$output" "NEOTREE_APPLIED=1"
+}
+
+@test "neo-tree highlight group names exist in the plugin source" {
+    # グループ名は treesitter のキャプチャではないので、綴りを間違えても Neovim は黙る。
+    # CI にはプラグインを入れないため、その場合は検査できない
+    src="${NEOTREE_HIGHLIGHTS:-$HOME/.local/share/nvim/lazy/neo-tree.nvim/lua/neo-tree/ui/highlights.lua}"
+    if [ ! -f "$src" ]; then
+        skip "neo-tree is not installed"
+    fi
+
+    run probe_with_extends
+    # 検査対象が空のまま緑になるのを防ぐ
+    refute_contains "$output" "NEOTREE_GROUP_COUNT=0"
+
+    groups=$(printf '%s\n' "$output" | sed -n 's/^NEOTREE_GROUPS=//p' | tr ',' '\n')
+    source_text=$(cat "$src")
+    for group in $groups; do
+        assert_contains "$source_text" "\"$group\""
+    done
+}
