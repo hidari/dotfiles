@@ -1874,6 +1874,8 @@ Task 4 の完了時点で変異注入を行ったところ、`.pre-commit-config
 
 Task 4 は `scripts/tests/ast-grep.bats` に `every ast-grep scan invocation searches hidden directories` を追加し、pre-commit 側の配線を固定した。CI 側は workflow がまだ存在しなかったため対象外だった。このタスクで同じテストを CI へ広げる。
 
+もうひとつ、Task 4 が持ち込んだ CI の不整合を直す必要がある。`scripts/tests/ast-grep.bats` の `setup()` は、CI では `ast-grep` が無いときに skip せず fail する (緑のまま何も検証しない状態を防ぐため、`nvim` と同じ流儀)。ところが CI の `bats` ジョブは `ast-grep` を導入していない。controller がローカルで CI を模擬したところ (`env -i` で PATH を絞り `CI=true`)、5 件すべてが fail した。したがって `bats` ジョブにも `setup-ast-grep` を足す。
+
 - [ ] **Step 1: 配線テストを CI へ広げる**
 
 `scripts/tests/ast-grep.bats` の `every ast-grep scan invocation searches hidden directories` を書き換える。pre-commit だけを見ていたものを、workflow も見るようにする。
@@ -1968,13 +1970,34 @@ runs:
         run: ast-grep scan --no-ignore hidden
 ```
 
-- [ ] **Step 5: テストを実行して GREEN を確認する**
+- [ ] **Step 5: bats ジョブにも ast-grep を導入する**
+
+`scripts/tests/ast-grep.bats` は CI で `ast-grep` が無いと skip せず fail する。`bats` ジョブは `scripts/tests/` を丸ごと走らせるため、導入しないとこのブランチを push した瞬間に CI が落ちる。
+
+`.github/workflows/test.yml` の `bats` ジョブの `Setup Neovim` の直後に追加する。
+
+```yaml
+      - name: Setup ast-grep
+        uses: ./.github/actions/setup-ast-grep
+```
+
+導入前後の挙動をローカルで確かめる。CI を 1 回も回さずに検証できる。
+
+```bash
+mkdir -p /tmp/ci-sim/bin
+ln -sf "$(command -v bats)" /tmp/ci-sim/bin/bats
+env PATH="/tmp/ci-sim/bin:/usr/bin:/bin:/usr/sbin:/sbin" CI=true bats scripts/tests/ast-grep.bats
+```
+
+Expected: 5 件すべて `not ok` になり、`ast-grep is required in CI but was not found` が出る。これが `bats` ジョブに `setup-ast-grep` が要る理由である。
+
+- [ ] **Step 6: テストを実行して GREEN を確認する**
 
 Run: `bats scripts/tests/`
 
 Expected: 全テストが PASS。特に `every ast-grep scan invocation searches hidden directories` が緑になる。
 
-- [ ] **Step 6: workflow の YAML が壊れていないことを確認する**
+- [ ] **Step 7: workflow の YAML が壊れていないことを確認する**
 
 ```bash
 uv run --quiet --with pyyaml python -c "import yaml,sys; yaml.safe_load(open('.github/workflows/test.yml')); yaml.safe_load(open('.github/actions/setup-ast-grep/action.yml')); print('yaml ok')"
@@ -1982,7 +2005,7 @@ uv run --quiet --with pyyaml python -c "import yaml,sys; yaml.safe_load(open('.g
 
 Expected: `yaml ok`
 
-- [ ] **Step 7: sha256 が正しいことを手元で確認する**
+- [ ] **Step 8: sha256 が正しいことを手元で確認する**
 
 CI が落ちてから気づくのを避けるため、action.yml に書いた値と実際のアーカイブを照合する。
 
@@ -1995,7 +2018,7 @@ Expected: `611f9e5e76f2611ecea1a35dd3468ceedf600641a11224b80341d79c6ee7b9dd`
 
 action.yml の `expected_sha256` と一致すること。
 
-- [ ] **Step 8: コミットする**
+- [ ] **Step 9: コミットする**
 
 変異注入より先にコミットする。`git checkout <file>` は HEAD へ戻すため、コミットが復元点になる。
 
@@ -2014,6 +2037,9 @@ ci: ast-grep の構文ルールを CI でも走らせる
   warning のままだと CI は緑になりルールが何も守らない (実測で確認)
 - --no-ignore hidden を欠いた scan は nvim の Lua を 1 件も検査しない
   フラグは余計に見えて消されやすいので 呼び出し側の配線をテストで固定する
+- scripts/tests/ast-grep.bats は CI で ast-grep が無いと skip せず fail する
+  bats ジョブにも setup-ast-grep を足さないと push した瞬間に CI が落ちる
+  ローカルで CI を模擬して確認済み
 - 既存の bats-no-bare-double-bracket と bats-test-name-ascii-only も
   CI で守られるようになる
 EOF
@@ -2021,7 +2047,7 @@ git add .github/actions/setup-ast-grep/action.yml .github/workflows/test.yml scr
 git commit -F tmp/commitmsg.txt
 ```
 
-- [ ] **Step 9: 変異注入で配線テストが効くことを確かめる**
+- [ ] **Step 10: 変異注入で配線テストが効くことを確かめる**
 
 コミット済みなので `git checkout <file>` で安全に戻せる。各変異のあと必ず戻して全緑を確認する。
 
