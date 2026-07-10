@@ -1074,6 +1074,433 @@ git commit -F tmp/commitmsg.txt
 
 ---
 
+### Task 3b: gitignored を dotfile と区別できる彩度まで下げ、知覚距離を機械検査する
+
+コントラスト検査は各色が tier の下限を超えるかしか見ない。下限に張り付いた色どうしが同化しても緑のまま通る。この穴を塞ぐ。
+
+**Files:**
+- Modify: `home/.config/nvim/lua/config/palette.lua`
+- Modify: `scripts/tests/nvim-markdown-probe.lua`
+- Test: `scripts/tests/nvim-markdown.bats`
+
+**Interfaces:**
+- Consumes: `palette.colors` と `palette.reference_background` (Task 1 が提供)、probe の `linearize` (Task 1 が提供)
+- Produces: `palette.minimum_delta_e`。probe が `DELTA_E_SELFTEST_MAX` / `DELTA_E_SELFTEST_MIN` / `PALETTE_DISTINCT_HEX_COUNT` / `PALETTE_JND_PAIR_COUNT` / `PALETTE_JND_VIOLATIONS` / `PALETTE_JND_VIOLATION_COUNT` / `JND_DETECTOR_WORKS` を出力する
+
+**controller が実測済みの事実 (再検証は不要):**
+
+- `dotfile` (`#a8b6e7`) と `RECEDED` (`#aab6e4`) はどちらも symbol tier の下限に張り付き (3.005:1 と 3.012:1)、OKLCh の色相も 272.2 度と 273.4 度でほぼ同じ。OKLab の色差は 0.0049 で、知覚閾値 (JND) 0.02 の 4 分の 1 しかない
+- `RECEDED` を `#b1b7cf` にすると輝度を保ったまま彩度だけが下がる。コントラストは 3.012:1 (margin +0.012) を維持し、`dotfile` との色差は 0.0371、`muted` との色差は 0.0286 になる。どちらも JND を超える
+- 彩度をこれ以上落とすと `muted` (`#b5b8bc`) と同化する。`#b3b8c9` は muted との色差が 0.0187 で JND を割る
+- 修正後の palette は相異なる hex が 19 個、組が 171 通りで、JND を割る組は 0 になる。最小は `strikethrough` と `muted` の 0.0286
+- OKLab の色差は白と黒でちょうど 1.0 になる (L が 0 から 1 に収まるため)。同色どうしは 0.0
+- probe の既存 `linearize` は WCAG の閾値 0.03928 を使う。sRGB 規格 (OKLab の前提) は 0.04045 だが、8bit 入力では 10/255 = 0.0392 が両方の閾値を下回り、11/255 = 0.0431 が両方を上回るため、0 から 255 のどの値でも分岐が変わらない。よって `linearize` をそのまま使い回してよい
+- 上記の Lua 実装は controller が Python の参照実装と突き合わせ、小数 6 桁まで一致することを確認済み
+
+- [ ] **Step 1: palette に閾値を足す (色はまだ変えない)**
+
+`home/.config/nvim/lua/config/palette.lua` の `M.minimum_contrast` テーブルの直後に追記する。
+
+```lua
+
+-- 知覚可能な最小の色差 (OKLab のユークリッド距離)。
+-- これを下回る 2 色は人間には同じ色に見える。
+-- 彩度で後退させた色どうしが tier の下限に張り付いて同化するのを防ぐ。
+M.minimum_delta_e = 0.02
+```
+
+- [ ] **Step 2: probe に色差の検査を追加する**
+
+`scripts/tests/nvim-markdown-probe.lua` の末尾 (`SENTINEL_RATIO` を print している行の直後) に追記する。
+
+```lua
+
+-- ---------------------------------------------------------------------------
+-- パレットの区別可能性の検査
+--
+-- コントラスト検査は各色が tier の下限を超えるかしか見ない。
+-- 下限に張り付いた色どうしが同化しても検出できないため、色差を別に測る。
+--
+-- OKLab は知覚的におおむね均等な色空間で、L は 0 から 1 に収まる。
+-- 2 色のユークリッド距離が知覚閾値 (JND) を下回ると人間には同じ色に見える。
+--
+-- 意図的に同色のトークンは palette の中で同じリテラルを共有する。
+-- したがって相異なる hex どうしだけを比べれば、区別すべき色だけが対象になる。
+--
+-- linearize は WCAG の閾値 0.03928 を使う。sRGB 規格は 0.04045 だが、
+-- 8bit 入力では 10/255 = 0.0392 が両方を下回り 11/255 = 0.0431 が両方を上回るため、
+-- 0 から 255 のどの値でも分岐は変わらない。よってここで使い回せる。
+-- ---------------------------------------------------------------------------
+
+local function to_oklab(hex)
+    local r = linearize(tonumber(hex:sub(2, 3), 16))
+    local g = linearize(tonumber(hex:sub(4, 5), 16))
+    local b = linearize(tonumber(hex:sub(6, 7), 16))
+
+    local l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b
+    local m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b
+    local s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b
+
+    local l_, m_, s_ = l ^ (1 / 3), m ^ (1 / 3), s ^ (1 / 3)
+
+    return 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+        1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+        0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_
+end
+
+local function delta_e(hex_a, hex_b)
+    local la, aa, ba = to_oklab(hex_a)
+    local lb, ab, bb = to_oklab(hex_b)
+    return math.sqrt((la - lb) ^ 2 + (aa - ab) ^ 2 + (ba - bb) ^ 2)
+end
+
+-- 検査ロジック自体の較正。OKLab の L は 0 から 1 なので白と黒はちょうど 1.0、
+-- 同色どうしは 0.0 になる。ここが崩れたら以降の判定は全て無意味なので先に固定する
+print(string.format("DELTA_E_SELFTEST_MAX=%.4f", delta_e("#ffffff", "#000000")))
+print(string.format(
+    "DELTA_E_SELFTEST_MIN=%.4f",
+    delta_e(palette.reference_background, palette.reference_background)
+))
+
+-- 相異なる hex ごとに代表トークンを 1 つ選ぶ。辞書順で最小を取れば出力が安定する
+local representative = {}
+for token, spec in pairs(palette.colors) do
+    if representative[spec.hex] == nil or token < representative[spec.hex] then
+        representative[spec.hex] = token
+    end
+end
+
+local distinct = {}
+for hex in pairs(representative) do
+    distinct[#distinct + 1] = hex
+end
+table.sort(distinct)
+print("PALETTE_DISTINCT_HEX_COUNT=" .. #distinct)
+print("PALETTE_JND_PAIR_COUNT=" .. (#distinct * (#distinct - 1) / 2))
+
+local jnd_violations = {}
+for i = 1, #distinct do
+    for j = i + 1, #distinct do
+        local distance = delta_e(distinct[i], distinct[j])
+        if distance < palette.minimum_delta_e then
+            jnd_violations[#jnd_violations + 1] = string.format(
+                "%s|%s:%.4f",
+                representative[distinct[i]],
+                representative[distinct[j]],
+                distance
+            )
+        end
+    end
+end
+table.sort(jnd_violations)
+print("PALETTE_JND_VIOLATIONS=" .. table.concat(jnd_violations, ","))
+print("PALETTE_JND_VIOLATION_COUNT=" .. #jnd_violations)
+
+-- 検出器が働いていることを示す negative case。
+-- 旧 RECEDED (#aab6e4) は dotfile (#a8b6e7) と色差 0.0049 で同化していた。
+-- ここが 0 になったら区別可能性の検査は何も守っていない
+print("JND_DETECTOR_WORKS=" .. ((delta_e("#a8b6e7", "#aab6e4") < palette.minimum_delta_e) and 1 or 0))
+```
+
+- [ ] **Step 3: bats にテストを追加する**
+
+`scripts/tests/nvim-markdown.bats` の末尾に追記する。
+
+```bash
+
+@test "delta e helper is calibrated against known values" {
+    # OKLab の L は 0 から 1 なので白と黒はちょうど 1.0 になる
+    run probe_with_extends
+    assert_contains "$output" "DELTA_E_SELFTEST_MAX=1.0000"
+    assert_contains "$output" "DELTA_E_SELFTEST_MIN=0.0000"
+}
+
+@test "palette: the distinguishability check detects two colors that look alike" {
+    # 実際に同化していた組を sentinel に使う
+    run probe_with_extends
+    assert_contains "$output" "JND_DETECTOR_WORKS=1"
+}
+
+@test "palette: every pair of distinct colors is perceptibly different" {
+    # 比べる組が 0 だと下のループが回らず違反 0 のまま通ってしまう
+    run probe_with_extends
+    refute_contains "$output" "PALETTE_JND_PAIR_COUNT=0"
+    assert_contains "$output" "PALETTE_JND_VIOLATION_COUNT=0"
+}
+```
+
+- [ ] **Step 4: テストを実行して RED を確認する**
+
+Run: `bats scripts/tests/nvim-markdown.bats -f "delta e|distinguishability|perceptibly"`
+
+Expected: `palette: every pair of distinct colors is perceptibly different` だけが FAIL する。
+
+出力に `PALETTE_JND_VIOLATION_COUNT=1` と `PALETTE_JND_VIOLATIONS=dotfile|gitignored:0.0049` が現れることを確認する。較正テストと sentinel テストは緑である (これらは色を直しても緑のままなので、赤を作るのは違反カウントの側だけである)。
+
+- [ ] **Step 5: palette の RECEDED を直す**
+
+`home/.config/nvim/lua/config/palette.lua` の `RECEDED` を書き換える。
+
+```lua
+-- 後退した記号とファイル名。彩度をほぼ捨てて dotfile の青みから離す。
+-- 輝度は symbol tier の下限を満たす位置に保つ
+local RECEDED = "#b1b7cf"
+```
+
+- [ ] **Step 6: テストを実行して GREEN を確認する**
+
+Run: `bats scripts/tests/`
+
+Expected: 全テストが PASS。特に `palette: every token meets the contrast target of its tier` が緑のままであること (`RECEDED` は 3.012:1 で symbol tier の 3.0 を満たす)。
+
+- [ ] **Step 7: 変異注入で 3 つのテストが別々の失敗モードを捕まえることを確かめる**
+
+変異注入 a (色を同化した状態へ戻す)。`palette.lua` の `RECEDED` を `"#aab6e4"` に戻す。
+
+Expected: `palette: every pair of distinct colors is perceptibly different` だけが FAIL。較正と sentinel は緑のまま。
+
+変異注入 b (閾値を無効化する)。`palette.lua` の `M.minimum_delta_e` を `0` にする。
+
+Expected: `palette: the distinguishability check detects two colors that look alike` だけが FAIL (`JND_DETECTOR_WORKS=0`)。違反カウントは 0 のまま緑。
+
+変異注入 c (色差の計算を壊す)。probe の `to_oklab` の `0.7936177850` を `0.5` にする。
+
+Expected: `delta e helper is calibrated against known values` が FAIL。
+
+いずれも `git checkout <file>` で戻す前に、そのファイルに未コミットの変更が無いことを確かめる。無ければ戻して全緑を確認する。
+
+- [ ] **Step 8: コミットする**
+
+```bash
+mkdir -p tmp
+cat > tmp/commitmsg.txt <<'EOF'
+improve: gitignored を dotfile と見分けられる彩度まで下げ 色差を機械検査する
+
+- コントラスト検査は各色が tier の下限を超えるかしか見ないため
+  下限に張り付いた 2 色が同化しても緑のまま通っていた
+- dotfile と RECEDED は OKLab の色差が 0.0049 で
+  知覚閾値 0.02 の 4 分の 1 しか離れていなかった
+- RECEDED の彩度を落として色差を 0.0371 まで開く
+  輝度は変えないのでコントラストは 3.01:1 を維持する
+- 相異なる hex が互いに知覚可能な距離を持つことを probe が総当たりで検査する
+  意図的に同色のトークンは同じリテラルを共有するため対象にならない
+EOF
+git add home/.config/nvim/lua/config/palette.lua scripts/tests/nvim-markdown-probe.lua scripts/tests/nvim-markdown.bats
+git commit -F tmp/commitmsg.txt
+```
+
+---
+
+### Task 3c: lualine の配色を palette の surfaces へ移す
+
+自前の背景色を持つ面を palette の管理下に入れ、hex リテラルを nvim の Lua から一掃する。
+
+**Files:**
+- Modify: `home/.config/nvim/lua/config/palette.lua`
+- Modify: `home/.config/nvim/lua/plugins/lualine.lua`
+- Modify: `scripts/tests/nvim-markdown-probe.lua`
+- Test: `scripts/tests/nvim-markdown.bats`
+
+**Interfaces:**
+- Consumes: probe の `contrast_ratio` (Task 1 が提供)
+- Produces: `palette.surfaces` と `palette.surface_minimum_contrast`。probe が `SURFACE_COUNT` / `SURFACE_VIOLATIONS` / `SURFACE_VIOLATION_COUNT` / `LUALINE_MATCHES_PALETTE` を出力する
+
+**controller が実測済みの事実 (再検証は不要):**
+
+- `plugins/lualine.lua` の `buffers_color` だけが hex リテラルを持つ。他は `theme = "auto"` で colorscheme から取る
+- Ghostty 1.3.1 の `background-opacity-cells` は既定 `false`。ドキュメントに「`background-opacity` is only applied to the window background. If a cell has an explicit background color set ... that background color will be fully opaque」とある。よって lualine の bg は不透明に描かれる
+- 実測: active は `#282c34` on `#53c9b8` で 6.94:1、inactive は `#abb2bf` on `#21252b` で 7.22:1。どちらも WCAG AA の 4.5:1 を満たす
+- 基準背景に対して測ると active の fg は 2.33:1、inactive の fg は 2.81:1 で、どの tier も満たさない。だから `colors` ではなく `surfaces` に置く
+- probe の headless nvim から `require("plugins.lualine")` が引けることを controller が実測済み。再帰探索で `buffers_color` に到達できる
+- 値は据え置く。色を Mariana 系へ揃え直すかどうかは別の議論であり、このタスクの範囲外
+
+- [ ] **Step 1: probe に不透明な面の検査を追加する (RED を作る)**
+
+`scripts/tests/nvim-markdown-probe.lua` の末尾に追記する。
+
+```lua
+
+-- ---------------------------------------------------------------------------
+-- 不透明な面の配色の検査
+--
+-- ステータスラインのように自前の背景色を持つ面は、透過したターミナル背景の上には無い。
+-- Ghostty の background-opacity はウィンドウ背景にだけ掛かり、
+-- 明示的な背景色を持つセルは不透明に描かれる (background-opacity-cells が既定の false のとき)。
+-- したがって前景色は reference_background ではなく自前の bg に対して評価する。
+-- ---------------------------------------------------------------------------
+
+local surface_violations = {}
+local surface_count = 0
+for name, surface in pairs(palette.surfaces) do
+    surface_count = surface_count + 1
+    local ratio = contrast_ratio(surface.fg, surface.bg)
+    if ratio < palette.surface_minimum_contrast then
+        surface_violations[#surface_violations + 1] = string.format(
+            "%s:%.2f<%.2f",
+            name,
+            ratio,
+            palette.surface_minimum_contrast
+        )
+    end
+end
+table.sort(surface_violations)
+print("SURFACE_COUNT=" .. surface_count)
+print("SURFACE_VIOLATIONS=" .. table.concat(surface_violations, ","))
+print("SURFACE_VIOLATION_COUNT=" .. #surface_violations)
+
+-- lualine の spec の入れ子から指定キーを再帰的に探す。
+-- 添字を決め打ちにすると spec の並べ替えで壊れるため、キー名で辿る
+local function find_key(node, key)
+    if type(node) ~= "table" then
+        return nil
+    end
+    if node[key] ~= nil then
+        return node[key]
+    end
+    for _, child in pairs(node) do
+        local found = find_key(child, key)
+        if found ~= nil then
+            return found
+        end
+    end
+    return nil
+end
+
+-- lualine が palette と同じ値を使っていること (drift ガード)。
+-- palette を参照していること自体は ast-grep の nvim-lua-no-hex-literal が構文レベルで保証する。
+-- ここは値の一致だけを見る
+local buffers_color = find_key(require("plugins.lualine"), "buffers_color")
+local lualine_matches = 0
+if buffers_color ~= nil then
+    local active = palette.surfaces.statusline_buffer_active
+    local inactive = palette.surfaces.statusline_buffer_inactive
+    if
+        buffers_color.active.fg == active.fg
+        and buffers_color.active.bg == active.bg
+        and buffers_color.inactive.fg == inactive.fg
+        and buffers_color.inactive.bg == inactive.bg
+    then
+        lualine_matches = 1
+    end
+end
+print("LUALINE_MATCHES_PALETTE=" .. lualine_matches)
+```
+
+- [ ] **Step 2: bats にテストを追加する**
+
+`scripts/tests/nvim-markdown.bats` の末尾に追記する。
+
+```bash
+
+@test "opaque surfaces meet the contrast target against their own background" {
+    # 面が 0 個だと上のループが回らず違反 0 のまま通ってしまう
+    run probe_with_extends
+    refute_contains "$output" "SURFACE_COUNT=0"
+    assert_contains "$output" "SURFACE_VIOLATION_COUNT=0"
+}
+
+@test "lualine uses the same colors as the palette surfaces" {
+    # 値の drift を塞ぐ。hex を書き戻すこと自体は ast-grep が塞ぐ
+    run probe_with_extends
+    assert_contains "$output" "LUALINE_MATCHES_PALETTE=1"
+}
+```
+
+- [ ] **Step 3: テストを実行して RED を確認する**
+
+Run: `bats scripts/tests/nvim-markdown.bats -f "opaque surfaces|lualine"`
+
+Expected: 2 つとも FAIL する。`palette.surfaces` がまだ存在せず、probe が nil を添字参照して落ちるため。
+
+- [ ] **Step 4: palette に surfaces を足す**
+
+`home/.config/nvim/lua/config/palette.lua` の `M.hex` の導出より前 (`M.colors` テーブルの直後) に追記する。
+
+```lua
+
+-- 不透明な面の配色。
+--
+-- ステータスラインのように自前の背景色を持つ面は、透過したターミナル背景の上には無い。
+-- Ghostty の background-opacity はウィンドウ背景にだけ掛かり、
+-- 明示的な背景色を持つセルは不透明に描かれる (background-opacity-cells が既定の false のとき)。
+-- したがって reference_background ではなく自前の bg に対して評価し、
+-- 不透明である以上 WCAG AA の 4.5:1 を課す。
+M.surface_minimum_contrast = 4.5
+
+M.surfaces = {
+    -- ステータスラインのバッファ一覧。アクティブなものを teal の帯で強調する
+    statusline_buffer_active = { fg = "#282c34", bg = "#53c9b8" },
+    statusline_buffer_inactive = { fg = "#abb2bf", bg = "#21252b" },
+}
+```
+
+- [ ] **Step 5: lualine を palette 参照へ移す**
+
+`home/.config/nvim/lua/plugins/lualine.lua` の先頭に require を足し、`buffers_color` を書き換える。太字の指定は色ではないので lualine 側に残す。
+
+```lua
+local surfaces = require("config.palette").surfaces
+
+return {
+```
+
+```lua
+                        -- アクティブなバッファをtealでくっきり強調（追従が見えるように）
+                        buffers_color = {
+                            active = {
+                                fg = surfaces.statusline_buffer_active.fg,
+                                bg = surfaces.statusline_buffer_active.bg,
+                                gui = "bold",
+                            },
+                            inactive = {
+                                fg = surfaces.statusline_buffer_inactive.fg,
+                                bg = surfaces.statusline_buffer_inactive.bg,
+                            },
+                        },
+```
+
+- [ ] **Step 6: テストを実行して GREEN を確認する**
+
+Run: `bats scripts/tests/`
+
+Expected: 全テストが PASS。`SURFACE_VIOLATION_COUNT=0` と `LUALINE_MATCHES_PALETTE=1` が出力に現れる。
+
+`grep -rnE '"#[0-9a-fA-F]{6}"' home/.config/nvim/lua --include='*.lua' | grep -v 'lua/config/palette.lua'` が何も返さないことも確認する。Task 4 の ast-grep ルールはこの状態を前提に着地する。
+
+- [ ] **Step 7: 変異注入で 2 つのテストが別々の失敗モードを捕まえることを確かめる**
+
+変異注入 a (面のコントラストを壊す)。`palette.lua` の `statusline_buffer_inactive` の `fg` を `"#3a3f45"` にする。
+
+Expected: `opaque surfaces meet the contrast target against their own background` だけが FAIL。`lualine uses the same colors as the palette surfaces` は緑のまま (lualine は palette を参照しているので一緒に動く)。
+
+変異注入 b (lualine に値を書き戻す)。`lualine.lua` の inactive の `fg` を `"#abb2bf"` というリテラルに戻したうえで、`palette.lua` の同じ値を `"#a9b0bd"` に変える。
+
+Expected: `lualine uses the same colors as the palette surfaces` だけが FAIL (`LUALINE_MATCHES_PALETTE=0`)。面のコントラストは緑のまま。
+
+いずれも `git checkout <file>` で戻す前に、そのファイルに未コミットの変更が無いことを確かめる。
+
+- [ ] **Step 8: コミットする**
+
+```bash
+mkdir -p tmp
+cat > tmp/commitmsg.txt <<'EOF'
+refactor: lualine の配色を palette の surfaces へ移す
+
+- ステータスラインは自前の背景色を持つため 透過した基準背景の上には無い
+  Ghostty の background-opacity はウィンドウ背景にだけ掛かる
+- したがって tier ではなく 自前の bg に対する WCAG AA 4.5:1 で評価する
+- この 4 色はこれまで誰も検査していなかった
+  palette へ移したことで初めて機械検査が付く
+- background-opacity-cells を有効にすると前提が崩れるが
+  前提を palette に書いたのでそのときはテストが赤くなる
+- これで nvim の Lua から hex リテラルが palette.lua だけになる
+EOF
+git add home/.config/nvim/lua/config/palette.lua home/.config/nvim/lua/plugins/lualine.lua scripts/tests/nvim-markdown-probe.lua scripts/tests/nvim-markdown.bats
+git commit -F tmp/commitmsg.txt
+```
+
+---
+
 ### Task 4: hex リテラルのハードコードを ast-grep で禁止する
 
 写像ファイルに色を直接書けないようにして、palette.lua が単一の真実であることを構文レベルで強制する。
@@ -1167,7 +1594,8 @@ Run: `ast-grep scan`
 
 Expected: `nvim-lua-no-hex-literal` の error が 0 件。既存の `bats-*` ルールも 0 件のまま。
 
-もし error が出るなら、Task 2 と Task 3 で hex を追い出しきれていない。該当ファイルを直す。
+もし error が出るなら、Task 2 / Task 3 / Task 3c のいずれかで hex を追い出しきれていない。
+`plugins/lualine.lua` は Task 3c が `palette.surfaces` へ移し済みである。該当ファイルを直す。
 
 exit code も直接確かめる。出力をパイプに繋ぐとパイプ先の exit code に化けるので繋がないこと。
 
