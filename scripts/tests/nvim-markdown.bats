@@ -134,7 +134,9 @@ probe_without_extends() {
 }
 
 @test "link punctuation is scoped to markdown_inline" {
-    # @markup.link が捕捉するのは URL ではなくリンクの記号 ( [ ] ( ) ! ) である。
+    # @markup.link はリンクや画像のノード全体を捕捉する。記号 ( [ ] ( ) ! ) だけでなく
+    # URL の範囲も含むが、URL には後方で宣言された @markup.link.url が後勝ちするため、
+    # muted が最終的に乗るのは記号だけになる。
     # 素で定義すると lua など他の文法へ muted が漏れるため言語スコープへ逃がす。
     # 解決経路は highlighter.lua と同じ '@<capture>.<lang>' を使う
     run probe_with_extends
