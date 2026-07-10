@@ -1,0 +1,24 @@
+name: Setup ast-grep
+description: ast-grep をバージョン pin した公式 zip から取得し PATH に追加するローカル composite action。pre-commit と同じ構文ルール (rules/) を CI でも走らせる。
+
+runs:
+  using: composite
+  steps:
+    - name: Install ast-grep
+      shell: bash
+      run: |
+        ast_grep_version="0.44.1" # 開発機と揃える
+        # リリースタグ URL は tag 付け替えで中身が変わりうる mutable な参照のため、
+        # 展開前に固定済み sha256 で内容を検証する (setup-neovim と同じ意図)。
+        # 再計算方法: curl で同じ URL を取得し `shasum -a 256 app-x86_64-unknown-linux-gnu.zip`
+        # (macOS) または `sha256sum app-x86_64-unknown-linux-gnu.zip` (Linux) を実行する。
+        expected_sha256="611f9e5e76f2611ecea1a35dd3468ceedf600641a11224b80341d79c6ee7b9dd"
+        archive="$RUNNER_TEMP/ast-grep.zip"
+        curl --proto '=https' --tlsv1.2 -fsSL -o "$archive" "https://github.com/ast-grep/ast-grep/releases/download/${ast_grep_version}/app-x86_64-unknown-linux-gnu.zip"
+        echo "${expected_sha256}  ${archive}" | sha256sum -c -
+        bin_dir="$RUNNER_TEMP/ast-grep-bin"
+        mkdir -p "$bin_dir"
+        unzip -q -o "$archive" -d "$bin_dir"
+        # zip は実行権限を保持しないことがあるため明示的に付ける
+        chmod +x "$bin_dir/ast-grep" "$bin_dir/sg"
+        echo "$bin_dir" >> "$GITHUB_PATH"

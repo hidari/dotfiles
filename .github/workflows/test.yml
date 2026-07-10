@@ -22,8 +22,32 @@ jobs:
       - name: Setup Neovim
         uses: ./.github/actions/setup-neovim
 
+      - name: Setup ast-grep
+        uses: ./.github/actions/setup-ast-grep
+
       - name: Run Bats tests
         run: bats scripts/tests/
+
+  ast-grep:
+    name: ast-grep (syntax lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Setup ast-grep
+        uses: ./.github/actions/setup-ast-grep
+
+      # rules/ の分類テスト。valid と invalid が期待どおりに分かれることを確かめる
+      - name: Rule tests
+        run: ast-grep test --skip-snapshot-tests
+
+      # リポジトリ全体の走査。severity: error の指摘が 1 件でもあれば exit 1 になる
+      # (severity: warning は指摘があっても exit 0 なので CI では守られない)
+      #
+      # --no-ignore hidden が要る。ast-grep は既定で隠しディレクトリを走査しないため、
+      # これが無いと home/.config 配下の nvim の Lua を 1 件も検査せず exit 0 で素通りする
+      - name: Scan repository
+        run: ast-grep scan --no-ignore hidden
 
   backup-tool:
     name: backup-tool (python)

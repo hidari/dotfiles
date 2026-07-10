@@ -92,15 +92,19 @@ scan_exit() {
     # ルールの検出力は上のテストが守るが、呼び出し側の配線を守るのはここだけである。
     #
     # 実行行だけを見るため entry: と run: で錨を打つ。
-    # そうしないと pre-commit の name: ast-grep scan (...) という表示名まで拾って常に赤くなる。
-    # CI の workflow は Task 5 が追加するので、そのときここへ足す
+    # そうしないと pre-commit の name: ast-grep scan (...) という表示名まで拾って常に赤くなる
     pre_commit="$REPO_ROOT/.pre-commit-config.yaml"
+    workflow="$REPO_ROOT/.github/workflows/test.yml"
     invocation='(entry|run):[[:space:]]*ast-grep scan'
 
-    # 呼び出しが 0 件だと下の検査が空回りして緑になる
-    calls=$(grep -cE "$invocation" "$pre_commit" || true)
-    [ "$calls" -ge 1 ] || return 1
+    # 呼び出しが 0 件だと下の検査が空回りして緑になる。
+    # pre-commit と CI がそれぞれ 1 回以上呼んでいることを先に固定する
+    pre_commit_calls=$(grep -cE "$invocation" "$pre_commit" || true)
+    workflow_calls=$(grep -cE "$invocation" "$workflow" || true)
+    [ "$pre_commit_calls" -ge 1 ] || return 1
+    [ "$workflow_calls" -ge 1 ] || return 1
 
-    missing=$(grep -hE "$invocation" "$pre_commit" | grep -cv -- '--no-ignore hidden' || true)
+    # そのすべてがフラグを伴うこと
+    missing=$(grep -hE "$invocation" "$pre_commit" "$workflow" | grep -cv -- '--no-ignore hidden' || true)
     [ "$missing" = "0" ] || return 1
 }
