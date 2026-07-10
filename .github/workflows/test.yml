@@ -25,6 +25,9 @@ jobs:
       - name: Setup ast-grep
         uses: ./.github/actions/setup-ast-grep
 
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
+
       - name: Run Bats tests
         run: bats scripts/tests/
 

@@ -1737,26 +1737,34 @@ scan_exit() {
     # --no-ignore hidden が無いと nvim の Lua を 1 件も検査しないまま緑になる。
     # ルールの検出力は上のテストが守るが、呼び出し側の配線を守るのはここだけである。
     #
-    # 実行行だけを見るため entry: と run: で錨を打つ。
-    # そうしないと pre-commit の name: ast-grep scan (...) という表示名まで拾って常に赤くなる。
-    # CI の workflow は Task 5 が追加するので、そのときここへ足す
-    pre_commit="$REPO_ROOT/.pre-commit-config.yaml"
-    invocation='(entry|run):[[:space:]]*ast-grep scan'
+    # 設定の YAML を safe_load して構造として読む (グローバル CLAUDE.md の MUST:
+    # 設定のデータ構造を検証するときは regex ではなく言語自身に解釈させる)。
+    # regex での text-parse はコメントアウトした run 行を false pass するため使わない。
+    if ! command -v uv >/dev/null 2>&1; then
+        if [ -n "${CI:-}" ]; then
+            echo "uv is required in CI but was not found" >&2
+            return 1
+        fi
+        skip "uv is not installed"
+    fi
 
-    # 呼び出しが 0 件だと下の検査が空回りして緑になる
-    calls=$(grep -cE "$invocation" "$pre_commit" || true)
-    [ "$calls" -ge 1 ] || return 1
+    run uv run --quiet --no-project --with pyyaml python3 \
+        "$REPO_ROOT/scripts/tests/ast-grep-wiring-probe.py"
+    [ "$status" -eq 0 ] || return 1
 
-    missing=$(grep -hE "$invocation" "$pre_commit" | grep -cv -- '--no-ignore hidden' || true)
-    [ "$missing" = "0" ] || return 1
+    # 件数が 0 だと hook の id を改名したときに「見つからないから緑」になる
+    refute_contains "$output" "PRECOMMIT_HOOK_COUNT=0"
+    assert_contains "$output" "PRECOMMIT_ENTRY_MISSING_FLAG=0"
 }
 ```
+
+配線ガードは `scripts/tests/ast-grep-wiring-probe.py` が担う。`.pre-commit-config.yaml` を `yaml.safe_load` し、`id` が `ast-grep-scan` の hook を数え、その `entry` が `--no-ignore hidden` を含むかを見る。CI の workflow は Task 5 が step を追加したうえで同じ probe の `WORKFLOW_STEP_COUNT` / `WORKFLOW_RUN_MISSING_FLAG` で固定する。
 
 fixture の中では設計値を使わない。コメントと文字列の区別を確かめるのに `palette.lua` が持つ値は要らず、任意の hex で同じ検査ができる。設計値を書き写すと、値を変えたときに fixture が黙って嘘になる。
 
 Run: `bats scripts/tests/ast-grep.bats`
 
-Expected: 最初の 4 件は PASS。`every ast-grep scan invocation searches hidden directories` だけが FAIL する。この時点の `.pre-commit-config.yaml` の `entry` にはまだフラグが無いためである。これが RED であり、Step 8 で緑になる。
+Expected: 最初の 4 件は PASS。`every ast-grep scan invocation searches hidden directories` だけが FAIL する。この時点の `.pre-commit-config.yaml` の `entry` にはまだフラグが無いため `PRECOMMIT_ENTRY_MISSING_FLAG=1` になるからである。これが RED であり、Step 8 で緑になる。
 
 - [ ] **Step 7: 変異注入でルールが効くことを確認する**
 
@@ -1878,29 +1886,35 @@ Task 4 は `scripts/tests/ast-grep.bats` に `every ast-grep scan invocation sea
 
 - [ ] **Step 1: 配線テストを CI へ広げる**
 
-`scripts/tests/ast-grep.bats` の `every ast-grep scan invocation searches hidden directories` を書き換える。pre-commit だけを見ていたものを、workflow も見るようにする。
+`scripts/tests/ast-grep-wiring-probe.py` を workflow も読むよう広げる。probe が `.github/workflows/test.yml` を `yaml.safe_load` し、`jobs[].steps[]` から `run` に `ast-grep scan` を含む step を数え、その `run` が `--no-ignore hidden` を含むかを見る。bats はその出力を突き合わせる。
 
 ```bash
 @test "every ast-grep scan invocation searches hidden directories" {
     # --no-ignore hidden が無いと nvim の Lua を 1 件も検査しないまま緑になる。
     # ルールの検出力は上のテストが守るが、呼び出し側の配線を守るのはここだけである。
     #
-    # 実行行だけを見るため entry: と run: で錨を打つ。
-    # そうしないと pre-commit の name: ast-grep scan (...) という表示名まで拾って常に赤くなる
-    pre_commit="$REPO_ROOT/.pre-commit-config.yaml"
-    workflow="$REPO_ROOT/.github/workflows/test.yml"
-    invocation='(entry|run):[[:space:]]*ast-grep scan'
+    # 設定の YAML を safe_load して構造として読む (グローバル CLAUDE.md の MUST)。
+    # 旧実装は regex で text-parse していたが、行頭錨が無いためコメントアウトした
+    # run 行を false pass し、run: | のブロックスカラーを false fail した。
+    if ! command -v uv >/dev/null 2>&1; then
+        if [ -n "${CI:-}" ]; then
+            echo "uv is required in CI but was not found" >&2
+            return 1
+        fi
+        skip "uv is not installed"
+    fi
 
-    # 呼び出しが 0 件だと下の検査が空回りして緑になる。
-    # pre-commit と CI がそれぞれ 1 回以上呼んでいることを先に固定する
-    pre_commit_calls=$(grep -cE "$invocation" "$pre_commit" || true)
-    workflow_calls=$(grep -cE "$invocation" "$workflow" || true)
-    [ "$pre_commit_calls" -ge 1 ] || return 1
-    [ "$workflow_calls" -ge 1 ] || return 1
+    run uv run --quiet --no-project --with pyyaml python3 \
+        "$REPO_ROOT/scripts/tests/ast-grep-wiring-probe.py"
+    [ "$status" -eq 0 ] || return 1
 
-    # そのすべてがフラグを伴うこと
-    missing=$(grep -hE "$invocation" "$pre_commit" "$workflow" | grep -cv -- '--no-ignore hidden' || true)
-    [ "$missing" = "0" ] || return 1
+    # 件数が 0 だと id / step の run を改名したときに「見つからないから緑」になる
+    refute_contains "$output" "PRECOMMIT_HOOK_COUNT=0"
+    refute_contains "$output" "WORKFLOW_STEP_COUNT=0"
+
+    # 配線されたすべてがフラグを伴うこと
+    assert_contains "$output" "PRECOMMIT_ENTRY_MISSING_FLAG=0"
+    assert_contains "$output" "WORKFLOW_RUN_MISSING_FLAG=0"
 }
 ```
 
@@ -1908,7 +1922,7 @@ Task 4 は `scripts/tests/ast-grep.bats` に `every ast-grep scan invocation sea
 
 Run: `bats scripts/tests/ast-grep.bats -f "hidden directories"`
 
-Expected: FAIL。`.github/workflows/test.yml` はまだ `ast-grep scan` を呼んでいないため `workflow_calls` が 0 になる。
+Expected: FAIL。`.github/workflows/test.yml` はまだ `ast-grep scan` を呼んでいないため `WORKFLOW_STEP_COUNT=0` になる。
 
 - [ ] **Step 3: composite action を作る**
 
@@ -2053,15 +2067,19 @@ git commit -F tmp/commitmsg.txt
 
 変異注入 a (pre-commit のフラグを外す)。`.pre-commit-config.yaml` の `entry: ast-grep scan --no-ignore hidden` を `entry: ast-grep scan` にする。
 
-Expected: `every ast-grep scan invocation searches hidden directories` が FAIL。他のテストは緑のまま。
+Expected: `every ast-grep scan invocation searches hidden directories` が FAIL (`PRECOMMIT_ENTRY_MISSING_FLAG=1`)。他のテストは緑のまま。
 
 変異注入 b (CI のフラグを外す)。`.github/workflows/test.yml` の `run: ast-grep scan --no-ignore hidden` を `run: ast-grep scan` にする。
 
-Expected: 同じテストが FAIL。
+Expected: 同じテストが FAIL (`WORKFLOW_RUN_MISSING_FLAG=1`)。
 
-変異注入 c (workflow から scan の呼び出しごと消す)。`run: ast-grep scan --no-ignore hidden` の行を削除する。
+変異注入 c (workflow の run 行を丸ごとコメントアウトする)。`run: ast-grep scan --no-ignore hidden` の行頭に `# ` を付ける。
 
-Expected: 同じテストが FAIL (`workflow_calls` が 0 になる)。呼び出しが消えたときに空回りして緑になる穴が塞がれていることを示す。
+Expected: 同じテストが FAIL (`WORKFLOW_STEP_COUNT=0`)。呼び出しが消えたときに空回りして緑になる穴が塞がれていることを示す。regex での text-parse はコメント行にマッチして false pass するが、構造 parse は run キーが無いので step を数えない。
+
+変異注入 d (run をブロックスカラーへ書き換える)。`run: ast-grep scan --no-ignore hidden` を `run: |` の下へ同じコマンドを字下げして置く (フラグは残す)。
+
+Expected: 緑のまま。機能的に等価なので構造 parse は `run` の文字列として同じ内容を読む。regex での text-parse は `run: |` 行に scan が無いので false fail していた。
 
 ---
 

@@ -107,20 +107,29 @@ scan_exit() {
     # --no-ignore hidden が無いと nvim の Lua を 1 件も検査しないまま緑になる。
     # ルールの検出力は上のテストが守るが、呼び出し側の配線を守るのはここだけである。
     #
-    # 実行行だけを見るため entry: と run: で錨を打つ。
-    # そうしないと pre-commit の name: ast-grep scan (...) という表示名まで拾って常に赤くなる
-    pre_commit="$REPO_ROOT/.pre-commit-config.yaml"
-    workflow="$REPO_ROOT/.github/workflows/test.yml"
-    invocation='(entry|run):[[:space:]]*ast-grep scan'
+    # 旧実装は 2 つの YAML を regex で text-parse していたが、行頭錨が無いため
+    # コメントアウトした run 行を false pass し、run: | のブロックスカラーを false fail した。
+    # YAML を safe_load して構造として読む (グローバル CLAUDE.md の MUST:
+    # 設定のデータ構造を検証するときは regex ではなく言語自身に解釈させる)。
+    if ! command -v uv >/dev/null 2>&1; then
+        # CI では uv の導入失敗を skip で隠さない (ast-grep / nvim と同じ流儀)
+        if [ -n "${CI:-}" ]; then
+            echo "uv is required in CI but was not found" >&2
+            return 1
+        fi
+        skip "uv is not installed"
+    fi
 
-    # 呼び出しが 0 件だと下の検査が空回りして緑になる。
-    # pre-commit と CI がそれぞれ 1 回以上呼んでいることを先に固定する
-    pre_commit_calls=$(grep -cE "$invocation" "$pre_commit" || true)
-    workflow_calls=$(grep -cE "$invocation" "$workflow" || true)
-    [ "$pre_commit_calls" -ge 1 ] || return 1
-    [ "$workflow_calls" -ge 1 ] || return 1
+    run uv run --quiet --no-project --with pyyaml python3 \
+        "$REPO_ROOT/scripts/tests/ast-grep-wiring-probe.py"
+    [ "$status" -eq 0 ] || return 1
 
-    # そのすべてがフラグを伴うこと
-    missing=$(grep -hE "$invocation" "$pre_commit" "$workflow" | grep -cv -- '--no-ignore hidden' || true)
-    [ "$missing" = "0" ] || return 1
+    # 件数が 0 だと hook の id や step の run を改名したときに
+    # 「見つからないから緑」になる。先に 0 を弾いて空回りを塞ぐ
+    refute_contains "$output" "PRECOMMIT_HOOK_COUNT=0"
+    refute_contains "$output" "WORKFLOW_STEP_COUNT=0"
+
+    # 配線されたすべてがフラグを伴うこと
+    assert_contains "$output" "PRECOMMIT_ENTRY_MISSING_FLAG=0"
+    assert_contains "$output" "WORKFLOW_RUN_MISSING_FLAG=0"
 }
