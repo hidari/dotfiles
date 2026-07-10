@@ -132,3 +132,12 @@ probe_without_extends() {
     run probe_with_extends
     assert_contains "$output" "PALETTE_VIOLATION_COUNT=0"
 }
+
+@test "link punctuation is scoped to markdown_inline" {
+    # @markup.link が捕捉するのは URL ではなくリンクの記号 ( [ ] ( ) ! ) である。
+    # 素で定義すると lua など他の文法へ muted が漏れるため言語スコープへ逃がす。
+    # 解決経路は highlighter.lua と同じ '@<capture>.<lang>' を使う
+    run probe_with_extends
+    assert_contains "$output" "LINK_SCOPED_IN_MARKDOWN=1"
+    assert_contains "$output" "LINK_NO_BLEED_TO_LUA=1"
+}

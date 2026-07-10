@@ -125,18 +125,29 @@ end
 print("NORMAL_BG=" .. tostring(highlight("Normal").bg))
 print("H1_FG=" .. tostring(highlight("@markup.heading.1").fg))
 
--- 汎用キャプチャ名がグローバルへ MUTED を漏らしていないことを保証する (このブランチの核心)。
+-- 汎用キャプチャ名がグローバルへ muted を漏らしていないことを保証する。
 -- markdown.lua は @<capture>.<lang> でスコープするので、他言語が共有する素の @<capture> は
--- MUTED を帯びてはならない。MUTED はスコープした @conceal.markdown_inline の色から逆算する
--- (markdown.lua 内の local MUTED を二重定義しないため)。
-local MUTED_FG = tonumber(markdown["@conceal.markdown_inline"].fg:sub(2), 16)
+-- muted を帯びてはならない。色は palette から直接取る
+local MUTED_FG = tonumber(palette.hex.muted:sub(2), 16)
 local bleed = 0
-for _, name in ipairs({ "@punctuation.special", "@conceal", "@label" }) do
+for _, name in ipairs({ "@punctuation.special", "@conceal", "@label", "@markup.link" }) do
     if highlight(name).fg == MUTED_FG then
         bleed = 1
     end
 end
 print("GLOBAL_BLEED=" .. bleed)
+
+-- highlighter (runtime/lua/vim/treesitter/highlighter.lua) が実際に使う解決経路。
+-- キャプチャ名と言語から '@<capture>.<lang>' を組み立てて引く。
+-- 定義が無ければ素の '@<capture>' へフォールバックする
+local function resolved_fg(capture, lang)
+    local id = vim.api.nvim_get_hl_id_by_name("@" .. capture .. "." .. lang)
+    return vim.api.nvim_get_hl(0, { id = id, link = false }).fg
+end
+
+-- リンクの記号は markdown_inline でだけ muted になり、他言語へは漏れない
+print("LINK_SCOPED_IN_MARKDOWN=" .. ((resolved_fg("markup.link", "markdown_inline") == MUTED_FG) and 1 or 0))
+print("LINK_NO_BLEED_TO_LUA=" .. ((resolved_fg("markup.link", "lua") ~= MUTED_FG) and 1 or 0))
 
 -- 逆に、スコープした markdown 用グループには MUTED が実際に乗っていること。
 -- 漏れを止めた結果 markdown 側まで無色になっていないかを確かめる。
@@ -145,6 +156,7 @@ for _, name in ipairs({
     "@punctuation.special.markdown",
     "@conceal.markdown_inline",
     "@label.markdown",
+    "@markup.link.markdown_inline",
 }) do
     if highlight(name).fg ~= MUTED_FG then
         scoped_applied = 0
