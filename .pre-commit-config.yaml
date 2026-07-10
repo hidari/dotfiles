@@ -142,9 +142,9 @@ repos:
       - id: ast-grep-scan
         name: ast-grep scan (構文レベル lint / rules)
         language: system
-        entry: ast-grep scan
+        entry: ast-grep scan --no-ignore hidden
         pass_filenames: false
-        files: ^(.*\.bats|sgconfig\.yml|rules/.*)$
+        files: ^(.*\.bats|.*\.lua|sgconfig\.yml|rules/.*)$
 
       - id: ast-grep-test
         name: ast-grep test (rule 分類テスト)

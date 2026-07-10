@@ -33,6 +33,7 @@ brew "yt-dlp"                             # 動画ダウンローダー
 brew "jq"                                 # JSONパーサー
 brew "rsync"                              # ファイル同期ツール
 brew "tree"                               # ディレクトリツリー表示
+brew "yusukebe/tap/ax", trusted: true     # The AI-era curl
 brew "hidari/tap/rip"                     # zipアーカイバ
 
 # --- コード品質 / セキュリティ ---

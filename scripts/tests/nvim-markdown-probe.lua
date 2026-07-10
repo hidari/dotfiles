@@ -4,12 +4,14 @@
 -- nvim --clean で起動される前提。user config を読まないので lazy.nvim は動かず、
 -- markdown / markdown_inline のパーサは Neovim 本体同梱のものが使われる。
 
-local palette = require("config.markdown")
+local markdown = require("config.markdown")
+local palette = require("config.palette")
 
--- 見出し 1..6 の fg が互いに異なること。同色だと階層が読めない
+-- 見出し 1..6 の fg が互いに異なること。同色だと階層が読めない。
+-- 見出しは @markup.heading.N.markdown へスコープしてあるのでその名前で引く
 local levels, duplicates, seen = 0, 0, {}
 for level = 1, 6 do
-    local group = palette["@markup.heading." .. level]
+    local group = markdown["@markup.heading." .. level .. ".markdown"]
     if group and group.fg then
         levels = levels + 1
         if seen[group.fg] then
@@ -57,7 +59,7 @@ local function split_lang(group)
 end
 
 local missing = {}
-for group in pairs(palette) do
+for group in pairs(markdown) do
     local base, lang = split_lang(group)
     local present
     if lang then
@@ -81,7 +83,7 @@ local tree = vim.treesitter.get_parser(buffer, "markdown"):parse(true)[1]
 local query = vim.treesitter.query.get("markdown", "highlights")
 local markers = 0
 for id in query:iter_captures(tree:root(), buffer, 0, -1) do
-    if query.captures[id] == "markup.heading.marker" then
+    if query.captures[id]:match("^markup%.heading%.%d%.marker$") then
         markers = markers + 1
     end
 end
@@ -122,20 +124,49 @@ local function highlight(name)
 end
 
 print("NORMAL_BG=" .. tostring(highlight("Normal").bg))
-print("H1_FG=" .. tostring(highlight("@markup.heading.1").fg))
+print("H1_FG=" .. tostring(highlight("@markup.heading.1.markdown").fg))
 
--- 汎用キャプチャ名がグローバルへ MUTED を漏らしていないことを保証する (このブランチの核心)。
+-- 汎用キャプチャ名がグローバルへ muted を漏らしていないことを保証する。
 -- markdown.lua は @<capture>.<lang> でスコープするので、他言語が共有する素の @<capture> は
--- MUTED を帯びてはならない。MUTED はスコープした @conceal.markdown_inline の色から逆算する
--- (markdown.lua 内の local MUTED を二重定義しないため)。
-local MUTED_FG = tonumber(palette["@conceal.markdown_inline"].fg:sub(2), 16)
+-- muted を帯びてはならない。色は palette から直接取る
+local MUTED_FG = tonumber(palette.hex.muted:sub(2), 16)
 local bleed = 0
-for _, name in ipairs({ "@punctuation.special", "@conceal", "@label" }) do
+for _, name in ipairs({ "@punctuation.special", "@conceal", "@label", "@markup.link" }) do
     if highlight(name).fg == MUTED_FG then
         bleed = 1
     end
 end
 print("GLOBAL_BLEED=" .. bleed)
+
+-- highlighter (runtime/lua/vim/treesitter/highlighter.lua) が実際に使う解決経路。
+-- キャプチャ名と言語から '@<capture>.<lang>' を組み立てて引く。
+-- 定義が無ければ素の '@<capture>' へフォールバックする
+local function resolved_fg(capture, lang)
+    local id = vim.api.nvim_get_hl_id_by_name("@" .. capture .. "." .. lang)
+    return vim.api.nvim_get_hl(0, { id = id, link = false }).fg
+end
+
+-- リンクの記号は markdown_inline でだけ muted になり、他言語へは漏れない
+print("LINK_SCOPED_IN_MARKDOWN=" .. ((resolved_fg("markup.link", "markdown_inline") == MUTED_FG) and 1 or 0))
+print("LINK_NO_BLEED_TO_LUA=" .. ((resolved_fg("markup.link", "lua") ~= MUTED_FG) and 1 or 0))
+
+-- 見出しマーカー (#) には markdown スコープで明示的に色を与える。
+-- 見出しを @markup.heading.N.markdown へスコープしたため素の @markup.heading.N は消えており、
+-- @markup.heading.N.marker.markdown は階層フォールバックでは見出し色を継承できない
+-- (フォールバックは右から削るので @markup.heading.N.marker.markdown -> @markup.heading.N.marker
+--  -> @markup.heading.N と落ち、@markup.heading.N.markdown はこの鎖に現れない)。
+-- markdown.lua が @markup.heading.N.marker.markdown へ hex.heading_N を明示定義することで同色にする。
+-- 不変条件 (マーカー == 見出し) は機構が継承から明示定義へ変わっても同じ。
+-- この検査は名前解決だけで成立するのでクエリの有無には依存しない。
+-- 守っているのは、誰かがマーカーの明示定義を消して見出しと色がずれることである
+local marker_matches = 1
+for level = 1, 6 do
+    local want = tonumber(palette.hex["heading_" .. level]:sub(2), 16)
+    if resolved_fg("markup.heading." .. level .. ".marker", "markdown") ~= want then
+        marker_matches = 0
+    end
+end
+print("MARKER_MATCHES_HEADING=" .. marker_matches)
 
 -- 逆に、スコープした markdown 用グループには MUTED が実際に乗っていること。
 -- 漏れを止めた結果 markdown 側まで無色になっていないかを確かめる。
@@ -144,6 +175,7 @@ for _, name in ipairs({
     "@punctuation.special.markdown",
     "@conceal.markdown_inline",
     "@label.markdown",
+    "@markup.link.markdown_inline",
 }) do
     if highlight(name).fg ~= MUTED_FG then
         scoped_applied = 0
@@ -151,7 +183,451 @@ for _, name in ipairs({
 end
 print("SCOPED_MUTED_APPLIED=" .. scoped_applied)
 
+-- 色を持つ markup キャプチャの一覧。
+-- token は palette (単一の真実) の色名、langs はそのキャプチャを産出する文法。
+-- 産出文法は Neovim 同梱の highlights クエリで確定している。nvim-treesitter (main) は
+-- markdown / markdown_inline のクエリを同梱しないため、同梱クエリがそのまま実機でも使われる。
+-- 属性だけの @markup.italic は fg を持たず他文法へ漏れても無害なのでここには含めない。
+local color_captures = {
+    { capture = "markup.heading.1", token = "heading_1", langs = { "markdown" } },
+    { capture = "markup.heading.2", token = "heading_2", langs = { "markdown" } },
+    { capture = "markup.heading.3", token = "heading_3", langs = { "markdown" } },
+    { capture = "markup.heading.4", token = "heading_4", langs = { "markdown" } },
+    { capture = "markup.heading.5", token = "heading_5", langs = { "markdown" } },
+    { capture = "markup.heading.6", token = "heading_6", langs = { "markdown" } },
+    { capture = "markup.list", token = "list_marker", langs = { "markdown" } },
+    { capture = "markup.strong", token = "strong", langs = { "markdown_inline" } },
+    { capture = "markup.strikethrough", token = "strikethrough", langs = { "markdown_inline" } },
+    { capture = "markup.raw", token = "inline_code", langs = { "markdown_inline" } },
+    { capture = "markup.raw.block", token = "code_block", langs = { "markdown" } },
+    { capture = "markup.quote", token = "quote", langs = { "markdown" } },
+    { capture = "markup.link.label", token = "link_label", langs = { "markdown", "markdown_inline" } },
+    { capture = "markup.link.url", token = "muted", langs = { "markdown", "markdown_inline" } },
+    { capture = "markup.list.checked", token = "checked", langs = { "markdown" } },
+    { capture = "markup.list.unchecked", token = "unchecked", langs = { "markdown" } },
+}
+
+local function token_fg(token)
+    return tonumber(palette.hex[token]:sub(2), 16)
+end
+
+-- 漏れ検査。色を持つ各キャプチャを他文法のサフィックスで引くと markdown の色に解決してはならない。
+-- @<capture>.<foreign> は未定義なので素の @<capture> へフォールバックするが、
+-- 素を .markdown / .markdown_inline へスコープしたので既定色に落ち markdown の色にはならない。
+-- 素で色を定義していると (回帰すると) 他文法へ markdown の色が漏れてここで捕まる。
+-- 対象文法は heading / raw を漏らす vimdoc と strong / link を漏らす html を使う。
+local foreign_langs = { "vimdoc", "html" }
+local foreign_bleed = {}
+local foreign_pair_count = 0
+for _, entry in ipairs(color_captures) do
+    local want = token_fg(entry.token)
+    for _, lang in ipairs(foreign_langs) do
+        foreign_pair_count = foreign_pair_count + 1
+        if resolved_fg(entry.capture, lang) == want then
+            foreign_bleed[#foreign_bleed + 1] = entry.capture .. "." .. lang
+        end
+    end
+end
+table.sort(foreign_bleed)
+-- 走査した組が 0 なら検査が空回りして常に緑になるので件数も出す
+print("FOREIGN_BLEED_PAIR_COUNT=" .. foreign_pair_count)
+print("FOREIGN_BLEED=" .. table.concat(foreign_bleed, ","))
+print("FOREIGN_BLEED_COUNT=" .. #foreign_bleed)
+
+-- スコープ適用検査。各キャプチャを産出文法のサフィックスで引くと palette の色に解決すること。
+-- 漏れを止めた結果 markdown 側まで無色になっていないか (サフィックスの誤り / over-scope) を検出する。
+-- これが無いと「サフィックスを間違えて markdown でも色が出ない」回帰を素通しする。
+local scoped_color_mismatch = {}
+local scoped_color_pair_count = 0
+for _, entry in ipairs(color_captures) do
+    local want = token_fg(entry.token)
+    for _, lang in ipairs(entry.langs) do
+        scoped_color_pair_count = scoped_color_pair_count + 1
+        if resolved_fg(entry.capture, lang) ~= want then
+            scoped_color_mismatch[#scoped_color_mismatch + 1] = entry.capture .. "." .. lang
+        end
+    end
+end
+table.sort(scoped_color_mismatch)
+-- 走査した組が 0 なら検査が空回りするので件数も出す
+print("SCOPED_COLOR_PAIR_COUNT=" .. scoped_color_pair_count)
+print("SCOPED_COLOR_MISMATCH=" .. table.concat(scoped_color_mismatch, ","))
+print("SCOPED_COLOR_MISMATCH_COUNT=" .. #scoped_color_mismatch)
+
+-- ---------------------------------------------------------------------------
+-- ファイラの配色
+--
+-- NeoTree のグループ名は tree-sitter のキャプチャではないため、綴りを間違えても
+-- Neovim は黙って無視する。ここではグループ名を出力し、実在の検査は bats が
+-- neo-tree のソースに対して行う。
+-- ---------------------------------------------------------------------------
+
+local neotree = require("config.neotree")
+
+local neotree_groups = {}
+for name in pairs(neotree) do
+    neotree_groups[#neotree_groups + 1] = name
+end
+table.sort(neotree_groups)
+print("NEOTREE_GROUPS=" .. table.concat(neotree_groups, ","))
+print("NEOTREE_GROUP_COUNT=" .. #neotree_groups)
+
+-- 定義した色が実際に適用されていること。
+-- link を張られている既定グループを上書きできているかもここで分かる。
+-- fg を持たない group を skip すると、色が黙って消えても NEOTREE_APPLIED=1 のまま通る。
+-- 現状すべての neotree group は fg を持つので、skip せず fg 前提で回して失敗させる
+local neotree_applied = 1
+for group, opts in pairs(neotree) do
+    local want = tonumber(opts.fg:sub(2), 16)
+    if highlight(group).fg ~= want then
+        neotree_applied = 0
+    end
+end
+print("NEOTREE_APPLIED=" .. neotree_applied)
+
+-- 未知のトークン名を palette.hex から引くと error になること。
+-- トークンを改名すると palette.hex.<旧名> が nil を返し、nvim_set_hl はそれを
+-- fg 未指定と解釈して既定色へ黙って戻してしまう。palette.hex に __index ガードを
+-- 掛けて nil ではなく error にすることで、改名が全テスト緑のまま色を消す事故を塞ぐ。
+-- ここが 0 になったらガードが外れており、silent nil default への回帰を検出できない
+local hex_guard_ok = pcall(function()
+    return palette.hex.this_token_does_not_exist
+end)
+print("HEX_UNKNOWN_KEY_ERRORS=" .. (hex_guard_ok and 0 or 1))
+
+-- palette.surfaces も同じガードを持つこと。lualine は surfaces.<面名> を直接引くので、
+-- 面を改名すると nil を index して起動時に汚く落ちる。hex と同じ __index で名前付き error にし、
+-- 半分だけ守られた状態 (hex だけガード) を残さない
+local surfaces_guard_ok = pcall(function()
+    return palette.surfaces.this_surface_does_not_exist
+end)
+print("SURFACES_UNKNOWN_KEY_ERRORS=" .. (surfaces_guard_ok and 0 or 1))
+
+-- 色だけに頼らない情報伝達 (グローバル CLAUDE.md の MUST) を固定する。
+-- 適用結果 (highlight) から直接読むので、写像の bold / italic 宣言を消しても
+-- 検査が空回りして緑になることはない。fg 比較だけを見る NEOTREE_APPLIED では守れない不変条件。
+-- 検査対象が 0 件だと空回りするので件数も出す
+local attribute_violations = {}
+local attribute_checks = 0
+
+-- 見出しは色相だけでなく bold でも本文と区別する。全 6 レベルが bold であること。
+-- 見出しは @markup.heading.N.markdown へスコープしてあるのでその名前で引く
+for level = 1, 6 do
+    attribute_checks = attribute_checks + 1
+    if highlight("@markup.heading." .. level .. ".markdown").bold ~= true then
+        attribute_violations[#attribute_violations + 1] = "heading_" .. level .. ":not-bold"
+    end
+end
+
+-- git の未追跡と衝突はファイル名に同一の色 (git_attention) が乗る。
+-- bold の有無だけが両者を分けるので、その区別が生きていること。
+-- 色を読んで同一であることも確かめる (bold が真の区別子であることを保証する)
+local untracked = highlight("NeoTreeGitUntracked")
+local conflict = highlight("NeoTreeGitConflict")
+attribute_checks = attribute_checks + 1
+if untracked.fg ~= conflict.fg then
+    attribute_violations[#attribute_violations + 1] = "git_states:fg-not-shared"
+end
+attribute_checks = attribute_checks + 1
+if conflict.bold ~= true then
+    attribute_violations[#attribute_violations + 1] = "git_conflict:not-bold"
+end
+attribute_checks = attribute_checks + 1
+if untracked.bold == true then
+    attribute_violations[#attribute_violations + 1] = "git_untracked:unexpected-bold"
+end
+
+table.sort(attribute_violations)
+print("ATTRIBUTE_CHECK_COUNT=" .. attribute_checks)
+print("ATTRIBUTE_VIOLATIONS=" .. table.concat(attribute_violations, ","))
+print("ATTRIBUTE_VIOLATION_COUNT=" .. #attribute_violations)
+
 -- colorscheme の読み込みは hi clear を伴うため、autocmd が無いと定義が消える
 vim.cmd("colorscheme habamax")
 print("AFTER_CS_NORMAL_BG=" .. tostring(highlight("Normal").bg))
-print("AFTER_CS_H1_FG=" .. tostring(highlight("@markup.heading.1").fg))
+print("AFTER_CS_H1_FG=" .. tostring(highlight("@markup.heading.1.markdown").fg))
+
+-- ---------------------------------------------------------------------------
+-- パレットのコントラスト検査
+--
+-- 基準背景と tier ごとの目標値は config.palette が単一の真実として持つ。
+-- ここでは WCAG 2.x の相対輝度を計算するだけで、期待値は持たない。
+-- ---------------------------------------------------------------------------
+
+-- sRGB のガンマを解いて線形化する
+local function linearize(byte)
+    local c = byte / 255
+    if c <= 0.03928 then
+        return c / 12.92
+    end
+    return ((c + 0.055) / 1.055) ^ 2.4
+end
+
+local function relative_luminance(hex)
+    local r = linearize(tonumber(hex:sub(2, 3), 16))
+    local g = linearize(tonumber(hex:sub(4, 5), 16))
+    local b = linearize(tonumber(hex:sub(6, 7), 16))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+end
+
+local function contrast_ratio(fg, bg)
+    local lf, lb = relative_luminance(fg), relative_luminance(bg)
+    local hi, lo = math.max(lf, lb), math.min(lf, lb)
+    return (hi + 0.05) / (lo + 0.05)
+end
+
+-- 検査ロジック自体の較正。白と黒は 21:1、同色どうしは 1:1 になる。
+-- ここが崩れていたら以降の判定は全て無意味なので先に固定する。
+-- 同色の検査には基準背景を使う。値を書き写すと palette と drift する
+print(string.format("CONTRAST_SELFTEST_MAX=%.2f", contrast_ratio("#ffffff", "#000000")))
+print(string.format(
+    "CONTRAST_SELFTEST_MIN=%.2f",
+    contrast_ratio(palette.reference_background, palette.reference_background)
+))
+
+local violations = {}
+for token, spec in pairs(palette.colors) do
+    local target = palette.minimum_contrast[spec.tier]
+    if target == nil then
+        violations[#violations + 1] = token .. ":unknown-tier"
+    else
+        local ratio = contrast_ratio(spec.hex, palette.reference_background)
+        if ratio < target then
+            violations[#violations + 1] = string.format("%s:%.2f<%.2f", token, ratio, target)
+        end
+    end
+end
+table.sort(violations)
+print("PALETTE_VIOLATIONS=" .. table.concat(violations, ","))
+print("PALETTE_VIOLATION_COUNT=" .. #violations)
+
+-- 検出器が働いていることを示す negative case。
+-- 旧 MUTED (#5c6370) は基準背景の上で背景とほぼ同色になり symbol tier に届かない。
+-- ここが 0 になったらコントラスト検査は何も守っていない
+local sentinel_ratio = contrast_ratio("#5c6370", palette.reference_background)
+print("VIOLATION_DETECTOR_WORKS=" .. ((sentinel_ratio < palette.minimum_contrast.symbol) and 1 or 0))
+print(string.format("SENTINEL_RATIO=%.2f", sentinel_ratio))
+
+-- ---------------------------------------------------------------------------
+-- パレットの区別可能性の検査
+--
+-- コントラスト検査は各色が tier の下限を超えるかしか見ない。
+-- 下限に張り付いた色どうしが同化しても検出できないため、色差を別に測る。
+--
+-- OKLab は知覚的におおむね均等な色空間で、L は 0 から 1 に収まる。
+-- 2 色のユークリッド距離が知覚閾値 (JND) を下回ると人間には同じ色に見える。
+--
+-- 意図的に同色のトークンは palette の中で同じリテラルを共有する。
+-- したがって相異なる hex どうしだけを比べれば、区別すべき色だけが対象になる。
+--
+-- linearize は WCAG の閾値 0.03928 を使う。sRGB 規格は 0.04045 だが、
+-- 8bit 入力では 10/255 = 0.0392 が両方を下回り 11/255 = 0.0431 が両方を上回るため、
+-- 0 から 255 のどの値でも分岐は変わらない。よってここで使い回せる。
+-- ---------------------------------------------------------------------------
+
+local function to_oklab(hex)
+    local r = linearize(tonumber(hex:sub(2, 3), 16))
+    local g = linearize(tonumber(hex:sub(4, 5), 16))
+    local b = linearize(tonumber(hex:sub(6, 7), 16))
+
+    local l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b
+    local m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b
+    local s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b
+
+    local l_, m_, s_ = l ^ (1 / 3), m ^ (1 / 3), s ^ (1 / 3)
+
+    return 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+        1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+        0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_
+end
+
+local function delta_e(hex_a, hex_b)
+    local la, aa, ba = to_oklab(hex_a)
+    local lb, ab, bb = to_oklab(hex_b)
+    return math.sqrt((la - lb) ^ 2 + (aa - ab) ^ 2 + (ba - bb) ^ 2)
+end
+
+-- 検査ロジック自体の較正。OKLab の L は 0 から 1 なので白と黒はちょうど 1.0、
+-- 同色どうしは 0.0 になる。ここが崩れたら以降の判定は全て無意味なので先に固定する
+print(string.format("DELTA_E_SELFTEST_MAX=%.4f", delta_e("#ffffff", "#000000")))
+print(string.format(
+    "DELTA_E_SELFTEST_MIN=%.4f",
+    delta_e(palette.reference_background, palette.reference_background)
+))
+
+-- 有彩ペアの known-answer。to_oklab の立方根指数 (1/3) を pin する。
+-- 白黒較正は cube-root を固定点 1 と 0 でしか通さず、同色較正は 0 なので、
+-- どちらも指数を 1/2 や 1.0 へ変えても値が動かない。有彩ペアだけが OKLab の非線形性を通す。
+-- 期待値は Ottosson の OKLab 原典から Python で独立に導出したもので、この probe の出力から作らない。
+-- 桁数は期待値に合わせて %.6f にする (小数第 4 位までだと mutation の差が丸めで潰れる余地を残す)
+print(string.format("DELTA_E_KNOWN_CHROMATIC=%.6f", delta_e("#a8b6e7", "#aab6e4")))
+
+-- 相異なる hex ごとに代表トークンを 1 つ選ぶ。辞書順で最小を取れば出力が安定する
+local representative = {}
+for token, spec in pairs(palette.colors) do
+    if representative[spec.hex] == nil or token < representative[spec.hex] then
+        representative[spec.hex] = token
+    end
+end
+
+local distinct = {}
+for hex in pairs(representative) do
+    distinct[#distinct + 1] = hex
+end
+table.sort(distinct)
+print("PALETTE_DISTINCT_HEX_COUNT=" .. #distinct)
+print("PALETTE_JND_PAIR_COUNT=" .. (#distinct * (#distinct - 1) / 2))
+
+local jnd_violations = {}
+for i = 1, #distinct do
+    for j = i + 1, #distinct do
+        local distance = delta_e(distinct[i], distinct[j])
+        if distance < palette.minimum_delta_e then
+            jnd_violations[#jnd_violations + 1] = string.format(
+                "%s|%s:%.4f",
+                representative[distinct[i]],
+                representative[distinct[j]],
+                distance
+            )
+        end
+    end
+end
+table.sort(jnd_violations)
+print("PALETTE_JND_VIOLATIONS=" .. table.concat(jnd_violations, ","))
+print("PALETTE_JND_VIOLATION_COUNT=" .. #jnd_violations)
+
+-- 検出器が働いていることを示す negative case。
+-- 旧 RECEDED (#aab6e4) は dotfile (#a8b6e7) と色差 0.0049 で同化していた。
+-- ここが 0 になったら区別可能性の検査は何も守っていない
+print("JND_DETECTOR_WORKS=" .. ((delta_e("#a8b6e7", "#aab6e4") < palette.minimum_delta_e) and 1 or 0))
+
+-- ---------------------------------------------------------------------------
+-- 見出しの色相分離の検査
+--
+-- 階層を色相で分ける以上、見出しどうしの色相が十分に離れている必要がある。
+-- JND (色差) は色相が近くても輝度や彩度が違えば通してしまうため、色相を別の不変条件として測る。
+-- OKLCh の色相は atan2(b, a) を度に直して 360 で正規化し、分離度は円環距離 min(d, 360-d) で測る。
+-- 閾値は palette が minimum_heading_hue_separation として単一の真実で持つ。
+-- ---------------------------------------------------------------------------
+
+local function oklch_hue(hex)
+    local _, a, b = to_oklab(hex)
+    local deg = math.deg(math.atan2(b, a))
+    if deg < 0 then
+        deg = deg + 360
+    end
+    return deg
+end
+
+local function hue_separation(hex_a, hex_b)
+    local d = math.abs(oklch_hue(hex_a) - oklch_hue(hex_b))
+    return math.min(d, 360 - d)
+end
+
+local heading_hexes = {}
+for level = 1, 6 do
+    heading_hexes[level] = palette.hex["heading_" .. level]
+end
+
+local hue_violations = {}
+local hue_pair_count = 0
+local min_hue_separation = nil
+for i = 1, #heading_hexes do
+    for j = i + 1, #heading_hexes do
+        hue_pair_count = hue_pair_count + 1
+        local separation = hue_separation(heading_hexes[i], heading_hexes[j])
+        if min_hue_separation == nil or separation < min_hue_separation then
+            min_hue_separation = separation
+        end
+        if separation < palette.minimum_heading_hue_separation then
+            hue_violations[#hue_violations + 1] =
+                string.format("heading_%d|heading_%d:%.4f", i, j, separation)
+        end
+    end
+end
+table.sort(hue_violations)
+print("HEADING_HUE_PAIR_COUNT=" .. hue_pair_count)
+print("HEADING_HUE_VIOLATIONS=" .. table.concat(hue_violations, ","))
+print("HEADING_HUE_VIOLATION_COUNT=" .. #hue_violations)
+print(string.format("HEADING_MIN_HUE_SEPARATION=%.4f", min_hue_separation))
+
+-- 検出器が働いていることを示す negative case。
+-- 旧 H1 #7fdfd0 と旧 H6 #7fd4dd は色相差 21.58 度で閾値を割るが、OKLab 色差は 0.0407 で JND を超える。
+-- つまり JND では守れず色相検査でしか捕まらない実在ペア。
+-- HUE_DETECTOR_WORKS が 0 なら色相検査は何も守っておらず、
+-- PASSES_JND が 0 なら JND で代替できてしまいこの検査の存在理由が消える
+local sentinel_hue = hue_separation("#7fdfd0", "#7fd4dd")
+local sentinel_de = delta_e("#7fdfd0", "#7fd4dd")
+print(string.format("SENTINEL_HUE_SEPARATION=%.4f", sentinel_hue))
+print("HUE_DETECTOR_WORKS=" .. ((sentinel_hue < palette.minimum_heading_hue_separation) and 1 or 0))
+print(string.format("SENTINEL_HUE_DELTA_E=%.6f", sentinel_de))
+print("SENTINEL_HUE_PAIR_PASSES_JND=" .. ((sentinel_de >= palette.minimum_delta_e) and 1 or 0))
+
+-- ---------------------------------------------------------------------------
+-- 不透明な面の配色の検査
+--
+-- ステータスラインのように自前の背景色を持つ面は、透過したターミナル背景の上には無い。
+-- Ghostty の background-opacity はウィンドウ背景にだけ掛かり、
+-- 明示的な背景色を持つセルは不透明に描かれる (background-opacity-cells が既定の false のとき)。
+-- したがって前景色は reference_background ではなく自前の bg に対して評価する。
+-- ---------------------------------------------------------------------------
+
+local surface_violations = {}
+local surface_count = 0
+for name, surface in pairs(palette.surfaces) do
+    surface_count = surface_count + 1
+    local ratio = contrast_ratio(surface.fg, surface.bg)
+    if ratio < palette.surface_minimum_contrast then
+        surface_violations[#surface_violations + 1] = string.format(
+            "%s:%.2f<%.2f",
+            name,
+            ratio,
+            palette.surface_minimum_contrast
+        )
+    end
+end
+table.sort(surface_violations)
+print("SURFACE_COUNT=" .. surface_count)
+print("SURFACE_VIOLATIONS=" .. table.concat(surface_violations, ","))
+print("SURFACE_VIOLATION_COUNT=" .. #surface_violations)
+
+-- lualine の spec の入れ子から指定キーを再帰的に探す。
+-- 添字を決め打ちにすると spec の並べ替えで壊れるため、キー名で辿る。
+--
+-- 前提: spec は循環参照の無い有限の木であり buffers_color は 1 箇所にしか現れない。
+--       循環があればスタックオーバーフローで落ちるが、それは検査が壊れたことを示す赤である。
+--       この前提が崩れる spec を書いたら、ここに visited 集合を足す
+local function find_key(node, key)
+    if type(node) ~= "table" then
+        return nil
+    end
+    if node[key] ~= nil then
+        return node[key]
+    end
+    for _, child in pairs(node) do
+        local found = find_key(child, key)
+        if found ~= nil then
+            return found
+        end
+    end
+    return nil
+end
+
+-- lualine が palette と同じ値を使っていること (drift ガード)。
+-- palette を参照していること自体は ast-grep の nvim-lua-no-hex-literal が構文レベルで保証する。
+-- ここは値の一致だけを見る
+local buffers_color = find_key(require("plugins.lualine"), "buffers_color")
+local lualine_matches = 0
+if buffers_color ~= nil then
+    local active = palette.surfaces.statusline_buffer_active
+    local inactive = palette.surfaces.statusline_buffer_inactive
+    if
+        buffers_color.active.fg == active.fg
+        and buffers_color.active.bg == active.bg
+        and buffers_color.inactive.fg == inactive.fg
+        and buffers_color.inactive.bg == inactive.bg
+    then
+        lualine_matches = 1
+    end
+end
+print("LUALINE_MATCHES_PALETTE=" .. lualine_matches)

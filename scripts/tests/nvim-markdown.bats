@@ -70,11 +70,11 @@ probe_without_extends() {
 }
 
 @test "without the extends query the marker checks fail" {
-    # 上の 2 つの検査が拡張クエリに支えられていることを示す
+    # マーカーの検査が拡張クエリに支えられていることを示す
     # (拡張を外しても緑のままなら、その検査は何も守っていない)
+    # markdown.lua はマーカーへ色を定義しないので MISSING_CAPTURES には現れない
     run probe_without_extends
     assert_contains "$output" "MARKER_CAPTURES=0"
-    assert_contains "$output" "MISSING_CAPTURES=@markup.heading.marker"
 }
 
 @test "appearance keeps the Normal background transparent" {
@@ -97,8 +97,8 @@ probe_without_extends() {
 @test "scoped palette does not bleed muted into global capture groups" {
     # @punctuation.special / @conceal / @label は他文法と共有する汎用キャプチャ名。
     # 素で定義すると非 markdown のバッファへ markdown の MUTED 灰色が漏れる。
-    # 言語サフィックス付きへ逃がし、グローバル群が MUTED を帯びないことを保証する
-    # (このブランチの核心)。同時にスコープした markdown 用グループには MUTED が乗っていること
+    # 言語サフィックス付きへ逃がし、グローバル群が MUTED を帯びないことを保証する。
+    # 同時にスコープした markdown 用グループには MUTED が乗っていること
     run probe_with_extends
     assert_contains "$output" "GLOBAL_BLEED=0"
     assert_contains "$output" "SCOPED_MUTED_APPLIED=1"
@@ -107,7 +107,200 @@ probe_without_extends() {
 @test "conceal capture wins over strong at delimiter" {
     # **bold** の先頭 * 列は @markup.strong と @conceal の両方が捕捉する。
     # 同一優先度では後発キャプチャが勝つため、記号を暗くするには @conceal が
-    # @markup.strong より後にイテレートされている必要がある (これがブランチの目玉挙動)
+    # @markup.strong より後にイテレートされている必要がある
     run probe_with_extends
     assert_contains "$output" "CONCEAL_AFTER_STRONG=1"
+}
+
+@test "contrast helper is calibrated against known values" {
+    # 白と黒は 21:1、同色は 1:1。ここが崩れたら以降の判定は全て無意味
+    run probe_with_extends
+    assert_contains "$output" "CONTRAST_SELFTEST_MAX=21.00"
+    assert_contains "$output" "CONTRAST_SELFTEST_MIN=1.00"
+}
+
+@test "palette: the contrast check detects a color below its tier" {
+    # 検査が本当に効いていることを示す negative case。
+    # 旧 MUTED は基準背景の上で 1.01:1 しかなく symbol tier を満たさない
+    run probe_with_extends
+    assert_contains "$output" "VIOLATION_DETECTOR_WORKS=1"
+    assert_contains "$output" "SENTINEL_RATIO=1.01"
+}
+
+@test "palette: every token meets the contrast target of its tier" {
+    # 基準背景の上で読めない色をパレットへ入れられないようにする
+    run probe_with_extends
+    assert_contains "$output" "PALETTE_VIOLATION_COUNT=0"
+}
+
+@test "link punctuation is scoped to markdown_inline" {
+    # @markup.link はリンクや画像のノード全体を捕捉する。記号 ( [ ] ( ) ! ) だけでなく
+    # URL の範囲も含むが、URL には後方で宣言された @markup.link.url が後勝ちするため、
+    # muted が最終的に乗るのは記号だけになる。
+    # 素で定義すると lua など他の文法へ muted が漏れるため言語スコープへ逃がす。
+    # 解決経路は highlighter.lua と同じ '@<capture>.<lang>' を使う
+    run probe_with_extends
+    assert_contains "$output" "LINK_SCOPED_IN_MARKDOWN=1"
+    assert_contains "$output" "LINK_NO_BLEED_TO_LUA=1"
+}
+
+@test "heading markers match the color of their heading level" {
+    # 見出しを @markup.heading.N.markdown へスコープしたので素の @markup.heading.N は消えており、
+    # マーカーは階層フォールバックでは見出し色を継承できない。markdown.lua が
+    # @markup.heading.N.marker.markdown へ明示的に色を与えることで見出しと同色にする。
+    # 不変条件 (マーカー == 見出し) は継承から明示定義へ機構が変わっても同じ。
+    # この検査は名前解決だけで成立するのでクエリには依存しない。
+    # 拡張クエリが正しいキャプチャ名を与えていることは MARKER_CAPTURES=6 が受け持つ
+    run probe_with_extends
+    assert_contains "$output" "MARKER_MATCHES_HEADING=1"
+}
+
+@test "color-carrying markup captures do not bleed into other grammars" {
+    # 色を持つ @markup.* キャプチャを素で定義すると、@ 名前空間のフォールバックで
+    # 他文法のバッファ (vimdoc / html 等) へ markdown の色が漏れる。
+    # 各キャプチャを .markdown / .markdown_inline へスコープし、他文法サフィックスで
+    # 引いたとき markdown の色に解決しないことを保証する。
+    # 走査した組が 0 だと空回りして緑になるため件数も固定する
+    run probe_with_extends
+    refute_contains "$output" "FOREIGN_BLEED_PAIR_COUNT=0"
+    assert_contains "$output" "FOREIGN_BLEED_COUNT=0"
+}
+
+@test "scoped markup captures keep their color in markdown" {
+    # 漏れを止めた結果 markdown 側まで無色になっていないかを保証する。
+    # 各キャプチャを産出文法のサフィックスで引いたとき palette の色に解決すること。
+    # これが無いとサフィックスを誤って markdown でも色が出ない回帰を素通しする。
+    # 走査した組が 0 だと空回りして緑になるため件数も固定する
+    run probe_with_extends
+    refute_contains "$output" "SCOPED_COLOR_PAIR_COUNT=0"
+    assert_contains "$output" "SCOPED_COLOR_MISMATCH_COUNT=0"
+}
+
+@test "neo-tree palette defines the groups that were measured as unreadable" {
+    # gitignored と未追跡ファイルは名前そのものに色が乗る。
+    # インデント線と薄字は NeoTreeDimText に由来する
+    run probe_with_extends
+    assert_contains "$output" "NeoTreeGitIgnored"
+    assert_contains "$output" "NeoTreeDotfile"
+    assert_contains "$output" "NeoTreeHiddenByName"
+    assert_contains "$output" "NeoTreeGitUntracked"
+    assert_contains "$output" "NeoTreeGitConflict"
+    assert_contains "$output" "NeoTreeDimText"
+    assert_contains "$output" "NeoTreeExpander"
+    assert_contains "$output" "NeoTreeIndentMarker"
+    assert_contains "$output" "NeoTreeMessage"
+}
+
+@test "neo-tree palette is actually applied" {
+    # グループが空だと下のループが回らず NEOTREE_APPLIED=1 のまま通ってしまう。
+    # 空でないことを先に固定して偽の緑を塞ぐ
+    run probe_with_extends
+    refute_contains "$output" "NEOTREE_GROUP_COUNT=0"
+    assert_contains "$output" "NEOTREE_APPLIED=1"
+}
+
+@test "non-color attributes bold and italic are actually applied" {
+    # NeoTreeGitUntracked と NeoTreeGitConflict は fg が同一で bold だけが両者を分ける。
+    # 見出しも色相に頼らず bold を併用する。fg 比較だけでは守れないので属性まで突き合わせる。
+    # 検査対象が 0 件だと空回りして緑になるため件数も固定する
+    run probe_with_extends
+    refute_contains "$output" "ATTRIBUTE_CHECK_COUNT=0"
+    assert_contains "$output" "ATTRIBUTE_VIOLATION_COUNT=0"
+}
+
+@test "palette hex raises on an unknown token instead of returning nil" {
+    # トークンを改名すると palette.hex.<旧名> が nil を返し、nvim_set_hl はそれを
+    # fg 未指定と解釈して既定色へ黙って戻す。__index ガードで nil ではなく error にし、
+    # ごく普通のリファクタで色が消えて全テスト緑になる事故を塞ぐ
+    run probe_with_extends
+    assert_contains "$output" "HEX_UNKNOWN_KEY_ERRORS=1"
+}
+
+@test "palette surfaces raises on an unknown surface name instead of returning nil" {
+    # 面を改名すると palette.surfaces.<旧名> が nil を返し、lualine が nil を index して
+    # 起動時に落ちる。hex と同じ __index ガードで名前付き error にし、
+    # hex だけ守られて surfaces が素通りする非対称を残さない
+    run probe_with_extends
+    assert_contains "$output" "SURFACES_UNKNOWN_KEY_ERRORS=1"
+}
+
+@test "neo-tree highlight group names exist in the plugin source" {
+    # グループ名は treesitter のキャプチャではないので、綴りを間違えても Neovim は黙る。
+    # CI にはプラグインを入れないため、その場合は検査できない
+    src="${NEOTREE_HIGHLIGHTS:-$HOME/.local/share/nvim/lazy/neo-tree.nvim/lua/neo-tree/ui/highlights.lua}"
+    if [ ! -f "$src" ]; then
+        skip "neo-tree is not installed"
+    fi
+
+    run probe_with_extends
+    # 検査対象が空のまま緑になるのを防ぐ
+    refute_contains "$output" "NEOTREE_GROUP_COUNT=0"
+
+    groups=$(printf '%s\n' "$output" | sed -n 's/^NEOTREE_GROUPS=//p' | tr ',' '\n')
+    source_text=$(cat "$src")
+    for group in $groups; do
+        assert_contains "$source_text" "\"$group\""
+    done
+}
+
+@test "delta e helper is calibrated against known values" {
+    # OKLab の L は 0 から 1 なので白と黒はちょうど 1.0 になる
+    run probe_with_extends
+    assert_contains "$output" "DELTA_E_SELFTEST_MAX=1.0000"
+    assert_contains "$output" "DELTA_E_SELFTEST_MIN=0.0000"
+}
+
+@test "delta e is pinned by a chromatic known answer" {
+    # 白黒較正は cube-root を固定点 1 と 0 でしか通さず、同色較正は 0 なので、
+    # どちらも to_oklab の立方根指数を 1/3 から 1/2 や 1.0 へ変えても値が動かない。
+    # 有彩ペアだけが OKLab の非線形性を通す。期待値は Ottosson の原典から Python で独立に導出したもので
+    # probe の出力から作ってはならない (同語反復になり何も守らなくなる)
+    run probe_with_extends
+    assert_contains "$output" "DELTA_E_KNOWN_CHROMATIC=0.004930"
+}
+
+@test "palette: the distinguishability check detects two colors that look alike" {
+    # 実際に同化していた組を sentinel に使う
+    run probe_with_extends
+    assert_contains "$output" "JND_DETECTOR_WORKS=1"
+}
+
+@test "palette: every pair of distinct colors is perceptibly different" {
+    # 比べる組が 0 だと下のループが回らず違反 0 のまま通ってしまう
+    run probe_with_extends
+    refute_contains "$output" "PALETTE_JND_PAIR_COUNT=0"
+    assert_contains "$output" "PALETTE_JND_VIOLATION_COUNT=0"
+}
+
+@test "palette: heading levels are separated in hue" {
+    # 階層を色相で分ける以上、全 15 組の色相が閾値以上離れていること。
+    # JND は色相が近くても輝度や彩度が違えば通すため、色相を別の不変条件として測る。
+    # 組が 0 だと空回りして緑になるので件数も固定する
+    run probe_with_extends
+    refute_contains "$output" "HEADING_HUE_PAIR_COUNT=0"
+    assert_contains "$output" "HEADING_HUE_VIOLATION_COUNT=0"
+}
+
+@test "palette: the hue check catches a pair that JND lets pass" {
+    # 旧 H1 #7fdfd0 と旧 H6 #7fd4dd は色相差 21.58 度で閾値を割るが、
+    # OKLab 色差は 0.0407 で JND (0.02) を超える。JND では守れず色相検査でしか捕まらない実在ペア。
+    # これで「この検査は JND とは別の不変条件を見ている」ことが示される
+    run probe_with_extends
+    assert_contains "$output" "SENTINEL_HUE_SEPARATION=21.5838"
+    assert_contains "$output" "HUE_DETECTOR_WORKS=1"
+    assert_contains "$output" "SENTINEL_HUE_DELTA_E=0.040663"
+    assert_contains "$output" "SENTINEL_HUE_PAIR_PASSES_JND=1"
+}
+
+@test "opaque surfaces meet the contrast target against their own background" {
+    # 面が 0 個だと上のループが回らず違反 0 のまま通ってしまう
+    run probe_with_extends
+    refute_contains "$output" "SURFACE_COUNT=0"
+    assert_contains "$output" "SURFACE_VIOLATION_COUNT=0"
+}
+
+@test "lualine uses the same colors as the palette surfaces" {
+    # 値の drift を塞ぐ。hex を書き戻すこと自体は ast-grep が塞ぐ
+    run probe_with_extends
+    assert_contains "$output" "LUALINE_MATCHES_PALETTE=1"
 }
