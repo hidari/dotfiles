@@ -416,6 +416,68 @@ print("PALETTE_JND_VIOLATION_COUNT=" .. #jnd_violations)
 print("JND_DETECTOR_WORKS=" .. ((delta_e("#a8b6e7", "#aab6e4") < palette.minimum_delta_e) and 1 or 0))
 
 -- ---------------------------------------------------------------------------
+-- 見出しの色相分離の検査
+--
+-- 階層を色相で分ける以上、見出しどうしの色相が十分に離れている必要がある。
+-- JND (色差) は色相が近くても輝度や彩度が違えば通してしまうため、色相を別の不変条件として測る。
+-- OKLCh の色相は atan2(b, a) を度に直して 360 で正規化し、分離度は円環距離 min(d, 360-d) で測る。
+-- 閾値は palette が minimum_heading_hue_separation として単一の真実で持つ。
+-- ---------------------------------------------------------------------------
+
+local function oklch_hue(hex)
+    local _, a, b = to_oklab(hex)
+    local deg = math.deg(math.atan2(b, a))
+    if deg < 0 then
+        deg = deg + 360
+    end
+    return deg
+end
+
+local function hue_separation(hex_a, hex_b)
+    local d = math.abs(oklch_hue(hex_a) - oklch_hue(hex_b))
+    return math.min(d, 360 - d)
+end
+
+local heading_hexes = {}
+for level = 1, 6 do
+    heading_hexes[level] = palette.hex["heading_" .. level]
+end
+
+local hue_violations = {}
+local hue_pair_count = 0
+local min_hue_separation = nil
+for i = 1, #heading_hexes do
+    for j = i + 1, #heading_hexes do
+        hue_pair_count = hue_pair_count + 1
+        local separation = hue_separation(heading_hexes[i], heading_hexes[j])
+        if min_hue_separation == nil or separation < min_hue_separation then
+            min_hue_separation = separation
+        end
+        if separation < palette.minimum_heading_hue_separation then
+            hue_violations[#hue_violations + 1] =
+                string.format("heading_%d|heading_%d:%.4f", i, j, separation)
+        end
+    end
+end
+table.sort(hue_violations)
+print("HEADING_HUE_PAIR_COUNT=" .. hue_pair_count)
+print("HEADING_HUE_VIOLATIONS=" .. table.concat(hue_violations, ","))
+print("HEADING_HUE_VIOLATION_COUNT=" .. #hue_violations)
+print(string.format("HEADING_MIN_HUE_SEPARATION=%.4f", min_hue_separation))
+
+-- 検出器が働いていることを示す negative case。
+-- 旧 H1 #7fdfd0 と旧 H6 #7fd4dd は色相差 21.58 度で閾値を割るが、OKLab 色差は 0.0407 で JND を超える。
+-- つまり JND では守れず色相検査でしか捕まらない実在ペア。
+-- HUE_DETECTOR_WORKS が 0 なら色相検査は何も守っておらず、
+-- PASSES_JND が 0 なら JND で代替できてしまいこの検査の存在理由が消える
+local sentinel_hue = hue_separation("#7fdfd0", "#7fd4dd")
+local sentinel_de = delta_e("#7fdfd0", "#7fd4dd")
+print(string.format("SENTINEL_HUE_SEPARATION=%.4f", sentinel_hue))
+print("HUE_DETECTOR_WORKS=" .. ((sentinel_hue < palette.minimum_heading_hue_separation) and 1 or 0))
+print(string.format("SENTINEL_HUE_DELTA_E=%.6f", sentinel_de))
+print("SENTINEL_HUE_PAIR_PASSES_JND=" .. ((sentinel_de >= palette.minimum_delta_e) and 1 or 0))
+
+-- ---------------------------------------------------------------------------
 -- 不透明な面の配色の検査
 --
 -- ステータスラインのように自前の背景色を持つ面は、透過したターミナル背景の上には無い。

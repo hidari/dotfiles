@@ -37,6 +37,11 @@ M.minimum_contrast = {
 -- 彩度で後退させた色どうしが tier の下限に張り付いて同化するのを防ぐ。
 M.minimum_delta_e = 0.02
 
+-- 見出しどうしが保つべき最小の色相差 (OKLCh の色相環上の角度。単位は度)。
+-- 色差 (JND) は色相が近くても輝度や彩度が違えば通してしまうため、色相を別の不変条件として持つ。
+-- これを下回ると階層を色相で区別しているという設計が崩れる。
+M.minimum_heading_hue_separation = 30
+
 -- 複数のトークンが共有する色。hex を一箇所にまとめて drift を防ぐ。
 -- 後退した記号とファイル名。彩度をほぼ捨てて dotfile の青みから離す。
 -- 輝度は symbol tier の下限を満たす位置に保つ
@@ -44,7 +49,7 @@ local RECEDED = "#b1b7cf"
 local LEAF_GREEN = "#a7d388"
 
 M.colors = {
-    -- 見出し: 階層を色相で分ける。OKLCh 色相環で隣接色相差 30 度以上を確保している
+    -- 見出し: 階層を色相で分ける。全組の色相差が minimum_heading_hue_separation 以上になるよう配置している
     heading_1 = { hex = "#83e4d4", tier = "text" },
     heading_2 = { hex = "#f0d399", tier = "text" },
     heading_3 = { hex = "#edc5ff", tier = "text" },

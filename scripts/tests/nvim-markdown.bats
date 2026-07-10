@@ -241,6 +241,26 @@ probe_without_extends() {
     assert_contains "$output" "PALETTE_JND_VIOLATION_COUNT=0"
 }
 
+@test "palette: heading levels are separated in hue" {
+    # 階層を色相で分ける以上、全 15 組の色相が閾値以上離れていること。
+    # JND は色相が近くても輝度や彩度が違えば通すため、色相を別の不変条件として測る。
+    # 組が 0 だと空回りして緑になるので件数も固定する
+    run probe_with_extends
+    refute_contains "$output" "HEADING_HUE_PAIR_COUNT=0"
+    assert_contains "$output" "HEADING_HUE_VIOLATION_COUNT=0"
+}
+
+@test "palette: the hue check catches a pair that JND lets pass" {
+    # 旧 H1 #7fdfd0 と旧 H6 #7fd4dd は色相差 21.58 度で閾値を割るが、
+    # OKLab 色差は 0.0407 で JND (0.02) を超える。JND では守れず色相検査でしか捕まらない実在ペア。
+    # これで「この検査は JND とは別の不変条件を見ている」ことが示される
+    run probe_with_extends
+    assert_contains "$output" "SENTINEL_HUE_SEPARATION=21.5838"
+    assert_contains "$output" "HUE_DETECTOR_WORKS=1"
+    assert_contains "$output" "SENTINEL_HUE_DELTA_E=0.040663"
+    assert_contains "$output" "SENTINEL_HUE_PAIR_PASSES_JND=1"
+}
+
 @test "opaque surfaces meet the contrast target against their own background" {
     # 面が 0 個だと上のループが回らず違反 0 のまま通ってしまう
     run probe_with_extends
