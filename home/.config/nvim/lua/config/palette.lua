@@ -83,6 +83,21 @@ M.colors = {
     indent_guide = { hex = "#959594", tier = "decoration" },
 }
 
+-- 不透明な面の配色。
+--
+-- ステータスラインのように自前の背景色を持つ面は、透過したターミナル背景の上には無い。
+-- Ghostty の background-opacity はウィンドウ背景にだけ掛かり、
+-- 明示的な背景色を持つセルは不透明に描かれる (background-opacity-cells が既定の false のとき)。
+-- したがって reference_background ではなく自前の bg に対して評価し、
+-- 不透明である以上 WCAG AA の 4.5:1 を課す。
+M.surface_minimum_contrast = 4.5
+
+M.surfaces = {
+    -- ステータスラインのバッファ一覧。アクティブなものを teal の帯で強調する
+    statusline_buffer_active = { fg = "#282c34", bg = "#53c9b8" },
+    statusline_buffer_inactive = { fg = "#abb2bf", bg = "#21252b" },
+}
+
 -- 写像側が使う平坦な表。colors から導出するので二重管理にならない。
 M.hex = {}
 for token, spec in pairs(M.colors) do

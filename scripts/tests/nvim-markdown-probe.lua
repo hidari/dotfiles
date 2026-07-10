@@ -359,3 +359,68 @@ print("PALETTE_JND_VIOLATION_COUNT=" .. #jnd_violations)
 -- 旧 RECEDED (#aab6e4) は dotfile (#a8b6e7) と色差 0.0049 で同化していた。
 -- ここが 0 になったら区別可能性の検査は何も守っていない
 print("JND_DETECTOR_WORKS=" .. ((delta_e("#a8b6e7", "#aab6e4") < palette.minimum_delta_e) and 1 or 0))
+
+-- ---------------------------------------------------------------------------
+-- 不透明な面の配色の検査
+--
+-- ステータスラインのように自前の背景色を持つ面は、透過したターミナル背景の上には無い。
+-- Ghostty の background-opacity はウィンドウ背景にだけ掛かり、
+-- 明示的な背景色を持つセルは不透明に描かれる (background-opacity-cells が既定の false のとき)。
+-- したがって前景色は reference_background ではなく自前の bg に対して評価する。
+-- ---------------------------------------------------------------------------
+
+local surface_violations = {}
+local surface_count = 0
+for name, surface in pairs(palette.surfaces) do
+    surface_count = surface_count + 1
+    local ratio = contrast_ratio(surface.fg, surface.bg)
+    if ratio < palette.surface_minimum_contrast then
+        surface_violations[#surface_violations + 1] = string.format(
+            "%s:%.2f<%.2f",
+            name,
+            ratio,
+            palette.surface_minimum_contrast
+        )
+    end
+end
+table.sort(surface_violations)
+print("SURFACE_COUNT=" .. surface_count)
+print("SURFACE_VIOLATIONS=" .. table.concat(surface_violations, ","))
+print("SURFACE_VIOLATION_COUNT=" .. #surface_violations)
+
+-- lualine の spec の入れ子から指定キーを再帰的に探す。
+-- 添字を決め打ちにすると spec の並べ替えで壊れるため、キー名で辿る
+local function find_key(node, key)
+    if type(node) ~= "table" then
+        return nil
+    end
+    if node[key] ~= nil then
+        return node[key]
+    end
+    for _, child in pairs(node) do
+        local found = find_key(child, key)
+        if found ~= nil then
+            return found
+        end
+    end
+    return nil
+end
+
+-- lualine が palette と同じ値を使っていること (drift ガード)。
+-- palette を参照していること自体は ast-grep の nvim-lua-no-hex-literal が構文レベルで保証する。
+-- ここは値の一致だけを見る
+local buffers_color = find_key(require("plugins.lualine"), "buffers_color")
+local lualine_matches = 0
+if buffers_color ~= nil then
+    local active = palette.surfaces.statusline_buffer_active
+    local inactive = palette.surfaces.statusline_buffer_inactive
+    if
+        buffers_color.active.fg == active.fg
+        and buffers_color.active.bg == active.bg
+        and buffers_color.inactive.fg == inactive.fg
+        and buffers_color.inactive.bg == inactive.bg
+    then
+        lualine_matches = 1
+    end
+end
+print("LUALINE_MATCHES_PALETTE=" .. lualine_matches)

@@ -214,3 +214,16 @@ probe_without_extends() {
     refute_contains "$output" "PALETTE_JND_PAIR_COUNT=0"
     assert_contains "$output" "PALETTE_JND_VIOLATION_COUNT=0"
 }
+
+@test "opaque surfaces meet the contrast target against their own background" {
+    # 面が 0 個だと上のループが回らず違反 0 のまま通ってしまう
+    run probe_with_extends
+    refute_contains "$output" "SURFACE_COUNT=0"
+    assert_contains "$output" "SURFACE_VIOLATION_COUNT=0"
+}
+
+@test "lualine uses the same colors as the palette surfaces" {
+    # 値の drift を塞ぐ。hex を書き戻すこと自体は ast-grep が塞ぐ
+    run probe_with_extends
+    assert_contains "$output" "LUALINE_MATCHES_PALETTE=1"
+}

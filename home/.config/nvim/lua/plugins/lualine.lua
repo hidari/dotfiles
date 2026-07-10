@@ -1,3 +1,5 @@
+local surfaces = require("config.palette").surfaces
+
 return {
     {
         "nvim-lualine/lualine.nvim",
@@ -26,8 +28,15 @@ return {
                         },
                         -- アクティブなバッファをtealでくっきり強調（追従が見えるように）
                         buffers_color = {
-                            active = { fg = "#282c34", bg = "#53c9b8", gui = "bold" },
-                            inactive = { fg = "#abb2bf", bg = "#21252b" },
+                            active = {
+                                fg = surfaces.statusline_buffer_active.fg,
+                                bg = surfaces.statusline_buffer_active.bg,
+                                gui = "bold",
+                            },
+                            inactive = {
+                                fg = surfaces.statusline_buffer_inactive.fg,
+                                bg = surfaces.statusline_buffer_inactive.bg,
+                            },
                         },
                     },
                 },
