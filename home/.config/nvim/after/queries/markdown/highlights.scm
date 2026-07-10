@@ -5,10 +5,11 @@
 ; マーカー単独のキャプチャが無い。
 ; 拡張クエリのキャプチャは既定より後に評価されるため、範囲が重なったときに後勝ちする。
 ;
-; キャプチャ名にレベルを含めるのが要点である。@markup.heading.N.marker は
-; @ 名前空間の階層フォールバックで @markup.heading.N へ落ちるため、
-; 色を一切定義しなくてもマーカーが見出しと同色になる。
-; レベルを含まない @markup.heading.marker は @markup.heading (既定の Title) にしか落ちない。
+; キャプチャ名にレベルを含めるのが要点である。色は config/markdown.lua が
+; @markup.heading.N.marker.markdown へ明示的に与え、見出しと同色にする。
+; 見出しを @markup.heading.N.markdown へスコープしたため素の @markup.heading.N は無く、
+; @ 名前空間の階層フォールバック (右から削る) では見出し色を継承できないので明示定義する。
+; レベルを含まない @markup.heading.marker では見出しごとに色を分けられない。
 ;
 ; キャプチャ名がレベルごとに異なるため、交替リストにはまとめられない。
 (atx_h1_marker) @markup.heading.1.marker

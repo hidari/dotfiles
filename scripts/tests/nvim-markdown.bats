@@ -144,13 +144,36 @@ probe_without_extends() {
     assert_contains "$output" "LINK_NO_BLEED_TO_LUA=1"
 }
 
-@test "heading markers inherit the color of their heading level" {
-    # マーカーへ色を定義せず、@ 名前空間の階層フォールバックで見出し色を継承させる。
-    # @markup.heading.N.marker が未定義なら @markup.heading.N へ落ちる。
+@test "heading markers match the color of their heading level" {
+    # 見出しを @markup.heading.N.markdown へスコープしたので素の @markup.heading.N は消えており、
+    # マーカーは階層フォールバックでは見出し色を継承できない。markdown.lua が
+    # @markup.heading.N.marker.markdown へ明示的に色を与えることで見出しと同色にする。
+    # 不変条件 (マーカー == 見出し) は継承から明示定義へ機構が変わっても同じ。
     # この検査は名前解決だけで成立するのでクエリには依存しない。
     # 拡張クエリが正しいキャプチャ名を与えていることは MARKER_CAPTURES=6 が受け持つ
     run probe_with_extends
-    assert_contains "$output" "MARKER_INHERITS_HEADING=1"
+    assert_contains "$output" "MARKER_MATCHES_HEADING=1"
+}
+
+@test "color-carrying markup captures do not bleed into other grammars" {
+    # 色を持つ @markup.* キャプチャを素で定義すると、@ 名前空間のフォールバックで
+    # 他文法のバッファ (vimdoc / html 等) へ markdown の色が漏れる。
+    # 各キャプチャを .markdown / .markdown_inline へスコープし、他文法サフィックスで
+    # 引いたとき markdown の色に解決しないことを保証する。
+    # 走査した組が 0 だと空回りして緑になるため件数も固定する
+    run probe_with_extends
+    refute_contains "$output" "FOREIGN_BLEED_PAIR_COUNT=0"
+    assert_contains "$output" "FOREIGN_BLEED_COUNT=0"
+}
+
+@test "scoped markup captures keep their color in markdown" {
+    # 漏れを止めた結果 markdown 側まで無色になっていないかを保証する。
+    # 各キャプチャを産出文法のサフィックスで引いたとき palette の色に解決すること。
+    # これが無いとサフィックスを誤って markdown でも色が出ない回帰を素通しする。
+    # 走査した組が 0 だと空回りして緑になるため件数も固定する
+    run probe_with_extends
+    refute_contains "$output" "SCOPED_COLOR_PAIR_COUNT=0"
+    assert_contains "$output" "SCOPED_COLOR_MISMATCH_COUNT=0"
 }
 
 @test "neo-tree palette defines the groups that were measured as unreadable" {

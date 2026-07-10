@@ -7,10 +7,11 @@
 local markdown = require("config.markdown")
 local palette = require("config.palette")
 
--- 見出し 1..6 の fg が互いに異なること。同色だと階層が読めない
+-- 見出し 1..6 の fg が互いに異なること。同色だと階層が読めない。
+-- 見出しは @markup.heading.N.markdown へスコープしてあるのでその名前で引く
 local levels, duplicates, seen = 0, 0, {}
 for level = 1, 6 do
-    local group = markdown["@markup.heading." .. level]
+    local group = markdown["@markup.heading." .. level .. ".markdown"]
     if group and group.fg then
         levels = levels + 1
         if seen[group.fg] then
@@ -123,7 +124,7 @@ local function highlight(name)
 end
 
 print("NORMAL_BG=" .. tostring(highlight("Normal").bg))
-print("H1_FG=" .. tostring(highlight("@markup.heading.1").fg))
+print("H1_FG=" .. tostring(highlight("@markup.heading.1.markdown").fg))
 
 -- 汎用キャプチャ名がグローバルへ muted を漏らしていないことを保証する。
 -- markdown.lua は @<capture>.<lang> でスコープするので、他言語が共有する素の @<capture> は
@@ -149,18 +150,23 @@ end
 print("LINK_SCOPED_IN_MARKDOWN=" .. ((resolved_fg("markup.link", "markdown_inline") == MUTED_FG) and 1 or 0))
 print("LINK_NO_BLEED_TO_LUA=" .. ((resolved_fg("markup.link", "lua") ~= MUTED_FG) and 1 or 0))
 
--- 見出しマーカーには色を定義しない。@markup.heading.N.marker という名前が
--- @ 名前空間の階層フォールバックで @markup.heading.N へ落ちるため、見出しと同色になる。
+-- 見出しマーカー (#) には markdown スコープで明示的に色を与える。
+-- 見出しを @markup.heading.N.markdown へスコープしたため素の @markup.heading.N は消えており、
+-- @markup.heading.N.marker.markdown は階層フォールバックでは見出し色を継承できない
+-- (フォールバックは右から削るので @markup.heading.N.marker.markdown -> @markup.heading.N.marker
+--  -> @markup.heading.N と落ち、@markup.heading.N.markdown はこの鎖に現れない)。
+-- markdown.lua が @markup.heading.N.marker.markdown へ hex.heading_N を明示定義することで同色にする。
+-- 不変条件 (マーカー == 見出し) は機構が継承から明示定義へ変わっても同じ。
 -- この検査は名前解決だけで成立するのでクエリの有無には依存しない。
--- 守っているのは、誰かがマーカーへ色を明示定義して継承を壊すことである
-local marker_inherits = 1
+-- 守っているのは、誰かがマーカーの明示定義を消して見出しと色がずれることである
+local marker_matches = 1
 for level = 1, 6 do
     local want = tonumber(palette.hex["heading_" .. level]:sub(2), 16)
     if resolved_fg("markup.heading." .. level .. ".marker", "markdown") ~= want then
-        marker_inherits = 0
+        marker_matches = 0
     end
 end
-print("MARKER_INHERITS_HEADING=" .. marker_inherits)
+print("MARKER_MATCHES_HEADING=" .. marker_matches)
 
 -- 逆に、スコープした markdown 用グループには MUTED が実際に乗っていること。
 -- 漏れを止めた結果 markdown 側まで無色になっていないかを確かめる。
@@ -176,6 +182,77 @@ for _, name in ipairs({
     end
 end
 print("SCOPED_MUTED_APPLIED=" .. scoped_applied)
+
+-- 色を持つ markup キャプチャの一覧。
+-- token は palette (単一の真実) の色名、langs はそのキャプチャを産出する文法。
+-- 産出文法は Neovim 同梱の highlights クエリで確定している。nvim-treesitter (main) は
+-- markdown / markdown_inline のクエリを同梱しないため、同梱クエリがそのまま実機でも使われる。
+-- 属性だけの @markup.italic は fg を持たず他文法へ漏れても無害なのでここには含めない。
+local color_captures = {
+    { capture = "markup.heading.1", token = "heading_1", langs = { "markdown" } },
+    { capture = "markup.heading.2", token = "heading_2", langs = { "markdown" } },
+    { capture = "markup.heading.3", token = "heading_3", langs = { "markdown" } },
+    { capture = "markup.heading.4", token = "heading_4", langs = { "markdown" } },
+    { capture = "markup.heading.5", token = "heading_5", langs = { "markdown" } },
+    { capture = "markup.heading.6", token = "heading_6", langs = { "markdown" } },
+    { capture = "markup.list", token = "list_marker", langs = { "markdown" } },
+    { capture = "markup.strong", token = "strong", langs = { "markdown_inline" } },
+    { capture = "markup.strikethrough", token = "strikethrough", langs = { "markdown_inline" } },
+    { capture = "markup.raw", token = "inline_code", langs = { "markdown_inline" } },
+    { capture = "markup.raw.block", token = "code_block", langs = { "markdown" } },
+    { capture = "markup.quote", token = "quote", langs = { "markdown" } },
+    { capture = "markup.link.label", token = "link_label", langs = { "markdown", "markdown_inline" } },
+    { capture = "markup.link.url", token = "muted", langs = { "markdown", "markdown_inline" } },
+    { capture = "markup.list.checked", token = "checked", langs = { "markdown" } },
+    { capture = "markup.list.unchecked", token = "unchecked", langs = { "markdown" } },
+}
+
+local function token_fg(token)
+    return tonumber(palette.hex[token]:sub(2), 16)
+end
+
+-- 漏れ検査。色を持つ各キャプチャを他文法のサフィックスで引くと markdown の色に解決してはならない。
+-- @<capture>.<foreign> は未定義なので素の @<capture> へフォールバックするが、
+-- 素を .markdown / .markdown_inline へスコープしたので既定色に落ち markdown の色にはならない。
+-- 素で色を定義していると (回帰すると) 他文法へ markdown の色が漏れてここで捕まる。
+-- 対象文法は heading / raw を漏らす vimdoc と strong / link を漏らす html を使う。
+local foreign_langs = { "vimdoc", "html" }
+local foreign_bleed = {}
+local foreign_pair_count = 0
+for _, entry in ipairs(color_captures) do
+    local want = token_fg(entry.token)
+    for _, lang in ipairs(foreign_langs) do
+        foreign_pair_count = foreign_pair_count + 1
+        if resolved_fg(entry.capture, lang) == want then
+            foreign_bleed[#foreign_bleed + 1] = entry.capture .. "." .. lang
+        end
+    end
+end
+table.sort(foreign_bleed)
+-- 走査した組が 0 なら検査が空回りして常に緑になるので件数も出す
+print("FOREIGN_BLEED_PAIR_COUNT=" .. foreign_pair_count)
+print("FOREIGN_BLEED=" .. table.concat(foreign_bleed, ","))
+print("FOREIGN_BLEED_COUNT=" .. #foreign_bleed)
+
+-- スコープ適用検査。各キャプチャを産出文法のサフィックスで引くと palette の色に解決すること。
+-- 漏れを止めた結果 markdown 側まで無色になっていないか (サフィックスの誤り / over-scope) を検出する。
+-- これが無いと「サフィックスを間違えて markdown でも色が出ない」回帰を素通しする。
+local scoped_color_mismatch = {}
+local scoped_color_pair_count = 0
+for _, entry in ipairs(color_captures) do
+    local want = token_fg(entry.token)
+    for _, lang in ipairs(entry.langs) do
+        scoped_color_pair_count = scoped_color_pair_count + 1
+        if resolved_fg(entry.capture, lang) ~= want then
+            scoped_color_mismatch[#scoped_color_mismatch + 1] = entry.capture .. "." .. lang
+        end
+    end
+end
+table.sort(scoped_color_mismatch)
+-- 走査した組が 0 なら検査が空回りするので件数も出す
+print("SCOPED_COLOR_PAIR_COUNT=" .. scoped_color_pair_count)
+print("SCOPED_COLOR_MISMATCH=" .. table.concat(scoped_color_mismatch, ","))
+print("SCOPED_COLOR_MISMATCH_COUNT=" .. #scoped_color_mismatch)
 
 -- ---------------------------------------------------------------------------
 -- ファイラの配色
@@ -233,10 +310,11 @@ print("SURFACES_UNKNOWN_KEY_ERRORS=" .. (surfaces_guard_ok and 0 or 1))
 local attribute_violations = {}
 local attribute_checks = 0
 
--- 見出しは色相だけでなく bold でも本文と区別する。全 6 レベルが bold であること
+-- 見出しは色相だけでなく bold でも本文と区別する。全 6 レベルが bold であること。
+-- 見出しは @markup.heading.N.markdown へスコープしてあるのでその名前で引く
 for level = 1, 6 do
     attribute_checks = attribute_checks + 1
-    if highlight("@markup.heading." .. level).bold ~= true then
+    if highlight("@markup.heading." .. level .. ".markdown").bold ~= true then
         attribute_violations[#attribute_violations + 1] = "heading_" .. level .. ":not-bold"
     end
 end
@@ -267,7 +345,7 @@ print("ATTRIBUTE_VIOLATION_COUNT=" .. #attribute_violations)
 -- colorscheme の読み込みは hi clear を伴うため、autocmd が無いと定義が消える
 vim.cmd("colorscheme habamax")
 print("AFTER_CS_NORMAL_BG=" .. tostring(highlight("Normal").bg))
-print("AFTER_CS_H1_FG=" .. tostring(highlight("@markup.heading.1").fg))
+print("AFTER_CS_H1_FG=" .. tostring(highlight("@markup.heading.1.markdown").fg))
 
 -- ---------------------------------------------------------------------------
 -- パレットのコントラスト検査
