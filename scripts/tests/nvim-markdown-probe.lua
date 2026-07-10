@@ -4,12 +4,13 @@
 -- nvim --clean で起動される前提。user config を読まないので lazy.nvim は動かず、
 -- markdown / markdown_inline のパーサは Neovim 本体同梱のものが使われる。
 
-local palette = require("config.markdown")
+local markdown = require("config.markdown")
+local palette = require("config.palette")
 
 -- 見出し 1..6 の fg が互いに異なること。同色だと階層が読めない
 local levels, duplicates, seen = 0, 0, {}
 for level = 1, 6 do
-    local group = palette["@markup.heading." .. level]
+    local group = markdown["@markup.heading." .. level]
     if group and group.fg then
         levels = levels + 1
         if seen[group.fg] then
@@ -57,7 +58,7 @@ local function split_lang(group)
 end
 
 local missing = {}
-for group in pairs(palette) do
+for group in pairs(markdown) do
     local base, lang = split_lang(group)
     local present
     if lang then
@@ -128,7 +129,7 @@ print("H1_FG=" .. tostring(highlight("@markup.heading.1").fg))
 -- markdown.lua は @<capture>.<lang> でスコープするので、他言語が共有する素の @<capture> は
 -- MUTED を帯びてはならない。MUTED はスコープした @conceal.markdown_inline の色から逆算する
 -- (markdown.lua 内の local MUTED を二重定義しないため)。
-local MUTED_FG = tonumber(palette["@conceal.markdown_inline"].fg:sub(2), 16)
+local MUTED_FG = tonumber(markdown["@conceal.markdown_inline"].fg:sub(2), 16)
 local bleed = 0
 for _, name in ipairs({ "@punctuation.special", "@conceal", "@label" }) do
     if highlight(name).fg == MUTED_FG then
@@ -155,3 +156,64 @@ print("SCOPED_MUTED_APPLIED=" .. scoped_applied)
 vim.cmd("colorscheme habamax")
 print("AFTER_CS_NORMAL_BG=" .. tostring(highlight("Normal").bg))
 print("AFTER_CS_H1_FG=" .. tostring(highlight("@markup.heading.1").fg))
+
+-- ---------------------------------------------------------------------------
+-- パレットのコントラスト検査
+--
+-- 基準背景と tier ごとの目標値は config.palette が単一の真実として持つ。
+-- ここでは WCAG 2.x の相対輝度を計算するだけで、期待値は持たない。
+-- ---------------------------------------------------------------------------
+
+-- sRGB のガンマを解いて線形化する
+local function linearize(byte)
+    local c = byte / 255
+    if c <= 0.03928 then
+        return c / 12.92
+    end
+    return ((c + 0.055) / 1.055) ^ 2.4
+end
+
+local function relative_luminance(hex)
+    local r = linearize(tonumber(hex:sub(2, 3), 16))
+    local g = linearize(tonumber(hex:sub(4, 5), 16))
+    local b = linearize(tonumber(hex:sub(6, 7), 16))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+end
+
+local function contrast_ratio(fg, bg)
+    local lf, lb = relative_luminance(fg), relative_luminance(bg)
+    local hi, lo = math.max(lf, lb), math.min(lf, lb)
+    return (hi + 0.05) / (lo + 0.05)
+end
+
+-- 検査ロジック自体の較正。白と黒は 21:1、同色どうしは 1:1 になる。
+-- ここが崩れていたら以降の判定は全て無意味なので先に固定する。
+-- 同色の検査には基準背景を使う。値を書き写すと palette と drift する
+print(string.format("CONTRAST_SELFTEST_MAX=%.2f", contrast_ratio("#ffffff", "#000000")))
+print(string.format(
+    "CONTRAST_SELFTEST_MIN=%.2f",
+    contrast_ratio(palette.reference_background, palette.reference_background)
+))
+
+local violations = {}
+for token, spec in pairs(palette.colors) do
+    local target = palette.minimum_contrast[spec.tier]
+    if target == nil then
+        violations[#violations + 1] = token .. ":unknown-tier"
+    else
+        local ratio = contrast_ratio(spec.hex, palette.reference_background)
+        if ratio < target then
+            violations[#violations + 1] = string.format("%s:%.2f<%.2f", token, ratio, target)
+        end
+    end
+end
+table.sort(violations)
+print("PALETTE_VIOLATIONS=" .. table.concat(violations, ","))
+print("PALETTE_VIOLATION_COUNT=" .. #violations)
+
+-- 検出器が働いていることを示す negative case。
+-- 旧 MUTED (#5c6370) は基準背景の上で背景とほぼ同色になり symbol tier に届かない。
+-- ここが 0 になったらコントラスト検査は何も守っていない
+local sentinel_ratio = contrast_ratio("#5c6370", palette.reference_background)
+print("VIOLATION_DETECTOR_WORKS=" .. ((sentinel_ratio < palette.minimum_contrast.symbol) and 1 or 0))
+print(string.format("SENTINEL_RATIO=%.2f", sentinel_ratio))

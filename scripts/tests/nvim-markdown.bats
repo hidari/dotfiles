@@ -111,3 +111,24 @@ probe_without_extends() {
     run probe_with_extends
     assert_contains "$output" "CONCEAL_AFTER_STRONG=1"
 }
+
+@test "contrast helper is calibrated against known values" {
+    # 白と黒は 21:1、同色は 1:1。ここが崩れたら以降の判定は全て無意味
+    run probe_with_extends
+    assert_contains "$output" "CONTRAST_SELFTEST_MAX=21.00"
+    assert_contains "$output" "CONTRAST_SELFTEST_MIN=1.00"
+}
+
+@test "palette: the contrast check detects a color below its tier" {
+    # 検査が本当に効いていることを示す negative case。
+    # 旧 MUTED は基準背景の上で 1.01:1 しかなく symbol tier を満たさない
+    run probe_with_extends
+    assert_contains "$output" "VIOLATION_DETECTOR_WORKS=1"
+    assert_contains "$output" "SENTINEL_RATIO=1.01"
+}
+
+@test "palette: every token meets the contrast target of its tier" {
+    # 基準背景の上で読めない色をパレットへ入れられないようにする
+    run probe_with_extends
+    assert_contains "$output" "PALETTE_VIOLATION_COUNT=0"
+}
