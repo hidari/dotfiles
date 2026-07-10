@@ -369,6 +369,13 @@ print(string.format(
     delta_e(palette.reference_background, palette.reference_background)
 ))
 
+-- 有彩ペアの known-answer。to_oklab の立方根指数 (1/3) を pin する。
+-- 白黒較正は cube-root を固定点 1 と 0 でしか通さず、同色較正は 0 なので、
+-- どちらも指数を 1/2 や 1.0 へ変えても値が動かない。有彩ペアだけが OKLab の非線形性を通す。
+-- 期待値は Ottosson の OKLab 原典から Python で独立に導出したもので、この probe の出力から作らない。
+-- 桁数は期待値に合わせて %.6f にする (小数第 4 位までだと mutation の差が丸めで潰れる余地を残す)
+print(string.format("DELTA_E_KNOWN_CHROMATIC=%.6f", delta_e("#a8b6e7", "#aab6e4")))
+
 -- 相異なる hex ごとに代表トークンを 1 つ選ぶ。辞書順で最小を取れば出力が安定する
 local representative = {}
 for token, spec in pairs(palette.colors) do

@@ -219,6 +219,15 @@ probe_without_extends() {
     assert_contains "$output" "DELTA_E_SELFTEST_MIN=0.0000"
 }
 
+@test "delta e is pinned by a chromatic known answer" {
+    # 白黒較正は cube-root を固定点 1 と 0 でしか通さず、同色較正は 0 なので、
+    # どちらも to_oklab の立方根指数を 1/3 から 1/2 や 1.0 へ変えても値が動かない。
+    # 有彩ペアだけが OKLab の非線形性を通す。期待値は Ottosson の原典から Python で独立に導出したもので
+    # probe の出力から作ってはならない (同語反復になり何も守らなくなる)
+    run probe_with_extends
+    assert_contains "$output" "DELTA_E_KNOWN_CHROMATIC=0.004930"
+}
+
 @test "palette: the distinguishability check detects two colors that look alike" {
     # 実際に同化していた組を sentinel に使う
     run probe_with_extends
