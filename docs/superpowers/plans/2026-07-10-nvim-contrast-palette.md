@@ -545,6 +545,270 @@ git commit -F tmp/commitmsg.txt
 
 ---
 
+### Task 2b: 見出しマーカーを見出しと同色にする
+
+Hidari の判断により追加したタスク。見出しの `#` を灰色ではなく、見出し文字列と同じ色にする。
+
+要点は色を定義しないことである。Neovim の `@` 名前空間は `@markup.heading.1.marker` を `@markup.heading.1` へ階層フォールバックする。つまりキャプチャ名にレベルを含めれば、色を一行も書かずに見出し色を継承する。現在の `@markup.heading.marker` がレベルを持たず `@markup.heading` (既定の `Title`) にしか落ちないのが、マーカーが見出しと別色になっていた理由である。
+
+あわせて Task 2 のレビューで指摘された `@markup.link` のコメントの不正確さを直す。`@markup.link` は URL (`link_destination`) も構造的に捕捉している。URL に muted が乗らないのは、クエリの後方で宣言された `@markup.link.url` が同じ範囲を捕捉して後勝ちするからであって、`@markup.link` が URL を除外しているからではない。現在のコメントは「捕捉する範囲」と「最終的に解決される色」を混同している。
+
+**Files:**
+- Modify: `home/.config/nvim/after/queries/markdown/highlights.scm`
+- Modify: `home/.config/nvim/lua/config/markdown.lua`
+- Modify: `scripts/tests/nvim-markdown-probe.lua`
+- Test: `scripts/tests/nvim-markdown.bats`
+
+**Interfaces:**
+- Consumes: `require("config.palette").hex.heading_1` から `heading_6` (Task 1 が提供)
+- Produces: `markdown.lua` は `@markup.heading.marker` を定義しなくなる。`palette.hex.muted` は他の記号 (`` ` `` `~` `*` `|` `>` `---`、コードフェンスの言語名、リンク URL、リンクの記号) 専用になる
+
+**2 つのテストの役割の違い (実測で確定済み)**
+
+このタスクには性質の異なる 2 つの検査がある。混同しないこと。
+
+- `MARKER_CAPTURES=6` は「拡張クエリが `@markup.heading.N.marker` というキャプチャ名を与えている」ことを検査する。カウント条件を新しい名前に変えるとクエリ変更前は 0 になるので、**これが RED を作る**。
+- `MARKER_INHERITS_HEADING=1` は「マーカーのグループが見出しの色に解決される」ことを検査する。これは名前解決だけで成立するため、**クエリを変える前から 1 になる** (controller が 6 レベルすべてで実測済み)。したがって TDD の RED は作らない。このテストが守っているのは「誰かがマーカーへ色を明示定義して継承を壊すこと」であり、それは Step 8 の変異注入で確かめる。
+
+両方が揃って初めて「`#` が見出しと同じ色で描かれる」が保証される。片方だけでは足りない。クエリが旧名のままだとマーカーは `@markup.heading` (既定の `Title`) に落ち、見出し色にならない。
+
+- [ ] **Step 1: probe を書き換える**
+
+まず、マーカー計数ループの条件をレベル別キャプチャ名に変える。
+
+変更前:
+
+```lua
+    if query.captures[id] == "markup.heading.marker" then
+```
+
+変更後:
+
+```lua
+    if query.captures[id]:match("^markup%.heading%.%d%.marker$") then
+```
+
+次に、`LINK_NO_BLEED_TO_LUA` を print している行の直後へ継承の検査を追記する。この位置なら `resolved_fg` と `palette` は定義済みである。
+
+```lua
+
+-- 見出しマーカーには色を定義しない。@markup.heading.N.marker という名前が
+-- @ 名前空間の階層フォールバックで @markup.heading.N へ落ちるため、見出しと同色になる。
+-- この検査は名前解決だけで成立するのでクエリの有無には依存しない。
+-- 守っているのは、誰かがマーカーへ色を明示定義して継承を壊すことである
+local marker_inherits = 1
+for level = 1, 6 do
+    local want = tonumber(palette.hex["heading_" .. level]:sub(2), 16)
+    if resolved_fg("markup.heading." .. level .. ".marker", "markdown") ~= want then
+        marker_inherits = 0
+    end
+end
+print("MARKER_INHERITS_HEADING=" .. marker_inherits)
+```
+
+- [ ] **Step 2: bats にテストを追加する**
+
+`scripts/tests/nvim-markdown.bats` の末尾に追記する。
+
+```bash
+
+@test "heading markers inherit the color of their heading level" {
+    # マーカーへ色を定義せず、@ 名前空間の階層フォールバックで見出し色を継承させる。
+    # @markup.heading.N.marker が未定義なら @markup.heading.N へ落ちる。
+    # この検査は名前解決だけで成立するのでクエリには依存しない。
+    # 拡張クエリが正しいキャプチャ名を与えていることは MARKER_CAPTURES=6 が受け持つ
+    run probe_with_extends
+    assert_contains "$output" "MARKER_INHERITS_HEADING=1"
+}
+```
+
+- [ ] **Step 3: テストを実行して RED を確認する**
+
+Run: `bats scripts/tests/nvim-markdown.bats`
+
+Expected:
+- `extends query captures all six atx heading markers` が **FAIL**。出力に `MARKER_CAPTURES=0` が現れる。拡張クエリがまだ旧いキャプチャ名 `@markup.heading.marker` を使っているため、新しい名前では 1 つも数えられない。
+- `heading markers inherit the color of their heading level` は **PASS**。継承は名前解決だけで成立するため、クエリを変える前から緑である。これは想定どおりであり、異常ではない。
+- `without the extends query the marker checks fail` も **FAIL**。`MARKER_CAPTURES=0` は満たすが `MISSING_CAPTURES=@markup.heading.marker` はまだ満たす。Step 6 で直す。
+
+`MARKER_CAPTURES=0` を自分の目で確認すること。確認できなければ検査は機能していない。
+
+- [ ] **Step 4: 拡張クエリのキャプチャ名をレベル別にする**
+
+`home/.config/nvim/after/queries/markdown/highlights.scm` を次の内容に置き換える。
+
+```scheme
+;; extends
+
+; 見出しマーカー (# ## ...) をレベルごとのキャプチャへ分ける。
+; 既定クエリの @markup.heading.N は "# H1" の行全体 (改行まで) を覆っており、
+; マーカー単独のキャプチャが無い。
+; 拡張クエリのキャプチャは既定より後に評価されるため、範囲が重なったときに後勝ちする。
+;
+; キャプチャ名にレベルを含めるのが要点である。@markup.heading.N.marker は
+; @ 名前空間の階層フォールバックで @markup.heading.N へ落ちるため、
+; 色を一切定義しなくてもマーカーが見出しと同色になる。
+; レベルを含まない @markup.heading.marker は @markup.heading (既定の Title) にしか落ちない。
+;
+; キャプチャ名がレベルごとに異なるため、交替リストにはまとめられない。
+(atx_h1_marker) @markup.heading.1.marker
+(atx_h2_marker) @markup.heading.2.marker
+(atx_h3_marker) @markup.heading.3.marker
+(atx_h4_marker) @markup.heading.4.marker
+(atx_h5_marker) @markup.heading.5.marker
+(atx_h6_marker) @markup.heading.6.marker
+```
+
+- [ ] **Step 5: markdown.lua から marker のエントリを消し、コメントを直す**
+
+まず、ヘッダーコメントの次の 2 行を削除する。
+
+```lua
+-- @markup.heading.marker は after/queries/markdown/highlights.scm が定義する拡張キャプチャで、
+-- 既定のクエリには存在しない。
+```
+
+そのかわりに、同じ位置へ次を書く。
+
+```lua
+-- 見出しマーカー (#) には色を定義しない。after/queries/markdown/highlights.scm が
+-- @markup.heading.N.marker というレベル入りのキャプチャ名を与えており、
+-- @ 名前空間の階層フォールバックで @markup.heading.N を継承するため、見出しと同色になる。
+```
+
+次に、`@markup.link` を説明している 3 行を次のように書き換える。
+
+変更前:
+
+```lua
+-- @markup.link が捕捉するのは URL ではなくリンクの記号 ( [ ] ( ) ! ) である。
+-- 参照リンク [label][ref] の [ref] は @markup.link.label の後に @markup.link が評価されて
+-- 後勝ちするため、[ref] 全体が muted になる (実測で確認済みの既知の挙動)。
+```
+
+変更後:
+
+```lua
+-- @markup.link はリンクや画像のノード全体を捕捉する。記号 ( [ ] ( ) ! ) だけでなく
+-- URL の範囲も含む。それでも URL に muted が乗らないのは、クエリの後方で宣言された
+-- @markup.link.url が同じ範囲を捕捉して後勝ちするためであり、@markup.link が URL を
+-- 構造的に除外しているわけではない。結果として muted が最終的に乗るのは記号だけになる。
+-- 同じ理由で、参照リンク [label][ref] の [ref] は @markup.link.label の後に
+-- @markup.link が評価されて後勝ちするため、[ref] 全体が muted になる (実測で確認済み)。
+```
+
+最後に、次のエントリとその直前のコメントを削除する。
+
+```lua
+    -- 見出しの # 記号だけを引っ込める (拡張クエリ由来のキャプチャ)
+    ["@markup.heading.marker"] = { fg = hex.muted },
+```
+
+- [ ] **Step 6: bats の negative case から MISSING_CAPTURES の行を消す**
+
+`markdown.lua` が `@markup.heading.marker` を定義しなくなったので、拡張クエリを外したときに `MISSING_CAPTURES` へ現れなくなる。`MARKER_CAPTURES=0` が拡張クエリの negative case を担う。
+
+変更前:
+
+```bash
+@test "without the extends query the marker checks fail" {
+    # 上の 2 つの検査が拡張クエリに支えられていることを示す
+    # (拡張を外しても緑のままなら、その検査は何も守っていない)
+    run probe_without_extends
+    assert_contains "$output" "MARKER_CAPTURES=0"
+    assert_contains "$output" "MISSING_CAPTURES=@markup.heading.marker"
+}
+```
+
+変更後:
+
+```bash
+@test "without the extends query the marker checks fail" {
+    # マーカーの検査が拡張クエリに支えられていることを示す
+    # (拡張を外しても緑のままなら、その検査は何も守っていない)
+    # markdown.lua はマーカーへ色を定義しないので MISSING_CAPTURES には現れない
+    run probe_without_extends
+    assert_contains "$output" "MARKER_CAPTURES=0"
+}
+```
+
+- [ ] **Step 7: テストを実行して GREEN を確認する**
+
+Run: `bats scripts/tests/`
+
+Expected: 全テストが PASS。特に次が緑であること。
+
+- `heading markers inherit the color of their heading level` (`MARKER_INHERITS_HEADING=1`)
+- `extends query captures all six atx heading markers` (`MARKER_CAPTURES=6`)
+- `without the extends query the marker checks fail` (`MARKER_CAPTURES=0`)
+- `markdown palette: every group exists as a treesitter capture` (`MISSING_CAPTURES=` が空)
+- `palette: every token meets the contrast target of its tier`
+
+- [ ] **Step 8: 変異注入で 2 つのテストが別々の失敗モードを捕まえることを確かめる**
+
+このタスクの検査は 2 本立てなので、それぞれ独立に効くことを示す。
+
+変異注入 a (継承を明示定義で壊す)。`markdown.lua` の `return {` の直後に次の 1 行を一時的に足す。
+
+```lua
+    ["@markup.heading.1.marker"] = { fg = hex.muted },
+```
+
+Run: `bats scripts/tests/nvim-markdown.bats`
+
+Expected: `heading markers inherit the color of their heading level` が FAIL (`MARKER_INHERITS_HEADING=0`)。`extends query captures all six atx heading markers` は緑のまま。
+
+元へ戻す。
+
+```bash
+git checkout home/.config/nvim/lua/config/markdown.lua
+```
+
+変異注入 b (クエリのキャプチャ名を旧名へ戻す)。`highlights.scm` の 6 行を `@markup.heading.marker` へ書き換える。
+
+Run: `bats scripts/tests/nvim-markdown.bats`
+
+Expected: `extends query captures all six atx heading markers` が FAIL (`MARKER_CAPTURES=0`)。`heading markers inherit the color of their heading level` は緑のまま (継承は名前解決だけで成立するため)。
+
+この 2 つが別々に落ちることが、2 本のテストが別々の失敗モードを見ている証拠である。
+
+元へ戻して全緑を確認する。
+
+```bash
+git checkout home/.config/nvim/after/queries/markdown/highlights.scm
+bats scripts/tests/
+```
+
+Expected: 全緑
+
+- [ ] **Step 9: コミットする**
+
+```bash
+mkdir -p tmp
+cat > tmp/commitmsg.txt <<'EOF'
+improve: 見出しマーカーを見出しと同色にする
+
+- 拡張クエリのキャプチャ名を @markup.heading.N.marker へ変える
+  名前にレベルを含めると @ 名前空間の階層フォールバックが
+  @markup.heading.N へ落とすため 色を一行も定義せずに見出し色を継承する
+- レベルを持たない @markup.heading.marker は @markup.heading (Title) にしか
+  落ちないため これまでマーカーだけ別色になっていた
+- markdown.lua から marker のエントリを削除する
+  muted は他の記号 ( ` ~ * | > --- ) とリンク URL 専用になる
+- 継承が崩れると検出できるよう probe が 6 レベルすべての解決結果を照合する
+  変異注入で確認済み: マーカーへ色を明示定義すると赤になる
+- @markup.link のコメントを実測に合わせて訂正する
+  @markup.link は URL の範囲も構造的に捕捉しており
+  URL に muted が乗らないのは後方の @markup.link.url が後勝ちするためである
+EOF
+git add home/.config/nvim/after/queries/markdown/highlights.scm home/.config/nvim/lua/config/markdown.lua scripts/tests/nvim-markdown-probe.lua scripts/tests/nvim-markdown.bats
+git commit -F tmp/commitmsg.txt
+```
+
+`git add` はファイルを明示指定すること。`git add .` や `git add -A` を使ってはならない (作業ツリーに Hidari が編集中の `.af` ファイルがある)。
+
+---
+
 ### Task 3: neotree.lua を新設し、appearance.lua を palette 参照へ移す
 
 ファイラの配色を独立したモジュールへ切り出し、`appearance.lua` は base と `apply()` のオーケストレーションに専念させる。
