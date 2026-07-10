@@ -2077,35 +2077,83 @@ Expected: 同じテストが FAIL (`workflow_calls` が 0 になる)。呼び出
 
 - [ ] **Step 1: 実 config で neo-tree を読み込ませ、色が残ることを確認する**
 
-`--clean` ではなく実際の設定 (lazy.nvim 経由) で起動し、neo-tree の `setup()` が走ったあとの色を取る。
+`--clean` ではなく実際の設定 (lazy.nvim 経由) で起動し、neo-tree の `setup()` が走ったあとの色を取る。probe が通る `--clean` の rtp とはロード経路が違うため、ここを通さないと `create_highlight_group` による上書きを見逃す。
 
-```bash
-nvim --headless \
-  -c 'Neotree show' \
-  -c 'lua for _, g in ipairs({"NeoTreeGitIgnored","NeoTreeDotfile","NeoTreeGitUntracked","NeoTreeIndentMarker","NeoTreeExpander"}) do local hl = vim.api.nvim_get_hl(0, {name = g, link = false}); print(string.format("%s fg=%s", g, hl.fg and string.format("#%06x", hl.fg) or "nil")) end' \
-  -c 'qa!' 2>&1
+期待値は `config.neotree` から引く。書き写すと色を変えたときに手順書が黙って嘘になる。
+
+一時ファイル `/tmp/live_smoke.lua` に次を書く。
+
+```lua
+local neotree = require("config.neotree")
+
+local function fg_of(group)
+    local hl = vim.api.nvim_get_hl(0, { name = group, link = false })
+    return hl.fg and string.format("#%06x", hl.fg) or nil
+end
+
+local names = {}
+for name in pairs(neotree) do
+    names[#names + 1] = name
+end
+table.sort(names)
+
+local mismatches = 0
+for _, name in ipairs(names) do
+    local want, got = neotree[name].fg, fg_of(name)
+    if got ~= want then
+        mismatches = mismatches + 1
+    end
+    print(string.format("%s %-22s want=%s got=%s", (got == want) and "OK  " or "FAIL", name, tostring(want), tostring(got)))
+end
+print("LIVE_NEOTREE_MISMATCHES=" .. mismatches)
+print("LIVE_NEOTREE_CHECKED=" .. #names)
+print("INDENT_MARKER_LINK=" .. tostring(vim.api.nvim_get_hl(0, { name = "NeoTreeIndentMarker" }).link))
 ```
 
-Expected: 5 グループすべてが palette の色を報告する。
-
-- `NeoTreeGitIgnored fg=#aab6e4`
-- `NeoTreeDotfile fg=#a8b6e7`
-- `NeoTreeGitUntracked fg=#ffc8a1`
-- `NeoTreeIndentMarker fg=#959594`
-- `NeoTreeExpander fg=#b5b8bc`
-
-`nil` や別の色が出たら、neo-tree の `create_highlight_group` が定義を上書きしている。その場合は `apply()` を neo-tree の setup 後にも走らせる必要があるので、`FileType neo-tree` の autocmd を追加して再度確認する。
-
-- [ ] **Step 2: NeoTreeIndentMarker の link が外れていることを確認する**
-
 ```bash
-nvim --headless \
-  -c 'Neotree show' \
-  -c 'lua print(vim.inspect(vim.api.nvim_get_hl(0, {name = "NeoTreeIndentMarker"})))' \
-  -c 'qa!' 2>&1
+nvim --headless -c 'Neotree show' -c 'luafile /tmp/live_smoke.lua' -c 'qa!' 2>&1
 ```
 
-Expected: `link` フィールドが無く、`fg` が直接入っている。`link = "NeoTreeDimText"` が残っていたら上書きできていない。
+Expected: `LIVE_NEOTREE_MISMATCHES=0` かつ `LIVE_NEOTREE_CHECKED=9`。
+
+`INDENT_MARKER_LINK=nil` であること。`NeoTreeDimText` が出たら既定の link を上書きできていない。
+
+`FAIL` が出たら neo-tree の `create_highlight_group` が定義を上書きしている。その場合は `apply()` を neo-tree の setup 後にも走らせる必要があるので、`FileType neo-tree` の autocmd を追加して再度確認する。
+
+- [ ] **Step 2: link 経由の伝播を実機で確認する**
+
+`neotree.lua` は `NeoTreeIgnored` / `NeoTreeWindowsHidden` / `NeoTreeGitUnstaged` を定義しない。link で修正が伝播するという前提に立っているので、実機で確かめる。
+
+一時ファイル `/tmp/link_check.lua` に次を書く。
+
+```lua
+local hex = require("config.palette").hex
+
+local function fg_of(group)
+    local hl = vim.api.nvim_get_hl(0, { name = group, link = false })
+    return hl.fg and string.format("#%06x", hl.fg) or nil
+end
+
+local failures = 0
+for _, e in ipairs({
+    { "NeoTreeIgnored", hex.dotfile },
+    { "NeoTreeWindowsHidden", hex.dotfile },
+    { "NeoTreeGitUnstaged", hex.git_attention },
+}) do
+    local got = fg_of(e[1])
+    if got ~= e[2] then
+        failures = failures + 1
+    end
+    print(string.format("%s %-22s want=%s got=%s", (got == e[2]) and "OK  " or "FAIL", e[1], e[2], tostring(got)))
+end
+print("LINK_PROPAGATION_FAILURES=" .. failures)
+```
+
+```bash
+nvim --headless -c 'Neotree show' -c 'luafile /tmp/link_check.lua' -c 'qa!' 2>&1
+```
+
+Expected: `LINK_PROPAGATION_FAILURES=0`
 
 - [ ] **Step 3: 実際の端末で目視する**
 
@@ -2134,16 +2182,51 @@ nvim -c 'Neotree show'
 - インデント線が見えるが目立ちすぎない
 - ドットファイルと gitignored の色が区別できる
 
-- [ ] **Step 4: 参照リンクの既知の挙動を確認する**
+- [ ] **Step 4: 参照リンクの既知の挙動を機械的に確認する**
 
-一時ファイルに参照リンクを書き、`[ref]` 全体が muted になることを目視で確認する。これは spec に記録した既知の副作用であり、想定どおりであることを確かめる。
+`[ref]` 全体が muted になることは spec に記録した既知の副作用である。目視ではなくキャプチャの解決結果で確かめる。
 
-```bash
-printf '[label][ref]\n\n[ref]: https://example.com\n' > /tmp/reflink.md
-nvim /tmp/reflink.md
+インジェクション言語 (`markdown_inline`) は `parser:parse(true)` を明示しないと解析されない。これを忘れると `@spell` しか観測できず、何も検証していない出力を見ることになる。
+
+一時ファイル `/tmp/reflink.md` に `[label][ref]` と参照定義を書き、`/tmp/reflink_check.lua` に次を書く。
+
+```lua
+local hex = require("config.palette").hex
+
+local parser = vim.treesitter.get_parser(0, "markdown")
+parser:parse(true)
+
+local function last_capture(row, col)
+    local caps = vim.treesitter.get_captures_at_pos(0, row, col)
+    if #caps == 0 then
+        return nil, nil
+    end
+    return caps[#caps].capture, caps[#caps].lang
+end
+
+local function resolved_fg(capture, lang)
+    local id = vim.api.nvim_get_hl_id_by_name("@" .. capture .. "." .. lang)
+    local hl = vim.api.nvim_get_hl(0, { id = id, link = false })
+    return hl.fg and string.format("#%06x", hl.fg) or nil
+end
+
+local line = vim.api.nvim_buf_get_lines(0, 0, 1, false)[1]
+for col = 0, #line - 1 do
+    local capture, lang = last_capture(0, col)
+    print(string.format("col=%2d char=%s last=%s fg=%s", col, line:sub(col + 1, col + 1), tostring(capture), tostring(capture and resolved_fg(capture, lang))))
+end
+print("MUTED=" .. hex.muted)
+print("LINK_LABEL=" .. hex.link_label)
 ```
 
-Expected: `[label]` の `label` はリンクラベル色、`[ref]` は全体が muted。
+```bash
+nvim --headless /tmp/reflink.md -c 'luafile /tmp/reflink_check.lua' -c 'qa!' 2>&1
+```
+
+Expected:
+
+- `[label]` の角括弧は `markup.link` で MUTED、`label` の 5 文字は `markup.link.label` で LINK_LABEL
+- `[ref]` は角括弧も中身も `markup.link` で MUTED になる (後勝ち)
 
 - [ ] **Step 5: 最終確認とプッシュ**
 
@@ -2189,7 +2272,7 @@ Expected: `conclusion` が `success`。`ast-grep (syntax lint)` ジョブと `bo
 
 - `bats scripts/tests/` が全緑 (skip は `neo-tree highlight group names exist in the plugin source` のみ許容し、開発機では実行されること)
 - `pre-commit run --all-files` が全て Passed か Skipped
-- `ast-grep scan` が exit 0
+- `ast-grep scan --no-ignore hidden` が exit 0 (フラグを欠いた素の `ast-grep scan` は 1 件も検査しないので完了判定に使えない)
 - CI の `ast-grep (syntax lint)` ジョブが success
 - Task 6 の live smoke の全項目が目視で確認済み
-- 色の hex が `home/.config/nvim/lua/config/palette.lua` 以外に存在しない
+- 色の hex が `home/.config/nvim/lua/config/palette.lua` 以外に存在しない (テストの probe と fixture は意図的な例外)
