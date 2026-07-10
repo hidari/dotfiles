@@ -1253,23 +1253,10 @@ Run: `bats scripts/tests/`
 
 Expected: 全テストが PASS。特に `palette: every token meets the contrast target of its tier` が緑のままであること (`RECEDED` は 3.012:1 で symbol tier の 3.0 を満たす)。
 
-- [ ] **Step 7: 変異注入で 3 つのテストが別々の失敗モードを捕まえることを確かめる**
+- [ ] **Step 7: コミットする**
 
-変異注入 a (色を同化した状態へ戻す)。`palette.lua` の `RECEDED` を `"#aab6e4"` に戻す。
-
-Expected: `palette: every pair of distinct colors is perceptibly different` だけが FAIL。較正と sentinel は緑のまま。
-
-変異注入 b (閾値を無効化する)。`palette.lua` の `M.minimum_delta_e` を `0` にする。
-
-Expected: `palette: the distinguishability check detects two colors that look alike` だけが FAIL (`JND_DETECTOR_WORKS=0`)。違反カウントは 0 のまま緑。
-
-変異注入 c (色差の計算を壊す)。probe の `to_oklab` の `0.7936177850` を `0.5` にする。
-
-Expected: `delta e helper is calibrated against known values` が FAIL。
-
-いずれも `git checkout <file>` で戻す前に、そのファイルに未コミットの変更が無いことを確かめる。無ければ戻して全緑を確認する。
-
-- [ ] **Step 8: コミットする**
+変異注入より先にコミットする。`git checkout <file>` は「HEAD の状態へ戻す」であって「変異注入の直前へ戻す」ではないため、
+未コミットの実装が残っていると変異と一緒に巻き戻る。コミットを済ませておけばそれが復元点になる。
 
 ```bash
 mkdir -p tmp
@@ -1288,6 +1275,23 @@ EOF
 git add home/.config/nvim/lua/config/palette.lua scripts/tests/nvim-markdown-probe.lua scripts/tests/nvim-markdown.bats
 git commit -F tmp/commitmsg.txt
 ```
+
+- [ ] **Step 8: 変異注入で 3 つのテストが別々の失敗モードを捕まえることを確かめる**
+
+コミット済みなので `git checkout <file>` で安全に戻せる。各変異のあと必ず戻して全緑を確認する。
+
+変異注入 a (色を同化した状態へ戻す)。`palette.lua` の `RECEDED` を `"#aab6e4"` に戻す。
+
+Expected: `palette: every pair of distinct colors is perceptibly different` だけが FAIL。較正と sentinel は緑のまま。
+
+変異注入 b (閾値を無効化する)。`palette.lua` の `M.minimum_delta_e` を `0` にする。
+
+Expected: `palette: the distinguishability check detects two colors that look alike` だけが FAIL (`JND_DETECTOR_WORKS=0`)。違反カウントは 0 のまま緑。
+
+変異注入 c (色差の計算を壊す)。probe の `to_oklab` の `0.7936177850` を `0.5` にする。
+
+Expected: `delta e helper is calibrated against known values` だけが FAIL。区別可能性の 2 本は緑のまま。
+係数を壊しても色差の値がたまたま閾値を超え続けるため、数式の正しさを守っているのは較正テストだけである。
 
 ---
 
@@ -1467,19 +1471,10 @@ Expected: 全テストが PASS。`SURFACE_VIOLATION_COUNT=0` と `LUALINE_MATCHE
 
 `grep -rnE '"#[0-9a-fA-F]{6}"' home/.config/nvim/lua --include='*.lua' | grep -v 'lua/config/palette.lua'` が何も返さないことも確認する。Task 4 の ast-grep ルールはこの状態を前提に着地する。
 
-- [ ] **Step 7: 変異注入で 2 つのテストが別々の失敗モードを捕まえることを確かめる**
+- [ ] **Step 7: コミットする**
 
-変異注入 a (面のコントラストを壊す)。`palette.lua` の `statusline_buffer_inactive` の `fg` を `"#3a3f45"` にする。
-
-Expected: `opaque surfaces meet the contrast target against their own background` だけが FAIL。`lualine uses the same colors as the palette surfaces` は緑のまま (lualine は palette を参照しているので一緒に動く)。
-
-変異注入 b (lualine に値を書き戻す)。`lualine.lua` の inactive の `fg` を `"#abb2bf"` というリテラルに戻したうえで、`palette.lua` の同じ値を `"#a9b0bd"` に変える。
-
-Expected: `lualine uses the same colors as the palette surfaces` だけが FAIL (`LUALINE_MATCHES_PALETTE=0`)。面のコントラストは緑のまま。
-
-いずれも `git checkout <file>` で戻す前に、そのファイルに未コミットの変更が無いことを確かめる。
-
-- [ ] **Step 8: コミットする**
+変異注入より先にコミットする。`git checkout <file>` は「HEAD の状態へ戻す」であって「変異注入の直前へ戻す」ではないため、
+未コミットの実装が残っていると変異と一緒に巻き戻る。コミットを済ませておけばそれが復元点になる。
 
 ```bash
 mkdir -p tmp
@@ -1498,6 +1493,18 @@ EOF
 git add home/.config/nvim/lua/config/palette.lua home/.config/nvim/lua/plugins/lualine.lua scripts/tests/nvim-markdown-probe.lua scripts/tests/nvim-markdown.bats
 git commit -F tmp/commitmsg.txt
 ```
+
+- [ ] **Step 8: 変異注入で 2 つのテストが別々の失敗モードを捕まえることを確かめる**
+
+コミット済みなので `git checkout <file>` で安全に戻せる。各変異のあと必ず戻して全緑を確認する。
+
+変異注入 a (面のコントラストを壊す)。`palette.lua` の `statusline_buffer_inactive` の `fg` を `"#3a3f45"` にする。
+
+Expected: `opaque surfaces meet the contrast target against their own background` だけが FAIL。`lualine uses the same colors as the palette surfaces` は緑のまま (lualine は palette を参照しているので一緒に動く)。
+
+変異注入 b (lualine に値を書き戻す)。`lualine.lua` の inactive の `fg` を `"#abb2bf"` というリテラルに戻したうえで、`palette.lua` の同じ値を `"#a9b0bd"` に変える。
+
+Expected: `lualine uses the same colors as the palette surfaces` だけが FAIL (`LUALINE_MATCHES_PALETTE=0`)。面のコントラストは緑のまま。
 
 ---
 
