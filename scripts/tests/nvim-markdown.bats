@@ -70,11 +70,11 @@ probe_without_extends() {
 }
 
 @test "without the extends query the marker checks fail" {
-    # 上の 2 つの検査が拡張クエリに支えられていることを示す
+    # マーカーの検査が拡張クエリに支えられていることを示す
     # (拡張を外しても緑のままなら、その検査は何も守っていない)
+    # markdown.lua はマーカーへ色を定義しないので MISSING_CAPTURES には現れない
     run probe_without_extends
     assert_contains "$output" "MARKER_CAPTURES=0"
-    assert_contains "$output" "MISSING_CAPTURES=@markup.heading.marker"
 }
 
 @test "appearance keeps the Normal background transparent" {
@@ -140,4 +140,13 @@ probe_without_extends() {
     run probe_with_extends
     assert_contains "$output" "LINK_SCOPED_IN_MARKDOWN=1"
     assert_contains "$output" "LINK_NO_BLEED_TO_LUA=1"
+}
+
+@test "heading markers inherit the color of their heading level" {
+    # マーカーへ色を定義せず、@ 名前空間の階層フォールバックで見出し色を継承させる。
+    # @markup.heading.N.marker が未定義なら @markup.heading.N へ落ちる。
+    # この検査は名前解決だけで成立するのでクエリには依存しない。
+    # 拡張クエリが正しいキャプチャ名を与えていることは MARKER_CAPTURES=6 が受け持つ
+    run probe_with_extends
+    assert_contains "$output" "MARKER_INHERITS_HEADING=1"
 }

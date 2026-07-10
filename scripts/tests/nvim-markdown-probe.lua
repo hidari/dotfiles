@@ -82,7 +82,7 @@ local tree = vim.treesitter.get_parser(buffer, "markdown"):parse(true)[1]
 local query = vim.treesitter.query.get("markdown", "highlights")
 local markers = 0
 for id in query:iter_captures(tree:root(), buffer, 0, -1) do
-    if query.captures[id] == "markup.heading.marker" then
+    if query.captures[id]:match("^markup%.heading%.%d%.marker$") then
         markers = markers + 1
     end
 end
@@ -148,6 +148,19 @@ end
 -- リンクの記号は markdown_inline でだけ muted になり、他言語へは漏れない
 print("LINK_SCOPED_IN_MARKDOWN=" .. ((resolved_fg("markup.link", "markdown_inline") == MUTED_FG) and 1 or 0))
 print("LINK_NO_BLEED_TO_LUA=" .. ((resolved_fg("markup.link", "lua") ~= MUTED_FG) and 1 or 0))
+
+-- 見出しマーカーには色を定義しない。@markup.heading.N.marker という名前が
+-- @ 名前空間の階層フォールバックで @markup.heading.N へ落ちるため、見出しと同色になる。
+-- この検査は名前解決だけで成立するのでクエリの有無には依存しない。
+-- 守っているのは、誰かがマーカーへ色を明示定義して継承を壊すことである
+local marker_inherits = 1
+for level = 1, 6 do
+    local want = tonumber(palette.hex["heading_" .. level]:sub(2), 16)
+    if resolved_fg("markup.heading." .. level .. ".marker", "markdown") ~= want then
+        marker_inherits = 0
+    end
+end
+print("MARKER_INHERITS_HEADING=" .. marker_inherits)
 
 -- 逆に、スコープした markdown 用グループには MUTED が実際に乗っていること。
 -- 漏れを止めた結果 markdown 側まで無色になっていないかを確かめる。

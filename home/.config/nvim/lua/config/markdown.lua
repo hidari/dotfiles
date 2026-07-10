@@ -8,8 +8,9 @@
 -- @conceal.markdown_inline は tree-sitter のキャプチャ名であり、記号を隠さず色を当てるためだけに使う。
 -- 見出しは明度を上げて本文より目立たせ、階層は色相で分ける。色相だけに頼らないよう bold も併用する。
 --
--- @markup.heading.marker は after/queries/markdown/highlights.scm が定義する拡張キャプチャで、
--- 既定のクエリには存在しない。
+-- 見出しマーカー (#) には色を定義しない。after/queries/markdown/highlights.scm が
+-- @markup.heading.N.marker というレベル入りのキャプチャ名を与えており、
+-- @ 名前空間の階層フォールバックで @markup.heading.N を継承するため、見出しと同色になる。
 --
 -- @punctuation.special / @conceal / @label / @markup.link は他の文法とも共有する汎用キャプチャ名なので、
 -- 素で定義すると非 markdown のバッファへ色が漏れる。言語サフィックス付き
@@ -17,9 +18,12 @@
 -- その言語でだけ解決し (vim/treesitter/highlighter.lua の @<name>.<lang> 構築)、
 -- 他言語では素の @<capture> にフォールバックするため漏れが止まる。
 --
--- @markup.link が捕捉するのは URL ではなくリンクの記号 ( [ ] ( ) ! ) である。
--- 参照リンク [label][ref] の [ref] は @markup.link.label の後に @markup.link が評価されて
--- 後勝ちするため、[ref] 全体が muted になる (実測で確認済みの既知の挙動)。
+-- @markup.link はリンクや画像のノード全体を捕捉する。記号 ( [ ] ( ) ! ) だけでなく
+-- URL の範囲も含む。それでも URL に muted が乗らないのは、クエリの後方で宣言された
+-- @markup.link.url が同じ範囲を捕捉して後勝ちするためであり、@markup.link が URL を
+-- 構造的に除外しているわけではない。結果として muted が最終的に乗るのは記号だけになる。
+-- 同じ理由で、参照リンク [label][ref] の [ref] は @markup.link.label の後に
+-- @markup.link が評価されて後勝ちするため、[ref] 全体が muted になる (実測で確認済み)。
 
 local hex = require("config.palette").hex
 
@@ -31,9 +35,6 @@ return {
     ["@markup.heading.4"] = { fg = hex.heading_4, bold = true },
     ["@markup.heading.5"] = { fg = hex.heading_5, bold = true },
     ["@markup.heading.6"] = { fg = hex.heading_6, bold = true },
-
-    -- 見出しの # 記号だけを引っ込める (拡張クエリ由来のキャプチャ)
-    ["@markup.heading.marker"] = { fg = hex.muted },
 
     -- 引用の > 、表の | 、水平線の --- (markdown ブロック文法)
     ["@punctuation.special.markdown"] = { fg = hex.muted },
