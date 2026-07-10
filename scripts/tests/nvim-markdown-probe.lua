@@ -218,6 +218,14 @@ local hex_guard_ok = pcall(function()
 end)
 print("HEX_UNKNOWN_KEY_ERRORS=" .. (hex_guard_ok and 0 or 1))
 
+-- palette.surfaces も同じガードを持つこと。lualine は surfaces.<面名> を直接引くので、
+-- 面を改名すると nil を index して起動時に汚く落ちる。hex と同じ __index で名前付き error にし、
+-- 半分だけ守られた状態 (hex だけガード) を残さない
+local surfaces_guard_ok = pcall(function()
+    return palette.surfaces.this_surface_does_not_exist
+end)
+print("SURFACES_UNKNOWN_KEY_ERRORS=" .. (surfaces_guard_ok and 0 or 1))
+
 -- 色だけに頼らない情報伝達 (グローバル CLAUDE.md の MUST) を固定する。
 -- 適用結果 (highlight) から直接読むので、写像の bold / italic 宣言を消しても
 -- 検査が空回りして緑になることはない。fg 比較だけを見る NEOTREE_APPLIED では守れない不変条件。

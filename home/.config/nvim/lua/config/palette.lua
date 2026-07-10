@@ -109,14 +109,20 @@ for token, spec in pairs(M.colors) do
     M.hex[token] = spec.hex
 end
 
--- 存在しないトークン名を引いたら nil ではなく error にする。
+-- 存在しないキーを引いたら nil ではなく error にする共有ガード。
 -- nil を返すと nvim_set_hl が fg 未指定と解釈して色を既定へ黙って戻すため、
--- トークンを改名しただけで色が消えても全テストが緑のまま通ってしまう。
+-- トークンやサーフェス名を改名しただけで色が消えても全テストが緑のまま通ってしまう。
 -- ここで大声で落として、ごく普通のリファクタが色を消す事故を防ぐ。
-setmetatable(M.hex, {
-    __index = function(_, key)
-        error("palette.hex に存在しないトークン名を参照した: " .. tostring(key))
-    end,
-})
+-- hex も surfaces も写像側はキー名で直接引くだけ (pairs 走査は probe のみ) なので掛けて安全。
+local function guard_lookup(tbl, label)
+    return setmetatable(tbl, {
+        __index = function(_, key)
+            error(label .. " に存在しないキーを参照した: " .. tostring(key))
+        end,
+    })
+end
+
+guard_lookup(M.hex, "palette.hex")
+guard_lookup(M.surfaces, "palette.surfaces")
 
 return M

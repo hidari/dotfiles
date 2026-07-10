@@ -97,8 +97,8 @@ probe_without_extends() {
 @test "scoped palette does not bleed muted into global capture groups" {
     # @punctuation.special / @conceal / @label は他文法と共有する汎用キャプチャ名。
     # 素で定義すると非 markdown のバッファへ markdown の MUTED 灰色が漏れる。
-    # 言語サフィックス付きへ逃がし、グローバル群が MUTED を帯びないことを保証する
-    # (このブランチの核心)。同時にスコープした markdown 用グループには MUTED が乗っていること
+    # 言語サフィックス付きへ逃がし、グローバル群が MUTED を帯びないことを保証する。
+    # 同時にスコープした markdown 用グループには MUTED が乗っていること
     run probe_with_extends
     assert_contains "$output" "GLOBAL_BLEED=0"
     assert_contains "$output" "SCOPED_MUTED_APPLIED=1"
@@ -107,7 +107,7 @@ probe_without_extends() {
 @test "conceal capture wins over strong at delimiter" {
     # **bold** の先頭 * 列は @markup.strong と @conceal の両方が捕捉する。
     # 同一優先度では後発キャプチャが勝つため、記号を暗くするには @conceal が
-    # @markup.strong より後にイテレートされている必要がある (これがブランチの目玉挙動)
+    # @markup.strong より後にイテレートされている必要がある
     run probe_with_extends
     assert_contains "$output" "CONCEAL_AFTER_STRONG=1"
 }
@@ -191,6 +191,14 @@ probe_without_extends() {
     # ごく普通のリファクタで色が消えて全テスト緑になる事故を塞ぐ
     run probe_with_extends
     assert_contains "$output" "HEX_UNKNOWN_KEY_ERRORS=1"
+}
+
+@test "palette surfaces raises on an unknown surface name instead of returning nil" {
+    # 面を改名すると palette.surfaces.<旧名> が nil を返し、lualine が nil を index して
+    # 起動時に落ちる。hex と同じ __index ガードで名前付き error にし、
+    # hex だけ守られて surfaces が素通りする非対称を残さない
+    run probe_with_extends
+    assert_contains "$output" "SURFACES_UNKNOWN_KEY_ERRORS=1"
 }
 
 @test "neo-tree highlight group names exist in the plugin source" {
