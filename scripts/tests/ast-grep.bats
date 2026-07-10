@@ -24,7 +24,9 @@ setup() {
     # 本番と同じ相対パスを持つ fixture を作る。
     # 実ルールをコピーするので、ルールの二重管理にならない
     FIXTURE="$(mktemp -d)"
-    mkdir -p "$FIXTURE/rules" "$FIXTURE/home/.config/nvim/lua/config"
+    mkdir -p "$FIXTURE/rules" \
+        "$FIXTURE/home/.config/nvim/lua/config" \
+        "$FIXTURE/home/.config/nvim/lua/plugins"
     cp "$RULE" "$FIXTURE/rules/"
     printf 'ruleDirs:\n  - rules\n' > "$FIXTURE/sgconfig.yml"
 }
@@ -49,6 +51,20 @@ scan_exit() {
     run scan
     assert_contains "$output" "nvim-lua-no-hex-literal"
     assert_contains "$output" "markdown.lua"
+
+    run scan_exit
+    [ "$status" -eq 1 ] || return 1
+}
+
+@test "the rule catches a hex literal under the nvim plugins path" {
+    # 写像ファイルは config/ だけでなく plugins/ 配下にもある (lualine.lua は
+    # palette.surfaces を参照する hex 禁止対象)。glob を lua/config/ へ狭めると
+    # plugins/ 全体が黙って検査対象から外れるため、その広さをここで固定する
+    printf 'return { X = { fg = "#654321" } }\n' > "$FIXTURE/home/.config/nvim/lua/plugins/lualine.lua"
+
+    run scan
+    assert_contains "$output" "nvim-lua-no-hex-literal"
+    assert_contains "$output" "lualine.lua"
 
     run scan_exit
     [ "$status" -eq 1 ] || return 1
