@@ -40,6 +40,7 @@ brew "hidari/tap/rip"                     # zipアーカイバ
 brew "pre-commit"                         # git pre-commit フック管理
 brew "gitleaks"                           # secret / ユーザー名パス漏洩スキャナ
 brew "ast-grep"                           # 構文木ベースの lint (rules/ で管理)
+brew "shellcheck"                         # .sh の静的解析 (pre-commit local hook)
 
 # --- Go言語ツール ---
 go "golang.org/x/tools/gopls"             # Go言語サーバー（LSP）

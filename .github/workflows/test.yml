@@ -52,6 +52,17 @@ jobs:
       - name: Scan repository
         run: ast-grep scan --no-ignore hidden
 
+  shellcheck:
+    name: shellcheck (.sh static analysis)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      # pre-commit の shellcheck hook の CI ミラー (backstop)。shellcheck は ubuntu-latest 同梱ゆえ setup 不要。
+      # -z/-0 でファイル名を null 区切りにし空白安全化、-r で0件時の空実行を防ぐ。
+      - name: Run shellcheck
+        run: git ls-files -z '*.sh' | xargs -0 -r shellcheck
+
   backup-tool:
     name: backup-tool (python)
     runs-on: ubuntu-latest
