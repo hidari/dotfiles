@@ -1,5 +1,5 @@
 ---
-status: open
+status: closed
 ---
 
 # CI のツール取得の curl-verify-extract を共通 composite action へ括り出す
@@ -25,10 +25,18 @@ improve/nvim-contrast-palette の pre-merge quality gate で simplify の reuse 
 
 ## タスク
 
-- [ ] 3 箇所の共通部分と差分 (展開方法 / PATH 追加先) を洗い出す
-- [ ] `verify-and-extract` 相当の composite action を設計する (url / sha256 / 展開方法を入力に取る)
-- [ ] 3 箇所を新 action の呼び出しへ置き換える
-- [ ] CI が緑であることを確認する
+- [x] 3 箇所の共通部分と差分 (展開方法 / PATH 追加先) を洗い出す
+- [x] `verify-and-extract` 相当の composite action を設計する (url / sha256 / 展開方法を入力に取る)
+- [x] 3 箇所を新 action の呼び出しへ置き換える
+- [x] CI が緑であることを確認する
+
+## 実装メモ
+
+候補としていた composite action ではなく、共通 shell script `scripts/ci/download-and-verify.sh`
+(url / sha256 / dest を引数に取り download + verify) + 呼び出し側 inline 展開で実装した。
+理由: verify 関数を bats でオフライン単体検証できる / composite action と inline gitleaks
+ステップの双方から同じ呼び出しができる / nested composite action の uses path 解決を避けられる。
+PR #54 (squash commit ff0b6c2) でマージ済み。
 
 ## 関連
 

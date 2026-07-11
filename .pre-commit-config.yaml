@@ -1,7 +1,7 @@
 # pre-commit 設定
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # セットアップ:
-#   brew install pre-commit gitleaks ast-grep
+#   brew install pre-commit gitleaks ast-grep shellcheck
 #   pre-commit install
 #
 # - scripts/backup-tool, scripts/config-guard, scripts/tirith-hook, scripts/handoff-sentinel の ruff / mypy / pytest を uv 仮想環境で実行する。
@@ -152,3 +152,28 @@ repos:
         entry: ast-grep test --skip-snapshot-tests
         pass_filenames: false
         files: ^(sgconfig\.yml|rules/.*|rule-tests/.*)$
+
+      # .sh の静的解析。CLAUDE.md の「警告0/ノイズ0」を prose でなくツールで担保する。
+      # .bats は bats 構文 (@test) を shellcheck がパースできないため対象外 (files で .sh のみ)。
+      # CI (.github/workflows/test.yml の shellcheck job) でもミラーし --no-verify を backstop する。
+      # local hook は language:system で dev の brew shellcheck を使う。CI 側は同 version を
+      # download+verify で pin し (test.yml, gitleaks と同じ「開発機と揃える」)、ubuntu 同梱の
+      # 古い版との警告集合 drift (SC2120 の FP 等) を防ぐ。
+      - id: shellcheck
+        name: shellcheck (.sh static analysis)
+        language: system
+        entry: shellcheck
+        files: \.sh$
+
+  # 標準 hook。CLAUDE.md の「末尾は改行1つ」「行末空白なし/ノイズ0」を prose でなくツールで担保する。
+  # この2 hook は cosmetic (機能に無影響) ゆえ pre-commit-only とし CI ミラーは張らない (--no-verify で main に
+  # 載っても実害なく次に当該ファイルを pre-commit 経由で編集した時に是正)。実バグ検出値のある shellcheck のみ CI backstop を持つ。
+  # exclude: svg は text/XML ゆえ types:[text] に該当し正規化対象になるので除外が要る。
+  # png/af は identify が binary 判定し既に除外されるが、拡張子未登録の af は内容判定依存のため明示で破損を防ぐ。
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: cef0300fd0fc4d2a87a85fa2093c6b283ea36f4b  # frozen: v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+        exclude: &asset_exclude '\.(png|af|svg)$'
+      - id: trailing-whitespace
+        exclude: *asset_exclude

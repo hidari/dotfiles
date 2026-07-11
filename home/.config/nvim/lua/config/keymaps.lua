@@ -16,4 +16,3 @@ vim.keymap.set("n", "<C-l>", "<C-w>l", { desc = "右ウィンドウへ" })
 -- 旧: <C-[> は端末上ではEscと同一コードでEscが暴発するため変更
 vim.keymap.set('n', '<S-h>', '<cmd>bprev<CR>', { desc = "前のバッファ" })
 vim.keymap.set('n', '<S-l>', '<cmd>bnext<CR>', { desc = "次のバッファ" })
-

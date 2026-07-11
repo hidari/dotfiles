@@ -91,7 +91,7 @@ backup_file() {
     fi
 
     # ホームディレクトリからの相対パスを保持してバックアップ
-    local relative_path="${file#$HOME/}"
+    local relative_path="${file#"$HOME"/}"
     local backup_path="$BACKUP_DIR/$relative_path"
     local backup_dir
     backup_dir=$(dirname "$backup_path")
