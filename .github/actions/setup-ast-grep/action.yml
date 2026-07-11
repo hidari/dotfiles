@@ -8,8 +8,7 @@ runs:
       shell: bash
       run: |
         ast_grep_version="0.44.1" # 開発機と揃える
-        # sha256 は展開前に内容を pin する堰。download+verify は
-        # scripts/ci/download-and-verify.sh に集約している (curl の security flag と検証手順の drift 防止)。
+        # sha256 は展開前に内容を pin する堰。
         # 再計算方法: curl で同じ URL を取得し `shasum -a 256 app-x86_64-unknown-linux-gnu.zip`
         # (macOS) または `sha256sum app-x86_64-unknown-linux-gnu.zip` (Linux) を実行する。
         expected_sha256="611f9e5e76f2611ecea1a35dd3468ceedf600641a11224b80341d79c6ee7b9dd"
