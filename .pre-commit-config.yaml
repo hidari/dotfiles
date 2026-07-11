@@ -156,8 +156,9 @@ repos:
       # .sh の静的解析。CLAUDE.md の「警告0/ノイズ0」を prose でなくツールで担保する。
       # .bats は bats 構文 (@test) を shellcheck がパースできないため対象外 (files で .sh のみ)。
       # CI (.github/workflows/test.yml の shellcheck job) でもミラーし --no-verify を backstop する。
-      # shellcheck は language:system の system ツールで dev(brew)/CI(ubuntu 同梱) とも version 未 pin。
-      # third-party download 型の gitleaks/ast-grep と違い pin できず、両側 system 版で運用する意図的な skew。
+      # local hook は language:system で dev の brew shellcheck を使う。CI 側は同 version を
+      # download+verify で pin し (test.yml, gitleaks と同じ「開発機と揃える」)、ubuntu 同梱の
+      # 古い版との警告集合 drift (SC2120 の FP 等) を防ぐ。
       - id: shellcheck
         name: shellcheck (.sh static analysis)
         language: system
