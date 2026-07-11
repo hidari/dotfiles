@@ -23,4 +23,3 @@ qlmanage -p "$IMG" >/dev/null 2>&1 &
         osascript -e 'tell application "System Events" to set frontmost of (first process whose name is "qlmanage") to true' >/dev/null 2>&1
     done
 ) &
-

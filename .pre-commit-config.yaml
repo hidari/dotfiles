@@ -152,3 +152,21 @@ repos:
         entry: ast-grep test --skip-snapshot-tests
         pass_filenames: false
         files: ^(sgconfig\.yml|rules/.*|rule-tests/.*)$
+
+      # .sh の静的解析。CLAUDE.md の「警告0/ノイズ0」を prose でなくツールで担保する。
+      # .bats は bats 構文 (@test) を shellcheck がパースできないため対象外 (files で .sh のみ)。
+      - id: shellcheck
+        name: shellcheck (.sh static analysis)
+        language: system
+        entry: shellcheck
+        files: \.sh$
+
+  # 標準 hook。CLAUDE.md の「末尾は改行1つ」「行末空白なし/ノイズ0」を
+  # prose でなくツールで担保する。バイナリ/画像資産 (png/af/svg) は除外。
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+        exclude: '\.(png|af|svg)$'
+      - id: trailing-whitespace
+        exclude: '\.(png|af|svg)$'
