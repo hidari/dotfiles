@@ -8,13 +8,12 @@ runs:
       shell: bash
       run: |
         nvim_version="v0.12.3" # 開発機と揃える
-        # リリースタグ URL は tag 付け替えで中身が変わりうる mutable な参照のため、
-        # 展開前に固定済み sha256 で内容を検証する (setup-bats の SHA pin と同じ意図)。
+        # sha256 は展開前に内容を pin する堰。download+verify は
+        # scripts/ci/download-and-verify.sh に集約している (curl の security flag と検証手順の drift 防止)。
         # 再計算方法: curl で同じ URL を取得し `shasum -a 256 nvim-linux-x86_64.tar.gz`
         # (macOS) または `sha256sum nvim-linux-x86_64.tar.gz` (Linux) を実行する。
         expected_sha256="c441b547142860bf01bcce39e36cbed185c41112813e15443b16e5237750724d"
         archive="$RUNNER_TEMP/nvim-linux-x86_64.tar.gz"
-        curl --proto '=https' --tlsv1.2 -fsSL -o "$archive" "https://github.com/neovim/neovim/releases/download/${nvim_version}/nvim-linux-x86_64.tar.gz"
-        echo "${expected_sha256}  ${archive}" | sha256sum -c -
+        "$GITHUB_WORKSPACE/scripts/ci/download-and-verify.sh" "https://github.com/neovim/neovim/releases/download/${nvim_version}/nvim-linux-x86_64.tar.gz" "$expected_sha256" "$archive"
         tar -xz -C "$RUNNER_TEMP" -f "$archive"
         echo "$RUNNER_TEMP/nvim-linux-x86_64/bin" >> "$GITHUB_PATH"
