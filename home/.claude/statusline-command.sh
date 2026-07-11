@@ -67,6 +67,9 @@ ctx_gauge() {
 }
 
 # ---------- Parse stdin (single jq call) ----------
+# jq 出力を eval で一括代入するため shellcheck は代入を追えない。
+# ここで先に宣言して SC2154 (referenced but not assigned) の誤検出を防ぐ (load_usage 側は下の L130 付近で宣言済み)。
+model_name="" used_pct="" cwd="" lines_added="" lines_removed="" cost_usd="" duration_ms="" cc_version=""
 eval "$(echo "$input" | jq -r '
   "model_name=" + (.model.display_name // "Unknown" | @sh),
   "used_pct=" + (.context_window.used_percentage // 0 | tostring),
