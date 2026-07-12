@@ -375,6 +375,20 @@ symlink_target_covered() {
     return 1
 }
 
+# home/ 配下の tracked ファイルのうち、どの SYMLINK_PAIR にもカバーされないものを列挙する。
+# 呼び出し前に load_symlink_pairs で SYMLINK_PAIRS を読み込んでおくこと。
+# git ls-files は tracked のみ返すため apm 生成物 (ignore 済み) は自動的に除外される。
+uncovered_symlink_targets() {
+    local -a sources=()
+    local pair file
+    for pair in "${SYMLINK_PAIRS[@]}"; do
+        sources+=("${pair%%|*}")
+    done
+    while IFS= read -r file; do
+        symlink_target_covered "$file" "${sources[@]}" || echo "$file"
+    done < <(git -C "$REPO_ROOT" ls-files 'home/')
+}
+
 @test "SYMLINK_PAIRS: all sources exist in repo" {
     # source を欠いた pair は fresh マシンの bootstrap で create_symlink が
     # 存在しないファイルを指す壊れた symlink を張るため、ここで drift を捕捉する。
@@ -387,13 +401,6 @@ symlink_target_covered() {
     local missing
     missing="$(missing_symlink_sources "${SYMLINK_PAIRS[@]}")"
     [ -z "$missing" ] || { echo "repo に存在しない source:"; echo "$missing"; false; }
-}
-
-@test "SYMLINK_PAIRS: manages the Ghostty config" {
-    # Ghostty config を管理下に置き HackGen font-family 等を fresh マシンで再現する。
-    # all-sources-exist は pair 削除を許すため, 管理対象であること自体を pin する。
-    load_symlink_pairs
-    assert_contains "${SYMLINK_PAIRS[*]}" 'home/.config/ghostty/config|.config/ghostty/config'
 }
 
 @test "missing_symlink_sources: passes existing and flags missing pairs" {
@@ -419,6 +426,34 @@ symlink_target_covered() {
     # prefix 誤爆を防ぐ: config-backup は ghostty/config の配下ではない (末尾 / 境界)
     run symlink_target_covered "home/.config/ghostty/config-backup" "${srcs[@]}"
     [ "$status" -ne 0 ]
+}
+
+@test "SYMLINK_PAIRS: every managed home/ file is covered (reverse drift)" {
+    # home/X は ~/X を mirror する規約で、home/ 配下は allowlist を除き全て symlink 対象。
+    # 未カバー集合が allowlist と一致しない = 新 config の配線し忘れ (未カバー増) か
+    # stale allowlist (pair 追加後の消し忘れ) を意味する drift。
+    load_symlink_pairs
+    # 空配列 (slice 破綻) での vacuous pass を防ぐ negative guard
+    [ "${#SYMLINK_PAIRS[@]}" -gt 0 ]
+
+    # home/ 配下だが意図的に symlink しないファイルの allowlist (canonical)。各行に理由を書く。
+    local -a unmanaged=(
+        "home/.gitignore"                              # home/ サブツリーの gitignore (apm 生成物を ignore)
+        "home/.gitconfig.private.example"              # private gitconfig のテンプレ (実体は git-ignored)
+        "home/apm.yml"                                 # apm install が bootstrap で読む manifest
+        "home/apm.lock.yaml"                           # apm lockfile (deployed_files の真実源)
+        "home/.config/herdr/resources/left-arrow.svg"  # cheatsheet .af のデザイン素材 (symlink 不要)
+        "home/.config/herdr/resources/right-arrow.svg" # cheatsheet .af のデザイン素材 (symlink 不要)
+    )
+
+    local uncovered expected
+    uncovered="$(uncovered_symlink_targets | sort)"
+    expected="$(printf '%s\n' "${unmanaged[@]}" | sort)"
+    [ "$uncovered" = "$expected" ] || {
+        echo "reverse drift 検出。expected (allowlist) と actual (uncovered) の差分:" >&2
+        diff <(echo "$expected") <(echo "$uncovered") >&2 || true
+        return 1
+    }
 }
 
 # =============================================================================
