@@ -361,6 +361,20 @@ missing_symlink_sources() {
     done
 }
 
+# file が sources のいずれかにカバーされるか判定する純粋関数。
+# covered = file 自身が source (file pair)、または file が source の配下 (dir pair の transitive)。
+# 末尾 "/" 境界により prefix 誤爆 (ghostty/config が ghostty/config-backup を誤カバー) を防ぐ。
+symlink_target_covered() {
+    local file="$1"
+    shift
+    local source
+    for source in "$@"; do
+        [ "$file" = "$source" ] && return 0
+        case "$file" in "$source"/*) return 0 ;; esac
+    done
+    return 1
+}
+
 @test "SYMLINK_PAIRS: all sources exist in repo" {
     # source を欠いた pair は fresh マシンの bootstrap で create_symlink が
     # 存在しないファイルを指す壊れた symlink を張るため、ここで drift を捕捉する。
@@ -390,6 +404,21 @@ missing_symlink_sources() {
     refute_contains "$out" ".zshrc"
     # 欠落 source は検出する（false negative を防ぐ）
     assert_contains "$out" "__does_not_exist__"
+}
+
+@test "symlink_target_covered: covers exact and dir-descendant, rejects uncovered and prefix collisions" {
+    # 粒度混在の吸収を pin する。file pair は exact 一致、dir pair は配下 (transitive) でカバー。
+    local -a srcs=("home/.config/nvim" "home/.config/ghostty/config")
+    # 自身が source (file pair) → covered
+    symlink_target_covered "home/.config/ghostty/config" "${srcs[@]}"
+    # dir pair の配下 (transitive) → covered
+    symlink_target_covered "home/.config/nvim/lua/init.lua" "${srcs[@]}"
+    # どの source にも属さない → uncovered (false negative を防ぐ negative case)
+    run symlink_target_covered "home/.config/herdr/resources/left-arrow.svg" "${srcs[@]}"
+    [ "$status" -ne 0 ]
+    # prefix 誤爆を防ぐ: config-backup は ghostty/config の配下ではない (末尾 / 境界)
+    run symlink_target_covered "home/.config/ghostty/config-backup" "${srcs[@]}"
+    [ "$status" -ne 0 ]
 }
 
 # =============================================================================
