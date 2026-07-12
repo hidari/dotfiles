@@ -22,7 +22,7 @@ resize-overlay-duration = 4s 200ms
 unfocused-split-opacity = 0.5
 
 # --- 背景画像 ---
-# background-image = "nvim-cheatsheet.jpg"
+# background-image = "path/to/image.png"
 # background-image-position = top-center
 # background-image-opacity = 0.30
 # background-image-fit = cover

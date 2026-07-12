@@ -379,7 +379,7 @@ missing_symlink_sources() {
     # Ghostty config を管理下に置き HackGen font-family 等を fresh マシンで再現する。
     # all-sources-exist は pair 削除を許すため, 管理対象であること自体を pin する。
     load_symlink_pairs
-    printf '%s\n' "${SYMLINK_PAIRS[@]}" | grep -qF 'home/.config/ghostty/config|.config/ghostty/config'
+    assert_contains "${SYMLINK_PAIRS[*]}" 'home/.config/ghostty/config|.config/ghostty/config'
 }
 
 @test "missing_symlink_sources: passes existing and flags missing pairs" {
