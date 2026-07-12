@@ -202,6 +202,25 @@ install_homebrew() {
     eval "$(/opt/homebrew/bin/brew shellenv)"
 }
 
+# Brewfile が宣言する CLI ツール (pre-commit / gitleaks / shellcheck 等) を実体化する（冪等）。
+# Brewfile は brew 依存の single source of truth。--file で repo の実体を直接読むため
+# ~/.Brewfile symlink (setup_dotfiles が張る) の順序に依存しない。brew bundle は導入済みを skip する。
+install_brew_packages() {
+    log "Installing Brewfile packages..."
+
+    if [ "$DRY_RUN" = true ]; then
+        echo "[DRY-RUN] brew bundle --file=$DOTFILES_DIR/home/.Brewfile"
+        return 0
+    fi
+
+    if ! command -v brew &> /dev/null; then
+        warn "brew not found; skipping Brewfile packages"
+        return 0
+    fi
+
+    brew bundle --file="$DOTFILES_DIR/home/.Brewfile"
+}
+
 install_rust() {
     log "Installing Rust..."
     if command -v rustc &> /dev/null; then
@@ -327,9 +346,6 @@ setup_dotfiles() {
         copy_if_not_exists "$DOTFILES_DIR/home/.gitconfig.private.example" "$HOME/.gitconfig.private"
     fi
 
-    # node-security-notifier の LaunchAgent を導入
-    setup_launch_agent
-
     log "Dotfiles setup complete!"
 }
 
@@ -372,6 +388,24 @@ setup_launch_agent() {
     launchctl bootout "gui/$uid/$label" 2> /dev/null || true
     launchctl bootstrap "gui/$uid" "$dest"
     log "Loaded LaunchAgent: $label"
+}
+
+# このリポの pre-commit フックを実体化し commit-time の lint / leak guard を有効化する（冪等）。
+# pre-commit は Brewfile 経由で導入済み前提。サブシェルで cd し呼び出し元の cwd を汚さない。
+setup_precommit_hooks() {
+    log "Installing pre-commit hooks..."
+
+    if [ "$DRY_RUN" = true ]; then
+        echo "[DRY-RUN] pre-commit install (in $DOTFILES_DIR)"
+        return 0
+    fi
+
+    if ! command -v pre-commit &> /dev/null; then
+        warn "pre-commit not found; skipping hook installation"
+        return 0
+    fi
+
+    ( cd "$DOTFILES_DIR" && pre-commit install )
 }
 
 # =============================================================================
@@ -511,9 +545,12 @@ main() {
         echo "This script will:"
         if [ "$DOTFILES_ONLY" = false ]; then
             echo "  - Install Homebrew, Rust, mise, Claude Code, apm"
+            echo "  - Install Brewfile CLI tools (pre-commit, gitleaks, shellcheck, etc.)"
             echo "  - Install mise-managed tools (node, pnpm, tirith)"
             echo "  - Install apm-managed skills"
             echo "  - Install Claude Code plugins declared in settings.json"
+            echo "  - Enable pre-commit git hooks in this repo"
+            echo "  - Install a daily LaunchAgent (com.hidari.node-security-notifier) that polls the Node.js vulnerability feed"
         fi
         echo "  - Create symlinks for dotfiles"
         echo ""
@@ -530,6 +567,7 @@ main() {
     # ツールインストール
     if [ "$DOTFILES_ONLY" = false ]; then
         install_homebrew
+        install_brew_packages
         install_rust
         install_mise
         install_claude_code
@@ -548,6 +586,9 @@ main() {
         install_mise_tools
         install_apm_skills
         setup_claude_plugins
+        # LaunchAgent と pre-commit フックはツール/サービス系のため --dotfiles-only では導入しない
+        setup_launch_agent
+        setup_precommit_hooks
     fi
 
     echo ""
