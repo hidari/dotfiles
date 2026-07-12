@@ -369,19 +369,20 @@ symlink_target_covered() {
     shift
     local source
     for source in "$@"; do
-        [ "$file" = "$source" ] && return 0
-        case "$file" in "$source"/*) return 0 ;; esac
+        # file 自身 (file pair) か source/ 配下 (dir pair) を 1 パターンで判定する
+        case "$file" in "$source"|"$source"/*) return 0 ;; esac
     done
     return 1
 }
 
-# home/ 配下の tracked ファイルのうち、どの SYMLINK_PAIR にもカバーされないものを列挙する。
-# 呼び出し前に load_symlink_pairs で SYMLINK_PAIRS を読み込んでおくこと。
+# 引数の pair 群 (SYMLINK_PAIRS) のうち, home/ 配下の tracked ファイルで
+# どの pair source にもカバーされないものを列挙する。missing_symlink_sources と同じく
+# pairs を明示 vararg で受け取り, 依存を呼び出し側に可視化する (global を暗黙参照しない)。
 # git ls-files は tracked のみ返すため apm 生成物 (ignore 済み) は自動的に除外される。
 uncovered_symlink_targets() {
     local -a sources=()
     local pair file
-    for pair in "${SYMLINK_PAIRS[@]}"; do
+    for pair in "$@"; do
         sources+=("${pair%%|*}")
     done
     while IFS= read -r file; do
@@ -439,7 +440,7 @@ uncovered_symlink_targets() {
     # home/ 配下だが意図的に symlink しないファイルの allowlist (canonical)。各行に理由を書く。
     local -a unmanaged=(
         "home/.gitignore"                              # home/ サブツリーの gitignore (apm 生成物を ignore)
-        "home/.gitconfig.private.example"              # private gitconfig のテンプレ (実体は git-ignored)
+        "home/.gitconfig.private.example"              # private gitconfig のテンプレ (copy_if_not_exists で配置, symlink 対象外)
         "home/apm.yml"                                 # apm install が bootstrap で読む manifest
         "home/apm.lock.yaml"                           # apm lockfile (deployed_files の真実源)
         "home/.config/herdr/resources/left-arrow.svg"  # cheatsheet .af のデザイン素材 (symlink 不要)
@@ -447,13 +448,14 @@ uncovered_symlink_targets() {
     )
 
     local uncovered expected
-    uncovered="$(uncovered_symlink_targets | sort)"
+    uncovered="$(uncovered_symlink_targets "${SYMLINK_PAIRS[@]}" | sort)"
     expected="$(printf '%s\n' "${unmanaged[@]}" | sort)"
-    [ "$uncovered" = "$expected" ] || {
-        echo "reverse drift 検出。expected (allowlist) と actual (uncovered) の差分:" >&2
-        diff <(echo "$expected") <(echo "$uncovered") >&2 || true
+    # diff の exit status を verdict と診断の両方に使う (二重比較を避ける)。
+    # < は allowlist のみ (stale allowlist), > は未カバー (配線し忘れ)。どちらの方向も FAIL する。
+    if ! diff <(echo "$expected") <(echo "$uncovered") >&2; then
+        echo "reverse drift 検出 (上記 diff: expected=allowlist vs actual=uncovered)" >&2
         return 1
-    }
+    fi
 }
 
 # =============================================================================
