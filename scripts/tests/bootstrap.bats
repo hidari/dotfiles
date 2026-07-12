@@ -361,6 +361,35 @@ missing_symlink_sources() {
     done
 }
 
+# file が sources のいずれかにカバーされるか判定する純粋関数。
+# covered = file 自身が source (file pair)、または file が source の配下 (dir pair の transitive)。
+# 末尾 "/" 境界により prefix 誤爆 (ghostty/config が ghostty/config-backup を誤カバー) を防ぐ。
+symlink_target_covered() {
+    local file="$1"
+    shift
+    local source
+    for source in "$@"; do
+        # file 自身 (file pair) か source/ 配下 (dir pair) を 1 パターンで判定する
+        case "$file" in "$source"|"$source"/*) return 0 ;; esac
+    done
+    return 1
+}
+
+# 引数の pair 群 (SYMLINK_PAIRS) のうち, home/ 配下の tracked ファイルで
+# どの pair source にもカバーされないものを列挙する。missing_symlink_sources と同じく
+# pairs を明示 vararg で受け取り, 依存を呼び出し側に可視化する (global を暗黙参照しない)。
+# git ls-files は tracked のみ返すため apm 生成物 (ignore 済み) は自動的に除外される。
+uncovered_symlink_targets() {
+    local -a sources=()
+    local pair file
+    for pair in "$@"; do
+        sources+=("${pair%%|*}")
+    done
+    while IFS= read -r file; do
+        symlink_target_covered "$file" "${sources[@]}" || echo "$file"
+    done < <(git -C "$REPO_ROOT" ls-files 'home/')
+}
+
 @test "SYMLINK_PAIRS: all sources exist in repo" {
     # source を欠いた pair は fresh マシンの bootstrap で create_symlink が
     # 存在しないファイルを指す壊れた symlink を張るため、ここで drift を捕捉する。
@@ -375,13 +404,6 @@ missing_symlink_sources() {
     [ -z "$missing" ] || { echo "repo に存在しない source:"; echo "$missing"; false; }
 }
 
-@test "SYMLINK_PAIRS: manages the Ghostty config" {
-    # Ghostty config を管理下に置き HackGen font-family 等を fresh マシンで再現する。
-    # all-sources-exist は pair 削除を許すため, 管理対象であること自体を pin する。
-    load_symlink_pairs
-    assert_contains "${SYMLINK_PAIRS[*]}" 'home/.config/ghostty/config|.config/ghostty/config'
-}
-
 @test "missing_symlink_sources: passes existing and flags missing pairs" {
     # 実装が gaming していないことを担保するため両方向を検証する。
     local out
@@ -390,6 +412,50 @@ missing_symlink_sources() {
     refute_contains "$out" ".zshrc"
     # 欠落 source は検出する（false negative を防ぐ）
     assert_contains "$out" "__does_not_exist__"
+}
+
+@test "symlink_target_covered: covers exact and dir-descendant, rejects uncovered and prefix collisions" {
+    # 粒度混在の吸収を pin する。file pair は exact 一致、dir pair は配下 (transitive) でカバー。
+    local -a srcs=("home/.config/nvim" "home/.config/ghostty/config")
+    # 自身が source (file pair) → covered
+    symlink_target_covered "home/.config/ghostty/config" "${srcs[@]}"
+    # dir pair の配下 (transitive) → covered
+    symlink_target_covered "home/.config/nvim/lua/init.lua" "${srcs[@]}"
+    # どの source にも属さない → uncovered (false negative を防ぐ negative case)
+    run symlink_target_covered "home/.config/herdr/resources/left-arrow.svg" "${srcs[@]}"
+    [ "$status" -ne 0 ]
+    # prefix 誤爆を防ぐ: config-backup は ghostty/config の配下ではない (末尾 / 境界)
+    run symlink_target_covered "home/.config/ghostty/config-backup" "${srcs[@]}"
+    [ "$status" -ne 0 ]
+}
+
+@test "SYMLINK_PAIRS: every managed home/ file is covered (reverse drift)" {
+    # home/X は ~/X を mirror する規約で、home/ 配下は allowlist を除き全て symlink 対象。
+    # 未カバー集合が allowlist と一致しない = 新 config の配線し忘れ (未カバー増) か
+    # stale allowlist (pair 追加後の消し忘れ) を意味する drift。
+    load_symlink_pairs
+    # 空配列 (slice 破綻) での vacuous pass を防ぐ negative guard
+    [ "${#SYMLINK_PAIRS[@]}" -gt 0 ]
+
+    # home/ 配下だが意図的に symlink しないファイルの allowlist (canonical)。各行に理由を書く。
+    local -a unmanaged=(
+        "home/.gitignore"                              # home/ サブツリーの gitignore (apm 生成物を ignore)
+        "home/.gitconfig.private.example"              # private gitconfig のテンプレ (copy_if_not_exists で配置, symlink 対象外)
+        "home/apm.yml"                                 # apm install が bootstrap で読む manifest
+        "home/apm.lock.yaml"                           # apm lockfile (deployed_files の真実源)
+        "home/.config/herdr/resources/left-arrow.svg"  # cheatsheet .af のデザイン素材 (symlink 不要)
+        "home/.config/herdr/resources/right-arrow.svg" # cheatsheet .af のデザイン素材 (symlink 不要)
+    )
+
+    local uncovered expected
+    uncovered="$(uncovered_symlink_targets "${SYMLINK_PAIRS[@]}" | sort)"
+    expected="$(printf '%s\n' "${unmanaged[@]}" | sort)"
+    # diff の exit status を verdict と診断の両方に使う (二重比較を避ける)。
+    # < は allowlist のみ (stale allowlist), > は未カバー (配線し忘れ)。どちらの方向も FAIL する。
+    if ! diff <(echo "$expected") <(echo "$uncovered") >&2; then
+        echo "reverse drift 検出 (上記 diff: expected=allowlist vs actual=uncovered)" >&2
+        return 1
+    fi
 }
 
 # =============================================================================
