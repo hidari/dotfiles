@@ -1,0 +1,45 @@
+# Ghostty 設定
+# 設定項目の詳細は https://ghostty.org/docs/config を参照
+# 実行中の再読込は Command + Shift + comma (macOS)
+
+# --- ウィンドウスタイル ---
+theme = Mariana
+window-width = 150
+window-height = 40
+# テキストとウィンドウの間のスペース
+window-padding-x = 10
+window-padding-y = 10
+window-padding-balance = true
+background-blur-radius = 15
+background-opacity = 0.8
+adjust-cell-height = 10%
+# 日本語対応プログラミングフォント (Latin=Hack / 日本語=源柔ゴシック を合成)
+# Nerd Font 内蔵。ファミリ実名は `ghostty +list-fonts | grep -i hackgen` で確認できる
+font-family = "HackGen Console NF"
+font-size = 15
+# ウィンドウサイズを変えた時の表示時間
+resize-overlay-duration = 4s 200ms
+unfocused-split-opacity = 0.5
+
+# --- 背景画像 ---
+# background-image = "path/to/image.png"
+# background-image-position = top-center
+# background-image-opacity = 0.30
+# background-image-fit = cover
+
+# --- Macネイティブな挙動 ---
+# タイトルバーを透明にしてスッキリさせる
+macos-titlebar-style = transparent
+# ウィンドウにドロップシャドウを付ける
+macos-window-shadow = true
+# 入力中はマウスカーソルを隠す
+mouse-hide-while-typing = true
+
+# --- 操作性 ---
+# 選択しただけでクリップボードにコピー
+copy-on-select = true
+# クリップボードの読み書きを許可
+clipboard-read = allow
+clipboard-write = allow
+# Cmd + W で現在の「ペイン（分割）」を閉じる
+keybind = cmd+w=close_surface

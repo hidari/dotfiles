@@ -31,6 +31,7 @@ SYMLINK_PAIRS=(
     "home/.config/herdr/resources/herdr-cheatsheet.af|.config/herdr/resources/herdr-cheatsheet.af"
     "home/.config/herdr/resources/herdr-cheatsheet.png|.config/herdr/resources/herdr-cheatsheet.png"
     "home/.config/nvim|.config/nvim"
+    "home/.config/ghostty/config|.config/ghostty/config"
     "home/.config/raycast/scripts|.config/raycast/scripts"
     "home/.claude/settings.json|.claude/settings.json"
     "home/.claude/statusline-command.sh|.claude/statusline-command.sh"

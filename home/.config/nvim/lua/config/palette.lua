@@ -11,7 +11,8 @@
 --   明るい方 (最悪ケース) を基準に取れば全ての状況で読める。
 --
 -- 前提: Ghostty の theme = Mariana と background-opacity = 0.8。
---       ~/.config/ghostty/config は dotfiles の symlink 管理下にないため、他のマシンでは再現されない。
+--       この設定は home/.config/ghostty/config にあり bootstrap.sh の SYMLINK_PAIRS 経由で
+--       他マシンにも再現される。
 --
 -- 記号を暗くして後退させることはできない。実効背景は明るい方向にしか動かず、
 -- 暗い前景は必ず背景に溶ける。後退は彩度を落として表現する。

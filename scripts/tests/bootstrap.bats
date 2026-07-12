@@ -375,6 +375,13 @@ missing_symlink_sources() {
     [ -z "$missing" ] || { echo "repo に存在しない source:"; echo "$missing"; false; }
 }
 
+@test "SYMLINK_PAIRS: manages the Ghostty config" {
+    # Ghostty config を管理下に置き HackGen font-family 等を fresh マシンで再現する。
+    # all-sources-exist は pair 削除を許すため, 管理対象であること自体を pin する。
+    load_symlink_pairs
+    assert_contains "${SYMLINK_PAIRS[*]}" 'home/.config/ghostty/config|.config/ghostty/config'
+}
+
 @test "missing_symlink_sources: passes existing and flags missing pairs" {
     # 実装が gaming していないことを担保するため両方向を検証する。
     local out

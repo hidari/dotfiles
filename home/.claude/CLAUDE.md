@@ -40,6 +40,8 @@
 - 保護ブランチ（main 等）へ直 push する前の保護判定を、classic API (`gh api repos/<owner>/<repo>/branches/main/protection`) の 404 だけで「保護なし」と結論しないこと。repository ruleset は別系統で classic API に出ず 404 になるため、`gh api repos/<owner>/<repo>/rulesets`（必要なら `gh api repos/<owner>/<repo>/rules/branches/<branch>`）も確認すること（理由: classic 404 を「保護なし」と誤判定すると、ruleset 保護 [pull_request / required_status_checks 等] を bypass 特権で素通り push し、required checks / PR レビューを欠落させる。実際 classic 404 でも ruleset で保護されているリポジトリが存在する）
 - 1Passwordコマンド `op` の使用時、認証（`op signin`, `op whoami`）は使わなくともユーザーダイアログにて承認できるので、そのまま `op read` などを実行する
 - 非常に重要なこととして、ユーザー（Hidari）は個人開発者です。そのためCIコストがかなり負担となります。そこで可能な限りローカル環境のVM、Linuxコンテナ、Mac上で検証を行い、CIでの検証はmainマージとリリース時にのみ抑える方針とする
+- ホストの実マシン上（隔離した VM/コンテナの外）で、サイズの大きい・不明なバイナリの一括解析（フォントコレクション `.ttc`・メディア・アーカイブ等）や大規模データ処理を無防備に走らせないこと。必要なときは (1) 入力サイズを先に確認し (2) 全体を一括ロードせず lazy/ストリーミング API を使い (3) それでも重ければ OrbStack/Docker のメモリ上限付きコンテナへ隔離する。加えてバックグラウンドや長時間のプロセスが長く無音のときは「完了待ち」と決めつけず `ps -o rss= -p <pid>` で常駐メモリを確認し、増え続けていれば即 kill すること（理由: fontTools の `TTCollection` で巨大な合体 TTC [Sarasa SuperTTC] を非 lazy 展開してメモリが 52GB まで暴走し macOS を OOM で巻き添えに落とした。ホストには VM/コンテナのような cgroup 境界が無く暴走割り当てが OS 全体を落とす。無音を「ハング」と誤診して放置したのが増悪要因。macOS の `ulimit -v` は address-space 制限が信頼できず上限として当てにできない）
+- 一時的な書き捨てファイル/スクリプト（検証スクリプト・中間出力・スクラッチ）は、リポジトリ内で作業しているときは `/tmp` やセッション scratchpad ではなく `<repo>/tmp/` 配下に置くこと（理由: アクセスと掃除が容易。scratchpad は session 隔離で辿りにくく /tmp は掃除しづらい）。global excludesfile に `tmp/` を登録済みなので大抵 ignore されるが、使う前に `git check-ignore tmp/` で確認し効かないリポは個別 `.gitignore` に `tmp/` を足す（誤コミット防止）。リポ外で作業しているときは従来の scratchpad を使う
 
 ## 実装哲学
 

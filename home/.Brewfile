@@ -42,6 +42,9 @@ brew "gitleaks"                           # secret / ユーザー名パス漏洩
 brew "ast-grep"                           # 構文木ベースの lint (rules/ で管理)
 brew "shellcheck"                         # .sh の静的解析 (pre-commit local hook)
 
+# --- フォント ---
+cask "font-hackgen-nerd"                  # ターミナル用 日本語プログラミングフォント (Hack + 源柔ゴシック, Nerd Font 内蔵)
+
 # --- Go言語ツール ---
 go "golang.org/x/tools/gopls"             # Go言語サーバー（LSP）
 go "honnef.co/go/tools/cmd/staticcheck"   # Go静的解析ツール
