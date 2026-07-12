@@ -384,3 +384,146 @@ missing_symlink_sources() {
     # 欠落 source は検出する（false negative を防ぐ）
     assert_contains "$out" "__does_not_exist__"
 }
+
+# =============================================================================
+# install_brew_packages tests (Brewfile ツールの brew bundle)
+# =============================================================================
+
+@test "install_brew_packages: dry-run short-circuits before the brew guard (previews without brew)" {
+    DRY_RUN=true
+    local empty_dir="$TEST_HOME/empty-path"
+    mkdir -p "$empty_dir"
+
+    PATH="$empty_dir" run install_brew_packages
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "[DRY-RUN] brew bundle"
+    # brew 不在でも dry-run は [DRY-RUN] を出す = DRY_RUN 判定が command -v guard より前 (fresh machine の preview 保証)
+    refute_contains "$output" "brew not found"
+}
+
+@test "install_brew_packages: warns and skips when brew is not on PATH" {
+    DRY_RUN=false
+    local empty_dir="$TEST_HOME/empty-path"
+    mkdir -p "$empty_dir"
+
+    PATH="$empty_dir" run install_brew_packages
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "brew not found"
+}
+
+@test "install_brew_packages: runs 'brew bundle --file=DOTFILES_DIR/home/.Brewfile'" {
+    DRY_RUN=false
+    # brew を stub して argv を記録し、唯一の実作業行 (brew bundle --file=...) の引数構築を検証する。
+    # 早期 return ガードだけでなく実作業行を通す (setup_precommit_hooks の stub テストと対称)。
+    local bin_dir="$TEST_HOME/fake-bin"
+    local rec="$TEST_HOME/brew-invocation.txt"
+    mkdir -p "$bin_dir"
+    cat > "$bin_dir/brew" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$*" > "$BREW_STUB_REC"
+STUB
+    chmod +x "$bin_dir/brew"
+    export BREW_STUB_REC="$rec"
+    DOTFILES_DIR="$TEST_HOME/dotfiles"
+    mkdir -p "$DOTFILES_DIR/home"
+
+    PATH="$bin_dir:$PATH" run install_brew_packages
+
+    [ "$status" -eq 0 ]
+    assert_contains "$(cat "$rec")" "bundle"
+    assert_contains "$(cat "$rec")" "--file=$DOTFILES_DIR/home/.Brewfile"
+}
+
+# =============================================================================
+# setup_precommit_hooks tests (pre-commit フックの導入)
+# =============================================================================
+
+@test "setup_precommit_hooks: dry-run short-circuits before the pre-commit guard (previews without pre-commit)" {
+    DRY_RUN=true
+    local empty_dir="$TEST_HOME/empty-path"
+    mkdir -p "$empty_dir"
+
+    PATH="$empty_dir" run setup_precommit_hooks
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "[DRY-RUN] pre-commit install"
+    # pre-commit 不在でも dry-run は [DRY-RUN] を出す = DRY_RUN 判定が command -v guard より前 (fresh machine の preview 保証)
+    refute_contains "$output" "pre-commit not found"
+}
+
+@test "setup_precommit_hooks: warns and skips when pre-commit is not on PATH" {
+    DRY_RUN=false
+    local empty_dir="$TEST_HOME/empty-path"
+    mkdir -p "$empty_dir"
+
+    PATH="$empty_dir" run setup_precommit_hooks
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "pre-commit not found"
+}
+
+@test "setup_precommit_hooks: runs 'pre-commit install' with cwd = DOTFILES_DIR" {
+    DRY_RUN=false
+    # pre-commit を stub して cwd と引数を記録し、唯一の実作業行 (cd DOTFILES_DIR && pre-commit install) を検証する。
+    # 早期 return ガードだけでなく実作業行を通す（shell-out の cd 先・引数をユニットで担保する）。
+    local bin_dir="$TEST_HOME/fake-bin"
+    local rec="$TEST_HOME/precommit-invocation.txt"
+    mkdir -p "$bin_dir"
+    cat > "$bin_dir/pre-commit" <<'STUB'
+#!/bin/sh
+pwd -P > "$PRECOMMIT_STUB_REC"
+printf '%s\n' "$*" >> "$PRECOMMIT_STUB_REC"
+STUB
+    chmod +x "$bin_dir/pre-commit"
+    export PRECOMMIT_STUB_REC="$rec"
+    DOTFILES_DIR="$TEST_HOME/dotfiles"
+    mkdir -p "$DOTFILES_DIR"
+
+    PATH="$bin_dir:$PATH" run setup_precommit_hooks
+
+    [ "$status" -eq 0 ]
+    # symlink 差を排すため両辺 pwd -P で比較する
+    local expected_cwd
+    expected_cwd="$(cd "$DOTFILES_DIR" && pwd -P)"
+    [ "$(sed -n '1p' "$rec")" = "$expected_cwd" ]
+    assert_contains "$(sed -n '2p' "$rec")" "install"
+}
+
+# =============================================================================
+# main() のツール/サービス gating テスト (--dotfiles-only の境界)
+# =============================================================================
+# gating は main() の配線 (どのブロックで呼ぶか) であり個別関数の unit では pin できない。
+# dry-run で全体を subprocess 実行し、--dotfiles-only 有無でマーカーの有無を検証する。
+
+@test "main: full dry-run installs Brewfile packages, pre-commit hooks, and the LaunchAgent" {
+    run bash "$BOOTSTRAP_SCRIPT" --dry-run
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "[DRY-RUN] brew bundle"
+    assert_contains "$output" "[DRY-RUN] pre-commit install"
+    assert_contains "$output" "com.hidari.node-security-notifier"
+}
+
+@test "main: --dotfiles-only dry-run skips Brewfile packages, pre-commit hooks, and the LaunchAgent" {
+    run bash "$BOOTSTRAP_SCRIPT" --dry-run --dotfiles-only
+
+    [ "$status" -eq 0 ]
+    # ツール/サービス系は非 --dotfiles-only ブロックに gate されている
+    refute_contains "$output" "[DRY-RUN] brew bundle"
+    refute_contains "$output" "[DRY-RUN] pre-commit install"
+    refute_contains "$output" "com.hidari.node-security-notifier"
+    # dotfiles 本体 (symlink) は走る (gate の positive 対照。vacuous な全 skip でないことを担保)
+    assert_contains "$output" "[DRY-RUN] ln -sf"
+}
+
+@test "main: confirm prompt discloses the LaunchAgent before install" {
+    # 非 dry-run で prompt を表示させ n で cancel する。cancel は install ブロック (prompt の後) より
+    # 前に exit 0 するため実インストールには到達しない。prompt が LaunchAgent 導入を開示することを pin する。
+    run bash "$BOOTSTRAP_SCRIPT" <<< "n"
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "Setup cancelled"
+    assert_contains "$output" "com.hidari.node-security-notifier"
+}
