@@ -129,3 +129,8 @@ feat(wip): React Router v7フロントエンド基盤を実装
 - 複雑な問題の検証にはSubAgentsを積極的に使用する
 - 既存のPlugins, Skillsを積極的に活用する
 - 実装プランを実行する際は `superpowers:subagent-driven-development`（Subagent-Driven）を既定とする。タスクごとに新鮮なSubAgentをdispatchし、各境界でfmt+test緑をコントローラ側が検証し、報告とgit statusを突合してからコミットする
+
+## [MUST] 実験的な動作指定
+
+- Subagent-Drivenで作業を行う際は、Subagentには Fable モデルを使用すること
+- 設計ドキュメントやプランのレビューを行う際には、Fable Subagent を使うこと

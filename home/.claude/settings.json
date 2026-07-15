@@ -35,8 +35,6 @@
     ],
     "deny": [
       "Read(.hidari/**)",
-      "Glob(.hidari/**)",
-      "Grep(.hidari/**)",
       "Bash(pkill:*)",
       "NotebookEdit",
       "NotebookRead"

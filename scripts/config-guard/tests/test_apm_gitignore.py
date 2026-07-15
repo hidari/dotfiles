@@ -13,6 +13,7 @@ from config_guard.apm_gitignore import (
     check_apm_deployed_files_ignored,
     parse_deployed_files,
 )
+from config_guard.git_run import isolated_git_env
 
 # deployed_files を 2 件持ち、hashes ブロックへ漏れないことを試す最小 lockfile
 SAMPLE_LOCKFILE = """lockfile_version: '1'
@@ -62,7 +63,12 @@ def test_parse_deployed_files_empty_when_no_block() -> None:
 
 
 def _init_repo(repo: Path) -> None:
-    subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "init", "-q"],
+        check=True,
+        capture_output=True,
+        env=isolated_git_env(),
+    )
 
 
 def _write(repo: Path, rel: str, text: str) -> None:

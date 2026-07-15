@@ -8,19 +8,15 @@ index から読む（clean commit 後は index = HEAD 内容、dance 後は stag
 from __future__ import annotations
 
 import json
-import subprocess
 from typing import Any
+
+from config_guard.git_run import run_git
 
 SETTINGS_PATH = "home/.claude/settings.json"
 
 
 def _git_show(repo_root: str, ref: str) -> str | None:
-    proc = subprocess.run(
-        ["git", "-C", repo_root, "show", ref],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    proc = run_git(repo_root, "show", ref)
     if proc.returncode != 0:
         return None
     return proc.stdout
