@@ -20,10 +20,8 @@ _FORBIDDEN_KEYS: tuple[str, ...] = ("enabledMcpjsonServers",)
 # ユーザーのローカル絶対パス（gitleaks との多層防御）
 _USER_PATH = re.compile(r"/(Users|home)/[a-z_][a-z0-9._-]*")
 
-# file access を gate する file permission check は Read(...) 規則のみを見る（Claude Code 仕様）。
-# permissions に Glob(...)/Grep(...) と path を書いても無視される inert な規則なので検出して
-# Read(...) へ寄せる。bare な Glob/Grep はツール全体を gate する有効な形なので括弧付きのみ対象。
-_INEFFECTIVE_PATH_RULE = re.compile(r"^(?:Glob|Grep)\(.+\)$")
+# path 付き Glob(...)/Grep(...) permission 規則の検出パターン（bare は対象外）。
+_INEFFECTIVE_PATH_RULE = re.compile(r"^(?:Glob|Grep)\((.+)\)$")
 
 # committed に許可する公開 marketplace。ここに無い marketplace を参照する plugin は弾く。
 _PUBLIC_MARKETPLACES: frozenset[str] = frozenset(
@@ -48,6 +46,19 @@ def _iter_strings(obj: Any) -> list[str]:
         for value in obj:
             out.extend(_iter_strings(value))
     return out
+
+
+def _ineffective_path_rule_reason(token: str) -> str | None:
+    """inert な file-path permission 規則の書き換え理由を返す（該当しなければ None）。
+
+    file access を gate する file permission check は Read(...) 規則のみを見る（Claude Code 仕様）。
+    permissions に Glob(...)/Grep(...) と path を書いても無視されるため Read(...) へ寄せる。
+    bare な Glob/Grep はツール全体を gate する有効な形なので括弧付きのみ対象。
+    """
+    match = _INEFFECTIVE_PATH_RULE.match(token.strip())
+    if match is None:
+        return None
+    return f"file permission check は Read(...) のみ有効: Read({match.group(1)}) を使う"
 
 
 def check_settings_invariants(settings: dict[str, Any]) -> list[Finding]:
@@ -83,15 +94,10 @@ def check_settings_invariants(settings: dict[str, Any]) -> list[Finding]:
                         Finding(_SRC, plugin_key, f"非公開 marketplace を参照する plugin: {market}")
                     )
 
-    # 5. permissions のツール名妥当性と file-path 規則の canonical 化
+    # 5. permissions のトークンごとに shape 妥当性と file-path 規則の canonical 化を委譲判定する
     for token in extract_settings_permission_tokens(settings):
-        reason = validate_tool_token(token)
-        if reason is not None:
-            findings.append(Finding(_SRC, token, reason))
-        stripped = token.strip()
-        if _INEFFECTIVE_PATH_RULE.match(stripped):
-            spec = stripped[stripped.index("(") + 1 : -1]
-            msg = f"file permission check は Read(...) のみ有効: Read({spec}) を使う"
-            findings.append(Finding(_SRC, token, msg))
+        for reason in (validate_tool_token(token), _ineffective_path_rule_reason(token)):
+            if reason is not None:
+                findings.append(Finding(_SRC, token, reason))
 
     return findings
