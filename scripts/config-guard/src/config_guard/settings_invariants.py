@@ -20,6 +20,11 @@ _FORBIDDEN_KEYS: tuple[str, ...] = ("enabledMcpjsonServers",)
 # ユーザーのローカル絶対パス（gitleaks との多層防御）
 _USER_PATH = re.compile(r"/(Users|home)/[a-z_][a-z0-9._-]*")
 
+# file access を gate する file permission check は Read(...) 規則のみを見る（Claude Code 仕様）。
+# permissions に Glob(...)/Grep(...) と path を書いても無視される inert な規則なので検出して
+# Read(...) へ寄せる。bare な Glob/Grep はツール全体を gate する有効な形なので括弧付きのみ対象。
+_INEFFECTIVE_PATH_RULE = re.compile(r"^(?:Glob|Grep)\(.+\)$")
+
 # committed に許可する公開 marketplace。ここに無い marketplace を参照する plugin は弾く。
 _PUBLIC_MARKETPLACES: frozenset[str] = frozenset(
     {
@@ -78,10 +83,15 @@ def check_settings_invariants(settings: dict[str, Any]) -> list[Finding]:
                         Finding(_SRC, plugin_key, f"非公開 marketplace を参照する plugin: {market}")
                     )
 
-    # 5. permissions のツール名妥当性
+    # 5. permissions のツール名妥当性と file-path 規則の canonical 化
     for token in extract_settings_permission_tokens(settings):
         reason = validate_tool_token(token)
         if reason is not None:
             findings.append(Finding(_SRC, token, reason))
+        stripped = token.strip()
+        if _INEFFECTIVE_PATH_RULE.match(stripped):
+            spec = stripped[stripped.index("(") + 1 : -1]
+            msg = f"file permission check は Read(...) のみ有効: Read({spec}) を使う"
+            findings.append(Finding(_SRC, token, msg))
 
     return findings
