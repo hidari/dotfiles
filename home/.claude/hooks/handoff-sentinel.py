@@ -168,50 +168,44 @@ def handle_posttool(payload: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _is_broken(entry: dict[str, Any]) -> bool:
-    """entry が破損イベントかを判定する。
+    """entry が破損イベント (assistant text に漏れた tool-call の開始署名) かを判定する。
 
-    破損は次の 2 種:
-    - 正常な tool_use を伴わない assistant の text に漏れた tool-call の開始署名
-    - is_error が真の tool_result
-    正常完了した tool_result・通常会話・tool_use のみのメッセージは破損ではない。
+    正常な tool_use を伴わない assistant の text に tool-call の開始署名が桁0で現れたものだけを
+    破損とみなす。tool_result の is_error は数えない: コマンドの非ゼロ終了・権限 deny・想定内の
+    失敗など良性エラーが大半で、ツール呼び出し破損の指標にならず健全な探索セッションを誤検知する。
+    tool_use のみのメッセージ・通常会話・tool_result は破損ではない。
     """
+    if entry.get("type") != "assistant":
+        return False
     message = entry.get("message")
     if not isinstance(message, dict):
         return False
     content = message.get("content")
     if not isinstance(content, list):
         return False
-    if entry.get("type") == "assistant":
-        has_tool_use = any(
-            isinstance(block, dict) and block.get("type") == "tool_use" for block in content
-        )
-        if has_tool_use:
-            # tool-call 記法を話題として扱う会話の誤検知ガード
-            return False
-        for block in content:
-            if not (isinstance(block, dict) and block.get("type") == "text"):
-                continue
-            text = block.get("text")
-            if isinstance(text, str) and BROKEN_TOOL_CALL_RE.search(text):
-                return True
+    has_tool_use = any(
+        isinstance(block, dict) and block.get("type") == "tool_use" for block in content
+    )
+    if has_tool_use:
+        # tool-call 記法を話題として扱う会話の誤検知ガード
         return False
-    if entry.get("type") == "user":
-        return any(
-            isinstance(block, dict) and block.get("type") == "tool_result" and block.get("is_error")
-            for block in content
-        )
+    for block in content:
+        if not (isinstance(block, dict) and block.get("type") == "text"):
+            continue
+        text = block.get("text")
+        if isinstance(text, str) and BROKEN_TOOL_CALL_RE.search(text):
+            return True
     return False
 
 
 def _broken_count(entries: list[dict[str, Any]]) -> int:
     """tail ウィンドウ内の破損イベントの通算数を数える。
 
-    連続 (streak) ではなく累積。成功した tool_result が間に挟まってもリセットしない。
+    連続 (streak) ではなく累積。破損の間に成功実行や通常会話が挟まってもリセットしない。
     実セッションの劣化はモデルが「壊れる→出し直して成功→また壊れる」を繰り返すため、
-    連続判定では成功のたびにリセットされ、破損が多数あるセッションでも一度も発火しなかった
-    (破損 14〜20 件でも連続は最大 1〜3 に留まる実測)。通算なら劣化を取りこぼさない。
-    tail ウィンドウ (DEFAULT_TAIL_BYTES) が古い破損を自然にスクロールアウトさせるため、
-    完全復調した長寿命セッションで古い破損まで数え続けることはない。
+    連続判定では成功のたびにリセットされ、破損が多数あるセッションでも一度も発火しなかった。
+    通算なら劣化を取りこぼさない。tail ウィンドウ (DEFAULT_TAIL_BYTES) が古い破損を自然に
+    スクロールアウトさせるため、完全復調した長寿命セッションで古い破損まで数え続けることはない。
     """
     return sum(1 for entry in entries if _is_broken(entry))
 
@@ -238,6 +232,27 @@ def handle_stop(payload: dict[str, Any]) -> dict[str, Any] | None:
     return {"decision": "block", "reason": reason}
 
 
+# git の repo / worktree / index の位置を上書きする環境変数。git hook 経由の実行では git が
+# これらを子へ渡すため、継承すると `git -C <cwd>` の repo 探索が hook 側の repo に上書きされる。
+# repo の指定を -C に一本化するため、これらを除いた環境で git を起動する。
+_GIT_LOCATION_VARS = frozenset(
+    {
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_COMMON_DIR",
+        "GIT_PREFIX",
+        "GIT_NAMESPACE",
+    }
+)
+
+
+def _isolated_git_env() -> dict[str, str]:
+    """ロケーション系 GIT_* を除いた環境変数を返す。"""
+    return {k: v for k, v in os.environ.items() if k not in _GIT_LOCATION_VARS}
+
+
 def _repo_root(cwd: str) -> Path:
     """cwd の git リポルートを返す。リポ外・git 不在は cwd に落とす。"""
     try:
@@ -247,6 +262,7 @@ def _repo_root(cwd: str) -> Path:
             text=True,
             timeout=5,
             check=False,
+            env=_isolated_git_env(),
         )
     except (OSError, subprocess.TimeoutExpired):
         return Path(cwd)

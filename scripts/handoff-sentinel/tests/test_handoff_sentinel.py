@@ -104,6 +104,16 @@ def write_handoff(cwd: Path, content: str) -> Path:
     return handoff_dir
 
 
+def _git_init(path: Path) -> None:
+    """GIT_* を継承しない環境で git init する。
+
+    git hook 経由でテストを走らせると git が GIT_DIR/GIT_WORK_TREE を漏らし、それを継承した
+    git init が別 repo を触ってしまうため、GIT_* を除いた環境で起動して setup を hermetic にする。
+    """
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    subprocess.run(["git", "init", "-q", str(path)], check=True, timeout=10, env=env)
+
+
 def record_provenance(tmp_path: Path, *, cwd: Path | None = None) -> None:
     """real record アクションで handoff.md の provenance を確立する。
 
@@ -350,19 +360,16 @@ class TestStopBrokenCount:
         result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=base_env(tmp_path))
         assert json.loads(result.stdout)["decision"] == "block"
 
-    def test_エラーtool_resultも破損イベントとして数える(self, tmp_path: Path) -> None:
+    def test_エラーtool_resultは破損として数えない(self, tmp_path: Path) -> None:
+        # コマンドの非ゼロ終了・権限 deny・想定内の失敗などの良性エラーは破損ではない。
+        # leak 4 件 (閾値未満) に is_error を足しても block しない = is_error は非カウント。
         transcript = tmp_path / "t.jsonl"
         write_transcript(
             transcript,
-            [
-                *self.leaks(2),
-                tool_result(is_error=True),
-                tool_result(is_error=True),
-                *self.leaks(1),
-            ],
+            [*self.leaks(4), *(tool_result(is_error=True) for _ in range(6))],
         )
         result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=base_env(tmp_path))
-        assert json.loads(result.stdout)["decision"] == "block"
+        assert result.stdout == ""
 
     def test_正常なtool_use付きメッセージの断片は数えない(self, tmp_path: Path) -> None:
         transcript = tmp_path / "t.jsonl"
@@ -441,8 +448,8 @@ class TestStopBrokenCount:
         assert json.loads(first.stdout)["decision"] == "block"
         assert second.stdout == ""
 
-    def test_成功と失敗が混在するtool_resultは破損として数える(self, tmp_path: Path) -> None:
-        """並列ツール呼び出しで1エントリに成功/失敗が混在する場合、any(is_error) で broken 扱い。"""
+    def test_成功と失敗が混在するtool_resultは破損として数えない(self, tmp_path: Path) -> None:
+        """1エントリに成功/失敗が混在しても is_error は数えない (leak のみ数える)。"""
         transcript = tmp_path / "t.jsonl"
         mixed_result: dict[str, object] = {
             "type": "user",
@@ -465,7 +472,7 @@ class TestStopBrokenCount:
         }
         write_transcript(transcript, [*self.leaks(4), mixed_result])
         result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=base_env(tmp_path))
-        assert json.loads(result.stdout)["decision"] == "block"  # 破損4件+混在1件=通算5でblock
+        assert result.stdout == ""  # is_error 混在は数えず leak 4 件のみ = 閾値未満で block しない
 
     def test_HANDOFF_BROKEN_COUNTの上書きが閾値に反映される(self, tmp_path: Path) -> None:
         """既定の5ではなく3を境界値として使うことで、env override が実際に読まれることを示す。"""
@@ -525,13 +532,34 @@ class TestSessionStartInject:
         repo = tmp_path / "repo"
         sub = repo / "src"
         sub.mkdir(parents=True)
-        subprocess.run(["git", "init", "-q", str(repo)], check=True, timeout=10)
+        _git_init(repo)
         write_handoff(repo, "root handoff\n")
         # サブディレクトリ cwd でも repo ルート基準で provenance を確立する
         record_provenance(tmp_path, cwd=sub)
         result = run_hook("session", session_input(sub), extra_env=base_env(tmp_path))
         output = json.loads(result.stdout)
         assert "root handoff" in output["hookSpecificOutput"]["additionalContext"]
+
+    def test_git_env漏洩下でもcwdのrepoを解決してhandoffを注入する(self, tmp_path: Path) -> None:
+        """git hook 経由で GIT_DIR/GIT_WORK_TREE が漏れても -C (cwd) の repo の handoff を拾う。
+
+        _repo_root が漏洩した GIT_* を継承すると別 repo を解決し handoff を取りこぼす回帰の pin。
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git_init(repo)
+        write_handoff(repo, "正規\n次は Z をやる\n")
+        record_provenance(tmp_path, cwd=repo)
+        leaked = tmp_path / "leaked"
+        leaked.mkdir()
+        _git_init(leaked)
+        env = base_env(tmp_path) | {
+            "GIT_DIR": str(leaked / ".git"),
+            "GIT_WORK_TREE": str(leaked),
+        }
+        result = run_hook("session", session_input(repo), extra_env=env)
+        ctx = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        assert "次は Z をやる" in ctx
 
     def test_handoff不在は無出力でexit0(self, tmp_path: Path) -> None:
         result = run_hook("session", session_input(tmp_path), extra_env=base_env(tmp_path))
