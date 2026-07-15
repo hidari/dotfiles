@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 
 from config_guard.cli import scan
+from config_guard.git_run import isolated_git_env
 
 GOOD_SETTINGS = {
     "permissions": {"allow": ["Bash(cat:*)"], "deny": ["NotebookRead"], "ask": []},
@@ -35,7 +36,9 @@ allowed-tools:
 
 
 def _run(repo: Path, *args: str) -> None:
-    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(repo), *args], check=True, capture_output=True, env=isolated_git_env()
+    )
 
 
 def _make_repo(
