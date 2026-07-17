@@ -38,6 +38,7 @@
 - 成否を持つ長時間コマンド（`gh run watch`・`gh pr checks --watch`・`gh pr merge` 等）の結論は exit code ではなく専用クエリ（`gh run view <id> --json conclusion` 等）で直接確認し、`<cmd>; echo "EXIT: $?"` のように `$?` を上書きする後続コマンドを連結しないこと
   - 理由: 末尾コマンドの exit が本体の結論を隠し、failure を success と誤認する。上の `git push` ルールの一般形
 - 保護ブランチ（main 等）へ直 push する前の保護判定を、classic API (`gh api repos/<owner>/<repo>/branches/main/protection`) の 404 だけで「保護なし」と結論しないこと。repository ruleset は別系統で classic API に出ず 404 になるため、`gh api repos/<owner>/<repo>/rulesets`（必要なら `gh api repos/<owner>/<repo>/rules/branches/<branch>`）も確認すること（理由: classic 404 を「保護なし」と誤判定すると、ruleset 保護 [pull_request / required_status_checks 等] を bypass 特権で素通り push し、required checks / PR レビューを欠落させる。実際 classic 404 でも ruleset で保護されているリポジトリが存在する）
+- ユーザーの「実機で全部 OK」報告や症状の伝聞など、他者由来の報告・前提を検証済みの網羅的事実として扱わないこと。健全と結論する前に壊れやすい配置（端・境界・空・最大・最初/最後）を列挙して報告がそれを踏んだか確かめ、未確認の前提は subagent の並列 fan-out に渡す前に自分の再現で確定させる（理由: 報告は真実でも網羅ではない[実機 OK は壊れるグリッド端カードを未踏なだけだった]。fan-out は誤前提を検証せず全経路へ増幅する[未確認前提を 25 エージェントに配布し正しい仮説 7 件を誤棄却した]。上の live-smoke ルールと同じ「狭い signal ≠ 広い主張」族で some-path pass ≠ all-path healthy）
 - 1Passwordコマンド `op` の使用時、認証（`op signin`, `op whoami`）は使わなくともユーザーダイアログにて承認できるので、そのまま `op read` などを実行する
 - 非常に重要なこととして、ユーザー（Hidari）は個人開発者です。そのためCIコストがかなり負担となります。そこで可能な限りローカル環境のVM、Linuxコンテナ、Mac上で検証を行い、CIでの検証はmainマージとリリース時にのみ抑える方針とする
 - ホストの実マシン上（隔離した VM/コンテナの外）で、サイズの大きい・不明なバイナリの一括解析（フォントコレクション `.ttc`・メディア・アーカイブ等）や大規模データ処理を無防備に走らせないこと。必要なときは (1) 入力サイズを先に確認し (2) 全体を一括ロードせず lazy/ストリーミング API を使い (3) それでも重ければ OrbStack/Docker のメモリ上限付きコンテナへ隔離する。加えてバックグラウンドや長時間のプロセスが長く無音のときは「完了待ち」と決めつけず `ps -o rss= -p <pid>` で常駐メモリを確認し、増え続けていれば即 kill すること（理由: fontTools の `TTCollection` で巨大な合体 TTC [Sarasa SuperTTC] を非 lazy 展開してメモリが 52GB まで暴走し macOS を OOM で巻き添えに落とした。ホストには VM/コンテナのような cgroup 境界が無く暴走割り当てが OS 全体を落とす。無音を「ハング」と誤診して放置したのが増悪要因。macOS の `ulimit -v` は address-space 制限が信頼できず上限として当てにできない）
@@ -79,6 +80,7 @@
   - あるメカニズム（定数・key・分岐・型制約・呼び出し回数など）の遵守を pin する意図で書いたテストは、そのメカニズムを一時的に壊して当該テストが確かに FAIL することを変異注入で確かめること。緑のままなら dead pin である（理由: 目視レビューは assertion 漏れ・mock の観測点ずれ[stateless mock が再レンダーと再マウントを区別できない等]・無検証キャスト[未知値を素通し]のような「壊しても緑」を見逃す。実際 mockito の `expect_at_least` が `assert_async` 不在で、React の `key` remount が stateless mock で、`as` キャストが未知値で、いずれも緑のまま検証できていなかった。壊して赤を見て初めて pin は信用できる）
   - テスト群を読めば仕様が分かる状態を目指すこと
   - 変異注入（プロダクトコードを一時的に壊してテストが赤くなるか確かめる検証）で復元するとき、同じファイルに未コミット編集があるなら `git checkout -- <file>` を使わないこと。cp でバックアップを取るか変異箇所だけを戻す（理由: checkout は変異の直前ではなく HEAD へ戻すので、未コミットの編集ごと巻き戻して失う）
+  - 変異注入は一度に 1 箇所ずつ隔離して行うこと。複数同時に入れると片方の変異がもう片方の効果を隠してテストが緑のままになり、生きた pin を dead pin と誤読する。また変異で赤くなっても pin が有効とは限らない: 赤は「テストがその変更を検出できる」証明にすぎず、守る分岐が本番の入力経路で到達可能か（上流アダプタが入力を正規化・丸め済みで踏まれない分岐でないか）まで確認する。到達不能分岐の pin は赤でも dead（理由: isClickEvent ガードの変異は赤くなったがアダプタが入力を既に丸めていて本番到達不能な分岐だった。2 変数同時変異では片方がもう片方を隠して緑になり pin が死んだと誤読しかけた。上の「緑 = dead pin」の逆側の落とし穴で、赤は必要条件だが十分条件ではない）
 - shell-out / 外部CLIオーケストレーション（`Command`/subprocess 起動、ssh/scp 連鎖、cmd.exe/sh のクォート・連結を組み立てるコード）は、純粋ロジック（argv 構築・パス変換等）のユニットテストが緑でも「完了」としないこと。full chain を実環境で一度 live smoke 実行し、シェル/CLIのセマンティクス（連結・クォート・PATH 解決・exit code・OS 差）がランタイムで壊れていないことを確認する（理由: cmd.exe の `&` 連鎖が最初の if 偽で全体 no-op になる類のバグはユニットテストでは原理的に捕捉できず、実機実行でしか露見しない。winvm の mkdir→scp→remote-exec 連鎖で実際に踏んだ。subagent-driven で委譲する場合も各境界の検証に live smoke を含めること）
 - テストから他スクリプト/設定のデータ構造（bash 配列・JSON・TOML 等）を検証するときは、regex での text-parse を避け、定義ブロックを source / import して言語自身に解釈させること（理由: regex parse はその言語のパーサが無視する要素[コメント等]を誤読して phantom entry を生み、区切り・分割規約をテスト側に二重実装して drift させる。bootstrap の SYMLINK_PAIRS を sed で parse し配列内コメントを phantom source と誤読しかけた。上の「二重管理 → drift」の一種）
 - E2Eテストは公式 Playwright Test Agents（`npx playwright init-agents --loop=claude` で生成される Planner / Generator / Healer）を使用して作成すること
@@ -113,7 +115,7 @@
 
 大きな機能や修正を実施している最中に作業中の変更をコミットする際には、それぞれのプレフィックスの後ろに `(wip)` を付ける。
 
-コミットメッセージ本文には全角の句読点（。、）や全角括弧（）を使わず、半角の区切り（`:` `-` `(` `)`）と改行で構造化すること（理由: グローバルの Tirith コミットチェックが全角約物を confusable Unicode として弾きコミットが失敗する。ファイル本文は scan されないためコミットメッセージ本文のみの制約）
+コミットメッセージ本文には全角の句読点（。、）や全角括弧（）を使わず、半角の区切り（`:` `-` `(` `)`）と改行で構造化すること（理由: グローバルの Tirith コミットチェックが全角約物を confusable Unicode として弾きコミットが失敗する。scan 対象は Bash コマンド文字列自体なので、全角約物を含む本文[日本語ドキュメント等]を heredoc / echo で作るとコミット以前にコマンドごとブロックされる。切り分けは「コミットメッセージか否か」ではなく「Bash コマンド文字列を通るか否か」で、全角本文は Write ツールでファイルに書き、コミットメッセージも Write で書いて `git commit -F <file>` で渡すのが確実）
 
 ### コミットメッセージ例
 
@@ -129,8 +131,13 @@ feat(wip): React Router v7フロントエンド基盤を実装
 - 複雑な問題の検証にはSubAgentsを積極的に使用する
 - 既存のPlugins, Skillsを積極的に活用する
 - 実装プランを実行する際は `superpowers:subagent-driven-development`（Subagent-Driven）を既定とする。タスクごとに新鮮なSubAgentをdispatchし、各境界でfmt+test緑をコントローラ側が検証し、報告とgit statusを突合してからコミットする
+  - 長時間ゲート（E2E・フルビルド・`gh run watch` 等 秒〜分オーダーで待つコマンド）は最初からコントローラが回し、implementer には実装と変異注入までを任せる。implementer に長時間コマンドを委譲しないこと（理由: implementer は長時間コマンドで Monitor/watch を仕掛けてターンを終える挙動を取りがちで、prompt での名指し禁止が効かない [5 回連続で再発を実証]。行動を prompt で禁じるより分業の設計で構造的に防ぐ方が確実。コントローラが回せばゲートの赤も直接読める）
+  - brief に「機序は特定済みだから裏取りだけでいい」と書いて implementer の探索を抑制しないこと。implementer が実測で brief に反論してきたら、まず疑うべきは brief の方（理由: brief の断定が実測で訂正される事例が連続した [根因ファイルも breakpoint も brief と違い、従順な implementer なら無関係な箇所で詰まっていた]。brief は仮説であって確定事実ではなく、コードに触れているのは implementer の実測。上の「想像より計測」の Subagent-Driven 版）
 
 ## [MUST] 実験的な動作指定
 
-- Subagent-Drivenで作業を行う際は、Subagentには Fable モデルを使用すること
+- Subagent-Drivenで作業を行う際、指揮役が対象タスクを以下のいずれかと判断した場合、Subagentに Fable モデルを使用すること
+  - 複雑なタスクである
+  - タスクのサイズがL, XL〜複雑なタスクである
+  - セキュリティ、権限関連、暗号化関連のコードなどクリティカルである
 - 設計ドキュメントやプランのレビューを行う際には、Fable Subagent を使うこと
