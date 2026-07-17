@@ -90,7 +90,7 @@ committed 側は CI で 2 つの仕組みが守る。
 
 ## apm による skill 配信 (vendored skills)
 
-一部の Claude Code skill は自作せず、upstream (`mizchi/skills` 等) から apm (Agent Package Manager) 経由で取り込む。宣言の正本は `home/apm.yml`、解決した commit と content hash の pin は `home/apm.lock.yaml`。
+一部の Claude Code skill は自作せず、upstream から apm (Agent Package Manager) 経由で取り込む。宣言の正本は `home/apm.yml`、解決した commit と content hash の pin は `home/apm.lock.yaml`。
 
 - 取り込み: `home/` で `apm install --frozen`（bootstrap の `install_apm_skills` が実行）。commit SHA pin で再現性を担保する。
 - deploy 先 skill (`home/.claude/skills/<name>/`) と fetch キャッシュ (`home/apm_modules/`) は再生成物なので gitignore する（`home/.gitignore`）。gitignore の追記漏れは config-guard が apm.lock.yaml の deployed_files と突合して検出する。自作 skill は従来どおり tracked。

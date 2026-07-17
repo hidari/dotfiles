@@ -8,3 +8,5 @@ apm_modules/
 .claude/skills/playwright-test/
 .claude/skills/empirical-prompt-tuning/
 .claude/skills/ast-grep-practice/
+.claude/skills/apm-usage/
+.claude/skills/justfile/
