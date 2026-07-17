@@ -1,24 +1,7 @@
 lockfile_version: '1'
-generated_at: '2026-07-01T06:09:23.965817+00:00'
+generated_at: '2026-07-17T16:06:55.850670+00:00'
 apm_version: 0.23.1
 dependencies:
-- repo_url: mizchi/skills
-  name: skills
-  host: github.com
-  resolved_commit: d7999453cdb4e0e09df1c7f82fd23752539c546c
-  resolved_ref: d7999453cdb4e0e09df1c7f82fd23752539c546c
-  version: unknown
-  virtual_path: testing/playwright-cli
-  is_virtual: true
-  package_type: claude_skill
-  deployed_files:
-  - .claude/skills/playwright-cli
-  - .claude/skills/playwright-cli/README.md
-  - .claude/skills/playwright-cli/SKILL.md
-  deployed_file_hashes:
-    .claude/skills/playwright-cli/README.md: sha256:0b6236838eaeac59ee64828cb86b485e7318a8162da65f31e9064e14b39b7b38
-    .claude/skills/playwright-cli/SKILL.md: sha256:dc6f7e100b20369010393b116f3d748cfa7d3b298046638e854b5a02d4e0e7f7
-  content_hash: sha256:91b5ce28a1c5080740817a5977279c60d9467aeeb1aa992ea4363c8d148dca43
 - repo_url: mizchi/skills
   name: skills
   host: github.com
@@ -44,6 +27,23 @@ dependencies:
   resolved_commit: d7999453cdb4e0e09df1c7f82fd23752539c546c
   resolved_ref: d7999453cdb4e0e09df1c7f82fd23752539c546c
   version: unknown
+  virtual_path: testing/playwright-cli
+  is_virtual: true
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/playwright-cli
+  - .claude/skills/playwright-cli/README.md
+  - .claude/skills/playwright-cli/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/playwright-cli/README.md: sha256:0b6236838eaeac59ee64828cb86b485e7318a8162da65f31e9064e14b39b7b38
+    .claude/skills/playwright-cli/SKILL.md: sha256:dc6f7e100b20369010393b116f3d748cfa7d3b298046638e854b5a02d4e0e7f7
+  content_hash: sha256:91b5ce28a1c5080740817a5977279c60d9467aeeb1aa992ea4363c8d148dca43
+- repo_url: mizchi/skills
+  name: skills
+  host: github.com
+  resolved_commit: d7999453cdb4e0e09df1c7f82fd23752539c546c
+  resolved_ref: d7999453cdb4e0e09df1c7f82fd23752539c546c
+  version: unknown
   virtual_path: testing/playwright-test
   is_virtual: true
   package_type: claude_skill
@@ -57,6 +57,29 @@ dependencies:
     .claude/skills/playwright-test/SKILL-ja.md: sha256:63d2cd55468c576e986fe4eb7b799d9203f38540688a8988588c551d8b19548e
     .claude/skills/playwright-test/SKILL.md: sha256:b66dbd57a461cfd40c7a2b91af156b6923b3bba39a4ae712528b5c0ce3dba3fd
   content_hash: sha256:7f85a2a1a1b2c96604c97676239c2df91558fb6c1fa5a89c78683bb68375026a
+- repo_url: mizchi/skills
+  name: skills
+  host: github.com
+  resolved_commit: d7999453cdb4e0e09df1c7f82fd23752539c546c
+  resolved_ref: d7999453cdb4e0e09df1c7f82fd23752539c546c
+  version: unknown
+  virtual_path: tooling/apm-usage
+  is_virtual: true
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/apm-usage
+  - .claude/skills/apm-usage/README.md
+  - .claude/skills/apm-usage/SKILL-ja.md
+  - .claude/skills/apm-usage/SKILL.md
+  - .claude/skills/apm-usage/references/manifest-schema.md
+  - .claude/skills/apm-usage/references/publishing.md
+  deployed_file_hashes:
+    .claude/skills/apm-usage/README.md: sha256:600c52fe2390d9064433123aabbe3f8b9d702e7702fd6437718a82bc0ff5c580
+    .claude/skills/apm-usage/SKILL-ja.md: sha256:095dff73f08d8c23fff1b8106729b1e57e34088ffae23e25d7461e17a88b9743
+    .claude/skills/apm-usage/SKILL.md: sha256:dc975426518a7e264f56ad3a8219bca5a75170fa38f83f59f1f7a7be86f0822b
+    .claude/skills/apm-usage/references/manifest-schema.md: sha256:f49955b8be35046fc963bffbf134af101055c3164ae55f86d6bc8bc001304b13
+    .claude/skills/apm-usage/references/publishing.md: sha256:392878fba913c9cc2eac9ecf028fce1671138bf59c03e66d2e44225757552034
+  content_hash: sha256:519bcaa185327320805cfbc89d655499c68485029e995676bdd490665b688a70
 - repo_url: mizchi/skills
   name: skills
   host: github.com
@@ -84,3 +107,28 @@ dependencies:
     .claude/skills/ast-grep-practice/references/rule-yaml.md: sha256:1b801dd897252f442384980235eaf06354bb6dc0ac8378f196e4e20746e1c7c0
     .claude/skills/ast-grep-practice/references/testing.md: sha256:d7e2282b5b6ef954891af059adbe9b8ae23edcc385ba00f6a9e80e42ac6607d7
   content_hash: sha256:2c39f6e925845efc15cff26d3aecf5dd5f1acc8f62dd06524bf98b7ac0bde7a6
+- repo_url: mizchi/skills
+  name: justfile
+  host: github.com
+  resolved_commit: d7999453cdb4e0e09df1c7f82fd23752539c546c
+  resolved_ref: d7999453cdb4e0e09df1c7f82fd23752539c546c
+  version: d799945
+  virtual_path: tooling/justfile
+  is_virtual: true
+  package_type: marketplace_plugin
+  deployed_files:
+  - .claude/skills/justfile
+  - .claude/skills/justfile/.claude-plugin/manifest.json
+  - .claude/skills/justfile/README.md
+  - .claude/skills/justfile/SKILL.md
+  - .claude/skills/justfile/apm.yml
+  - .claude/skills/justfile/assets/gh_action_example.yaml
+  - .claude/skills/justfile/assets/justfile
+  deployed_file_hashes:
+    .claude/skills/justfile/.claude-plugin/manifest.json: sha256:0905f1d62b295d40dae89ecf77eda3c05666941bee692b8220ab95ab0336bf5d
+    .claude/skills/justfile/README.md: sha256:de18db9c0fa6c24e2de883a14a79b26f32f953b4f137c6e5325ffcd38025d960
+    .claude/skills/justfile/SKILL.md: sha256:32bf798b16c88d9d6c79127834503e5e7aa6d50249ce3dae63fa7db4895a90e0
+    .claude/skills/justfile/apm.yml: sha256:810d355f26fbec0a1efbb9798c1eebca8da54dcfb4268e3e07107dfc6807448f
+    .claude/skills/justfile/assets/gh_action_example.yaml: sha256:3ce1e44cb9570948b055c84f36e8affab20a080000b21d76b07e89864c08f9a2
+    .claude/skills/justfile/assets/justfile: sha256:c7a70af405eaa460f73bd49f011b1f1e0dd09f6ecc866a3c3640b8cae7a5c208
+  content_hash: sha256:da495bb7093f221ae80bd5290fc9221057f801dbea40c86a5a7243abe572d071

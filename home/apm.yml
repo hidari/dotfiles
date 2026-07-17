@@ -10,6 +10,8 @@ dependencies:
   - mizchi/skills/testing/playwright-test#d7999453cdb4e0e09df1c7f82fd23752539c546c
   - mizchi/skills/meta/empirical-prompt-tuning#d7999453cdb4e0e09df1c7f82fd23752539c546c
   - mizchi/skills/tooling/ast-grep-practice#d7999453cdb4e0e09df1c7f82fd23752539c546c
+  - mizchi/skills/tooling/apm-usage#d7999453cdb4e0e09df1c7f82fd23752539c546c
+  - mizchi/skills/tooling/justfile#d7999453cdb4e0e09df1c7f82fd23752539c546c
   mcp: []
 includes: auto
 scripts: {}
