@@ -116,3 +116,20 @@ def test_main_renders_config_path_relative_to_cwd(
     body = body_out.read_text(encoding="utf-8")
     assert "home/config.toml" in body
     assert str(tmp_path) not in body
+
+
+def test_main_reports_no_updates_when_only_major_crossings_exist(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # メジャー越えだけなら Issue を立てない (立てると閉じる条件が無く開きっぱなしになる)。
+    # ただし件数はサマリに残し、存在自体は観測できるようにする。
+    config = tmp_path / "config.toml"
+    config.write_text('[tools]\nnode = "24.18.0"\n', encoding="utf-8")
+    body_out = tmp_path / "body.md"
+    mise = FakeMise({"node": "26.5.0", "node@24": "24.18.0"})
+
+    main(["--config", str(config), "--body-out", str(body_out)], run_mise_latest=mise)
+
+    summary = json.loads(capsys.readouterr().out)
+    assert summary == {"has_updates": False, "compatible": 0, "major": 1}
+    assert body_out.read_text(encoding="utf-8") == ""
