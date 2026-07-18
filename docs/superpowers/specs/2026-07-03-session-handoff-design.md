@@ -6,7 +6,7 @@
 ## 目的
 
 1. コンテキストウィンドウの使用率がしきい値を超えたとき、引き継ぎ書を
-   `<リポルート>/tmp/handoff.md` に書き出してセッション切替を誘導する
+   `<リポルート>/.cache/handoff.md` に書き出してセッション切替を誘導する
 2. ツール呼び出しの破損 (本文への tool-call XML 断片の漏れ) が
    規定回数 (通算) に達したとき、同じ引き継ぎ書を書き出して Claude Code の再起動を誘導する
 3. 新しいセッションの開始時に handoff.md を自動で読み込ませ、引き継ぎを完結させる
@@ -63,7 +63,7 @@ PostToolUse (コンテキスト監視):
 - transcript 末尾から最後の assistant メッセージの `usage` を読み、
   `input_tokens + cache_read_input_tokens + cache_creation_input_tokens` を現在の占有量とする
 - 占有量がウィンドウサイズ × しきい値を超えたら `hookSpecificOutput.additionalContext` で
-  「session-handoff スキルを発動して tmp/handoff.md を書き、セッション切替を促せ」と注入する
+  「session-handoff スキルを発動して .cache/handoff.md を書き、セッション切替を促せ」と注入する
 - しきい値は使用率の既定パーセンテージ、ウィンドウサイズは実コンテキスト窓に合わせた大きい既定を要求値とする
   (小さすぎる既定は大容量モデルで早期に誤発火するため)。
   runtime の canonical はスクリプト内の定数であり、環境変数
@@ -87,7 +87,7 @@ Stop (破損監視):
   良性エラーが大半で、ツール呼び出し破損の指標にならず健全な探索セッションを誤検知するため
 - 破損の通算が規定回数 (canonical はスクリプト内定数 `DEFAULT_BROKEN_COUNT`、環境変数
   `HANDOFF_BROKEN_COUNT` で上書き可) に達したら停止をブロックし、reason で
-  「session-handoff スキルを発動して tmp/handoff.md を書き、ユーザーに再起動を促してから停止せよ」
+  「session-handoff スキルを発動して .cache/handoff.md を書き、ユーザーに再起動を促してから停止せよ」
   と指示する。連続 (streak) ではなく通算にするのは、実セッションの劣化がモデルの
   「壊れる→出し直して成功→また壊れる」の繰り返しで、成功ツール実行が破損の間に頻繁に挟まって
   連続がリセットされ発火しないため。成功ツール
@@ -101,7 +101,7 @@ SessionStart (引き継ぎ注入):
 
 - `cwd` から `git rev-parse --show-toplevel` でリポルートを解決する
   (リポ外なら cwd をルートと見なす)
-- `<ルート>/tmp/handoff.md` が存在し、かつ provenance (後述 record) と内容ハッシュが一致する場合のみ
+- `<ルート>/.cache/handoff.md` が存在し、かつ provenance (後述 record) と内容ハッシュが一致する場合のみ
   内容を `additionalContext` で注入し、同ディレクトリの
   `handoff-consumed-<UTC タイムスタンプ>.md` へリネームして二重読み込みを防ぐ。
   provenance を消費 (削除) して二重注入も防ぐ
@@ -114,7 +114,7 @@ SessionStart (引き継ぎ注入):
 record (provenance 記録):
 
 - session-handoff skill が handoff.md を書き出した直後に呼ぶ副作用コマンド。
-  `os.getcwd()` からリポルートを解決し、`<ルート>/tmp/handoff.md` の内容ハッシュを
+  `os.getcwd()` からリポルートを解決し、`<ルート>/.cache/handoff.md` の内容ハッシュを
   user スコープの state (`~/.cache/claude/handoff-sentinel/<repo-id>.provenance`) に記録する。
   この記録があって初めて SessionStart が当該 handoff.md を信頼して注入する
 - 信頼境界は「このリポで record が呼ばれたか」であり「内容を skill が生成したか」ではない。
@@ -132,8 +132,8 @@ record (provenance 記録):
   model 発火 (hook 通知経由) と user 発火の両方を維持するため、
   `disable-model-invocation` 等の発動経路を制限する frontmatter は設定しない
 - 手順:
-  1. リポルートを解決し `tmp/` を `mkdir -p` する
-  2. 同梱の `template.md` を読み、各セクションを埋めて `tmp/handoff.md` に書き出す
+  1. リポルートを解決し `.cache/` を `mkdir -p` する
+  2. 同梱の `template.md` を読み、各セクションを埋めて `.cache/handoff.md` に書き出す
      (既存があれば上書き。最新の引き継ぎが常に正)
   3. `handoff-sentinel.py record` を実行して provenance を記録する
      (これが無いと新セッションで注入されない = fail-closed。prompt injection 防御の要)
@@ -207,11 +207,11 @@ stdin / transcript として食わせて判定ロジックを検証する。
 - settings.json は skip-worktree dance (退避 → no-skip → 編集 → 復元) で
   committed 版・live 版の両方に配線を追加する
 - live smoke (ユニット緑だけで完了としない):
-  1. ダミーの tmp/handoff.md を置いて新セッションを起こし、SessionStart 注入と
+  1. ダミーの .cache/handoff.md を置いて新セッションを起こし、SessionStart 注入と
      consumed リネームを実機確認する
   2. しきい値を環境変数で極小にした状態でツールを実行し、コンテキスト超過通知が
      additionalContext として届くことを実機確認する
-  3. `/session-handoff` を手動起動し、template.md 準拠の tmp/handoff.md が
+  3. `/session-handoff` を手動起動し、template.md 準拠の .cache/handoff.md が
      生成されることを実機確認する
 
 ## 受け入れ条件
