@@ -76,6 +76,62 @@ repos:
         pass_filenames: false
         files: ^(home/\.claude/skills/.*/SKILL\.md|home/\.claude/settings\.json|home/apm\.lock\.yaml|home/\.gitignore|home/\.config/herdr/config\.toml|scripts/config-guard/.*)$
 
+      - id: mise-update-notifier-ruff-check
+        name: mise-update-notifier ruff check
+        language: system
+        entry: uv run --directory scripts/mise-update-notifier ruff check src tests
+        pass_filenames: false
+        files: ^scripts/mise-update-notifier/(src|tests)/.*\.py$
+
+      - id: mise-update-notifier-ruff-format
+        name: mise-update-notifier ruff format --check
+        language: system
+        entry: uv run --directory scripts/mise-update-notifier ruff format --check src tests
+        pass_filenames: false
+        files: ^scripts/mise-update-notifier/(src|tests)/.*\.py$
+
+      - id: mise-update-notifier-mypy
+        name: mise-update-notifier mypy
+        language: system
+        entry: uv run --directory scripts/mise-update-notifier mypy src tests
+        pass_filenames: false
+        files: ^scripts/mise-update-notifier/(src|tests)/.*\.py$
+
+      - id: mise-update-notifier-pytest
+        name: mise-update-notifier pytest
+        language: system
+        entry: uv run --directory scripts/mise-update-notifier pytest -q
+        pass_filenames: false
+        files: ^scripts/mise-update-notifier/(src|tests)/.*\.py$
+
+      - id: node-security-notifier-ruff-check
+        name: node-security-notifier ruff check
+        language: system
+        entry: uv run --directory scripts/node-security-notifier ruff check src tests
+        pass_filenames: false
+        files: ^scripts/node-security-notifier/(src|tests)/.*\.py$
+
+      - id: node-security-notifier-ruff-format
+        name: node-security-notifier ruff format --check
+        language: system
+        entry: uv run --directory scripts/node-security-notifier ruff format --check src tests
+        pass_filenames: false
+        files: ^scripts/node-security-notifier/(src|tests)/.*\.py$
+
+      - id: node-security-notifier-mypy
+        name: node-security-notifier mypy
+        language: system
+        entry: uv run --directory scripts/node-security-notifier mypy src tests
+        pass_filenames: false
+        files: ^scripts/node-security-notifier/(src|tests)/.*\.py$
+
+      - id: node-security-notifier-pytest
+        name: node-security-notifier pytest
+        language: system
+        entry: uv run --directory scripts/node-security-notifier pytest -q
+        pass_filenames: false
+        files: ^scripts/node-security-notifier/(src|tests)/.*\.py$
+
       - id: tirith-hook-ruff-check
         name: tirith-hook ruff check
         language: system
@@ -131,62 +187,6 @@ repos:
         entry: uv run --directory scripts/handoff-sentinel pytest -q
         pass_filenames: false
         files: ^(home/\.claude/hooks/handoff-sentinel\.py|scripts/handoff-sentinel/.*)$
-
-      - id: mise-update-notifier-ruff-check
-        name: mise-update-notifier ruff check
-        language: system
-        entry: uv run --directory scripts/mise-update-notifier ruff check src tests
-        pass_filenames: false
-        files: ^scripts/mise-update-notifier/(src|tests)/.*\.py$
-
-      - id: mise-update-notifier-ruff-format
-        name: mise-update-notifier ruff format --check
-        language: system
-        entry: uv run --directory scripts/mise-update-notifier ruff format --check src tests
-        pass_filenames: false
-        files: ^scripts/mise-update-notifier/(src|tests)/.*\.py$
-
-      - id: mise-update-notifier-mypy
-        name: mise-update-notifier mypy
-        language: system
-        entry: uv run --directory scripts/mise-update-notifier mypy
-        pass_filenames: false
-        files: ^scripts/mise-update-notifier/(src|tests)/.*\.py$
-
-      - id: mise-update-notifier-pytest
-        name: mise-update-notifier pytest
-        language: system
-        entry: uv run --directory scripts/mise-update-notifier pytest -q
-        pass_filenames: false
-        files: ^scripts/mise-update-notifier/(src|tests)/.*\.py$
-
-      - id: node-security-notifier-ruff-check
-        name: node-security-notifier ruff check
-        language: system
-        entry: uv run --directory scripts/node-security-notifier ruff check src tests
-        pass_filenames: false
-        files: ^scripts/node-security-notifier/(src|tests)/.*\.py$
-
-      - id: node-security-notifier-ruff-format
-        name: node-security-notifier ruff format --check
-        language: system
-        entry: uv run --directory scripts/node-security-notifier ruff format --check src tests
-        pass_filenames: false
-        files: ^scripts/node-security-notifier/(src|tests)/.*\.py$
-
-      - id: node-security-notifier-mypy
-        name: node-security-notifier mypy
-        language: system
-        entry: uv run --directory scripts/node-security-notifier mypy
-        pass_filenames: false
-        files: ^scripts/node-security-notifier/(src|tests)/.*\.py$
-
-      - id: node-security-notifier-pytest
-        name: node-security-notifier pytest
-        language: system
-        entry: uv run --directory scripts/node-security-notifier pytest -q
-        pass_filenames: false
-        files: ^scripts/node-security-notifier/(src|tests)/.*\.py$
 
       - id: gitleaks
         name: gitleaks (secret / user-path leak guard)

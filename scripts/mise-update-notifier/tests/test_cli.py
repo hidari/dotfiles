@@ -55,7 +55,9 @@ def test_collect_statuses_rejects_empty_result() -> None:
         collect_statuses({"pnpm": "10.32.1"}, mise)
 
 
-def test_main_writes_body_and_reports_updates(tmp_path: Path, capsys) -> None:  # type: ignore[no-untyped-def]
+def test_main_writes_body_and_reports_updates(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     config = tmp_path / "config.toml"
     config.write_text('[tools]\npnpm = "10.32.1"\n', encoding="utf-8")
     body_out = tmp_path / "body.md"
@@ -69,7 +71,9 @@ def test_main_writes_body_and_reports_updates(tmp_path: Path, capsys) -> None:  
     assert 'pnpm = "10.34.5"' in body_out.read_text(encoding="utf-8")
 
 
-def test_main_reports_no_updates_and_writes_empty_body(tmp_path: Path, capsys) -> None:  # type: ignore[no-untyped-def]
+def test_main_reports_no_updates_and_writes_empty_body(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     config = tmp_path / "config.toml"
     config.write_text('[tools]\njust = "1.56.0"\n', encoding="utf-8")
     body_out = tmp_path / "body.md"
@@ -96,7 +100,9 @@ def test_main_fails_loudly_when_mise_returns_empty(tmp_path: Path) -> None:
         )
 
 
-def test_main_renders_config_path_relative_to_cwd(tmp_path: Path, monkeypatch, capsys) -> None:  # type: ignore[no-untyped-def]
+def test_main_renders_config_path_relative_to_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # 本文は GitHub Issue に載る。絶対パスのまま出すとユーザー名が公開先へ漏れる
     config = tmp_path / "home" / "config.toml"
     config.parent.mkdir()

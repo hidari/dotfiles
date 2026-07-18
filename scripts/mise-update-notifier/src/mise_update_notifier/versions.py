@@ -12,11 +12,9 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-# major.minor.patch と任意の prerelease / build metadata。exact pin ガード
-# (config-guard の mise_pins) を通った版だけがここへ来る前提。
-_VERSION_PATTERN = re.compile(
-    r"(?P<major>\d+)\.(?P<minor>\d+)\.\d+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?"
-)
+# 互換範囲の導出に必要な major.minor だけを見る。「exact な pin か」の判定は
+# config-guard (config_guard.mise_pins) の責務なので、その文法をここへ再掲しない。
+_VERSION_PATTERN = re.compile(r"(?P<major>\d+)\.(?P<minor>\d+)\.\d")
 
 
 @dataclass(frozen=True)
@@ -35,7 +33,7 @@ def compatible_spec(version: str) -> str:
     semver では 0.x の破壊的変更の軸は minor なので、0 系だけ major.minor を返す
     (0.3.3 の互換範囲に 0.4.0 を含めない)。
     """
-    matched = _VERSION_PATTERN.fullmatch(version)
+    matched = _VERSION_PATTERN.match(version)
     if matched is None:
         raise ValueError(f"exact な version ではないため互換範囲を導出できません: {version!r}")
     major = matched.group("major")
@@ -45,7 +43,12 @@ def compatible_spec(version: str) -> str:
 
 
 def has_compatible_update(status: ToolStatus) -> bool:
-    """互換範囲の中に、pin より新しい版があるか。"""
+    """互換範囲の中に、pin と違う版があるか。
+
+    順序ではなく差分で見る。pin の方が新しい状況 (yank された版を pin している等) でも
+    報告に出したいため。その場合は「更新」ではなく「pin が registry と食い違っている」
+    合図なので、提示された版を鵜呑みにせず確認すること。
+    """
     return status.compatible_latest != status.pinned
 
 

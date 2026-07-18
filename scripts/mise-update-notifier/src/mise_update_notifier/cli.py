@@ -8,7 +8,6 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
-import sys
 from collections.abc import Callable
 from pathlib import Path
 
@@ -25,10 +24,14 @@ MiseLatest = Callable[[str], str]
 
 
 def run_mise_latest(spec: str) -> str:
-    """`mise latest <spec>` の出力を返す。"""
+    """`mise latest <spec>` の出力を返す。
+
+    stderr は捕捉せずジョブログへ流す。捕捉すると CalledProcessError が exit status しか
+    語らず、ネットワーク断や rate limit で落ちたときに原因不明の赤になる。
+    """
     proc = subprocess.run(
         ["mise", "latest", spec],
-        capture_output=True,
+        stdout=subprocess.PIPE,
         text=True,
         check=True,
     )
@@ -75,7 +78,7 @@ def main(argv: list[str] | None = None, run_mise_latest: MiseLatest = run_mise_l
     parser = argparse.ArgumentParser(description="mise の exact pin に対する更新を報告する")
     parser.add_argument("--config", required=True, type=Path, help="mise config のパス")
     parser.add_argument("--body-out", required=True, type=Path, help="報告本文の出力先")
-    args = parser.parse_args(sys.argv[1:] if argv is None else argv)
+    args = parser.parse_args(argv)
 
     pins = read_pins(args.config)
     statuses = collect_statuses(pins, run_mise_latest)

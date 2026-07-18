@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from mise_update_notifier.versions import (
@@ -25,6 +27,12 @@ def test_compatible_spec_uses_major_minor_for_zero_versions() -> None:
     # semver の 0.x は minor が破壊的変更の軸。0.3.3 の互換範囲に 0.4.0 を含めない
     assert compatible_spec("0.3.3") == "0.3"
     assert compatible_spec("0.0.5") == "0.0"
+
+
+def test_compatible_spec_handles_multi_digit_components() -> None:
+    # patch が 2 桁以上でも導出できること (1 桁しか見ない実装への退行を防ぐ)
+    assert compatible_spec("24.18.10") == "24"
+    assert compatible_spec("0.12.34") == "0.12"
 
 
 def test_compatible_spec_ignores_prerelease_and_build_metadata() -> None:
@@ -77,21 +85,21 @@ def test_major_update_is_independent_of_compatible_update() -> None:
 # --- read_pins ---------------------------------------------------------------
 
 
-def test_read_pins_extracts_tools_table(tmp_path) -> None:  # type: ignore[no-untyped-def]
+def test_read_pins_extracts_tools_table(tmp_path: Path) -> None:
     config = tmp_path / "config.toml"
     config.write_text('[tools]\njust = "1.56.0"\nnode = "24.18.0"\n', encoding="utf-8")
 
     assert read_pins(config) == {"just": "1.56.0", "node": "24.18.0"}
 
 
-def test_read_pins_preserves_declaration_order(tmp_path) -> None:  # type: ignore[no-untyped-def]
+def test_read_pins_preserves_declaration_order(tmp_path: Path) -> None:
     config = tmp_path / "config.toml"
     config.write_text('[tools]\nzig = "1.0.0"\najv = "2.0.0"\n', encoding="utf-8")
 
     assert list(read_pins(config)) == ["zig", "ajv"]
 
 
-def test_read_pins_rejects_non_string_spec(tmp_path) -> None:  # type: ignore[no-untyped-def]
+def test_read_pins_rejects_non_string_spec(tmp_path: Path) -> None:
     # 判定できない形を黙って捨てると、そのツールだけ監視から静かに外れる
     config = tmp_path / "config.toml"
     config.write_text('[tools]\nnode = ["24.18.0", "22.0.0"]\n', encoding="utf-8")
@@ -100,7 +108,7 @@ def test_read_pins_rejects_non_string_spec(tmp_path) -> None:  # type: ignore[no
         read_pins(config)
 
 
-def test_read_pins_without_tools_table(tmp_path) -> None:  # type: ignore[no-untyped-def]
+def test_read_pins_without_tools_table(tmp_path: Path) -> None:
     config = tmp_path / "config.toml"
     config.write_text("[settings]\nexperimental = true\n", encoding="utf-8")
 
