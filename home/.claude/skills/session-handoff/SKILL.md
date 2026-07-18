@@ -1,6 +1,6 @@
 ---
 name: session-handoff
-description: セッションの作業状態を引き継ぎ書 <リポルート>/tmp/handoff.md に書き出し、新しいセッションへ引き継ぐ。発動経路は3つ。(1) hook からのコンテキスト超過通知を受けたとき (2) hook からのツール呼び出し破損通知を受けたとき (3) ユーザーが手動で依頼したとき (「引き継ぎ書いて」「handoff して」「セッション切り替えたい」等)。新セッション側の読み込みは SessionStart hook (handoff-sentinel) が自動で行うため、このスキルは書き出しと案内までが責務。
+description: セッションの作業状態を引き継ぎ書 <リポルート>/.cache/handoff.md に書き出し、新しいセッションへ引き継ぐ。発動経路は3つ。(1) hook からのコンテキスト超過通知を受けたとき (2) hook からのツール呼び出し破損通知を受けたとき (3) ユーザーが手動で依頼したとき (「引き継ぎ書いて」「handoff して」「セッション切り替えたい」等)。新セッション側の読み込みは SessionStart hook (handoff-sentinel) が自動で行うため、このスキルは書き出しと案内までが責務。
 ---
 
 # Session Handoff
@@ -11,9 +11,9 @@ description: セッションの作業状態を引き継ぎ書 <リポルート>/
 ## 手順
 
 1. `git rev-parse --show-toplevel` でリポルートを解決する (リポ外なら cwd を使う)
-2. `<ルート>/tmp/` を `mkdir -p` で確保する
+2. `<ルート>/.cache/` を `mkdir -p` で確保する
 3. このスキルと同じディレクトリの `template.md` を読み、各セクションを
-   コメントのガイドに従って埋め、`<ルート>/tmp/handoff.md` に書き出す
+   コメントのガイドに従って埋め、`<ルート>/.cache/handoff.md` に書き出す
    (既存の handoff.md があれば上書きする。最新の引き継ぎが常に正)
 4. リポルートを cwd にして `python3 "$HOME/.claude/hooks/handoff-sentinel.py" record` を実行し、
    provenance を記録する (この記録が無いと新セッションで注入されない = fail-closed。

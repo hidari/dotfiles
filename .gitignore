@@ -28,4 +28,5 @@ scripts/backup-tool/backup.toml
 *.env
 
 # 一時作業ファイル (scratch)
+.cache/
 tmp/
