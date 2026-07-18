@@ -284,10 +284,10 @@ install_apm() {
     brew install microsoft/apm/apm
 }
 
-# mise が管理する pin ツール (config.toml の [tools]: node/pnpm/tirith) を実体化する（冪等）。
+# mise が管理する pin ツール (config.toml の [tools] が一覧の真実源) を実体化する（冪等）。
 # config.toml の symlink は setup_dotfiles が張るため、必ず setup_dotfiles の後に呼ぶこと。
 install_mise_tools() {
-    log "Installing mise-managed tools (node/pnpm/tirith)..."
+    log "Installing mise-managed tools..."
 
     if [ "$DRY_RUN" = true ]; then
         echo "[DRY-RUN] mise install"
@@ -548,7 +548,7 @@ main() {
         if [ "$DOTFILES_ONLY" = false ]; then
             echo "  - Install Homebrew, Rust, mise, Claude Code, apm"
             echo "  - Install Brewfile CLI tools (pre-commit, gitleaks, shellcheck, etc.)"
-            echo "  - Install mise-managed tools (node, pnpm, tirith)"
+            echo "  - Install mise-managed tools"
             echo "  - Install apm-managed skills"
             echo "  - Install Claude Code plugins declared in settings.json"
             echo "  - Enable pre-commit git hooks in this repo"
