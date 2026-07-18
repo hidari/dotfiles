@@ -2,7 +2,7 @@
 """Claude Code hook: セッション引き継ぎ検知器 (handoff-sentinel)。
 
 第1引数で分岐する: posttool (コンテキスト使用率の監視) / stop (ツール呼び出し破損の
-通算検知) / session (tmp/handoff.md の自動注入) / record (skill からの provenance 記録)。
+通算検知) / session (.cache/handoff.md の自動注入) / record (skill からの provenance 記録)。
 しきい値等の canonical はこのファイルの定数であり、HANDOFF_* 環境変数で上書きできる。
 検知機構の故障で作業を止めないため、全経路 fail-safe (無出力 + exit 0)。
 仕様: docs/superpowers/specs/2026-07-03-session-handoff-design.md
@@ -156,7 +156,7 @@ def handle_posttool(payload: dict[str, Any]) -> dict[str, Any] | None:
         return None
     context = (
         f"コンテキスト使用率がしきい値を超えた (推定 {tokens} tokens)。"
-        "session-handoff スキルを発動して引き継ぎを tmp/handoff.md に書き出し、"
+        "session-handoff スキルを発動して引き継ぎを .cache/handoff.md に書き出し、"
         "ユーザーにセッション切替 (/clear または新セッション) を促すこと。"
     )
     return {
@@ -226,7 +226,7 @@ def handle_stop(payload: dict[str, Any]) -> dict[str, Any] | None:
         return None
     reason = (
         "ツール呼び出しの破損が通算で規定回数に達した。停止する前に session-handoff スキルを"
-        "発動して引き継ぎを tmp/handoff.md に書き出し、ユーザーに Claude Code の再起動を"
+        "発動して引き継ぎを .cache/handoff.md に書き出し、ユーザーに Claude Code の再起動を"
         "促してから停止すること。"
     )
     return {"decision": "block", "reason": reason}
@@ -281,7 +281,7 @@ def _repo_id(repo_root: Path) -> str:
 
 def _handoff_path(repo_root: Path) -> Path:
     """引き継ぎ書のパス。record と session が同一パスを共有するための単一の真実。"""
-    return repo_root / "tmp" / "handoff.md"
+    return repo_root / ".cache" / "handoff.md"
 
 
 def _provenance_path(repo_root: Path) -> Path:
@@ -338,7 +338,7 @@ def handle_session(payload: dict[str, Any]) -> dict[str, Any] | None:
         # リネームに失敗したら注入もしない (毎セッション再注入される重複より欠落を選ぶ)
         return None
     prov.unlink(missing_ok=True)  # 消費した provenance を片付ける (二重注入防止)
-    context = f"前セッションからの引き継ぎ (tmp/{consumed.name} として保存済み):\n\n{text}"
+    context = f"前セッションからの引き継ぎ (.cache/{consumed.name} として保存済み):\n\n{text}"
     return {
         "hookSpecificOutput": {
             "hookEventName": "SessionStart",
