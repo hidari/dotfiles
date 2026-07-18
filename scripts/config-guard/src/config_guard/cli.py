@@ -1,8 +1,8 @@
 """リポジトリをスキャンして構造逸脱を検出する。
 
 stale なツール名参照 / committed settings.json の不変条件 / apm.lock.yaml の
-deployed_files が gitignore されているか(追記漏れ) / herdr keybinding の方向整合と
-chord 重複 / mise の global ツール pin が exact かを検査する。
+deployed_files が gitignore されているか(追記漏れ) / mise の global ツール pin が
+exact か / herdr keybinding の方向整合と chord 重複を検査する。
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ SKILLS_GLOB = "home/.claude/skills/*/SKILL.md"
 
 
 def scan(repo_root: str) -> list[Finding]:
-    """skills の allowed-tools / committed settings.json / herdr keybinding を検査する。"""
+    """リポジトリ設定の不変条件を検査する(検査項目はモジュール docstring 参照)。"""
     root = Path(repo_root).resolve()
     findings: list[Finding] = []
 
