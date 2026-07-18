@@ -30,6 +30,7 @@ SYMLINK_PAIRS=(
     "home/.config/herdr/scripts/herdr-unread|.config/herdr/scripts/herdr-unread"
     "home/.config/herdr/resources/herdr-cheatsheet.af|.config/herdr/resources/herdr-cheatsheet.af"
     "home/.config/herdr/resources/herdr-cheatsheet.png|.config/herdr/resources/herdr-cheatsheet.png"
+    "home/.config/herdr/plugins/config/herdr-file-viewer/config.toml|.config/herdr/plugins/config/herdr-file-viewer/config.toml"
     "home/.config/nvim|.config/nvim"
     "home/.config/ghostty/config|.config/ghostty/config"
     "home/.config/raycast/scripts|.config/raycast/scripts"

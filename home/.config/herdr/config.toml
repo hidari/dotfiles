@@ -134,6 +134,11 @@ key = "prefix+shift+u"
 type = "shell"
 command = "~/.config/herdr/scripts/herdr-unread"
 
+[[keys.command]]
+key = "prefix+f"
+type = "shell"
+command = "herdr plugin action invoke open-file-viewer --plugin herdr-file-viewer"
+
 # Legacy indexed shortcut config is still parsed for compatibility.
 # Prefer switch_tab, switch_workspace, and focus_agent for new configs.
 # [keys.indexed]
