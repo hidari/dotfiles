@@ -58,10 +58,22 @@ def test_body_is_empty_when_nothing_to_report() -> None:
     assert render_body([_status("just", "1.56.0", "1.56.0", "1.56.0")], CONFIG_PATH) == ""
 
 
-def test_major_only_update_omits_compatible_section() -> None:
-    body = render_body([_status("node", "24.18.0", "24.18.0", "26.5.0")], CONFIG_PATH)
+def test_major_only_update_produces_no_body() -> None:
+    # メジャー越えは単独では報告しない。上げないと決めた跳躍が残り続けると Issue が
+    # 永久に閉じず、常時開いた通知は見られなくなるため。
+    assert render_body([_status("node", "24.18.0", "24.18.0", "26.5.0")], CONFIG_PATH) == ""
 
-    assert "## 同メジャー" not in body
+
+def test_major_update_rides_along_when_a_compatible_update_exists() -> None:
+    # 単独では出さないが、Issue が立つときは付録として載せる (存在は見えるようにする)
+    statuses = [
+        _status("pnpm", "10.32.1", "10.34.5", "10.34.5"),
+        _status("node", "24.18.0", "24.18.0", "26.5.0"),
+    ]
+
+    body = render_body(statuses, CONFIG_PATH)
+
     assert "## メジャー越え" in body
+    assert "26.5.0" in body
     # メジャー越えは自動更新を勧めないので pin の書き換え行は出さない
     assert 'node = "26.5.0"' not in body
