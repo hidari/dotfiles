@@ -4,7 +4,5 @@
 # ここには既定から変えたキーと、そう決めた理由だけを置く。
 
 # e は viewer を suspend して端末を子に明け渡す blocking 経路 (docs/keys.md)。
-# 端末を共有する TUI エディタでないと viewer が子の終了を待ち続けて固まるため、
-# GUI エディタではなく nvim を割り当てる。$EDITOR より優先される。
-# GUI で開きたいときは非 blocking な O (既定の system opener) を使う。
+# 端末を直接使い編集の終了までブロックするエディタが要るため nvim を割り当てる。
 editor = "nvim"
