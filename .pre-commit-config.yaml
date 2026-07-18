@@ -4,7 +4,7 @@
 #   brew install pre-commit gitleaks ast-grep shellcheck
 #   pre-commit install
 #
-# - scripts/backup-tool, scripts/config-guard, scripts/tirith-hook, scripts/handoff-sentinel の ruff / mypy / pytest を uv 仮想環境で実行する。
+# - scripts/ 配下の Python ツールの ruff / mypy / pytest を uv 仮想環境で実行する (対象は下の hook 定義が真実源)。
 # - config-guard で skills / committed settings.json の stale なツール名参照・構造逸脱を検出する。
 # - gitleaks で staged 差分の secret / ユーザー名パス (/Users/<name>) 漏洩を弾く (.gitleaks.toml)。
 # - ast-grep で一般的な linter で表現できない構文レベルのルール (rules/) を検査する (sgconfig.yml)。
@@ -131,6 +131,62 @@ repos:
         entry: uv run --directory scripts/handoff-sentinel pytest -q
         pass_filenames: false
         files: ^(home/\.claude/hooks/handoff-sentinel\.py|scripts/handoff-sentinel/.*)$
+
+      - id: mise-update-notifier-ruff-check
+        name: mise-update-notifier ruff check
+        language: system
+        entry: uv run --directory scripts/mise-update-notifier ruff check src tests
+        pass_filenames: false
+        files: ^scripts/mise-update-notifier/(src|tests)/.*\.py$
+
+      - id: mise-update-notifier-ruff-format
+        name: mise-update-notifier ruff format --check
+        language: system
+        entry: uv run --directory scripts/mise-update-notifier ruff format --check src tests
+        pass_filenames: false
+        files: ^scripts/mise-update-notifier/(src|tests)/.*\.py$
+
+      - id: mise-update-notifier-mypy
+        name: mise-update-notifier mypy
+        language: system
+        entry: uv run --directory scripts/mise-update-notifier mypy
+        pass_filenames: false
+        files: ^scripts/mise-update-notifier/(src|tests)/.*\.py$
+
+      - id: mise-update-notifier-pytest
+        name: mise-update-notifier pytest
+        language: system
+        entry: uv run --directory scripts/mise-update-notifier pytest -q
+        pass_filenames: false
+        files: ^scripts/mise-update-notifier/(src|tests)/.*\.py$
+
+      - id: node-security-notifier-ruff-check
+        name: node-security-notifier ruff check
+        language: system
+        entry: uv run --directory scripts/node-security-notifier ruff check src tests
+        pass_filenames: false
+        files: ^scripts/node-security-notifier/(src|tests)/.*\.py$
+
+      - id: node-security-notifier-ruff-format
+        name: node-security-notifier ruff format --check
+        language: system
+        entry: uv run --directory scripts/node-security-notifier ruff format --check src tests
+        pass_filenames: false
+        files: ^scripts/node-security-notifier/(src|tests)/.*\.py$
+
+      - id: node-security-notifier-mypy
+        name: node-security-notifier mypy
+        language: system
+        entry: uv run --directory scripts/node-security-notifier mypy
+        pass_filenames: false
+        files: ^scripts/node-security-notifier/(src|tests)/.*\.py$
+
+      - id: node-security-notifier-pytest
+        name: node-security-notifier pytest
+        language: system
+        entry: uv run --directory scripts/node-security-notifier pytest -q
+        pass_filenames: false
+        files: ^scripts/node-security-notifier/(src|tests)/.*\.py$
 
       - id: gitleaks
         name: gitleaks (secret / user-path leak guard)

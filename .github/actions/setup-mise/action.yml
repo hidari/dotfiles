@@ -1,0 +1,21 @@
+name: Setup mise
+description: mise をバージョン pin した公式 tarball から取得し PATH に追加するローカル composite action。更新確認を開発機と同じ mise で走らせる。
+
+runs:
+  using: composite
+  steps:
+    - name: Install mise
+      shell: bash
+      run: |
+        mise_version="2026.7.0" # 開発機と揃える
+        # sha256 は展開前に内容を pin する堰。
+        # 再計算方法: リリースの SHASUMS256.txt を取得し該当行を引く
+        # curl -sSL https://github.com/jdx/mise/releases/download/v${mise_version}/SHASUMS256.txt | grep linux-x64.tar.gz
+        expected_sha256="a3ff8f55b61504e7d7556d7b0cac4413e0c85ef7279545d2c2c3f49bd2cf8472"
+        archive="$RUNNER_TEMP/mise.tar.gz"
+        "$GITHUB_WORKSPACE/scripts/ci/download-and-verify.sh" "https://github.com/jdx/mise/releases/download/v${mise_version}/mise-v${mise_version}-linux-x64.tar.gz" "$expected_sha256" "$archive"
+        extract_dir="$RUNNER_TEMP/mise-extract"
+        mkdir -p "$extract_dir"
+        tar -xzf "$archive" -C "$extract_dir"
+        # tarball は mise/bin/mise の構造を持つ
+        echo "$extract_dir/mise/bin" >> "$GITHUB_PATH"

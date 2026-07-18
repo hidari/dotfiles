@@ -1,0 +1,78 @@
+name: mise update check
+
+# exact pin したツールの更新を週次で調べ、単一の Issue を更新し続ける。
+# 更新が無くなればその Issue を閉じるので、Issue 一覧が溜まらない。
+on:
+  schedule:
+    - cron: "0 1 * * 1" # 毎週月曜 10:00 JST (01:00 UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: mise-update-check
+  cancel-in-progress: false
+
+env:
+  ISSUE_TITLE: "mise: ツール更新のお知らせ"
+  MISE_CONFIG: home/.config/mise/config.toml
+
+jobs:
+  check:
+    name: mise outdated (bump)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Setup mise
+        uses: ./.github/actions/setup-mise
+
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
+
+      - name: Collect updates
+        id: collect
+        run: |
+          summary="$(uv run --directory scripts/mise-update-notifier mise-update-notifier \
+            --config "$MISE_CONFIG" --body-out "$RUNNER_TEMP/body.md")"
+          echo "$summary"
+          echo "has_updates=$(echo "$summary" | jq -r .has_updates)" >> "$GITHUB_OUTPUT"
+
+      - name: Upsert issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HAS_UPDATES: ${{ steps.collect.outputs.has_updates }}
+        run: |
+          set -euo pipefail
+          # タイトル一致で既存 Issue を引く。--search は部分一致なので取得後に厳密比較する。
+          existing="$(gh issue list --state open --json number,title \
+            --jq ".[] | select(.title == \"$ISSUE_TITLE\") | .number" | head -1)"
+
+          if [ "$HAS_UPDATES" != "true" ]; then
+            if [ -n "$existing" ]; then
+              gh issue close "$existing" --comment "更新は全て取り込まれました。"
+              echo "closed #$existing"
+            else
+              echo "更新なし / 開いている Issue もなし"
+            fi
+            exit 0
+          fi
+
+          {
+            cat "$RUNNER_TEMP/body.md"
+            echo
+            echo "---"
+            echo
+            echo "この Issue は mise update check が週次で上書きします。"
+            echo "更新を取り込むと次回の実行で自動的に閉じます。"
+          } > "$RUNNER_TEMP/issue.md"
+
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --body-file "$RUNNER_TEMP/issue.md"
+            echo "updated #$existing"
+          else
+            gh issue create --title "$ISSUE_TITLE" --body-file "$RUNNER_TEMP/issue.md" \
+              --assignee "${{ github.repository_owner }}"
+          fi
