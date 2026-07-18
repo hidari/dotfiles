@@ -1,0 +1,101 @@
+name: mise update check
+
+# exact pin したツールの更新を週次で調べ、単一の Issue を更新し続ける。
+# 更新が無くなればその Issue を閉じるので、Issue 一覧が溜まらない。
+on:
+  schedule:
+    - cron: "0 1 * * 1" # 毎週月曜 10:00 JST (01:00 UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: mise-update-check
+  cancel-in-progress: false
+
+env:
+  ISSUE_TITLE: "mise: ツール更新のお知らせ"
+  MISE_CONFIG: home/.config/mise/config.toml
+
+jobs:
+  check:
+    name: mise pin update check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Setup mise
+        uses: ./.github/actions/setup-mise
+
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
+
+      - name: Collect updates
+        id: collect
+        env:
+          # mise が GitHub backend の版を引くとき未認証だと共有 IP の rate limit に当たる
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # --project は cwd を repo root のまま保つ。--directory だと cwd が移動し
+          # 相対パスの $MISE_CONFIG が解決できない。
+          summary="$(uv run --project scripts/mise-update-notifier mise-update-notifier \
+            --config "$MISE_CONFIG" --body-out "$RUNNER_TEMP/body.md")"
+          echo "$summary"
+          # コマンド置換の中で失敗させると errexit が伝播しないので、単独代入で jq を走らせる
+          has_updates="$(jq -r .has_updates <<<"$summary")"
+          # 想定外の値 (空文字含む) を「更新なし」に化けさせない。化けると Issue が黙って閉じる
+          case "$has_updates" in
+            true | false) ;;
+            *)
+              echo "has_updates が true/false ではありません: '$has_updates'" >&2
+              exit 1
+              ;;
+          esac
+          echo "has_updates=$has_updates" >> "$GITHUB_OUTPUT"
+
+      - name: Upsert issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HAS_UPDATES: ${{ steps.collect.outputs.has_updates }}
+          ISSUE_ASSIGNEE: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          # タイトルの厳密一致で既存 Issue を引く (--search は部分一致なので使わない)。
+          # 題を jq プログラムへ文字列補間せず env 経由で渡す。
+          existing="$(gh issue list --state open --limit 100 --json number,title \
+            --jq '[.[] | select(.title == env.ISSUE_TITLE) | .number] | first // empty')"
+
+          if [ "$HAS_UPDATES" = "false" ]; then
+            if [ -n "$existing" ]; then
+              gh issue close "$existing" --comment "更新は全て取り込まれました。"
+              echo "closed #$existing"
+            else
+              echo "更新なし / 開いている Issue もなし"
+            fi
+            exit 0
+          fi
+
+          if [ "$HAS_UPDATES" != "true" ]; then
+            echo "HAS_UPDATES が true/false ではありません: '$HAS_UPDATES'" >&2
+            exit 1
+          fi
+
+          {
+            cat "$RUNNER_TEMP/body.md"
+            echo
+            echo "---"
+            echo
+            echo "この Issue は mise update check が週次で上書きします。"
+            echo "更新を取り込むと次回の実行で自動的に閉じます。"
+          } > "$RUNNER_TEMP/issue.md"
+
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --body-file "$RUNNER_TEMP/issue.md"
+            echo "updated #$existing"
+          else
+            gh issue create --title "$ISSUE_TITLE" --body-file "$RUNNER_TEMP/issue.md" \
+              --assignee "$ISSUE_ASSIGNEE"
+          fi

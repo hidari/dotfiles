@@ -6,47 +6,15 @@ scripts/backup-tool/backup.conf
 scripts/backup-tool/backup.conf.bak
 scripts/backup-tool/backup.toml
 
-# Python (backup-tool)
-scripts/backup-tool/.venv/
-scripts/backup-tool/**/__pycache__/
-scripts/backup-tool/.ruff_cache/
-scripts/backup-tool/.mypy_cache/
-scripts/backup-tool/.pytest_cache/
-scripts/backup-tool/.coverage
-
-# Python (config-guard)
-scripts/config-guard/.venv/
-scripts/config-guard/**/__pycache__/
-scripts/config-guard/.ruff_cache/
-scripts/config-guard/.mypy_cache/
-scripts/config-guard/.pytest_cache/
-scripts/config-guard/.coverage
-
-# Python (node-security-notifier)
-scripts/node-security-notifier/.venv/
-scripts/node-security-notifier/**/__pycache__/
-scripts/node-security-notifier/.ruff_cache/
-scripts/node-security-notifier/.mypy_cache/
-scripts/node-security-notifier/.pytest_cache/
-scripts/node-security-notifier/.coverage
-
-# Python (tirith-hook)
-scripts/tirith-hook/.venv/
-scripts/tirith-hook/**/__pycache__/
-scripts/tirith-hook/.ruff_cache/
-scripts/tirith-hook/.mypy_cache/
-scripts/tirith-hook/.pytest_cache/
-scripts/tirith-hook/.coverage
-
-# Python (handoff-sentinel)
-scripts/handoff-sentinel/.venv/
-scripts/handoff-sentinel/**/__pycache__/
-scripts/handoff-sentinel/.ruff_cache/
-scripts/handoff-sentinel/.mypy_cache/
-scripts/handoff-sentinel/.pytest_cache/
-
-# Python (Claude Code hooks — フック実行/テストで生成される bytecode)
-home/.claude/hooks/__pycache__/
+# Python の再生成物 (uv の仮想環境・bytecode・各種ツールキャッシュ)
+# ツールごとにパスを列挙するとツール追加時の追記漏れで生成物が tracked になるため、
+# パターンで畳んで場所に依存させない。
+**/.venv/
+**/__pycache__/
+**/.ruff_cache/
+**/.mypy_cache/
+**/.pytest_cache/
+**/.coverage
 
 # Logs
 *.log

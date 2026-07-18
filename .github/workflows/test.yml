@@ -176,6 +176,33 @@ jobs:
       - name: Run config-guard on repo
         run: uv run config-guard ../..
 
+  mise-update-notifier:
+    name: mise-update-notifier (python)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scripts/mise-update-notifier
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Install uv
+        uses: ./.github/actions/setup-uv
+
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      - name: Ruff check
+        run: uv run ruff check src tests
+
+      - name: Ruff format check
+        run: uv run ruff format --check src tests
+
+      - name: Mypy strict
+        run: uv run mypy src tests
+
+      - name: Pytest
+        run: uv run pytest -q
+
   node-security-notifier:
     name: node-security-notifier (python)
     runs-on: ubuntu-latest
