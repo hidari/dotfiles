@@ -27,6 +27,7 @@
 - README などのドキュメントにディレクトリ構成ツリーを載せないこと（`ls` の二重管理になり必ず drift する）。新規参入者の orientation はトップレベルの役割を示す簡潔な説明で足り、rot した既存ツリーは更新ではなくセクションごと削除を優先する
 - 機械検証可能な制約（regex・長さ上限・enum など）を schema/型定義と散文（指示文・README・コメント）の両方に literal で書かないこと。canonical な定義を単一の真実とし、散文は値を再掲せずファイル名で参照する（理由: 同一制約の二重記述は CI が捕捉できない形で drift する。例: seed_id charset を schema `{1,128}` と指示文 `+$` に二重記述して上限が drift し、長い入力で全体が reject される回帰を埋め込んだ。上の「ディレクトリツリー drift」と同じ二重管理の問題）
 - `node --test` にはテストファイルか glob を渡すこと。ディレクトリ形式は使わない（理由: Node のバージョンによってはディレクトリをエントリモジュールとして解決し `MODULE_NOT_FOUND` で失敗する。Node 26 で確認）
+- `node --test --test-name-pattern` で対象を絞ったときの実行件数は `tests - skipped` で判定すること。`tests` は非マッチも含む（理由: pattern を間違えると 0 件実行なのに `fail 0` になり、変異注入ハーネスが「壊しても赤くならない」と読んで生きた pin を dead と誤報告する。ハーネス側で「対象テストが 1 件も走っていない」を判定不成立として明示的に落とすこと）
 - ログメッセージを追加する際はシンプルで判別しやすい書き方をし、絵文字は控えること。
 - ログメッセージはシステム内部ログは日本語で、フロント側など外部に見えるものは英語にすること
 - コード内のコメントは日本語で行う
@@ -37,6 +38,8 @@
 - `git push` を `| tail` 等のパイプや出力加工に繋がず、push 後は `git ls-remote --heads origin <branch>`（リモート ref 存在）と `git status -sb`（upstream tracking）で成否を直接確認すること（理由: パイプ先の exit code が push 本体の失敗/未完を隠し、pre-push hook 完走と ref transfer 完了を取り違える）
 - 成否を持つ長時間コマンド（`gh run watch`・`gh pr checks --watch`・`gh pr merge` 等）の結論は exit code ではなく専用クエリ（`gh run view <id> --json conclusion` 等）で直接確認し、`<cmd>; echo "EXIT: $?"` のように `$?` を上書きする後続コマンドを連結しないこと
   - 理由: 末尾コマンドの exit が本体の結論を隠し、failure を success と誤認する。上の `git push` ルールの一般形
+- exit code で成否を判定するコマンドは、パイプにも後続コマンドにも繋がず単独で実行すること。出力を絞りたいときは `cmd > <file> 2>&1; echo "EXIT=$?"` でファイルに落としてから別コマンドで読む
+  - 理由: パイプすると最後のコマンドの exit code になり本体の失敗が隠れる。回避策の `${PIPESTATUS[0]}` は zsh では常に空になる（配列名が小文字の `$pipestatus`）ため、取得に失敗したこと自体に気づけない。実際 eslint を `| tail` して「exit 0 = 事前状態クリーン」と誤報告し、実測では 105 problems で赤だった。上 2 つ（`git push` / 長時間コマンド）の一般形で、あちらが「繋ぐな」を規定するのに対しこちらは「繋がずに済ませる書き方」を規定する
 - 保護ブランチ（main 等）へ直 push する前の保護判定を、classic API (`gh api repos/<owner>/<repo>/branches/main/protection`) の 404 だけで「保護なし」と結論しないこと。repository ruleset は別系統で classic API に出ず 404 になるため、`gh api repos/<owner>/<repo>/rulesets`（必要なら `gh api repos/<owner>/<repo>/rules/branches/<branch>`）も確認すること（理由: classic 404 を「保護なし」と誤判定すると、ruleset 保護 [pull_request / required_status_checks 等] を bypass 特権で素通り push し、required checks / PR レビューを欠落させる。実際 classic 404 でも ruleset で保護されているリポジトリが存在する）
 - ユーザーの「実機で全部 OK」報告や症状の伝聞など、他者由来の報告・前提を検証済みの網羅的事実として扱わないこと。健全と結論する前に壊れやすい配置（端・境界・空・最大・最初/最後）を列挙して報告がそれを踏んだか確かめ、未確認の前提は subagent の並列 fan-out に渡す前に自分の再現で確定させる（理由: 報告は真実でも網羅ではない[実機 OK は壊れるグリッド端カードを未踏なだけだった]。fan-out は誤前提を検証せず全経路へ増幅する[未確認前提を 25 エージェントに配布し正しい仮説 7 件を誤棄却した]。上の live-smoke ルールと同じ「狭い signal ≠ 広い主張」族で some-path pass ≠ all-path healthy）
 - 1Passwordコマンド `op` の使用時、認証（`op signin`, `op whoami`）は使わなくともユーザーダイアログにて承認できるので、そのまま `op read` などを実行する
@@ -82,6 +85,7 @@
   - テスト群を読めば仕様が分かる状態を目指すこと
   - 変異注入（プロダクトコードを一時的に壊してテストが赤くなるか確かめる検証）で復元するとき、同じファイルに未コミット編集があるなら `git checkout -- <file>` を使わないこと。cp でバックアップを取るか変異箇所だけを戻す（理由: checkout は変異の直前ではなく HEAD へ戻すので、未コミットの編集ごと巻き戻して失う）
   - 変異注入は一度に 1 箇所ずつ隔離して行うこと。複数同時に入れると片方の変異がもう片方の効果を隠してテストが緑のままになり、生きた pin を dead pin と誤読する。また変異で赤くなっても pin が有効とは限らない: 赤は「テストがその変更を検出できる」証明にすぎず、守る分岐が本番の入力経路で到達可能か（上流アダプタが入力を正規化・丸め済みで踏まれない分岐でないか）まで確認する。到達不能分岐の pin は赤でも dead（理由: isClickEvent ガードの変異は赤くなったがアダプタが入力を既に丸めていて本番到達不能な分岐だった。2 変数同時変異では片方がもう片方を隠して緑になり pin が死んだと誤読しかけた。上の「緑 = dead pin」の逆側の落とし穴で、赤は必要条件だが十分条件ではない）
+  - 多段の検査を順に行う処理で特定の検査を pin するときは、テストデータが手前の検査をすべて通過する形にすること。テストデータは「狙った検査だけが落とす」最小の差分にする（理由: 手前で落ちていると狙った検査を壊してもテストは pass のままで dead pin になる。実際 env 間の設定入れ替えを検出する「URL のホスト名と env 名の対応」検査を pin したテストが、片方の env の値だけを差し替えていたため手前の「env 間で値が重複していないか」検査に捕まっており、対象の検査を壊しても緑だった。テストが赤いことは「意図した検査が赤くしている」ことを意味しない。上の「緑 = dead pin」の原因側の類型）
 - shell-out / 外部CLIオーケストレーション（`Command`/subprocess 起動、ssh/scp 連鎖、cmd.exe/sh のクォート・連結を組み立てるコード）は、純粋ロジック（argv 構築・パス変換等）のユニットテストが緑でも「完了」としないこと。full chain を実環境で一度 live smoke 実行し、シェル/CLIのセマンティクス（連結・クォート・PATH 解決・exit code・OS 差）がランタイムで壊れていないことを確認する（理由: cmd.exe の `&` 連鎖が最初の if 偽で全体 no-op になる類のバグはユニットテストでは原理的に捕捉できず、実機実行でしか露見しない。winvm の mkdir→scp→remote-exec 連鎖で実際に踏んだ。subagent-driven で委譲する場合も各境界の検証に live smoke を含めること）
 - テストから他スクリプト/設定のデータ構造（bash 配列・JSON・TOML 等）を検証するときは、regex での text-parse を避け、定義ブロックを source / import して言語自身に解釈させること（理由: regex parse はその言語のパーサが無視する要素[コメント等]を誤読して phantom entry を生み、区切り・分割規約をテスト側に二重実装して drift させる。bootstrap の SYMLINK_PAIRS を sed で parse し配列内コメントを phantom source と誤読しかけた。上の「二重管理 → drift」の一種）
 - E2Eテストは公式 Playwright Test Agents（`npx playwright init-agents --loop=claude` で生成される Planner / Generator / Healer）を使用して作成すること
