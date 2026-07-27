@@ -190,6 +190,41 @@ function kill-port() {
 }
 
 ########################################
+# Claude Code 起動
+
+# タスクリスト ID が未知なら知らせる。Claude Code は未知の ID でも黙って新しいリストを
+# 作るため、typo は「履歴が分裂している」形でしか後から気づけない。
+# 新規作成そのものは正当な操作なのでブロックはしない。
+function _claude_task_list_notice() {
+  local config_dir="$1"
+  [ -n "$CLAUDE_CODE_TASK_LIST_ID" ] || return 0
+  [ -d "$config_dir/tasks/$CLAUDE_CODE_TASK_LIST_ID" ] && return 0
+  echo "新しいタスクリストを作成します: $CLAUDE_CODE_TASK_LIST_ID" >&2
+}
+
+# 個人アカウント。既定の設定ディレクトリを使うため CLAUDE_CONFIG_DIR は設定しない。
+# 明示指定すると Keychain の service 名の導出が変わって再ログインを誘発しうる
+# (既定はサフィックス無し、指定時は絶対パスの sha256 先頭 8 桁)。どちらの条件で
+# 分岐しているかは未確認なので、未確認の前提に賭けず変数に触れない。
+# command claude で関数自身の再帰を避ける。
+function claude() {
+  _claude_task_list_notice "$HOME/.claude"
+  command claude "$@"
+}
+
+# 仕事アカウント。CLAUDE_CONFIG_DIR は存在しないディレクトリを指しても警告されず、
+# その場所に初期状態の設定ディレクトリを作って起動してしまう。渡す前に存在を確認する。
+function claude-hamiltonian() {
+  local config_dir="$HOME/.claude-hamiltonian"
+  if [ ! -d "$config_dir" ]; then
+    echo "設定ディレクトリが見つかりません: $config_dir" >&2
+    return 1
+  fi
+  _claude_task_list_notice "$config_dir"
+  CLAUDE_CONFIG_DIR="$config_dir" command claude "$@"
+}
+
+########################################
 # その他
 
 # PATHの重複をなくすやつ
