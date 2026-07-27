@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: closed
 ---
 
 # feat: Claude Code の 2 アカウント運用で設定を共有する
@@ -226,6 +226,7 @@ CLI は書き込み時にチルダを展開する。読み込み側が手書き�
 起動が要る。
 
 1 だけ直しても 2 が残る限り skip-worktree は外せないので、両方まとめて別 Issue で扱う。
+調査内容は [Issue #8](../../8_settings.json%20の%20live%20専用パスを変数化して%20skip-worktree%20を解消する/issue.md) へ切り出した。
 
 ### symlink が実ファイルに置き換わる可能性
 
