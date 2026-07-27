@@ -36,7 +36,7 @@ teardown() {
 @test "_claude_task_list_notice: warns when the task list id is unknown" {
     load_zshrc_claude_functions
 
-    CLAUDE_CODE_TASK_LIST_ID=nonexistent run _claude_task_list_notice "$TEST_HOME/.claude"
+    run _claude_task_list_notice "$TEST_HOME/.claude" nonexistent
 
     # 新規作成は正当な操作なので、知らせるだけでブロックはしない
     [ "$status" -eq 0 ]
@@ -47,17 +47,17 @@ teardown() {
     mkdir -p "$TEST_HOME/.claude/tasks/dotfiles"
     load_zshrc_claude_functions
 
-    CLAUDE_CODE_TASK_LIST_ID=dotfiles run _claude_task_list_notice "$TEST_HOME/.claude"
+    run _claude_task_list_notice "$TEST_HOME/.claude" dotfiles
 
     [ "$status" -eq 0 ]
     # 既知の ID で警告が出ると常時ノイズになり、本当の typo を見落とす
     [ -z "$output" ]
 }
 
-@test "_claude_task_list_notice: stays silent when no task list id is set" {
+@test "_claude_task_list_notice: stays silent when no task list id is given" {
     load_zshrc_claude_functions
 
-    run _claude_task_list_notice "$TEST_HOME/.claude"
+    run _claude_task_list_notice "$TEST_HOME/.claude" ""
 
     [ "$status" -eq 0 ]
     [ -z "$output" ]
@@ -70,10 +70,22 @@ teardown() {
     mkdir -p "$TEST_HOME/.claude-hamiltonian"
     load_zshrc_claude_functions
 
-    CLAUDE_CODE_TASK_LIST_ID=dotfiles run _claude_task_list_notice "$TEST_HOME/.claude-hamiltonian"
+    run _claude_task_list_notice "$TEST_HOME/.claude-hamiltonian" dotfiles
 
     [ "$status" -eq 0 ]
     assert_contains "$output" "新しいタスクリストを作成します: dotfiles"
+}
+
+@test "_claude_task_list_notice: ignores the ambient environment variable" {
+    # グローバル参照が残っていると、呼び出し側が渡した ID ではなく前置の値を見てしまう。
+    # 導出した ID と手打ちの ID が食い違ったときに誤った判定をする
+    mkdir -p "$TEST_HOME/.claude/tasks/derived"
+    load_zshrc_claude_functions
+
+    CLAUDE_CODE_TASK_LIST_ID=nonexistent run _claude_task_list_notice "$TEST_HOME/.claude" derived
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
 }
 
 # =============================================================================

@@ -195,11 +195,14 @@ function kill-port() {
 # タスクリスト ID が未知なら知らせる。Claude Code は未知の ID でも黙って新しいリストを
 # 作るため、typo は「履歴が分裂している」形でしか後から気づけない。
 # 新規作成そのものは正当な操作なのでブロックはしない。
+# ID は呼び出し側が解決した値を受け取る。グローバルを直接読むと、導出した ID ではなく
+# 前置の値を見てしまい判定がずれる。
 function _claude_task_list_notice() {
   local config_dir="$1"
-  [ -n "$CLAUDE_CODE_TASK_LIST_ID" ] || return 0
-  [ -d "$config_dir/tasks/$CLAUDE_CODE_TASK_LIST_ID" ] && return 0
-  echo "新しいタスクリストを作成します: $CLAUDE_CODE_TASK_LIST_ID" >&2
+  local task_list_id="$2"
+  [ -n "$task_list_id" ] || return 0
+  [ -d "$config_dir/tasks/$task_list_id" ] && return 0
+  echo "新しいタスクリストを作成します: $task_list_id" >&2
 }
 
 # 有効な設定ディレクトリを解決する。引数があればそれを、無ければ前置で渡された
@@ -239,7 +242,7 @@ function _claude_task_list_id() {
 function claude() {
   local config_dir
   config_dir="$(_claude_config_dir)" || return 1
-  _claude_task_list_notice "$config_dir"
+  _claude_task_list_notice "$config_dir" "$CLAUDE_CODE_TASK_LIST_ID"
   command claude "$@"
 }
 
@@ -248,7 +251,7 @@ function claude() {
 function claude-hamiltonian() {
   local config_dir
   config_dir="$(_claude_config_dir "$HOME/.claude-hamiltonian")" || return 1
-  _claude_task_list_notice "$config_dir"
+  _claude_task_list_notice "$config_dir" "$CLAUDE_CODE_TASK_LIST_ID"
   CLAUDE_CONFIG_DIR="$config_dir" command claude "$@"
 }
 
