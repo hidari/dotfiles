@@ -63,6 +63,12 @@ B: CLAUDE_CODE_TASK_LIST_ID=dotfiles CLAUDE_CONFIG_DIR=<hamiltonian> claude
 実体に解決されるため実害は消えるが、3 つ目のアカウントを足したときに再燃するので直す。
 `CLAUDE_CONFIG_DIR` を設定しない方針は維持し、外から設定されていれば尊重する形にする。
 
+尊重するなら検査も伴わなければならない。存在検査は `claude-hamiltonian()` にしか無く、
+`CLAUDE_CONFIG_DIR=<typo> claude` は素通りして初期状態の設定ディレクトリを生やす。
+解決と検査を `_claude_config_dir()` に閉じ、2 つのランチャを「解決 → 通知 → 起動」の
+同形にする。アカウントを固定する側は引数でディレクトリを名指しし、外から渡された値に
+引きずられないようにする。
+
 ## タスク
 
 - [x] bootstrap にホーム内リンク用の配列を追加する
@@ -70,6 +76,7 @@ B: CLAUDE_CODE_TASK_LIST_ID=dotfiles CLAUDE_CONFIG_DIR=<hamiltonian> claude
   - [x] 既存の `SYMLINK_PAIRS` の処理と混ざらないこと
 - [x] `~/.claude-hamiltonian/tasks` を `~/.claude/tasks` へ向ける
 - [x] `claude()` がタスクリストの確認先に `CLAUDE_CONFIG_DIR` を尊重するよう直す
+- [x] 設定ディレクトリの解決と存在検査を `_claude_config_dir()` に閉じ、2 つのランチャを同形にする
 - [x] テストを追加し、変異注入で赤くなることを確認する
 - [x] 両アカウントで同じリストが見えることを live smoke で確認する
 

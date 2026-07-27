@@ -53,12 +53,16 @@ SYMLINK_PAIRS=(
 )
 
 # ホーム内で完結するシンボリックリンク定義（ソース|ターゲット、どちらも $HOME 相対）。
-# リポジトリに実体を持たないローカル状態のうち、2 アカウント間で共有したいものを束ねる。
-# SYMLINK_PAIRS は source を $DOTFILES_DIR 相対で解決するため、この形は表現できない。
+# SYMLINK_PAIRS と分けているのはパスの解決規則が違うからだけではない。あちらの source は
+# git 管理下で必ず実在する（欠けていればバグ）のに対し、こちらの source は未追跡の
+# ローカル状態で、無ければ作る。この差は共有ループへ per-entry の分岐を入れない限り
+# 1 本の配列では表現できないため、記法だけを揃えても統合はできない。
 HOME_SYMLINK_PAIRS=(
     # タスクリストはアカウントではなくプロジェクトに紐づく作業成果物なので、
     # どちらのアカウントから起動しても同じ実体を読み書きさせる。
-    # 共有してよいと判断した根拠は docs/issues の Issue #9 を参照。
+    # 同時アクセスは tasks/<id>/.lock があることから処理系が扱う前提と判断した。
+    # 実体を個人側に置くのは意図的な非対称。中立な置き場へ移す余地はあるが、
+    # 既存タスクの移行を bootstrap が担わないため今は採らない。
     ".claude/tasks|.claude-hamiltonian/tasks"
 )
 
@@ -349,11 +353,12 @@ install_apm_skills() {
 # source 側が無いまま張るとリンク先の無い symlink が残り、参照した側が黙って失敗するため
 # 先に実体を用意する。SYMLINK_PAIRS の source はリポジトリに実在する前提なのでこの手当ては要らない。
 setup_home_symlinks() {
+    local pair source target
     for pair in "${HOME_SYMLINK_PAIRS[@]}"; do
-        local source="${pair%%|*}"
-        local target="${pair##*|}"
-        ensure_directory "$HOME/$source"
-        create_symlink "$HOME/$source" "$HOME/$target"
+        source="$HOME/${pair%%|*}"
+        target="$HOME/${pair##*|}"
+        ensure_directory "$source"
+        create_symlink "$source" "$target"
     done
 }
 
@@ -366,10 +371,11 @@ setup_dotfiles() {
     ensure_directory "$HOME/.local/bin"
 
     # シンボリックリンクを作成
+    local pair source target
     for pair in "${SYMLINK_PAIRS[@]}"; do
-        local source="${pair%%|*}"
-        local target="${pair##*|}"
-        create_symlink "$DOTFILES_DIR/$source" "$HOME/$target"
+        source="$DOTFILES_DIR/${pair%%|*}"
+        target="$HOME/${pair##*|}"
+        create_symlink "$source" "$target"
     done
 
     # ホーム内で完結するリンクを作成

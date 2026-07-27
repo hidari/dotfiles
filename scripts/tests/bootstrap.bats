@@ -74,7 +74,6 @@ teardown() {
     [ "$status" -eq 0 ]
     # bootstrap.sh の該当分岐は log "Already linked: $target" ([INFO] 接頭辞) のみを
     # 出力し、日本語版のメッセージは存在しない (コメントに 既にリンク の語があるだけ)。
-    # any-of で弱めていた元のアサーションを厳密な単一アサーションへ強化する。
     assert_contains "$output" "[INFO] Already linked: $target"
 }
 
@@ -164,8 +163,7 @@ teardown() {
 
     [ "$status" -eq 0 ]
     # bootstrap.sh の該当分岐は echo "[DRY-RUN] ln -sf $source $target" しか出力せず、
-    # "dry" / "Dry" 表記は存在しない。any-of で弱めていた元のアサーションを
-    # 実際の出力全体に一致する厳密な単一アサーションへ強化する。
+    # "dry" / "Dry" 表記は存在しない。
     assert_contains "$output" "[DRY-RUN] ln -sf $source $target"
     [ ! -L "$target" ]
 }
@@ -395,7 +393,7 @@ uncovered_symlink_targets() {
     # 存在しないファイルを指す壊れた symlink を張るため、ここで drift を捕捉する。
     # 実配列を source して回すことで、テキスト parse の脆さ (配列内コメントを
     # phantom source と誤読する等) を避ける。
-    load_symlink_pairs
+    load_pairs_array SYMLINK_PAIRS
     # 空配列 (slice 破綻) での vacuous pass を防ぐ negative guard
     [ "${#SYMLINK_PAIRS[@]}" -gt 0 ]
 
@@ -433,7 +431,7 @@ uncovered_symlink_targets() {
     # home/X は ~/X を mirror する規約で、home/ 配下は allowlist を除き全て symlink 対象。
     # 未カバー集合が allowlist と一致しない = 新 config の配線し忘れ (未カバー増) か
     # stale allowlist (pair 追加後の消し忘れ) を意味する drift。
-    load_symlink_pairs
+    load_pairs_array SYMLINK_PAIRS
     # 空配列 (slice 破綻) での vacuous pass を防ぐ negative guard
     [ "${#SYMLINK_PAIRS[@]}" -gt 0 ]
 
@@ -509,7 +507,7 @@ unmirrored_claude_targets() {
 @test "SYMLINK_PAIRS: shared Claude config is mirrored to the second account" {
     # 共有ファイルを増やしたとき 2 アカウント目の配線を忘れる drift を捕捉する。
     # 散文の注意書きではなくテストで縛る (CLAUDE.md の linter 委譲原則)。
-    load_symlink_pairs
+    load_pairs_array SYMLINK_PAIRS
     # 空配列 (slice 破綻) での vacuous pass を防ぐ negative guard
     [ "${#SYMLINK_PAIRS[@]}" -gt 0 ]
 
@@ -535,9 +533,8 @@ unmirrored_claude_targets() {
 # HOME_SYMLINK_PAIRS / setup_home_symlinks tests
 # =============================================================================
 #
-# ホーム内で完結する symlink。リポジトリをソースに持たないローカル状態のうち、
-# 2 アカウント間で共有したいものを束ねる。SYMLINK_PAIRS とは source の解決規則が
-# 違う (あちらは $DOTFILES_DIR 相対) ため配列も処理も分けている。
+# SYMLINK_PAIRS とは配列も処理も別なので、独立に pin する。
+# 配列を分けている理由は bootstrap.sh 側のコメントが持つ。
 
 @test "setup_home_symlinks: links the target to the source inside home" {
     HOME_SYMLINK_PAIRS=(".src/dir|.dst/dir")
@@ -593,7 +590,7 @@ unmirrored_claude_targets() {
 @test "HOME_SYMLINK_PAIRS: shares the claude task list with the second account" {
     # 両アカウントが同じタスクリストを読み書きするための配線。
     # 参照先が分かれると同じ ID を指定しても進捗が 2 つに割れる
-    load_home_symlink_pairs
+    load_pairs_array HOME_SYMLINK_PAIRS
     [ "${#HOME_SYMLINK_PAIRS[@]}" -gt 0 ]
 
     local found=0 pair
@@ -606,26 +603,29 @@ unmirrored_claude_targets() {
 }
 
 @test "HOME_SYMLINK_PAIRS: entries are home relative, not repo relative" {
-    # home/ 始まりは SYMLINK_PAIRS の記法。混ざると $HOME/home/... を指す壊れた
-    # リンクになるため、配列の取り違えをここで捕捉する
-    load_home_symlink_pairs
+    # リポジトリ相対の記法が混ざると $HOME/home/... のような実在しない場所を指す。
+    # しかも source 側は ensure_directory が無条件に作るため、壊れたリンクという
+    # 症状すら出ずに bogus なディレクトリが生えて終わる。
+    # 取り違えたエントリは必ずリポジトリに実在するパスを名乗るので、それを直接見る
+    # (SYMLINK_PAIRS の source が実在することは上のテストが pin している)
+    load_pairs_array HOME_SYMLINK_PAIRS
     [ "${#HOME_SYMLINK_PAIRS[@]}" -gt 0 ]
 
     local pair source target
     for pair in "${HOME_SYMLINK_PAIRS[@]}"; do
         source="${pair%%|*}"
         target="${pair##*|}"
-        refute_contains "$source" "home/.claude"
-        refute_contains "$target" "home/.claude"
         [ -n "$source" ]
         [ -n "$target" ]
         [ "$source" != "$target" ]
+        [ ! -e "$REPO_ROOT/$source" ]
+        [ ! -e "$REPO_ROOT/$target" ]
     done
 }
 
-@test "load_home_symlink_pairs: fails loudly when the array is missing" {
-    # 配列名が変わったのに黙って空を source すると、上の 2 件が
-    # 「1 件も検査していないのに緑」になる
+@test "load_pairs_array: fails loudly when the array is missing" {
+    # 配列名が変わったのに黙って空を source すると、配列を検査するテストが
+    # 「1 件も見ていないのに緑」になる
     run load_pairs_array NONEXISTENT_PAIRS
 
     [ "$status" -ne 0 ]

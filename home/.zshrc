@@ -202,26 +202,39 @@ function _claude_task_list_notice() {
   echo "新しいタスクリストを作成します: $CLAUDE_CODE_TASK_LIST_ID" >&2
 }
 
-# 個人アカウント。既定の設定ディレクトリを使うため CLAUDE_CONFIG_DIR は設定しない。
-# 明示指定すると Keychain の service 名の導出が変わって再ログインを誘発しうる
-# (既定はサフィックス無し、指定時は絶対パスの sha256 先頭 8 桁)。どちらの条件で
-# 分岐しているかは未確認なので、未確認の前提に賭けず変数に触れない。
-# ただし外から前置で渡された値は尊重する。確認先を決め打ちにすると、起動するアカウントと
-# タスクリストを確認するアカウントがずれて警告が食い違う。
-# command claude で関数自身の再帰を避ける。
-function claude() {
-  _claude_task_list_notice "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-  command claude "$@"
-}
-
-# 仕事アカウント。CLAUDE_CONFIG_DIR は存在しないディレクトリを指しても警告されず、
-# その場所に初期状態の設定ディレクトリを作って起動してしまう。渡す前に存在を確認する。
-function claude-hamiltonian() {
-  local config_dir="$HOME/.claude-hamiltonian"
+# 有効な設定ディレクトリを解決する。引数があればそれを、無ければ前置で渡された
+# CLAUDE_CONFIG_DIR を、それも無ければ既定を使う。
+# CLAUDE_CONFIG_DIR は存在しないディレクトリを指しても警告されず、その場所に初期状態の
+# 設定ディレクトリを作って起動してしまうため、渡す前にここで止める。解決と検査を 1 箇所に
+# 閉じることで、片方のランチャだけが検査するという非対称を作らない。
+function _claude_config_dir() {
+  local config_dir="${1:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}}"
   if [ ! -d "$config_dir" ]; then
     echo "設定ディレクトリが見つかりません: $config_dir" >&2
     return 1
   fi
+  printf '%s' "$config_dir"
+}
+
+# 個人アカウント。既定の設定ディレクトリを使うため CLAUDE_CONFIG_DIR は設定しない。
+# 明示指定すると Keychain の service 名の導出が変わって再ログインを誘発しうる
+# (既定はサフィックス無し、指定時は絶対パスの sha256 先頭 8 桁)。どちらの条件で
+# 分岐しているかは未確認なので、未確認の前提に賭けず変数を設定しない。
+# ただし外から前置で渡された値は読んで尊重する。確認先を決め打ちにすると、起動する
+# アカウントとタスクリストを確認するアカウントがずれて警告が食い違う。
+# command claude で関数自身の再帰を避ける。
+function claude() {
+  local config_dir
+  config_dir="$(_claude_config_dir)" || return 1
+  _claude_task_list_notice "$config_dir"
+  command claude "$@"
+}
+
+# 仕事アカウント。アカウントを固定するのが存在理由なので、外から前置で
+# CLAUDE_CONFIG_DIR が渡されていても自分のディレクトリを引数で名指しする。
+function claude-hamiltonian() {
+  local config_dir
+  config_dir="$(_claude_config_dir "$HOME/.claude-hamiltonian")" || return 1
   _claude_task_list_notice "$config_dir"
   CLAUDE_CONFIG_DIR="$config_dir" command claude "$@"
 }
