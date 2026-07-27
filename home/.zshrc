@@ -216,6 +216,16 @@ function _claude_config_dir() {
   printf '%s' "$config_dir"
 }
 
+# タスクリスト ID を作業ディレクトリから導出する。git リポジトリならルートの名前、
+# そうでなければ cwd の名前。サブディレクトリでもルートに寄せるのは、同じプロジェクトの
+# 進捗が割れないため。zsh の modifier (${dir:t}) は bats が bash で source すると
+# 壊れるので使わない。
+function _claude_task_list_id() {
+  local dir
+  dir="$(git rev-parse --show-toplevel 2>/dev/null)" || dir="$PWD"
+  printf '%s' "${dir##*/}"
+}
+
 # 個人アカウント。既定の設定ディレクトリを使うため CLAUDE_CONFIG_DIR は設定しない。
 # 明示指定すると Keychain の service 名の導出が変わって再ログインを誘発しうる
 # (既定はサフィックス無し、指定時は絶対パスの sha256 先頭 8 桁)。どちらの条件で

@@ -125,6 +125,57 @@ teardown() {
 }
 
 # =============================================================================
+# _claude_task_list_id
+# =============================================================================
+#
+# ID を手で打つ限り typo は避けられない。作業ディレクトリから導出すれば
+# 打ち間違えようがなく、指定を忘れることもない。
+
+@test "_claude_task_list_id: derives from the git repository root" {
+    setup_test_repo "$TEST_HOME/myrepo"
+    load_zshrc_claude_functions
+
+    run_in_dir "$TEST_HOME/myrepo" _claude_task_list_id
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "myrepo" ]
+}
+
+@test "_claude_task_list_id: resolves to the root even from a subdirectory" {
+    # サブディレクトリごとに別 ID になると、同じプロジェクトの進捗が割れる。
+    # これが導出元を cwd ではなくリポジトリルートにしている理由
+    setup_test_repo "$TEST_HOME/myrepo"
+    mkdir -p "$TEST_HOME/myrepo/frontend/src"
+    load_zshrc_claude_functions
+
+    run_in_dir "$TEST_HOME/myrepo/frontend/src" _claude_task_list_id
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "myrepo" ]
+}
+
+@test "_claude_task_list_id: falls back to the cwd name outside a repository" {
+    mkdir -p "$TEST_HOME/plain-dir"
+    load_zshrc_claude_functions
+
+    run_in_dir "$TEST_HOME/plain-dir" _claude_task_list_id
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "plain-dir" ]
+}
+
+@test "_claude_task_list_id: yields nothing at the filesystem root" {
+    # basename が空になる唯一の場所。空の ID を渡したときの Claude Code の挙動は
+    # 未確認なので、呼び出し側が変数を設定しない判断をするための signal にする
+    load_zshrc_claude_functions
+
+    run_in_dir / _claude_task_list_id
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+# =============================================================================
 # claude (個人アカウント)
 # =============================================================================
 
