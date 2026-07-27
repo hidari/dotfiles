@@ -244,6 +244,7 @@ function claude() {
   config_dir="$(_claude_config_dir)" || return 1
   task_list="${CLAUDE_CODE_TASK_LIST_ID:-$(_claude_task_list_id)}"
   _claude_task_list_notice "$config_dir" "$task_list"
+  # 空文字を渡したときの挙動は未確認。導出できないときは変数ごと渡さず既定に任せる
   if [ -n "$task_list" ]; then
     CLAUDE_CODE_TASK_LIST_ID="$task_list" command claude "$@"
   else
@@ -258,6 +259,7 @@ function claude-hamiltonian() {
   config_dir="$(_claude_config_dir "$HOME/.claude-hamiltonian")" || return 1
   task_list="${CLAUDE_CODE_TASK_LIST_ID:-$(_claude_task_list_id)}"
   _claude_task_list_notice "$config_dir" "$task_list"
+  # 空文字を渡したときの挙動は未確認。導出できないときは変数ごと渡さず既定に任せる
   if [ -n "$task_list" ]; then
     CLAUDE_CONFIG_DIR="$config_dir" CLAUDE_CODE_TASK_LIST_ID="$task_list" command claude "$@"
   else

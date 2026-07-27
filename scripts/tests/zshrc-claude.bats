@@ -376,18 +376,21 @@ teardown() {
 }
 
 @test "claude-hamiltonian: passes the task list id through to the binary" {
-    mkdir -p "$TEST_HOME/.claude-hamiltonian/tasks/dotfiles"
+    mkdir -p "$TEST_HOME/.claude-hamiltonian/tasks/explicit"
+    setup_test_repo "$TEST_HOME/myrepo"
     setup_recording_claude
     load_zshrc_claude_functions
 
-    # アカウント (関数) とタスクリスト (前置) が直交して合成できることを pin する
-    CLAUDE_CODE_TASK_LIST_ID=dotfiles run claude-hamiltonian
+    # アカウント (関数) とタスクリスト (前置) が直交して合成できることを pin する。
+    # 前置値は導出値と衝突しない名前にする
+    CLAUDE_CODE_TASK_LIST_ID=explicit run_in_dir "$TEST_HOME/myrepo" claude-hamiltonian
 
     [ "$status" -eq 0 ]
     local recorded
     recorded="$(cat "$RECORDED_LAUNCH")"
     assert_contains "$recorded" "CONFIG_DIR=$TEST_HOME/.claude-hamiltonian"
-    assert_contains "$recorded" "TASK_LIST=dotfiles"
+    assert_contains "$recorded" "TASK_LIST=explicit"
+    refute_contains "$recorded" "TASK_LIST=myrepo"
 }
 
 @test "claude-hamiltonian: passes the derived task list id to the binary" {
@@ -403,6 +406,19 @@ teardown() {
     recorded="$(cat "$RECORDED_LAUNCH")"
     assert_contains "$recorded" "CONFIG_DIR=$TEST_HOME/.claude-hamiltonian"
     assert_contains "$recorded" "TASK_LIST=myrepo"
+}
+
+@test "claude-hamiltonian: leaves the variable unset when nothing can be derived" {
+    # 空ガードは 2 つのランチャに重複して存在する。片方だけを pin すると
+    # もう片方は変異させても緑のままになり、仕事アカウントだけが退行できてしまう
+    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    run_in_dir / claude-hamiltonian
+
+    [ "$status" -eq 0 ]
+    refute_contains "$(cat "$RECORDED_LAUNCH")" "TASK_LIST="
 }
 
 @test "claude-hamiltonian: warns about an unknown task list but still launches" {
