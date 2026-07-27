@@ -206,9 +206,11 @@ function _claude_task_list_notice() {
 # 明示指定すると Keychain の service 名の導出が変わって再ログインを誘発しうる
 # (既定はサフィックス無し、指定時は絶対パスの sha256 先頭 8 桁)。どちらの条件で
 # 分岐しているかは未確認なので、未確認の前提に賭けず変数に触れない。
+# ただし外から前置で渡された値は尊重する。確認先を決め打ちにすると、起動するアカウントと
+# タスクリストを確認するアカウントがずれて警告が食い違う。
 # command claude で関数自身の再帰を避ける。
 function claude() {
-  _claude_task_list_notice "$HOME/.claude"
+  _claude_task_list_notice "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
   command claude "$@"
 }
 

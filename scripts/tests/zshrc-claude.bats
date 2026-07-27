@@ -102,6 +102,33 @@ teardown() {
     [ "$launches" -eq 1 ]
 }
 
+@test "claude: inspects the config dir handed in from outside" {
+    # 前置で CLAUDE_CONFIG_DIR を渡すと起動先は別アカウントになるのに、確認先が
+    # 個人側に固定されていると存在しない ID を既知と誤判定して黙る。
+    # 「起動するアカウント」と「確認するアカウント」は一致していなければならない
+    mkdir -p "$TEST_HOME/.claude/tasks/dotfiles"
+    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    CLAUDE_CONFIG_DIR="$TEST_HOME/.claude-hamiltonian" CLAUDE_CODE_TASK_LIST_ID=dotfiles run claude
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "新しいタスクリストを作成します: dotfiles"
+}
+
+@test "claude: falls back to the default config dir when none is handed in" {
+    # 上の裏返し。既定は個人側であり、外部指定が無いのに別の場所を見にいかないこと
+    mkdir -p "$TEST_HOME/.claude/tasks/dotfiles"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    CLAUDE_CODE_TASK_LIST_ID=dotfiles run claude
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
 @test "claude: forwards its arguments to the binary" {
     setup_recording_claude
     load_zshrc_claude_functions

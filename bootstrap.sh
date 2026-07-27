@@ -52,6 +52,16 @@ SYMLINK_PAIRS=(
     "scripts/util-tools/small-id-gen/small-id-gen.sh|.local/bin/small-id-gen"
 )
 
+# ホーム内で完結するシンボリックリンク定義（ソース|ターゲット、どちらも $HOME 相対）。
+# リポジトリに実体を持たないローカル状態のうち、2 アカウント間で共有したいものを束ねる。
+# SYMLINK_PAIRS は source を $DOTFILES_DIR 相対で解決するため、この形は表現できない。
+HOME_SYMLINK_PAIRS=(
+    # タスクリストはアカウントではなくプロジェクトに紐づく作業成果物なので、
+    # どちらのアカウントから起動しても同じ実体を読み書きさせる。
+    # 共有してよいと判断した根拠は docs/issues の Issue #9 を参照。
+    ".claude/tasks|.claude-hamiltonian/tasks"
+)
+
 # =============================================================================
 # ヘルパー関数
 # =============================================================================
@@ -335,6 +345,18 @@ install_apm_skills() {
 # dotfiles セットアップ関数
 # =============================================================================
 
+# ホーム内で完結するシンボリックリンクを作成する（冪等）。
+# source 側が無いまま張るとリンク先の無い symlink が残り、参照した側が黙って失敗するため
+# 先に実体を用意する。SYMLINK_PAIRS の source はリポジトリに実在する前提なのでこの手当ては要らない。
+setup_home_symlinks() {
+    for pair in "${HOME_SYMLINK_PAIRS[@]}"; do
+        local source="${pair%%|*}"
+        local target="${pair##*|}"
+        ensure_directory "$HOME/$source"
+        create_symlink "$HOME/$source" "$HOME/$target"
+    done
+}
+
 setup_dotfiles() {
     log "Setting up dotfiles..."
 
@@ -349,6 +371,9 @@ setup_dotfiles() {
         local target="${pair##*|}"
         create_symlink "$DOTFILES_DIR/$source" "$HOME/$target"
     done
+
+    # ホーム内で完結するリンクを作成
+    setup_home_symlinks
 
     # .gitconfig.private をコピー（既存の場合はスキップ）
     if [ -f "$DOTFILES_DIR/home/.gitconfig.private.example" ]; then

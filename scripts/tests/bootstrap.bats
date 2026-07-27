@@ -532,6 +532,107 @@ unmirrored_claude_targets() {
 }
 
 # =============================================================================
+# HOME_SYMLINK_PAIRS / setup_home_symlinks tests
+# =============================================================================
+#
+# ホーム内で完結する symlink。リポジトリをソースに持たないローカル状態のうち、
+# 2 アカウント間で共有したいものを束ねる。SYMLINK_PAIRS とは source の解決規則が
+# 違う (あちらは $DOTFILES_DIR 相対) ため配列も処理も分けている。
+
+@test "setup_home_symlinks: links the target to the source inside home" {
+    HOME_SYMLINK_PAIRS=(".src/dir|.dst/dir")
+    mkdir -p "$TEST_HOME/.src/dir"
+
+    run setup_home_symlinks
+
+    [ "$status" -eq 0 ]
+    [ -L "$TEST_HOME/.dst/dir" ]
+    [ "$(readlink "$TEST_HOME/.dst/dir")" = "$TEST_HOME/.src/dir" ]
+}
+
+@test "setup_home_symlinks: creates the source instead of leaving a dangling link" {
+    # source が無い状態で張ると、リンク先の無い symlink が残り
+    # 参照した側が黙って失敗する。source を先に用意することで防ぐ
+    HOME_SYMLINK_PAIRS=(".src/dir|.dst/dir")
+    [ ! -d "$TEST_HOME/.src/dir" ]
+
+    run setup_home_symlinks
+
+    [ "$status" -eq 0 ]
+    [ -d "$TEST_HOME/.src/dir" ]
+    # -e は symlink を辿るため、壊れたリンクなら偽になる
+    [ -e "$TEST_HOME/.dst/dir" ]
+}
+
+@test "setup_home_symlinks: stays idempotent on a second run" {
+    HOME_SYMLINK_PAIRS=(".src/dir|.dst/dir")
+    mkdir -p "$TEST_HOME/.src/dir"
+    setup_home_symlinks
+
+    run setup_home_symlinks
+
+    [ "$status" -eq 0 ]
+    [ -L "$TEST_HOME/.dst/dir" ]
+    [ "$(readlink "$TEST_HOME/.dst/dir")" = "$TEST_HOME/.src/dir" ]
+    # 入れ子 (.dst/dir/dir) が作られていないこと
+    [ ! -e "$TEST_HOME/.dst/dir/dir" ]
+}
+
+@test "setup_home_symlinks: dry-run mode does not create anything" {
+    HOME_SYMLINK_PAIRS=(".src/dir|.dst/dir")
+    DRY_RUN=true
+
+    run setup_home_symlinks
+
+    [ "$status" -eq 0 ]
+    [ ! -e "$TEST_HOME/.dst/dir" ]
+    # この関数は source 側も作るため、target だけ見ると副作用を半分見逃す
+    [ ! -e "$TEST_HOME/.src/dir" ]
+}
+
+@test "HOME_SYMLINK_PAIRS: shares the claude task list with the second account" {
+    # 両アカウントが同じタスクリストを読み書きするための配線。
+    # 参照先が分かれると同じ ID を指定しても進捗が 2 つに割れる
+    load_home_symlink_pairs
+    [ "${#HOME_SYMLINK_PAIRS[@]}" -gt 0 ]
+
+    local found=0 pair
+    for pair in "${HOME_SYMLINK_PAIRS[@]}"; do
+        if [ "$pair" = ".claude/tasks|.claude-hamiltonian/tasks" ]; then
+            found=1
+        fi
+    done
+    [ "$found" -eq 1 ]
+}
+
+@test "HOME_SYMLINK_PAIRS: entries are home relative, not repo relative" {
+    # home/ 始まりは SYMLINK_PAIRS の記法。混ざると $HOME/home/... を指す壊れた
+    # リンクになるため、配列の取り違えをここで捕捉する
+    load_home_symlink_pairs
+    [ "${#HOME_SYMLINK_PAIRS[@]}" -gt 0 ]
+
+    local pair source target
+    for pair in "${HOME_SYMLINK_PAIRS[@]}"; do
+        source="${pair%%|*}"
+        target="${pair##*|}"
+        refute_contains "$source" "home/.claude"
+        refute_contains "$target" "home/.claude"
+        [ -n "$source" ]
+        [ -n "$target" ]
+        [ "$source" != "$target" ]
+    done
+}
+
+@test "load_home_symlink_pairs: fails loudly when the array is missing" {
+    # 配列名が変わったのに黙って空を source すると、上の 2 件が
+    # 「1 件も検査していないのに緑」になる
+    run load_pairs_array NONEXISTENT_PAIRS
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "array not found"
+}
+
+# =============================================================================
 # install_brew_packages tests (Brewfile ツールの brew bundle)
 # =============================================================================
 
@@ -662,6 +763,15 @@ STUB
     refute_contains "$output" "com.hidari.node-security-notifier"
     # dotfiles 本体 (symlink) は走る (gate の positive 対照。vacuous な全 skip でないことを担保)
     assert_contains "$output" "[DRY-RUN] ln -sf"
+}
+
+@test "main: dry-run wires the home-internal symlinks into the flow" {
+    # 配列と関数が揃っていてもフローから呼ばれなければ何も起きない。
+    # 個々の関数テストは緑のまま dead code になるため、結線そのものを pin する
+    run bash "$BOOTSTRAP_SCRIPT" --dry-run --dotfiles-only
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "[DRY-RUN] ln -sf $TEST_HOME/.claude/tasks $TEST_HOME/.claude-hamiltonian/tasks"
 }
 
 @test "main: confirm prompt discloses the LaunchAgent before install" {

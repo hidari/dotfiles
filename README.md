@@ -51,8 +51,12 @@ cd ~/Develop/dotfiles
 
 ### Dotfiles
 
-ホームディレクトリに張る symlink の正本は `bootstrap.sh` の `SYMLINK_PAIRS`（source と target の対応）。
+ホームディレクトリに張る symlink の正本は `bootstrap.sh` の 2 つの配列（どちらも source と target の対応）。
 追加・変更はそこを編集する（README に一覧を再掲すると必ず drift するため載せない）。
+
+- `SYMLINK_PAIRS`: source をリポジトリに持つもの。dotfiles 本体。
+- `HOME_SYMLINK_PAIRS`: source もホーム内にあるもの。リポジトリに実体を持たないローカル状態を
+  2 アカウント間で共有する用途に使う。
 
 Additionally, `home/.gitconfig.private.example` is copied to `~/.gitconfig.private` (if it doesn't exist).
 

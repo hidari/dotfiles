@@ -86,15 +86,34 @@ load_bootstrap_functions() {
 # ブロックは純データ (set -euo pipefail 等の副作用を含まない) なので、
 # whole-file source を避けている理由がここにも当てはまる。実配列を source すれば
 # テキスト parse の脆さ (配列内コメントを phantom source と誤読する等) を避けられる。
-load_symlink_pairs() {
+# 名前で指定した配列定義ブロックだけを切り出して source する。
+# 配列名が変わったのに黙って空を source すると、その配列を検査するテストが
+# 「1 件も見ていないのに緑」になるため、見つからない場合は失敗させる。
+load_pairs_array() {
+    local name="$1"
     local temp_pairs_file
     temp_pairs_file=$(mktemp)
 
-    sed -n '/^SYMLINK_PAIRS=(/,/^)/p' "$BOOTSTRAP_SCRIPT" > "$temp_pairs_file"
+    sed -n "/^${name}=(/,/^)/p" "$BOOTSTRAP_SCRIPT" > "$temp_pairs_file"
+
+    if [ ! -s "$temp_pairs_file" ]; then
+        echo "Error: array not found in $BOOTSTRAP_SCRIPT: $name" >&2
+        rm -f "$temp_pairs_file"
+        return 1
+    fi
 
     # shellcheck source=/dev/null
     source "$temp_pairs_file"
     rm -f "$temp_pairs_file"
+}
+
+load_symlink_pairs() {
+    load_pairs_array SYMLINK_PAIRS
+}
+
+# ホーム内で完結する symlink の配列を読み込む。
+load_home_symlink_pairs() {
+    load_pairs_array HOME_SYMLINK_PAIRS
 }
 
 # 2 つのマーカー行に挟まれたブロックだけを切り出して source する汎用ローダー。
