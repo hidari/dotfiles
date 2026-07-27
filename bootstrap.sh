@@ -40,6 +40,13 @@ SYMLINK_PAIRS=(
     "home/.claude/.mcp.json|.claude/.mcp.json"
     "home/.claude/hooks|.claude/hooks"
     "home/.claude/skills|.claude/skills"
+    # 2 アカウント運用 (CLAUDE_CONFIG_DIR=~/.claude-hamiltonian) 側へ同じ実体を張る。
+    # hooks / statusline-command.sh / .mcp.json は張らない。前 2 つは settings.json が
+    # $HOME/.claude/ 配下を絶対パスで参照して symlink 経由で解決されるため、
+    # .mcp.json は Claude Code が読まないため (どちらも 2 本目は死んだ symlink になる)。
+    "home/.claude/settings.json|.claude-hamiltonian/settings.json"
+    "home/.claude/CLAUDE.md|.claude-hamiltonian/CLAUDE.md"
+    "home/.claude/skills|.claude-hamiltonian/skills"
     "home/.claude/skills/windows-vm-verification/winvm.py|.local/bin/winvm"
     "scripts/backup-tool/backup|.local/bin/backup"
     "scripts/util-tools/small-id-gen/small-id-gen.sh|.local/bin/small-id-gen"

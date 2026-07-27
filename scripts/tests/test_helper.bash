@@ -7,7 +7,15 @@ TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_DIR="$(dirname "$TEST_DIR")"
 REPO_ROOT="$(dirname "$SCRIPTS_DIR")"
 
-BOOTSTRAP_SCRIPT="$REPO_ROOT/bootstrap.sh"
+# 変異注入でコピーを読ませられるよう上書き可能にする (下の 2 つと同じ理由)。
+BOOTSTRAP_SCRIPT="${BOOTSTRAP_SCRIPT:-$REPO_ROOT/bootstrap.sh}"
+
+# この 2 つは ~/.zshrc と ~/.claude/statusline-command.sh のライブ symlink 先そのもの。
+# 変異注入で実ファイルを壊すと、その間に開いたシェルや statusLine の描画が壊れた版を踏む
+# (特に claude 関数の再帰変異は実害が大きい)。コピーに対して変異を入れられるよう
+# 上書き可能にしておく。既定値は実ファイルなので通常実行と CI の対象は変わらない。
+STATUSLINE_SCRIPT="${STATUSLINE_SCRIPT:-$REPO_ROOT/home/.claude/statusline-command.sh}"
+ZSHRC_FILE="${ZSHRC_FILE:-$REPO_ROOT/home/.zshrc}"
 
 FIXTURES_DIR="$TEST_DIR/fixtures"
 BOOTSTRAP_FIXTURES_DIR="$FIXTURES_DIR/bootstrap"
@@ -89,6 +97,65 @@ load_symlink_pairs() {
     rm -f "$temp_pairs_file"
 }
 
+# 2 つのマーカー行に挟まれたブロックだけを切り出して source する汎用ローダー。
+# load_bootstrap_functions と同じ marker-slice 方式で、whole-file source による副作用
+# (set -euo pipefail / zsh 専用構文 / 実処理の実行) を避ける。
+# マーカー欠落や空ブロックは黙って空を source せず失敗させる。静かに素通りすると
+# 「1 件もアサーションが走っていないのに緑」という空虚なテストになるため。
+load_marker_block() {
+    local file="$1"
+    local start_marker="$2"
+    local end_marker="$3"
+
+    if [ ! -f "$file" ]; then
+        echo "Error: file not found: $file" >&2
+        return 1
+    fi
+
+    local start_line
+    start_line=$(grep -n "$start_marker" "$file" | head -1 | cut -d: -f1)
+    if [ -z "$start_line" ]; then
+        echo "Error: start marker not found in $file: $start_marker" >&2
+        return 1
+    fi
+
+    # 終了マーカーは開始マーカーより後ろの最初の一致を採る。
+    # tail で先頭を落としてから grep するため、得られる行番号は start_line からの相対値。
+    local end_offset
+    end_offset=$(tail -n "+$((start_line + 1))" "$file" | grep -n "$end_marker" | head -1 | cut -d: -f1)
+    if [ -z "$end_offset" ]; then
+        echo "Error: end marker not found in $file: $end_marker" >&2
+        return 1
+    fi
+    local end_line=$((start_line + end_offset))
+
+    local temp_file
+    temp_file=$(mktemp)
+    sed -n "$((start_line + 1)),$((end_line - 1))p" "$file" > "$temp_file"
+
+    if [ ! -s "$temp_file" ]; then
+        echo "Error: empty block extracted from $file" >&2
+        rm -f "$temp_file"
+        return 1
+    fi
+
+    # shellcheck source=/dev/null
+    source "$temp_file"
+    rm -f "$temp_file"
+}
+
+# statusline-command.sh のヘルパー関数ブロックを読み込む。
+load_statusline_functions() {
+    load_marker_block "$STATUSLINE_SCRIPT" '^# ヘルパー関数$' '^# メイン処理$'
+}
+
+# .zshrc の Claude Code 起動関数ブロックを読み込む。
+# .zshrc 全体は zsh 専用構文 (typeset -U / mise activate zsh 等) を含み bash で
+# source できないため、当該セクションだけを切り出す。
+load_zshrc_claude_functions() {
+    load_marker_block "$ZSHRC_FILE" '^# Claude Code 起動$' '^########################################$'
+}
+
 # テスト用の偽 claude バイナリを PATH 先頭に用意する
 # - plugin list / marketplace list --json は環境変数で制御した JSON を返す
 #   （FAKE_PLUGINS_JSON / FAKE_MARKETPLACES_JSON、既定は空配列）
@@ -133,6 +200,114 @@ exit 0
 FAKE
     chmod +x "$fake_bin/claude"
     export PATH="$fake_bin:$PATH"
+}
+
+# 起動時の環境と引数だけを記録する偽 claude を PATH 先頭に用意する。
+# 起動関数のテスト用。CLAUDE_CONFIG_DIR は「未設定」と「空文字」を区別して記録するため、
+# 未設定時は行そのものを出さない (個人アカウントが変数に触れないことを pin するのに要る)。
+setup_recording_claude() {
+    local fake_bin="$TEST_HOME/fakebin"
+    mkdir -p "$fake_bin"
+    export RECORDED_LAUNCH="$TEST_HOME/claude_launch.log"
+    : > "$RECORDED_LAUNCH"
+
+    cat > "$fake_bin/claude" <<'FAKE'
+#!/usr/bin/env bash
+echo "LAUNCHED" >> "$RECORDED_LAUNCH"
+if [ -n "${CLAUDE_CONFIG_DIR+set}" ]; then
+    echo "CONFIG_DIR=$CLAUDE_CONFIG_DIR" >> "$RECORDED_LAUNCH"
+fi
+if [ -n "${CLAUDE_CODE_TASK_LIST_ID+set}" ]; then
+    echo "TASK_LIST=$CLAUDE_CODE_TASK_LIST_ID" >> "$RECORDED_LAUNCH"
+fi
+echo "ARGV=$*" >> "$RECORDED_LAUNCH"
+exit 0
+FAKE
+    chmod +x "$fake_bin/claude"
+    export PATH="$fake_bin:$PATH"
+}
+
+# statusline-command.sh を実行するための偽 security / curl を PATH 先頭に用意する。
+# security は要求された service 名を記録し、FAKE_KEYCHAIN_SERVICE に一致したときだけ
+# トークンを返す。これで「どの service 名を引きに行ったか」と「不一致時に他の名前へ
+# フォールバックしないか」の両方を観測できる。
+setup_fake_keychain() {
+    local fake_bin="$TEST_HOME/fakebin"
+    mkdir -p "$fake_bin"
+    export SECURITY_LOG="$TEST_HOME/security_calls.log"
+    : > "$SECURITY_LOG"
+
+    cat > "$fake_bin/security" <<'FAKE'
+#!/usr/bin/env bash
+service=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -s) service="$2"; shift 2 ;;
+        *) shift ;;
+    esac
+done
+echo "$service" >> "$SECURITY_LOG"
+if [ "$service" = "${FAKE_KEYCHAIN_SERVICE:-}" ]; then
+    echo "test-token"
+    exit 0
+fi
+# 実物が item 不在時に返す exit code
+exit 44
+FAKE
+    chmod +x "$fake_bin/security"
+
+    cat > "$fake_bin/curl" <<'FAKE'
+#!/usr/bin/env bash
+cat <<'HEADERS'
+HTTP/2 200
+anthropic-ratelimit-unified-5h-utilization: 0.42
+anthropic-ratelimit-unified-5h-reset: 1800000000
+anthropic-ratelimit-unified-7d-utilization: 0.13
+anthropic-ratelimit-unified-7d-reset: 1800000000
+HEADERS
+FAKE
+    chmod +x "$fake_bin/curl"
+
+    export PATH="$fake_bin:$PATH"
+}
+
+# statusline-command.sh を最小の stdin JSON で実行する。
+# cwd を空にして git 探索経路へ入らないようにし、アカウント分離の観測に絞る。
+run_statusline() {
+    run bash "$STATUSLINE_SCRIPT" <<< '{"model":{"display_name":"Test"},"context_window":{"used_percentage":10}}'
+}
+
+# cwd を指定して statusline-command.sh を実行する (リポジトリ行の検証用)。
+run_statusline_in() {
+    local dir="$1"
+    run bash "$STATUSLINE_SCRIPT" <<< "{\"model\":{\"display_name\":\"Test\"},\"context_window\":{\"used_percentage\":10},\"cwd\":\"$dir\"}"
+}
+
+# statusline-command.sh の生の出力をファイルへ落とす。
+# bats の $output は末尾改行を落とすため、「最終行に改行を付けない」規約は
+# $lines の要素数では原理的に観測できない。改行の数で見る必要がある。
+# 第 2 引数を省くと cwd が空になり git 探索経路へ入らない。
+statusline_raw() {
+    local dest="$1"
+    local dir="${2:-}"
+    bash "$STATUSLINE_SCRIPT" > "$dest" 2>/dev/null \
+        <<< "{\"model\":{\"display_name\":\"Test\"},\"context_window\":{\"used_percentage\":10},\"cwd\":\"$dir\"}"
+}
+
+# ファイル内の改行の数を返す。行数ではなく改行数なので、
+# 末尾に改行が無い N 行のファイルは N-1 を返す。
+count_newlines() {
+    wc -l < "$1" | tr -d ' '
+}
+
+# テスト用の git リポジトリを作る。コミットは作らないが
+# branch --show-current は未出生ブランチ名を返すため表示検証には足りる。
+setup_test_repo() {
+    local dir="$1"
+    mkdir -p "$dir"
+    git -C "$dir" init -q
+    git -C "$dir" config user.email "test@example.com"
+    git -C "$dir" config user.name "test"
 }
 
 # =============================================================================

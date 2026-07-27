@@ -458,6 +458,79 @@ uncovered_symlink_targets() {
     fi
 }
 
+# .claude/ を target に持つ pair のうち、2 アカウント目 (.claude-hamiltonian/) への
+# 対応する pair が無いものを列挙する純粋関数。
+# 対応とは「同じ source を持ち、target の先頭だけが置き換わった pair が存在すること」。
+# source まで一致を要求するのは、実体が分かれた瞬間に 2 アカウントの設定が
+# 静かに別物になるため (共有が目的なので source の一致こそが仕様)。
+unmirrored_claude_targets() {
+    local -a pairs=("$@")
+    local pair source target rest mirror_target found other o_source o_target
+    for pair in "${pairs[@]}"; do
+        source="${pair%%|*}"
+        target="${pair##*|}"
+        case "$target" in
+            .claude/*) rest="${target#.claude/}" ;;
+            *) continue ;;
+        esac
+        mirror_target=".claude-hamiltonian/$rest"
+        found=0
+        for other in "${pairs[@]}"; do
+            o_source="${other%%|*}"
+            o_target="${other##*|}"
+            if [ "$o_target" = "$mirror_target" ] && [ "$o_source" = "$source" ]; then
+                found=1
+                break
+            fi
+        done
+        [ "$found" -eq 1 ] || echo "$target"
+    done
+}
+
+@test "unmirrored_claude_targets: flags missing mirrors and accepts matching ones" {
+    # 実装が gaming していないことを担保するため両方向を検証する。
+    local out
+    out="$(unmirrored_claude_targets \
+        'home/.claude/a|.claude/a' \
+        'home/.claude/a|.claude-hamiltonian/a' \
+        'home/.claude/b|.claude/b')"
+    # mirror がある target は挙げない（false positive を防ぐ）
+    refute_contains "$out" ".claude/a"
+    # mirror が無い target は検出する（false negative を防ぐ）
+    assert_contains "$out" ".claude/b"
+
+    # target 名だけ揃っていても source が違えば共有になっていないので検出する
+    out="$(unmirrored_claude_targets \
+        'home/.claude/c|.claude/c' \
+        'home/elsewhere/c|.claude-hamiltonian/c')"
+    assert_contains "$out" ".claude/c"
+}
+
+@test "SYMLINK_PAIRS: shared Claude config is mirrored to the second account" {
+    # 共有ファイルを増やしたとき 2 アカウント目の配線を忘れる drift を捕捉する。
+    # 散文の注意書きではなくテストで縛る (CLAUDE.md の linter 委譲原則)。
+    load_symlink_pairs
+    # 空配列 (slice 破綻) での vacuous pass を防ぐ negative guard
+    [ "${#SYMLINK_PAIRS[@]}" -gt 0 ]
+
+    # 意図的に 2 本目を張らない target の allowlist (canonical)。各行に理由を書く。
+    local -a unmirrored=(
+        ".claude/hooks"                  # settings.json が $HOME/.claude/hooks/ を絶対参照し symlink 経由で解決される
+        ".claude/statusline-command.sh"  # settings.json が bash ~/.claude/... を絶対参照する
+        ".claude/.mcp.json"              # Claude Code が ~/.claude/.mcp.json を読まない
+    )
+
+    local actual expected
+    actual="$(unmirrored_claude_targets "${SYMLINK_PAIRS[@]}" | sort)"
+    expected="$(printf '%s\n' "${unmirrored[@]}" | sort)"
+    # diff の exit status を verdict と診断の両方に使う。
+    # < は allowlist のみ (stale allowlist), > は未 mirror (配線し忘れ)。どちらの方向も FAIL する。
+    if ! diff <(echo "$expected") <(echo "$actual") >&2; then
+        echo "2 アカウント配線の drift 検出 (上記 diff: expected=allowlist vs actual=未 mirror)" >&2
+        return 1
+    fi
+}
+
 # =============================================================================
 # install_brew_packages tests (Brewfile ツールの brew bundle)
 # =============================================================================
