@@ -421,14 +421,49 @@ git commit -F .cache/commit-t3.txt
     assert_contains "$recorded" "CONFIG_DIR=$TEST_HOME/.claude-hamiltonian"
     assert_contains "$recorded" "TASK_LIST=myrepo"
 }
+
+@test "claude-hamiltonian: leaves the variable unset when nothing can be derived" {
+    # 空ガードは 2 つのランチャに重複して存在する。片方だけを pin すると
+    # もう片方は変異させても緑のままになり、仕事アカウントだけが退行できてしまう
+    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    run_in_dir / claude-hamiltonian
+
+    [ "$status" -eq 0 ]
+    refute_contains "$(cat "$RECORDED_LAUNCH")" "TASK_LIST="
+}
 ```
 
-既存の `claude-hamiltonian: passes the task list id through to the binary` は前置指定の経路を pin しており、そのまま残す。
+既存の `claude-hamiltonian: passes the task list id through to the binary` は前置指定の経路を pin する意図だが、前置値 `dotfiles` がこのリポジトリ自身の名前と一致する。bats はリポジトリルートで走るので導出値も `dotfiles` になり、前置が効いたのか導出が効いたのかを区別できない。前置を完全に無視する変異を入れても緑のままになる。衝突しない値へ変え negative case を足す。
+
+```bash
+@test "claude-hamiltonian: passes the task list id through to the binary" {
+    mkdir -p "$TEST_HOME/.claude-hamiltonian/tasks/explicit"
+    setup_test_repo "$TEST_HOME/myrepo"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    # アカウント (関数) とタスクリスト (前置) が直交して合成できることを pin する。
+    # 前置値は導出値と衝突しない名前にする
+    CLAUDE_CODE_TASK_LIST_ID=explicit run_in_dir "$TEST_HOME/myrepo" claude-hamiltonian
+
+    [ "$status" -eq 0 ]
+    local recorded
+    recorded="$(cat "$RECORDED_LAUNCH")"
+    assert_contains "$recorded" "CONFIG_DIR=$TEST_HOME/.claude-hamiltonian"
+    assert_contains "$recorded" "TASK_LIST=explicit"
+    refute_contains "$recorded" "TASK_LIST=myrepo"
+}
+```
 
 - [ ] **Step 2: 赤を確認する**
 
 Run: `bats scripts/tests/zshrc-claude.bats`
-Expected: 新規 5 件が not ok。加えて Task 3 の変更でランチャ経由の警告テストも not ok になっている
+Expected: 新規 6 件のうち 3 件 (`claude` / `claude-hamiltonian` の derived id と警告) が not ok。残り 3 件と強化した既存 1 件は緑のまま。変更前のランチャは前置値を素通しするだけなので、前置ありのテストは素通しで満たされ、前置なしのテストは「何もセットしない」ことで満たされてしまう。加えて Task 3 の変更でランチャ経由の警告テストも not ok になっている
+
+赤が想定より少ないこと自体は dead pin の証拠ではない。pin が生きているかは Step 5 の変異注入だけが答える
 
 - [ ] **Step 3: ランチャを更新する**
 
@@ -440,6 +475,7 @@ function claude() {
   config_dir="$(_claude_config_dir)" || return 1
   task_list="${CLAUDE_CODE_TASK_LIST_ID:-$(_claude_task_list_id)}"
   _claude_task_list_notice "$config_dir" "$task_list"
+  # 空文字を渡したときの挙動は未確認。導出できないときは変数ごと渡さず既定に任せる
   if [ -n "$task_list" ]; then
     CLAUDE_CODE_TASK_LIST_ID="$task_list" command claude "$@"
   else
@@ -454,6 +490,7 @@ function claude-hamiltonian() {
   config_dir="$(_claude_config_dir "$HOME/.claude-hamiltonian")" || return 1
   task_list="${CLAUDE_CODE_TASK_LIST_ID:-$(_claude_task_list_id)}"
   _claude_task_list_notice "$config_dir" "$task_list"
+  # 空文字を渡したときの挙動は未確認。導出できないときは変数ごと渡さず既定に任せる
   if [ -n "$task_list" ]; then
     CLAUDE_CONFIG_DIR="$config_dir" CLAUDE_CODE_TASK_LIST_ID="$task_list" command claude "$@"
   else
@@ -462,7 +499,7 @@ function claude-hamiltonian() {
 }
 ```
 
-`claude()` のコメントは既存のものを保つ。分岐を入れるのは、空文字を渡したときの挙動が未確認だから。
+`claude()` の既存コメントは保つ。空ガードを入れる理由はコード側のコメントに置く。テストファイルにしか書かないと `.zshrc` を読む人には伝わらない。
 
 - [ ] **Step 4: 緑を確認する**
 
@@ -471,12 +508,18 @@ Expected: 全件 ok / 0 not ok / 0 warnings
 
 - [ ] **Step 5: 変異注入で pin を確認する**
 
-| 変異 | 赤くなるべきテスト |
-| --- | --- |
-| `${CLAUDE_CODE_TASK_LIST_ID:-$(_claude_task_list_id)}` を `$(_claude_task_list_id)` に変える | lets an explicit task list id win over derivation |
-| `${CLAUDE_CODE_TASK_LIST_ID:-...}` を `${CLAUDE_CODE_TASK_LIST_ID}` に変える | passes the derived task list id (claude / claude-hamiltonian) |
-| `if [ -n "$task_list" ]` を `if true` に変える | leaves the variable unset when nothing can be derived |
-| `_claude_task_list_notice "$config_dir" "$task_list"` の第 2 引数を落とす | warns about a derived task list that does not exist yet |
+空ガードと優先順位は 2 つのランチャに重複して存在する。片方で測って済ませず、両方に同じ変異を入れる。
+
+| 変異 | 対象 | 赤くなるべきテスト |
+| --- | --- | --- |
+| `${CLAUDE_CODE_TASK_LIST_ID:-$(_claude_task_list_id)}` を `$(_claude_task_list_id)` に変える | `claude` | lets an explicit task list id win over derivation |
+| 同上 | `claude-hamiltonian` | claude-hamiltonian: passes the task list id through to the binary |
+| `${CLAUDE_CODE_TASK_LIST_ID:-...}` を `${CLAUDE_CODE_TASK_LIST_ID}` に変える | 両方 | passes the derived task list id (claude / claude-hamiltonian) |
+| `if [ -n "$task_list" ]` を `if true` に変える | `claude` | claude: leaves the variable unset when nothing can be derived |
+| 同上 | `claude-hamiltonian` | claude-hamiltonian: leaves the variable unset when nothing can be derived |
+| `_claude_task_list_notice "$config_dir" "$task_list"` の第 2 引数を落とす | `claude` | warns about a derived task list that does not exist yet |
+
+変異は 1 つずつ隔離して入れる。同時に入れると片方がもう片方の効果を隠し、生きた pin を dead と誤読する。表は最低限赤くなるべきテストで、付随して他のテストも赤くなることはある。
 
 - [ ] **Step 6: 実機の zsh で full chain を確認する**
 
