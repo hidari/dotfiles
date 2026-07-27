@@ -164,6 +164,21 @@ teardown() {
     [ "$output" = "plain-dir" ]
 }
 
+@test "_claude_task_list_id: resolves symlinked directories to the same id" {
+    # 同じ実ディレクトリへ 2 つの経路で入っても ID が一致すること。$PWD はリンク名を
+    # 返すため、揃えないと同じ場所なのにタスクリストが 2 つに割れる。
+    # git 側は --show-toplevel が常に実体パスを返すので、フォールバックだけ経路依存に
+    # なる非対称を作らない
+    mkdir -p "$TEST_HOME/real-dir"
+    ln -s "$TEST_HOME/real-dir" "$TEST_HOME/link-dir"
+    load_zshrc_claude_functions
+
+    run_in_dir "$TEST_HOME/link-dir" _claude_task_list_id
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "real-dir" ]
+}
+
 @test "_claude_task_list_id: yields nothing at the filesystem root" {
     # basename が空になる唯一の場所。空の ID を渡したときの Claude Code の挙動は
     # 未確認なので、呼び出し側が変数を設定しない判断をするための signal にする

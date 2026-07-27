@@ -218,11 +218,14 @@ function _claude_config_dir() {
 
 # タスクリスト ID を作業ディレクトリから導出する。git リポジトリならルートの名前、
 # そうでなければ cwd の名前。サブディレクトリでもルートに寄せるのは、同じプロジェクトの
-# 進捗が割れないため。zsh の modifier (${dir:t}) は bats が bash で source すると
-# 壊れるので使わない。
+# 進捗が割れないため。
+# リポジトリ外では pwd -P で実体パスに寄せる。$PWD は symlink 経由で入ったときに
+# リンク名を返すため、同じディレクトリなのに経路によって ID が割れる。git 側は
+# --show-toplevel が常に実体パスを返すので、揃えないと 2 つの分岐が非対称になる。
+# zsh の modifier (${dir:t}) は bats が bash で source すると壊れるので使わない。
 function _claude_task_list_id() {
   local dir
-  dir="$(git rev-parse --show-toplevel 2>/dev/null)" || dir="$PWD"
+  dir="$(git rev-parse --show-toplevel 2>/dev/null)" || dir="$(pwd -P)"
   printf '%s' "${dir##*/}"
 }
 
