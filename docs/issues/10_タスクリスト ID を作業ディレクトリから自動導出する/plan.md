@@ -130,6 +130,21 @@ git commit -F .cache/commit-t1.txt
     [ "$output" = "plain-dir" ]
 }
 
+@test "_claude_task_list_id: resolves symlinked directories to the same id" {
+    # 同じ実ディレクトリへ 2 つの経路で入っても ID が一致すること。$PWD はリンク名を
+    # 返すため、揃えないと同じ場所なのにタスクリストが 2 つに割れる。
+    # git 側は --show-toplevel が常に実体パスを返すので、フォールバックだけ経路依存に
+    # なる非対称を作らない
+    mkdir -p "$TEST_HOME/real-dir"
+    ln -s "$TEST_HOME/real-dir" "$TEST_HOME/link-dir"
+    load_zshrc_claude_functions
+
+    run_in_dir "$TEST_HOME/link-dir" _claude_task_list_id
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "real-dir" ]
+}
+
 @test "_claude_task_list_id: yields nothing at the filesystem root" {
     # basename が空になる唯一の場所。空の ID を渡したときの Claude Code の挙動は
     # 未確認なので、呼び出し側が変数を設定しない判断をするための signal にする
@@ -145,7 +160,7 @@ git commit -F .cache/commit-t1.txt
 - [ ] **Step 2: 赤を確認する**
 
 Run: `bats scripts/tests/zshrc-claude.bats --filter "_claude_task_list_id"`
-Expected: 4 件すべて not ok。理由は `_claude_task_list_id: command not found` (関数未定義)
+Expected: 5 件すべて not ok。理由は `_claude_task_list_id: command not found` (関数未定義)
 
 - [ ] **Step 3: 最小の実装を書く**
 
@@ -154,11 +169,14 @@ Expected: 4 件すべて not ok。理由は `_claude_task_list_id: command not f
 ```zsh
 # タスクリスト ID を作業ディレクトリから導出する。git リポジトリならルートの名前、
 # そうでなければ cwd の名前。サブディレクトリでもルートに寄せるのは、同じプロジェクトの
-# 進捗が割れないため。zsh の modifier (${dir:t}) は bats が bash で source すると
-# 壊れるので使わない。
+# 進捗が割れないため。
+# リポジトリ外では pwd -P で実体パスに寄せる。$PWD は symlink 経由で入ったときに
+# リンク名を返すため、同じディレクトリなのに経路によって ID が割れる。git 側は
+# --show-toplevel が常に実体パスを返すので、揃えないと 2 つの分岐が非対称になる。
+# zsh の modifier (${dir:t}) は bats が bash で source すると壊れるので使わない。
 function _claude_task_list_id() {
   local dir
-  dir="$(git rev-parse --show-toplevel 2>/dev/null)" || dir="$PWD"
+  dir="$(git rev-parse --show-toplevel 2>/dev/null)" || dir="$(pwd -P)"
   printf '%s' "${dir##*/}"
 }
 ```
@@ -166,7 +184,7 @@ function _claude_task_list_id() {
 - [ ] **Step 4: 緑を確認する**
 
 Run: `bats scripts/tests/zshrc-claude.bats`
-Expected: 24 ok / 0 not ok
+Expected: 25 ok / 0 not ok
 
 - [ ] **Step 5: 変異注入で pin が生きていることを確認する**
 
@@ -175,8 +193,9 @@ Expected: 24 ok / 0 not ok
 | 変異 | 赤くなるべきテスト |
 | --- | --- |
 | `git rev-parse --show-toplevel` を `--show-prefix` に変える | derives from the git repository root |
-| `\|\| dir="$PWD"` を削る | falls back to the cwd name |
-| `${dir##*/}` を `${dir}` に変える | 4 件すべて |
+| `\|\| dir="$(pwd -P)"` を削る | falls back to the cwd name |
+| `pwd -P` を `pwd` に戻す | resolves symlinked directories to the same id |
+| `${dir##*/}` を `${dir}` に変える | 全件 |
 
 ```bash
 mkdir -p .cache/mutation && cp home/.zshrc .cache/mutation/zshrc
