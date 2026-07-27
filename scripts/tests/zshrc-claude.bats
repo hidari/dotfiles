@@ -284,6 +284,55 @@ teardown() {
     assert_contains "$(cat "$RECORDED_LAUNCH")" "ARGV=--resume foo"
 }
 
+@test "claude: passes the derived task list id to the binary" {
+    setup_test_repo "$TEST_HOME/myrepo"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    run_in_dir "$TEST_HOME/myrepo" claude
+
+    [ "$status" -eq 0 ]
+    assert_contains "$(cat "$RECORDED_LAUNCH")" "TASK_LIST=myrepo"
+}
+
+@test "claude: lets an explicit task list id win over derivation" {
+    # 導出は既定であって強制ではない。別のリストを指定して起動する余地を残す
+    setup_test_repo "$TEST_HOME/myrepo"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    CLAUDE_CODE_TASK_LIST_ID=explicit run_in_dir "$TEST_HOME/myrepo" claude
+
+    [ "$status" -eq 0 ]
+    local recorded
+    recorded="$(cat "$RECORDED_LAUNCH")"
+    assert_contains "$recorded" "TASK_LIST=explicit"
+    refute_contains "$recorded" "TASK_LIST=myrepo"
+}
+
+@test "claude: leaves the variable unset when nothing can be derived" {
+    # 空文字を渡したときの Claude Code の挙動は未確認。未確認の前提に賭けず、
+    # 導出できないときは既定のセッション ID リストに任せる
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    run_in_dir / claude
+
+    [ "$status" -eq 0 ]
+    refute_contains "$(cat "$RECORDED_LAUNCH")" "TASK_LIST="
+}
+
+@test "claude: warns about a derived task list that does not exist yet" {
+    setup_test_repo "$TEST_HOME/myrepo"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    run_in_dir "$TEST_HOME/myrepo" claude
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "新しいタスクリストを作成します: myrepo"
+}
+
 # =============================================================================
 # claude-hamiltonian (仕事アカウント)
 # =============================================================================
@@ -339,6 +388,21 @@ teardown() {
     recorded="$(cat "$RECORDED_LAUNCH")"
     assert_contains "$recorded" "CONFIG_DIR=$TEST_HOME/.claude-hamiltonian"
     assert_contains "$recorded" "TASK_LIST=dotfiles"
+}
+
+@test "claude-hamiltonian: passes the derived task list id to the binary" {
+    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    setup_test_repo "$TEST_HOME/myrepo"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    run_in_dir "$TEST_HOME/myrepo" claude-hamiltonian
+
+    [ "$status" -eq 0 ]
+    local recorded
+    recorded="$(cat "$RECORDED_LAUNCH")"
+    assert_contains "$recorded" "CONFIG_DIR=$TEST_HOME/.claude-hamiltonian"
+    assert_contains "$recorded" "TASK_LIST=myrepo"
 }
 
 @test "claude-hamiltonian: warns about an unknown task list but still launches" {

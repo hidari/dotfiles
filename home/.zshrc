@@ -240,19 +240,29 @@ function _claude_task_list_id() {
 # アカウントとタスクリストを確認するアカウントがずれて警告が食い違う。
 # command claude で関数自身の再帰を避ける。
 function claude() {
-  local config_dir
+  local config_dir task_list
   config_dir="$(_claude_config_dir)" || return 1
-  _claude_task_list_notice "$config_dir" "$CLAUDE_CODE_TASK_LIST_ID"
-  command claude "$@"
+  task_list="${CLAUDE_CODE_TASK_LIST_ID:-$(_claude_task_list_id)}"
+  _claude_task_list_notice "$config_dir" "$task_list"
+  if [ -n "$task_list" ]; then
+    CLAUDE_CODE_TASK_LIST_ID="$task_list" command claude "$@"
+  else
+    command claude "$@"
+  fi
 }
 
 # 仕事アカウント。アカウントを固定するのが存在理由なので、外から前置で
 # CLAUDE_CONFIG_DIR が渡されていても自分のディレクトリを引数で名指しする。
 function claude-hamiltonian() {
-  local config_dir
+  local config_dir task_list
   config_dir="$(_claude_config_dir "$HOME/.claude-hamiltonian")" || return 1
-  _claude_task_list_notice "$config_dir" "$CLAUDE_CODE_TASK_LIST_ID"
-  CLAUDE_CONFIG_DIR="$config_dir" command claude "$@"
+  task_list="${CLAUDE_CODE_TASK_LIST_ID:-$(_claude_task_list_id)}"
+  _claude_task_list_notice "$config_dir" "$task_list"
+  if [ -n "$task_list" ]; then
+    CLAUDE_CONFIG_DIR="$config_dir" CLAUDE_CODE_TASK_LIST_ID="$task_list" command claude "$@"
+  else
+    CLAUDE_CONFIG_DIR="$config_dir" command claude "$@"
+  fi
 }
 
 ########################################
