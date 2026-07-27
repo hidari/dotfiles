@@ -81,16 +81,25 @@ load_bootstrap_functions() {
     rm -f "$temp_func_file"
 }
 
-# bootstrap.sh の SYMLINK_PAIRS 配列ブロックだけを切り出して source し、
-# テストシェルに実配列を定義する。load_bootstrap_functions と同じ marker-slice 方式。
-# ブロックは純データ (set -euo pipefail 等の副作用を含まない) なので、
-# whole-file source を避けている理由がここにも当てはまる。実配列を source すれば
-# テキスト parse の脆さ (配列内コメントを phantom source と誤読する等) を避けられる。
-load_symlink_pairs() {
+# 名前で指定した配列定義ブロックだけを切り出して source し、テストシェルに実配列を
+# 定義する。load_bootstrap_functions と同じ marker-slice 方式。ブロックは純データ
+# (set -euo pipefail 等の副作用を含まない) なので、whole-file source を避けている理由が
+# ここにも当てはまる。実配列を source すればテキスト parse の脆さ
+# (配列内コメントを phantom source と誤読する等) を避けられる。
+# 配列名が変わったのに黙って空を source すると、その配列を検査するテストが
+# 「1 件も見ていないのに緑」になるため、見つからない場合は失敗させる。
+load_pairs_array() {
+    local name="$1"
     local temp_pairs_file
     temp_pairs_file=$(mktemp)
 
-    sed -n '/^SYMLINK_PAIRS=(/,/^)/p' "$BOOTSTRAP_SCRIPT" > "$temp_pairs_file"
+    sed -n "/^${name}=(/,/^)/p" "$BOOTSTRAP_SCRIPT" > "$temp_pairs_file"
+
+    if [ ! -s "$temp_pairs_file" ]; then
+        echo "Error: array not found in $BOOTSTRAP_SCRIPT: $name" >&2
+        rm -f "$temp_pairs_file"
+        return 1
+    fi
 
     # shellcheck source=/dev/null
     source "$temp_pairs_file"

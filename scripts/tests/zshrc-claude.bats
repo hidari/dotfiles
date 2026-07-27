@@ -4,14 +4,19 @@
 # =============================================================================
 #
 # 起動関数が守る仕様は 3 つ。
-#   1. 個人アカウントは CLAUDE_CONFIG_DIR に触れない (Keychain の service 名の
-#      導出条件が未確認のため、既定パスの明示指定という賭けをしない)
+#   1. 個人アカウントは CLAUDE_CONFIG_DIR を設定しない (Keychain の service 名の
+#      導出条件が未確認のため、既定パスの明示指定という賭けをしない)。
+#      外から渡された値は読んで尊重する
 #   2. 仕事アカウントは config dir の存在を確認してから渡す (存在しない値は
 #      Claude Code が黙って受け入れ、初期状態で起動してしまう)
 #   3. タスクリスト ID はアカウントと直交する軸なので関数は持たず、未知の ID の
 #      ときだけ知らせる (ブロックはしない)
 
 load test_helper
+
+# run --separate-stderr (stdout と stderr を分けて観測する) に必要。
+# 宣言しないと bats が BW02 警告を出す。CI は v1.13.0 を pin している。
+bats_require_minimum_version 1.5.0
 
 setup() {
     setup_test_home
@@ -72,6 +77,54 @@ teardown() {
 }
 
 # =============================================================================
+# _claude_config_dir
+# =============================================================================
+#
+# 設定ディレクトリの解決と存在検査を 1 箇所に閉じる。存在検査が片方のランチャに
+# しか無いと、外から渡された typo をもう片方が素通ししてしまう。
+
+@test "_claude_config_dir: resolves to the default when nothing is given" {
+    load_zshrc_claude_functions
+
+    run _claude_config_dir
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "$TEST_HOME/.claude" ]
+}
+
+@test "_claude_config_dir: resolves to the environment value when set" {
+    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    load_zshrc_claude_functions
+
+    CLAUDE_CONFIG_DIR="$TEST_HOME/.claude-hamiltonian" run _claude_config_dir
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "$TEST_HOME/.claude-hamiltonian" ]
+}
+
+@test "_claude_config_dir: prefers the explicit argument over the environment" {
+    # アカウントを固定するランチャは、外から渡された値ではなく自分の値を使う
+    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    load_zshrc_claude_functions
+
+    CLAUDE_CONFIG_DIR="$TEST_HOME/.claude" run _claude_config_dir "$TEST_HOME/.claude-hamiltonian"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "$TEST_HOME/.claude-hamiltonian" ]
+}
+
+@test "_claude_config_dir: fails when the resolved directory does not exist" {
+    load_zshrc_claude_functions
+
+    run --separate-stderr _claude_config_dir "$TEST_HOME/.claude-nonexistent"
+
+    [ "$status" -ne 0 ]
+    assert_contains "$stderr" "設定ディレクトリが見つかりません"
+    # 解決結果を stdout へ流したまま失敗すると、呼び出し元が空でない値を掴んで起動しうる
+    [ -z "$output" ]
+}
+
+# =============================================================================
 # claude (個人アカウント)
 # =============================================================================
 
@@ -85,7 +138,8 @@ teardown() {
     local recorded
     recorded="$(cat "$RECORDED_LAUNCH")"
     assert_contains "$recorded" "LAUNCHED"
-    # 既定パスの明示指定は Keychain の service 名の導出を変えうるため、変数に触れないことが仕様
+    # 既定パスの明示指定は Keychain の service 名の導出を変えうるため、
+    # 変数を子プロセスへ渡さないことが仕様
     refute_contains "$recorded" "CONFIG_DIR="
 }
 
@@ -100,6 +154,46 @@ teardown() {
     local launches
     launches="$(grep -c '^LAUNCHED$' "$RECORDED_LAUNCH")"
     [ "$launches" -eq 1 ]
+}
+
+@test "claude: inspects the config dir handed in from outside" {
+    # 前置で CLAUDE_CONFIG_DIR を渡すと起動先は別アカウントになるのに、確認先が
+    # 個人側に固定されていると存在しない ID を既知と誤判定して黙る。
+    # 「起動するアカウント」と「確認するアカウント」は一致していなければならない
+    mkdir -p "$TEST_HOME/.claude/tasks/dotfiles"
+    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    CLAUDE_CONFIG_DIR="$TEST_HOME/.claude-hamiltonian" CLAUDE_CODE_TASK_LIST_ID=dotfiles run claude
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "新しいタスクリストを作成します: dotfiles"
+}
+
+@test "claude: fails without launching when the config dir handed in is missing" {
+    # 存在しない値は Claude Code が黙って受け入れ、その場所に初期状態の設定を作って
+    # 起動する。前置の typo は /login を求められるまで気づけないため、ここで止める
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    CLAUDE_CONFIG_DIR="$TEST_HOME/.claude-typo" run claude
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "設定ディレクトリが見つかりません"
+    refute_contains "$(cat "$RECORDED_LAUNCH")" "LAUNCHED"
+}
+
+@test "claude: falls back to the default config dir when none is handed in" {
+    # 上の裏返し。既定は個人側であり、外部指定が無いのに別の場所を見にいかないこと
+    mkdir -p "$TEST_HOME/.claude/tasks/dotfiles"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    CLAUDE_CODE_TASK_LIST_ID=dotfiles run claude
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
 }
 
 @test "claude: forwards its arguments to the binary" {
@@ -122,6 +216,19 @@ teardown() {
     load_zshrc_claude_functions
 
     run claude-hamiltonian
+
+    [ "$status" -eq 0 ]
+    assert_contains "$(cat "$RECORDED_LAUNCH")" "CONFIG_DIR=$TEST_HOME/.claude-hamiltonian"
+}
+
+@test "claude-hamiltonian: pins its own account over an externally given config dir" {
+    # アカウントを固定するのがこの関数の存在理由。前置に引きずられて個人側で
+    # 起動したら、仕事用として呼んだ意味が消える
+    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    CLAUDE_CONFIG_DIR="$TEST_HOME/.claude" run claude-hamiltonian
 
     [ "$status" -eq 0 ]
     assert_contains "$(cat "$RECORDED_LAUNCH")" "CONFIG_DIR=$TEST_HOME/.claude-hamiltonian"
