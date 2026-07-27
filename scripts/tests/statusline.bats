@@ -164,14 +164,30 @@ expected_tag_for() {
     load_statusline_functions
     local cache="$TEST_HOME/email-cache.txt"
     echo "stale@example.com" > "$cache"
-    # キャッシュより新しい .claude.json を用意する
+    # キャッシュを過去へ倒して .claude.json の方が新しい状態を作る。
+    # touch -t は POSIX で BSD/GNU 双方にあるが、相対指定の -A は BSD 専用で Linux では落ちる。
+    touch -t 202001010000 "$cache"
     echo '{"oauthAccount":{"emailAddress":"fresh@example.com"}}' > "$TEST_HOME/acc.json"
-    touch -A 01 "$TEST_HOME/acc.json"
 
     run account_email "$TEST_HOME/acc.json" "$cache"
 
     [ "$status" -eq 0 ]
     [ "$output" = "fresh@example.com" ]
+}
+
+@test "account_email: uses the cache when it is newer than the account json" {
+    # 逆方向。statusLine は描画ごとに走るため、更新が無ければ 100KB 超の JSON を
+    # 読み直さないことが仕様。両方向を見ないと「常に読み直す」実装を見逃す
+    load_statusline_functions
+    local cache="$TEST_HOME/email-cache.txt"
+    echo '{"oauthAccount":{"emailAddress":"fresh@example.com"}}' > "$TEST_HOME/acc.json"
+    touch -t 202001010000 "$TEST_HOME/acc.json"
+    echo "cached@example.com" > "$cache"
+
+    run account_email "$TEST_HOME/acc.json" "$cache"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "cached@example.com" ]
 }
 
 # =============================================================================
