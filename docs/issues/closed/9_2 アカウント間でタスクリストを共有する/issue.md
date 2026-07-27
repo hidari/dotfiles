@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: closed
 ---
 
 # feat: 2 アカウント間でタスクリストを共有する
