@@ -271,27 +271,28 @@ FAKE
     export PATH="$fake_bin:$PATH"
 }
 
-# statusline-command.sh を最小の stdin JSON で実行する。
-# cwd を空にして git 探索経路へ入らないようにし、アカウント分離の観測に絞る。
+# statusline-command.sh へ渡す stdin JSON を組み立てる。
+# 引数を省くと cwd が空になり git 探索経路へ入らないため、アカウント分離の観測に絞れる。
+statusline_input_json() {
+    printf '{"model":{"display_name":"Test"},"context_window":{"used_percentage":10},"cwd":"%s"}' "${1:-}"
+}
+
+# statusline-command.sh をリポジトリ外の状況で実行する。
 run_statusline() {
-    run bash "$STATUSLINE_SCRIPT" <<< '{"model":{"display_name":"Test"},"context_window":{"used_percentage":10}}'
+    run_statusline_in ""
 }
 
 # cwd を指定して statusline-command.sh を実行する (リポジトリ行の検証用)。
 run_statusline_in() {
-    local dir="$1"
-    run bash "$STATUSLINE_SCRIPT" <<< "{\"model\":{\"display_name\":\"Test\"},\"context_window\":{\"used_percentage\":10},\"cwd\":\"$dir\"}"
+    run bash "$STATUSLINE_SCRIPT" <<< "$(statusline_input_json "$1")"
 }
 
 # statusline-command.sh の生の出力をファイルへ落とす。
 # bats の $output は末尾改行を落とすため、「最終行に改行を付けない」規約は
 # $lines の要素数では原理的に観測できない。改行の数で見る必要がある。
-# 第 2 引数を省くと cwd が空になり git 探索経路へ入らない。
 statusline_raw() {
     local dest="$1"
-    local dir="${2:-}"
-    bash "$STATUSLINE_SCRIPT" > "$dest" 2>/dev/null \
-        <<< "{\"model\":{\"display_name\":\"Test\"},\"context_window\":{\"used_percentage\":10},\"cwd\":\"$dir\"}"
+    bash "$STATUSLINE_SCRIPT" > "$dest" 2>/dev/null <<< "$(statusline_input_json "${2:-}")"
 }
 
 # ファイル内の改行の数を返す。行数ではなく改行数なので、

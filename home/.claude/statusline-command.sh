@@ -91,12 +91,18 @@ account_config_dir() {
   printf '%s' "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 }
 
+# 既定の設定ディレクトリかどうか。この判定が Keychain の service 名・キャッシュ名・
+# .claude.json の置き場すべての分岐条件になるため、定義を 1 箇所に閉じる。
+is_default_config_dir() {
+  [ "$1" = "$HOME/.claude" ]
+}
+
 # 設定ディレクトリを識別する短いタグ。既定は default、それ以外は絶対パスの
 # sha256 先頭 8 桁。Claude Code が Keychain の service 名へ付けるサフィックスと
 # 同じ導出 (実測で確定)。キャッシュファイル名の分離にも使う。
 account_tag() {
   local config_dir="$1"
-  if [ "$config_dir" = "$HOME/.claude" ]; then
+  if is_default_config_dir "$config_dir"; then
     printf 'default'
     return
   fi
@@ -108,22 +114,23 @@ account_tag() {
 # 他アカウントのトークンでプローブして別アカウントのレート制限を表示してしまう。
 account_keychain_service() {
   local tag="$1"
+  local base="Claude Code-credentials"
   if [ "$tag" = "default" ]; then
-    printf 'Claude Code-credentials'
+    printf '%s' "$base"
     return
   fi
-  printf 'Claude Code-credentials-%s' "$tag"
+  printf '%s-%s' "$base" "$tag"
 }
 
 # アカウント情報を持つ .claude.json のパス。
 # 既定ディレクトリのときだけ設定ディレクトリの中ではなく $HOME 直下に置かれる。
 account_json_path() {
   local config_dir="$1"
-  if [ "$config_dir" = "$HOME/.claude" ]; then
-    printf '%s/.claude.json' "$HOME"
-    return
+  local base="$config_dir"
+  if is_default_config_dir "$config_dir"; then
+    base="$HOME"
   fi
-  printf '%s/.claude.json' "$config_dir"
+  printf '%s/.claude.json' "$base"
 }
 
 # アカウントのメールアドレス。スクリプトに埋め込まず実データから読むことで、
