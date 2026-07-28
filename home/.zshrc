@@ -195,11 +195,14 @@ function kill-port() {
 # タスクリスト ID が未知なら知らせる。Claude Code は未知の ID でも黙って新しいリストを
 # 作るため、typo は「履歴が分裂している」形でしか後から気づけない。
 # 新規作成そのものは正当な操作なのでブロックはしない。
+# ID は呼び出し側が解決した値を受け取る。グローバルを直接読むと、導出した ID ではなく
+# 前置の値を見てしまい判定がずれる。
 function _claude_task_list_notice() {
   local config_dir="$1"
-  [ -n "$CLAUDE_CODE_TASK_LIST_ID" ] || return 0
-  [ -d "$config_dir/tasks/$CLAUDE_CODE_TASK_LIST_ID" ] && return 0
-  echo "新しいタスクリストを作成します: $CLAUDE_CODE_TASK_LIST_ID" >&2
+  local task_list_id="$2"
+  [ -n "$task_list_id" ] || return 0
+  [ -d "$config_dir/tasks/$task_list_id" ] && return 0
+  echo "新しいタスクリストを作成します: $task_list_id" >&2
 }
 
 # 有効な設定ディレクトリを解決する。引数があればそれを、無ければ前置で渡された
@@ -216,6 +219,19 @@ function _claude_config_dir() {
   printf '%s' "$config_dir"
 }
 
+# タスクリスト ID を作業ディレクトリから導出する。git リポジトリならルートの名前、
+# そうでなければ cwd の名前。サブディレクトリでもルートに寄せるのは、同じプロジェクトの
+# 進捗が割れないため。
+# リポジトリ外では pwd -P で実体パスに寄せる。$PWD は symlink 経由で入ったときに
+# リンク名を返すため、同じディレクトリなのに経路によって ID が割れる。git 側は
+# --show-toplevel が常に実体パスを返すので、揃えないと 2 つの分岐が非対称になる。
+# zsh の modifier (${dir:t}) は bats が bash で source すると壊れるので使わない。
+function _claude_task_list_id() {
+  local dir
+  dir="$(git rev-parse --show-toplevel 2>/dev/null)" || dir="$(pwd -P)"
+  printf '%s' "${dir##*/}"
+}
+
 # 個人アカウント。既定の設定ディレクトリを使うため CLAUDE_CONFIG_DIR は設定しない。
 # 明示指定すると Keychain の service 名の導出が変わって再ログインを誘発しうる
 # (既定はサフィックス無し、指定時は絶対パスの sha256 先頭 8 桁)。どちらの条件で
@@ -224,19 +240,31 @@ function _claude_config_dir() {
 # アカウントとタスクリストを確認するアカウントがずれて警告が食い違う。
 # command claude で関数自身の再帰を避ける。
 function claude() {
-  local config_dir
+  local config_dir task_list
   config_dir="$(_claude_config_dir)" || return 1
-  _claude_task_list_notice "$config_dir"
-  command claude "$@"
+  task_list="${CLAUDE_CODE_TASK_LIST_ID:-$(_claude_task_list_id)}"
+  _claude_task_list_notice "$config_dir" "$task_list"
+  # 空文字を渡したときの挙動は未確認。導出できないときは変数ごと渡さず既定に任せる
+  if [ -n "$task_list" ]; then
+    CLAUDE_CODE_TASK_LIST_ID="$task_list" command claude "$@"
+  else
+    command claude "$@"
+  fi
 }
 
 # 仕事アカウント。アカウントを固定するのが存在理由なので、外から前置で
 # CLAUDE_CONFIG_DIR が渡されていても自分のディレクトリを引数で名指しする。
 function claude-hamiltonian() {
-  local config_dir
+  local config_dir task_list
   config_dir="$(_claude_config_dir "$HOME/.claude-hamiltonian")" || return 1
-  _claude_task_list_notice "$config_dir"
-  CLAUDE_CONFIG_DIR="$config_dir" command claude "$@"
+  task_list="${CLAUDE_CODE_TASK_LIST_ID:-$(_claude_task_list_id)}"
+  _claude_task_list_notice "$config_dir" "$task_list"
+  # 空文字を渡したときの挙動は未確認。導出できないときは変数ごと渡さず既定に任せる
+  if [ -n "$task_list" ]; then
+    CLAUDE_CONFIG_DIR="$config_dir" CLAUDE_CODE_TASK_LIST_ID="$task_list" command claude "$@"
+  else
+    CLAUDE_CONFIG_DIR="$config_dir" command claude "$@"
+  fi
 }
 
 ########################################

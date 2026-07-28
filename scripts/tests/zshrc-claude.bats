@@ -3,14 +3,18 @@
 # .zshrc の Claude Code 起動関数テスト
 # =============================================================================
 #
-# 起動関数が守る仕様は 3 つ。
+# 起動関数が守る仕様は以下の通り。
 #   1. 個人アカウントは CLAUDE_CONFIG_DIR を設定しない (Keychain の service 名の
 #      導出条件が未確認のため、既定パスの明示指定という賭けをしない)。
 #      外から渡された値は読んで尊重する
 #   2. 仕事アカウントは config dir の存在を確認してから渡す (存在しない値は
 #      Claude Code が黙って受け入れ、初期状態で起動してしまう)
-#   3. タスクリスト ID はアカウントと直交する軸なので関数は持たず、未知の ID の
-#      ときだけ知らせる (ブロックはしない)
+#   3. タスクリスト ID は作業ディレクトリから導出する (git リポジトリならルート、
+#      無ければ cwd の名前)。前置の明示指定はこの導出に優先し、何も導出できない
+#      ときは変数ごと渡さず既定のセッション ID リストに任せる
+#   4. 未知のタスクリスト ID は新規作成として通し、知らせるだけでブロックはしない
+#      (_claude_task_list_notice() が導出済みの ID を引数で受け取る専用関数であり、
+#      ランチャと通知が別々に ID を判定して食い違うことを防ぐ)
 
 load test_helper
 
@@ -36,7 +40,7 @@ teardown() {
 @test "_claude_task_list_notice: warns when the task list id is unknown" {
     load_zshrc_claude_functions
 
-    CLAUDE_CODE_TASK_LIST_ID=nonexistent run _claude_task_list_notice "$TEST_HOME/.claude"
+    run _claude_task_list_notice "$TEST_HOME/.claude" nonexistent
 
     # 新規作成は正当な操作なので、知らせるだけでブロックはしない
     [ "$status" -eq 0 ]
@@ -47,17 +51,17 @@ teardown() {
     mkdir -p "$TEST_HOME/.claude/tasks/dotfiles"
     load_zshrc_claude_functions
 
-    CLAUDE_CODE_TASK_LIST_ID=dotfiles run _claude_task_list_notice "$TEST_HOME/.claude"
+    run _claude_task_list_notice "$TEST_HOME/.claude" dotfiles
 
     [ "$status" -eq 0 ]
     # 既知の ID で警告が出ると常時ノイズになり、本当の typo を見落とす
     [ -z "$output" ]
 }
 
-@test "_claude_task_list_notice: stays silent when no task list id is set" {
+@test "_claude_task_list_notice: stays silent when no task list id is given" {
     load_zshrc_claude_functions
 
-    run _claude_task_list_notice "$TEST_HOME/.claude"
+    run _claude_task_list_notice "$TEST_HOME/.claude" ""
 
     [ "$status" -eq 0 ]
     [ -z "$output" ]
@@ -70,10 +74,22 @@ teardown() {
     mkdir -p "$TEST_HOME/.claude-hamiltonian"
     load_zshrc_claude_functions
 
-    CLAUDE_CODE_TASK_LIST_ID=dotfiles run _claude_task_list_notice "$TEST_HOME/.claude-hamiltonian"
+    run _claude_task_list_notice "$TEST_HOME/.claude-hamiltonian" dotfiles
 
     [ "$status" -eq 0 ]
     assert_contains "$output" "新しいタスクリストを作成します: dotfiles"
+}
+
+@test "_claude_task_list_notice: ignores the ambient environment variable" {
+    # グローバル参照が残っていると、呼び出し側が渡した ID ではなく前置の値を見てしまう。
+    # 導出した ID と手打ちの ID が食い違ったときに誤った判定をする
+    mkdir -p "$TEST_HOME/.claude/tasks/derived"
+    load_zshrc_claude_functions
+
+    CLAUDE_CODE_TASK_LIST_ID=nonexistent run _claude_task_list_notice "$TEST_HOME/.claude" derived
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
 }
 
 # =============================================================================
@@ -121,6 +137,72 @@ teardown() {
     [ "$status" -ne 0 ]
     assert_contains "$stderr" "設定ディレクトリが見つかりません"
     # 解決結果を stdout へ流したまま失敗すると、呼び出し元が空でない値を掴んで起動しうる
+    [ -z "$output" ]
+}
+
+# =============================================================================
+# _claude_task_list_id
+# =============================================================================
+#
+# ID を手で打つ限り typo は避けられない。作業ディレクトリから導出すれば
+# 打ち間違えようがなく、指定を忘れることもない。
+
+@test "_claude_task_list_id: derives from the git repository root" {
+    setup_test_repo "$TEST_HOME/myrepo"
+    load_zshrc_claude_functions
+
+    run_in_dir "$TEST_HOME/myrepo" _claude_task_list_id
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "myrepo" ]
+}
+
+@test "_claude_task_list_id: resolves to the root even from a subdirectory" {
+    # サブディレクトリごとに別 ID になると、同じプロジェクトの進捗が割れる。
+    # これが導出元を cwd ではなくリポジトリルートにしている理由
+    setup_test_repo "$TEST_HOME/myrepo"
+    mkdir -p "$TEST_HOME/myrepo/frontend/src"
+    load_zshrc_claude_functions
+
+    run_in_dir "$TEST_HOME/myrepo/frontend/src" _claude_task_list_id
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "myrepo" ]
+}
+
+@test "_claude_task_list_id: falls back to the cwd name outside a repository" {
+    mkdir -p "$TEST_HOME/plain-dir"
+    load_zshrc_claude_functions
+
+    run_in_dir "$TEST_HOME/plain-dir" _claude_task_list_id
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "plain-dir" ]
+}
+
+@test "_claude_task_list_id: resolves symlinked directories to the same id" {
+    # 同じ実ディレクトリへ 2 つの経路で入っても ID が一致すること。$PWD はリンク名を
+    # 返すため、揃えないと同じ場所なのにタスクリストが 2 つに割れる。
+    # git 側は --show-toplevel が常に実体パスを返すので、フォールバックだけ経路依存に
+    # なる非対称を作らない
+    mkdir -p "$TEST_HOME/real-dir"
+    ln -s "$TEST_HOME/real-dir" "$TEST_HOME/link-dir"
+    load_zshrc_claude_functions
+
+    run_in_dir "$TEST_HOME/link-dir" _claude_task_list_id
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "real-dir" ]
+}
+
+@test "_claude_task_list_id: yields nothing at the filesystem root" {
+    # basename が空になる唯一の場所。空の ID を渡したときの Claude Code の挙動は
+    # 未確認なので、呼び出し側が変数を設定しない判断をするための signal にする
+    load_zshrc_claude_functions
+
+    run_in_dir / _claude_task_list_id
+
+    [ "$status" -eq 0 ]
     [ -z "$output" ]
 }
 
@@ -206,6 +288,60 @@ teardown() {
     assert_contains "$(cat "$RECORDED_LAUNCH")" "ARGV=--resume foo"
 }
 
+@test "claude: passes the derived task list id to the binary" {
+    setup_test_repo "$TEST_HOME/myrepo"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    run_in_dir "$TEST_HOME/myrepo" claude
+
+    [ "$status" -eq 0 ]
+    assert_contains "$(cat "$RECORDED_LAUNCH")" "TASK_LIST=myrepo"
+}
+
+@test "claude: lets an explicit task list id win over derivation" {
+    # 導出は既定であって強制ではない。別のリストを指定して起動する余地を残す
+    setup_test_repo "$TEST_HOME/myrepo"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    CLAUDE_CODE_TASK_LIST_ID=explicit run_in_dir "$TEST_HOME/myrepo" claude
+
+    [ "$status" -eq 0 ]
+    local recorded
+    recorded="$(cat "$RECORDED_LAUNCH")"
+    assert_contains "$recorded" "TASK_LIST=explicit"
+    refute_contains "$recorded" "TASK_LIST=myrepo"
+}
+
+@test "claude: leaves the variable unset when nothing can be derived" {
+    # 空文字を渡したときの Claude Code の挙動は未確認。未確認の前提に賭けず、
+    # 導出できないときは既定のセッション ID リストに任せる
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    run_in_dir / claude
+
+    [ "$status" -eq 0 ]
+    local recorded
+    recorded="$(cat "$RECORDED_LAUNCH")"
+    # 変数を渡さないだけでなく、起動そのものが行われたことも確かめる。
+    # ここを確かめないと else 分岐の起動を削除しても検出できない
+    assert_contains "$recorded" "LAUNCHED"
+    refute_contains "$recorded" "TASK_LIST="
+}
+
+@test "claude: warns about a derived task list that does not exist yet" {
+    setup_test_repo "$TEST_HOME/myrepo"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    run_in_dir "$TEST_HOME/myrepo" claude
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "新しいタスクリストを作成します: myrepo"
+}
+
 # =============================================================================
 # claude-hamiltonian (仕事アカウント)
 # =============================================================================
@@ -249,18 +385,54 @@ teardown() {
 }
 
 @test "claude-hamiltonian: passes the task list id through to the binary" {
-    mkdir -p "$TEST_HOME/.claude-hamiltonian/tasks/dotfiles"
+    mkdir -p "$TEST_HOME/.claude-hamiltonian/tasks/explicit"
+    setup_test_repo "$TEST_HOME/myrepo"
     setup_recording_claude
     load_zshrc_claude_functions
 
-    # アカウント (関数) とタスクリスト (前置) が直交して合成できることを pin する
-    CLAUDE_CODE_TASK_LIST_ID=dotfiles run claude-hamiltonian
+    # アカウント (関数) とタスクリスト (前置) が直交して合成できることを pin する。
+    # 前置値は導出値と衝突しない名前にする
+    CLAUDE_CODE_TASK_LIST_ID=explicit run_in_dir "$TEST_HOME/myrepo" claude-hamiltonian
 
     [ "$status" -eq 0 ]
     local recorded
     recorded="$(cat "$RECORDED_LAUNCH")"
     assert_contains "$recorded" "CONFIG_DIR=$TEST_HOME/.claude-hamiltonian"
-    assert_contains "$recorded" "TASK_LIST=dotfiles"
+    assert_contains "$recorded" "TASK_LIST=explicit"
+    refute_contains "$recorded" "TASK_LIST=myrepo"
+}
+
+@test "claude-hamiltonian: passes the derived task list id to the binary" {
+    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    setup_test_repo "$TEST_HOME/myrepo"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    run_in_dir "$TEST_HOME/myrepo" claude-hamiltonian
+
+    [ "$status" -eq 0 ]
+    local recorded
+    recorded="$(cat "$RECORDED_LAUNCH")"
+    assert_contains "$recorded" "CONFIG_DIR=$TEST_HOME/.claude-hamiltonian"
+    assert_contains "$recorded" "TASK_LIST=myrepo"
+}
+
+@test "claude-hamiltonian: leaves the variable unset when nothing can be derived" {
+    # 空ガードは 2 つのランチャに重複して存在する。片方だけを pin すると
+    # もう片方は変異させても緑のままになり、仕事アカウントだけが退行できてしまう
+    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    run_in_dir / claude-hamiltonian
+
+    [ "$status" -eq 0 ]
+    local recorded
+    recorded="$(cat "$RECORDED_LAUNCH")"
+    # 変数を渡さないだけでなく、起動そのものが行われたことも確かめる。
+    # ここを確かめないと else 分岐の起動を削除しても検出できない
+    assert_contains "$recorded" "LAUNCHED"
+    refute_contains "$recorded" "TASK_LIST="
 }
 
 @test "claude-hamiltonian: warns about an unknown task list but still launches" {

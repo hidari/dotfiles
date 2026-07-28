@@ -165,6 +165,19 @@ load_zshrc_claude_functions() {
     load_marker_block "$ZSHRC_FILE" '^# Claude Code 起動$' '^########################################$'
 }
 
+# 指定ディレクトリを cwd にして run を実行し、元の cwd へ戻す。
+# cwd を戻さないと teardown_test_home が作業中のディレクトリごと削除し、後続テストが
+# 存在しない cwd を引きずって git 探索の結果が揺れる。復元忘れを 1 件でも作らないよう
+# ヘルパ側に閉じる。run と同じく status / output はグローバルに残る。
+run_in_dir() {
+    local dir="$1"
+    shift
+    local saved="$PWD"
+    cd "$dir" || return 1
+    run "$@"
+    cd "$saved" || return 1
+}
+
 # テスト用の偽 claude バイナリを PATH 先頭に用意する
 # - plugin list / marketplace list --json は環境変数で制御した JSON を返す
 #   （FAKE_PLUGINS_JSON / FAKE_MARKETPLACES_JSON、既定は空配列）
