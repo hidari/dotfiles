@@ -34,14 +34,12 @@
       "WebSearch"
     ],
     "deny": [
+      "Bash(npx:*)",
+      "Bash(npm:*)",
       "Read(.hidari/**)",
-      "Bash(pkill:*)",
-      "NotebookEdit",
-      "NotebookRead"
+      "Bash(pkill:*)"
     ],
     "ask": [
-      "Bash(git commit:*)",
-      "Bash(git push:*)",
       "Bash(git rm:*)"
     ]
   },
@@ -130,7 +128,8 @@
       "source": {
         "source": "github",
         "repo": "obra/superpowers-marketplace"
-      }
+      },
+      "autoUpdate": true
     },
     "googlechrome": {
       "source": {
@@ -148,6 +147,13 @@
   "outputStyle": "Explanatory",
   "language": "快活な日本人大学生の女の子の口調で、僕のことは必要なときだけHidariさんと呼んで",
   "alwaysThinkingEnabled": true,
-  "effortLevel": "high",
-  "skipAutoPermissionPrompt": true
+  "effortLevel": "xhigh",
+  "skipAutoPermissionPrompt": true,
+  "promptSuggestionEnabled": false,
+  "tui": "fullscreen",
+  "skipWorkflowUsageWarning": true,
+  "editorMode": "normal",
+  "remoteControlAtStartup": true,
+  "inputNeededNotifEnabled": true,
+  "agentPushNotifEnabled": true
 }
