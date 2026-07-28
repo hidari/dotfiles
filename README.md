@@ -132,6 +132,12 @@ uv run --project scripts/config-guard config-guard .
 # tirith-hook (Python / pytest) — Claude Code PreToolUse フックの統合テスト
 uv run --directory scripts/tirith-hook pytest -q
 
+# ast-grep (構文レベル lint)。どちらのフラグも外すと結果が嘘になる
+# --skip-snapshot-tests: rules/ はスナップショットを持たないので、外すと baseline 不在で全件 fail する
+# --no-ignore hidden: 既定で隠しディレクトリを飛ばすので、外すと home/.config 配下を 1 件も見ずに exit 0
+ast-grep test --skip-snapshot-tests
+ast-grep scan --no-ignore hidden
+
 # apm 配信 skill の lockfile 整合性 / drift ゲート (違反時 exit 1)
 ( cd home && apm audit --ci )
 ```
