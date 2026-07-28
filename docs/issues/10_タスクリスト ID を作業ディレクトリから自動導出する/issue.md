@@ -130,9 +130,12 @@ linked git worktree では `git rev-parse --show-toplevel` がその worktree �
 経路では、親の環境から `CLAUDE_CODE_TASK_LIST_ID` が継承され前置優先のルールでそれを
 使うため分岐しない。分岐するのは worktree 内で `claude` を手動起動した場合だけである。
 
-`git rev-parse --git-common-dir` を使えばメインの作業ツリーを指す共通ディレクトリから
-導出できるため解消はできるが、それ自体が設計判断を要する変更なので、確定した TODO では
-なく既知の限界として記録するだけにする。
+`git rev-parse --git-common-dir` は worktree の分岐だけを解消できる。メインの作業ツリーを
+指す共通ディレクトリ (`.git`) から導出できるためである。一方 submodule には効かない。
+submodule の共通ディレクトリは `.git/modules/<name>` に解決され、そこから導出される
+ID は親ディレクトリ名の `modules` になる。あらゆるプロジェクトのあらゆる submodule が
+この一つの ID に収束するため、今より悪い失敗になる。それ自体が設計判断を要する変更
+なので、確定した TODO ではなく既知の限界として記録するだけにする。
 
 ### 前置で空文字を渡しても既定リストへは戻れなくなった
 
