@@ -3,14 +3,17 @@
 # .zshrc の Claude Code 起動関数テスト
 # =============================================================================
 #
-# 起動関数が守る仕様は 3 つ。
+# 起動関数が守る仕様は以下の通り。
 #   1. 個人アカウントは CLAUDE_CONFIG_DIR を設定しない (Keychain の service 名の
 #      導出条件が未確認のため、既定パスの明示指定という賭けをしない)。
 #      外から渡された値は読んで尊重する
 #   2. 仕事アカウントは config dir の存在を確認してから渡す (存在しない値は
 #      Claude Code が黙って受け入れ、初期状態で起動してしまう)
-#   3. タスクリスト ID はアカウントと直交する軸なので関数は持たず、未知の ID の
-#      ときだけ知らせる (ブロックはしない)
+#   3. タスクリスト ID は作業ディレクトリから導出する (git リポジトリならルート、
+#      無ければ cwd の名前)。前置の明示指定はこの導出に優先し、何も導出できない
+#      ときは変数ごと渡さず既定のセッション ID リストに任せる
+#   4. 未知のタスクリスト ID は新規作成として通し、知らせるだけでブロックはしない
+#      (アカウントと直交する軸なので、この処理専用の関数は持たない)
 
 load test_helper
 
@@ -319,7 +322,12 @@ teardown() {
     run_in_dir / claude
 
     [ "$status" -eq 0 ]
-    refute_contains "$(cat "$RECORDED_LAUNCH")" "TASK_LIST="
+    local recorded
+    recorded="$(cat "$RECORDED_LAUNCH")"
+    # 変数を渡さないだけでなく、起動そのものが行われたことも確かめる。
+    # ここを確かめないと else 分岐の起動を削除しても検出できない
+    assert_contains "$recorded" "LAUNCHED"
+    refute_contains "$recorded" "TASK_LIST="
 }
 
 @test "claude: warns about a derived task list that does not exist yet" {
@@ -418,7 +426,12 @@ teardown() {
     run_in_dir / claude-hamiltonian
 
     [ "$status" -eq 0 ]
-    refute_contains "$(cat "$RECORDED_LAUNCH")" "TASK_LIST="
+    local recorded
+    recorded="$(cat "$RECORDED_LAUNCH")"
+    # 変数を渡さないだけでなく、起動そのものが行われたことも確かめる。
+    # ここを確かめないと else 分岐の起動を削除しても検出できない
+    assert_contains "$recorded" "LAUNCHED"
+    refute_contains "$recorded" "TASK_LIST="
 }
 
 @test "claude-hamiltonian: warns about an unknown task list but still launches" {
