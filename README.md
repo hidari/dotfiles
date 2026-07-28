@@ -64,20 +64,31 @@ Additionally, `home/.gitconfig.private.example` is copied to `~/.gitconfig.priva
 
 `home/.claude/settings.json` は `git update-index --skip-worktree` で管理しており、二重の状態を持つ。
 
-- committed (HEAD): 公開して安全な curated subset。`/Users/<name>` パス・個人トグル・ローカル marketplace を含まない。
+- committed (HEAD): 公開して安全な curated subset。
 - working tree (`~/.claude/settings.json` の symlink 実体): 個人環境の live superset。
+
+committed は live から「committed に置けないもの」を除いた subset にする。通知や UI の個人トグルも、新マシンで同じ環境が立ち上がるよう committed 側に持つ。置けないものの定義は config-guard の不変条件 (`scripts/config-guard/src/config_guard/settings_invariants.py`) が正本なので README には再掲しない。
 
 ローカル固有の設定を commit に混ぜないため、committed 側だけを編集するときは working file を触らず index の blob を差し替える。
 
 ```bash
-# committed blob を取り出して編集し、index だけ差し替える
-git show HEAD:home/.claude/settings.json > /tmp/settings.json
-# /tmp/settings.json を編集する
-SHA=$(git hash-object -w /tmp/settings.json)
+shasum home/.claude/settings.json              # 差し替え前の live のハッシュを控える
+
+git show HEAD:home/.claude/settings.json > .cache/settings-new.json
+# .cache/settings-new.json を編集する
+SHA=$(git hash-object -w .cache/settings-new.json)
 git update-index --cacheinfo 100644,"$SHA",home/.claude/settings.json
-git diff --cached home/.claude/settings.json   # 差分が意図通りか検証する
-git commit -m "..."
+
+# cacheinfo は index エントリごと置き換えるので skip-worktree が外れる。commit の前に戻す。
+# 外れたまま commit すると、pre-commit が未 stage の live 側を stash して復元する窓ができる。
 git update-index --skip-worktree home/.claude/settings.json
+
+git ls-files -v home/.claude/settings.json     # 先頭が S なら skip-worktree が戻っている
+shasum home/.claude/settings.json              # 控えた値と一致すれば live は無変更
+git diff --cached home/.claude/settings.json   # 差分が意図通りか検証する
+
+# コミット本文を .cache/commit-settings.txt に書く
+git commit -F .cache/commit-settings.txt
 ```
 
 committed 側は CI で 2 つの仕組みが守る。
@@ -114,10 +125,18 @@ uv run --directory scripts/backup-tool pytest -q
 uv run --directory scripts/config-guard pytest -q
 
 # config-guard スキャン (skills + settings の stale 参照・構造逸脱検出)
-uv run --directory scripts/config-guard config-guard .
+# ここだけ --directory ではなく --project を使う。--directory は cwd を移すため引数の `.` が
+# リポジトリルートを指さなくなり、skills の glob が 0 件のまま成功表示になる。
+uv run --project scripts/config-guard config-guard .
 
 # tirith-hook (Python / pytest) — Claude Code PreToolUse フックの統合テスト
 uv run --directory scripts/tirith-hook pytest -q
+
+# ast-grep (構文レベル lint)。どちらのフラグも外すと結果が嘘になる
+# --skip-snapshot-tests: rules/ はスナップショットを持たないので、外すと baseline 不在で全件 fail する
+# --no-ignore hidden: 既定で隠しディレクトリを飛ばすので、外すと home/.config 配下を 1 件も見ずに exit 0
+ast-grep test --skip-snapshot-tests
+ast-grep scan --no-ignore hidden
 
 # apm 配信 skill の lockfile 整合性 / drift ゲート (違反時 exit 1)
 ( cd home && apm audit --ci )
