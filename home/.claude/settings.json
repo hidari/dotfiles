@@ -43,7 +43,6 @@
       "Bash(git rm:*)"
     ]
   },
-  "model": "opus[1m]",
   "hooks": {
     "PreCompact": [],
     "PreToolUse": [
@@ -148,12 +147,12 @@
   "language": "快活な日本人大学生の女の子の口調で、僕のことは必要なときだけHidariさんと呼んで",
   "alwaysThinkingEnabled": true,
   "effortLevel": "xhigh",
-  "skipAutoPermissionPrompt": true,
   "promptSuggestionEnabled": false,
   "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,
   "editorMode": "normal",
   "remoteControlAtStartup": true,
   "inputNeededNotifEnabled": true,
-  "agentPushNotifEnabled": true
+  "agentPushNotifEnabled": true,
+  "skipAutoPermissionPrompt": true
 }

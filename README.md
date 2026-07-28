@@ -67,26 +67,29 @@ Additionally, `home/.gitconfig.private.example` is copied to `~/.gitconfig.priva
 - committed (HEAD): 公開して安全な curated subset。
 - working tree (`~/.claude/settings.json` の symlink 実体): 個人環境の live superset。
 
-committed から外すのは次の 3 種だけで、それ以外は live に寄せる。通知や UI の個人トグルも、新マシンで同じ環境が立ち上がるよう committed 側に持つ。
-
-- `/Users/<name>` を含む値。herdr hook の command と `directory` source の marketplace path が該当する
-- 非公開 marketplace 由来の plugin。上の marketplace が committed へ入れられない限り連鎖して入れられない
-- dead config。`enabledMcpjsonServers` は PR #22 で no-op と判明したもので、config-guard が再滞留を禁止キーとして弾く
+committed は live から「committed に置けないもの」を除いた subset にする。通知や UI の個人トグルも、新マシンで同じ環境が立ち上がるよう committed 側に持つ。置けないものの定義は config-guard の不変条件 (`scripts/config-guard/src/config_guard/settings_invariants.py`) が正本なので README には再掲しない。
 
 ローカル固有の設定を commit に混ぜないため、committed 側だけを編集するときは working file を触らず index の blob を差し替える。
 
 ```bash
-# committed blob を取り出して編集し、index だけ差し替える
+shasum home/.claude/settings.json              # 差し替え前の live のハッシュを控える
+
 git show HEAD:home/.claude/settings.json > .cache/settings-new.json
 # .cache/settings-new.json を編集する
 SHA=$(git hash-object -w .cache/settings-new.json)
 git update-index --cacheinfo 100644,"$SHA",home/.claude/settings.json
-git diff --cached home/.claude/settings.json   # 差分が意図通りか検証する
-git commit -F .cache/commit-settings.txt
-git update-index --skip-worktree home/.claude/settings.json
-```
 
-working file が書き換わっていないことは、差し替えの前後で `shasum home/.claude/settings.json` が一致することで確かめる。
+# cacheinfo は index エントリごと置き換えるので skip-worktree が外れる。commit の前に戻す。
+# 外れたまま commit すると、pre-commit が未 stage の live 側を stash して復元する窓ができる。
+git update-index --skip-worktree home/.claude/settings.json
+
+git ls-files -v home/.claude/settings.json     # 先頭が S なら skip-worktree が戻っている
+shasum home/.claude/settings.json              # 控えた値と一致すれば live は無変更
+git diff --cached home/.claude/settings.json   # 差分が意図通りか検証する
+
+# コミット本文を .cache/commit-settings.txt に書く
+git commit -F .cache/commit-settings.txt
+```
 
 committed 側は CI で 2 つの仕組みが守る。
 
@@ -122,9 +125,9 @@ uv run --directory scripts/backup-tool pytest -q
 uv run --directory scripts/config-guard pytest -q
 
 # config-guard スキャン (skills + settings の stale 参照・構造逸脱検出)
-# --directory は cwd を scripts/config-guard へ移すので、引数の `.` はリポジトリルートを
-# 指さない。skills の glob が 0 件になり検査が空振りするため root を明示する (pre-commit と同形)。
-uv run --directory scripts/config-guard config-guard "$(git rev-parse --show-toplevel)"
+# ここだけ --directory ではなく --project を使う。--directory は cwd を移すため引数の `.` が
+# リポジトリルートを指さなくなり、skills の glob が 0 件のまま成功表示になる。
+uv run --project scripts/config-guard config-guard .
 
 # tirith-hook (Python / pytest) — Claude Code PreToolUse フックの統合テスト
 uv run --directory scripts/tirith-hook pytest -q
