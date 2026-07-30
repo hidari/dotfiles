@@ -82,6 +82,6 @@ B: CLAUDE_CODE_TASK_LIST_ID=dotfiles CLAUDE_CONFIG_DIR=<hamiltonian> claude
 
 ## 関連
 
-- [Issue #7: feat: Claude Code の 2 アカウント運用で設定を共有する](../closed/7_Claude%20Code%20の%202%20アカウント運用で設定を共有する/issue.md)
+- [Issue #7: feat: Claude Code の 2 アカウント運用で設定を共有する](../7_Claude%20Code%20の%202%20アカウント運用で設定を共有する/issue.md)
   本 Issue は #7 が扱わなかった `tasks/` を埋める。#7 の除外リストにも共有リストにも
   現れないため、どちらの判断でもなかったことをここに記録する。
