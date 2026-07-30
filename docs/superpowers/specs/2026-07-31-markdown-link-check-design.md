@@ -30,6 +30,13 @@ pre-commit には ruff / mypy / pytest / gitleaks / ast-grep / shellcheck が揃
 - 参照リンク定義（`[ref]: target`）、画像記法（`![alt](target)`）、HTML の `<a>` / `<img>` タグはいずれも 0 件。扱うべき記法はインラインリンク 1 種のみ。
 - 追跡下に symlink は 0 件（`git ls-files -s` の mode 120000 が該当なし）。`home/.claude/skills/windows-vm-verification/.venv/bin/` の symlink 3 件は追跡外。
 
+コード領域の除外を決めた際、`ci/markdown-link-check` ブランチ上で追加実測した。上の調査は main（`3e90b8c`）時点のもので、本ブランチが spec と plan を足したことで対象が増えている。
+
+- `~~~` によるフェンスは 0 件。
+- 真の二重バッククォート記法（`` `code` `` を含むインラインコード）は実質 0 件。
+- 行頭がインデントされたフェンスは実在する。`home/.claude/skills/windows-vm-verification/SKILL.md` で 3 スペース。
+- 本ブランチの spec と plan が生む誤検出は 13 件。plan の 12 件はすべてコードフェンス内、spec の 1 件はインラインコード内。
+
 ## アーキテクチャ
 
 `scripts/config-guard/src/config_guard/markdown_links.py` を新設し、`check_markdown_links(repo_root: str) -> list[Finding]` を公開する。`cli.py` の `scan()` から既存 5 チェックと同じ形で呼ぶ。
@@ -43,6 +50,15 @@ git の exit code が 0 以外なら例外を送出する。`apm_gitignore.py` �
 ## 判定ロジック
 
 リンクの抽出は正規表現 `\]\(([^)]+)\)` の 1 本。画像記法は同じ形なので自然にカバーされる。
+
+ただし抽出の前にコード領域を除く。設計ドキュメントはリンク記法そのものを例示することがあり、それを実リンクと読むと存在しないパスを指摘し続ける。実際この機能の spec と plan 自身が 13 件の誤検出を生んだ（plan のコードフェンス内 12 件、spec のインラインコード内 1 件）。一般的な Markdown リンクチェッカーもコードブロックを検査対象から外す。
+
+除外は 2 段構えとする。
+
+1. 行頭（インデントを許す）のバッククォート 3 つ以上でフェンスの内外をトグルし、フェンス内の行は抽出しない
+2. フェンス外の行からはインラインコード（バッククォートのペア）を取り除いてから抽出する
+
+`~~~` によるフェンスは扱わない。リポジトリに 0 件で、扱わないことによる副作用も「フェンス内が検査される」だけであり、実害が出た時点で足せる。インデントは `^\s*` で許す。`home/.claude/skills/windows-vm-verification/SKILL.md` に 3 スペースインデントのフェンスが実在するため、行頭固定では取りこぼす。
 
 抽出した各ターゲットを次の順で判定する。
 

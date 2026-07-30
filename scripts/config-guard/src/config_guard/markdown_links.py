@@ -25,10 +25,33 @@ LINK_PATTERN = re.compile(r"\]\(([^)]+)\)")
 # ネットワークを叩かないためスキップするスキーム
 EXTERNAL_SCHEME = re.compile(r"^(?:https?|mailto|ftp):", re.IGNORECASE)
 
+# コードフェンスの開始と終了。行頭のインデントを許す
+# (home/.claude/skills/windows-vm-verification/SKILL.md に 3 スペースの例が実在する)。
+# ~~~ によるフェンスは扱わない。リポジトリに 0 件で、扱わない副作用は
+# 「フェンス内が検査される」だけなので実害が出た時点で足せる
+FENCE_PATTERN = re.compile(r"^\s*`{3,}")
+
+# インラインコード。バッククォートのペアで囲まれた範囲
+INLINE_CODE_PATTERN = re.compile(r"`[^`]*`")
+
 
 def extract_link_targets(text: str) -> list[str]:
-    """Markdown 本文からインラインリンクのターゲット文字列を抽出する。"""
-    return LINK_PATTERN.findall(text)
+    """Markdown 本文からインラインリンクのターゲット文字列を抽出する。
+
+    コードフェンス内の行と、インラインコードの中身は対象外。設計ドキュメントが
+    リンク記法そのものを例示することがあり、それを実リンクと読むと存在しない
+    パスを指摘し続けるため。
+    """
+    targets: list[str] = []
+    in_fence = False
+    for line in text.splitlines():
+        if FENCE_PATTERN.match(line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        targets.extend(LINK_PATTERN.findall(INLINE_CODE_PATTERN.sub("", line)))
+    return targets
 
 
 def link_path_to_check(target: str) -> str | None:

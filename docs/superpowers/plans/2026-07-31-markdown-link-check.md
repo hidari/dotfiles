@@ -485,6 +485,214 @@ git commit -F .cache/commit-link-scan.txt
 
 ---
 
+### Task 2 追補: コード領域の除外と dead pin の解消
+
+Task 2 完了時に 2 つの問題が判明したため追補する。
+
+1 つ目。実リポジトリで走らせると 13 件を検出した。すべてこの機能の spec と plan 自身がリンク記法を例示している箇所で、plan の 12 件はコードフェンス内、spec の 1 件はインラインコード内。Task 3 で配線すると pre-commit と CI がこの 13 件で止まる。設計判断としてコード領域を除外することにした（spec の「判定ロジック」節を更新済み）。
+
+2 つ目。Task 2 の変異注入 3 番目（`"*.md"` を `"*"` に変える）が dead pin だった。全テストが緑のまま通る。テストフィクスチャに非 `.md` の追跡ファイルが 1 つも無いため。実リポジトリではバイナリを読んで `UnicodeDecodeError` になる本物のリスクなので、テストで pin する。
+
+**Files:**
+- Modify: `scripts/config-guard/src/config_guard/markdown_links.py`
+- Test: `scripts/config-guard/tests/test_markdown_links.py`
+
+**Interfaces:**
+- Consumes: なし（既存関数の挙動変更）
+- Produces: `extract_link_targets(text: str) -> list[str]` のシグネチャは不変。コードフェンス内とインラインコード内を返さなくなる
+
+- [ ] **Step 1: 失敗するテストを書く**
+
+`tests/test_markdown_links.py` の末尾に追記する。
+
+```python
+def test_fenced_code_block_links_are_ignored(tmp_path: Path) -> None:
+    # 設計ドキュメントがリンク記法を例示することがある。実リンクと誤読しない
+    _init_repo(tmp_path)
+    _write(
+        tmp_path,
+        "docs/a/index.md",
+        "本文\n\n```python\n# [説明](../b/missing.md) は例であって実リンクではない\n```\n",
+    )
+    _add_all(tmp_path)
+
+    assert check_markdown_links(str(tmp_path)) == []
+
+
+def test_indented_fence_is_recognized(tmp_path: Path) -> None:
+    # 行頭がインデントされたフェンスも実在する (SKILL.md に 3 スペースの例がある)
+    _init_repo(tmp_path)
+    _write(
+        tmp_path,
+        "docs/a/index.md",
+        "1. 手順\n\n   ```\n   [説明](../b/missing.md)\n   ```\n",
+    )
+    _add_all(tmp_path)
+
+    assert check_markdown_links(str(tmp_path)) == []
+
+
+def test_inline_code_links_are_ignored(tmp_path: Path) -> None:
+    # 表の中で記法そのものを示す書き方を実リンクと誤読しない
+    _init_repo(tmp_path)
+    _write(tmp_path, "docs/a/index.md", "画像記法は `![alt](../b/missing.md)` と書く\n")
+    _add_all(tmp_path)
+
+    assert check_markdown_links(str(tmp_path)) == []
+
+
+def test_link_after_fence_is_still_checked(tmp_path: Path) -> None:
+    # フェンスが閉じた後のリンクは検査される (トグルが確かに閉じることを pin する)
+    _init_repo(tmp_path)
+    _write(
+        tmp_path,
+        "docs/a/index.md",
+        "```\nコード\n```\n\n[先](../b/missing.md)\n",
+    )
+    _add_all(tmp_path)
+
+    findings = check_markdown_links(str(tmp_path))
+
+    assert len(findings) == 1
+    assert findings[0].detail == "../b/missing.md"
+
+
+def test_link_outside_inline_code_on_same_line_is_checked(tmp_path: Path) -> None:
+    # インラインコードを除去しても、同じ行にある実リンクは残る
+    _init_repo(tmp_path)
+    _write(
+        tmp_path,
+        "docs/a/index.md",
+        "`![alt](target)` の形で書く。詳細は [先](../b/missing.md) を見よ\n",
+    )
+    _add_all(tmp_path)
+
+    findings = check_markdown_links(str(tmp_path))
+
+    assert len(findings) == 1
+    assert findings[0].detail == "../b/missing.md"
+
+
+def test_non_markdown_files_are_not_scanned(tmp_path: Path) -> None:
+    # git ls-files の glob が '*.md' に絞られていること。'*' にすると全追跡ファイルを
+    # 読もうとしてバイナリで壊れる。Task 2 の変異注入で dead pin だった箇所を pin する
+    _init_repo(tmp_path)
+    _write(tmp_path, "docs/a/index.md", "本文\n")
+    _write(tmp_path, "docs/a/notes.txt", "[先](../b/missing.md)\n")
+    _add_all(tmp_path)
+
+    assert check_markdown_links(str(tmp_path)) == []
+```
+
+- [ ] **Step 2: テストが失敗することを確認する**
+
+Run: `uv run --directory scripts/config-guard pytest tests/test_markdown_links.py -v`
+Expected: 新規 6 件のうち 4 件が FAIL（`test_fenced_code_block_links_are_ignored` / `test_indented_fence_is_recognized` / `test_inline_code_links_are_ignored` / `test_non_markdown_files_are_not_scanned`）。残り 2 件（`test_link_after_fence_is_still_checked` / `test_link_outside_inline_code_on_same_line_is_checked`）は現状の実装でも通る。通る 2 件は「除外を入れすぎない」ための negative case なので、この時点で緑でも問題ない。
+
+FAIL の件数と対象テスト名を目で確認する。`tests` の総数だけを見て判断しないこと。
+
+- [ ] **Step 3: 実装を書く**
+
+`markdown_links.py` の定数部に 2 つ追加する。
+
+```python
+# コードフェンスの開始と終了。行頭のインデントを許す
+# (home/.claude/skills/windows-vm-verification/SKILL.md に 3 スペースの例が実在する)。
+# ~~~ によるフェンスは扱わない。リポジトリに 0 件で、扱わない副作用は
+# 「フェンス内が検査される」だけなので実害が出た時点で足せる
+FENCE_PATTERN = re.compile(r"^\s*`{3,}")
+
+# インラインコード。バッククォートのペアで囲まれた範囲
+INLINE_CODE_PATTERN = re.compile(r"`[^`]*`")
+```
+
+`extract_link_targets` を次に差し替える。
+
+```python
+def extract_link_targets(text: str) -> list[str]:
+    """Markdown 本文からインラインリンクのターゲット文字列を抽出する。
+
+    コードフェンス内の行と、インラインコードの中身は対象外。設計ドキュメントが
+    リンク記法そのものを例示することがあり、それを実リンクと読むと存在しない
+    パスを指摘し続けるため。
+    """
+    targets: list[str] = []
+    in_fence = False
+    for line in text.splitlines():
+        if FENCE_PATTERN.match(line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        targets.extend(LINK_PATTERN.findall(INLINE_CODE_PATTERN.sub("", line)))
+    return targets
+```
+
+- [ ] **Step 4: テストが通ることを確認する**
+
+Run: `uv run --directory scripts/config-guard pytest tests/test_markdown_links.py -v`
+Expected: PASS。既存 21 件 + 新規 6 件 = 27 件。Task 1 の純粋関数テスト 10 件が壊れていないことも確認する（これらはフェンスもインラインコードも含まないので影響しないはず）。
+
+- [ ] **Step 5: 変異注入で pin を確かめる**
+
+1 箇所ずつ隔離して行う。`cp` でバックアップを取ってから壊し、確認後に戻す。
+
+| 変異 | 赤くなるべきテスト |
+| --- | --- |
+| `if FENCE_PATTERN.match(line):` の分岐ごと削除 | `test_fenced_code_block_links_are_ignored` |
+| `FENCE_PATTERN` の `^\s*` を `^` に変える | `test_indented_fence_is_recognized` |
+| `INLINE_CODE_PATTERN.sub("", line)` を `line` に変える | `test_inline_code_links_are_ignored` |
+| フェンス行で `in_fence = not in_fence` を `in_fence = True` に変える | `test_link_after_fence_is_still_checked` |
+| `run_git(...)` の `"*.md"` を `"*"` に変える | `test_non_markdown_files_are_not_scanned` |
+
+最後の 1 つは Task 2 で dead pin だった箇所である。今回は必ず赤くなること、そして赤くなる理由が「`.txt` に書いたリンクが検出された」ことであるのを出力で確認する。
+
+- [ ] **Step 6: 実リポジトリで 0 件を確認する**
+
+Run: `uv run --directory scripts/config-guard python -c "from config_guard.markdown_links import check_markdown_links; import subprocess; root = subprocess.run(['git','rev-parse','--show-toplevel'],capture_output=True,text=True).stdout.strip(); [print(f.source, '|', f.detail) for f in check_markdown_links(root)]"`
+
+Expected: 出力なし（0 件）。
+
+13 件が 0 件になることがこの追補の目的である。1 件でも残るなら、その内訳を報告すること。
+
+- [ ] **Step 7: lint と型検査を通す**
+
+Run: `uv run --directory scripts/config-guard ruff check src tests`
+Run: `uv run --directory scripts/config-guard ruff format --check src tests`
+Run: `uv run --directory scripts/config-guard mypy src tests`
+Expected: いずれもエラー 0 件。
+
+- [ ] **Step 8: コミット**
+
+`.cache/commit-link-fence.txt` に Write ツールでメッセージを書く。
+
+```
+fix: コードフェンスとインラインコード内のリンク例を検査対象から外す
+
+実リポジトリで 13 件を検出した。すべてこの機能の spec と plan 自身が
+リンク記法を例示している箇所で、plan の 12 件はコードフェンス内、
+spec の 1 件はインラインコード内だった。一般的な Markdown リンクチェッカーも
+コードブロックを検査対象から外す。
+
+行頭のバッククォート 3 つ以上でフェンスの内外をトグルし、フェンス外の行からは
+インラインコードを除去してから抽出する。フェンスの行頭インデントは許す。
+SKILL.md に 3 スペースインデントのフェンスが実在するため。
+
+あわせて Task 2 の変異注入で dead pin だった箇所を pin する。
+git ls-files の glob を '*' に変えても全テストが緑のままだった。
+フィクスチャに非 .md の追跡ファイルが無かったため。
+.txt にリンクを書いても検出されないことを検証するテストを足した。
+
+Claude-Session: https://claude.ai/code/session_014wnSNLSZgXiSAn51Sa6b5N
+```
+
+```bash
+git add scripts/config-guard/src/config_guard/markdown_links.py scripts/config-guard/tests/test_markdown_links.py docs/superpowers/specs/2026-07-31-markdown-link-check-design.md docs/superpowers/plans/2026-07-31-markdown-link-check.md
+git commit -F .cache/commit-link-fence.txt
+```
+
+---
+
 ### Task 3: 配線とドキュメント
 
 **Files:**
@@ -673,7 +881,7 @@ Run: `uv run --directory scripts/config-guard mypy src tests`
 Run: `uv run --directory scripts/config-guard pytest -q`
 Run: `uv run --directory scripts/config-guard config-guard "$(git rev-parse --show-toplevel)"`
 
-Expected: lint と型検査はエラー 0 件。pytest は既存 95 件 + 新規 22 件（markdown_links 21 件 + cli 1 件）= 117 件。config-guard は「問題は検出されませんでした」。
+Expected: lint と型検査はエラー 0 件。pytest は既存 95 件 + 新規 28 件（markdown_links 27 件 + cli 1 件）= 123 件。config-guard は「問題は検出されませんでした」。
 
 pytest の件数が期待どおりであることを確認する。減っていたらテストが収集されていない。
 
@@ -706,7 +914,7 @@ git commit -F .cache/commit-link-wiring.txt
 
 ## 完了条件
 
-- `uv run --directory scripts/config-guard pytest -q` が 117 件 pass
+- `uv run --directory scripts/config-guard pytest -q` が 123 件 pass
 - `uv run --directory scripts/config-guard config-guard "$(git rev-parse --show-toplevel)"` が「問題は検出されませんでした」
 - ruff / mypy がエラー 0 件
 - 意図的に `.md` のリンクを壊すと pre-commit がコミットを止めることを 1 度実演する

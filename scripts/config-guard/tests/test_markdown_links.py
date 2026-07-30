@@ -197,3 +197,81 @@ def test_raises_on_git_error(tmp_path: Path) -> None:
         pass
     else:
         raise AssertionError("git エラー時は RuntimeError が送出されるべき")
+
+
+def test_fenced_code_block_links_are_ignored(tmp_path: Path) -> None:
+    # 設計ドキュメントがリンク記法を例示することがある。実リンクと誤読しない
+    _init_repo(tmp_path)
+    _write(
+        tmp_path,
+        "docs/a/index.md",
+        "本文\n\n```python\n# [説明](../b/missing.md) は例であって実リンクではない\n```\n",
+    )
+    _add_all(tmp_path)
+
+    assert check_markdown_links(str(tmp_path)) == []
+
+
+def test_indented_fence_is_recognized(tmp_path: Path) -> None:
+    # 行頭がインデントされたフェンスも実在する (SKILL.md に 3 スペースの例がある)
+    _init_repo(tmp_path)
+    _write(
+        tmp_path,
+        "docs/a/index.md",
+        "1. 手順\n\n   ```\n   [説明](../b/missing.md)\n   ```\n",
+    )
+    _add_all(tmp_path)
+
+    assert check_markdown_links(str(tmp_path)) == []
+
+
+def test_inline_code_links_are_ignored(tmp_path: Path) -> None:
+    # 表の中で記法そのものを示す書き方を実リンクと誤読しない
+    _init_repo(tmp_path)
+    _write(tmp_path, "docs/a/index.md", "画像記法は `![alt](../b/missing.md)` と書く\n")
+    _add_all(tmp_path)
+
+    assert check_markdown_links(str(tmp_path)) == []
+
+
+def test_link_after_fence_is_still_checked(tmp_path: Path) -> None:
+    # フェンスが閉じた後のリンクは検査される (トグルが確かに閉じることを pin する)
+    _init_repo(tmp_path)
+    _write(
+        tmp_path,
+        "docs/a/index.md",
+        "```\nコード\n```\n\n[先](../b/missing.md)\n",
+    )
+    _add_all(tmp_path)
+
+    findings = check_markdown_links(str(tmp_path))
+
+    assert len(findings) == 1
+    assert findings[0].detail == "../b/missing.md"
+
+
+def test_link_outside_inline_code_on_same_line_is_checked(tmp_path: Path) -> None:
+    # インラインコードを除去しても、同じ行にある実リンクは残る
+    _init_repo(tmp_path)
+    _write(
+        tmp_path,
+        "docs/a/index.md",
+        "`![alt](target)` の形で書く。詳細は [先](../b/missing.md) を見よ\n",
+    )
+    _add_all(tmp_path)
+
+    findings = check_markdown_links(str(tmp_path))
+
+    assert len(findings) == 1
+    assert findings[0].detail == "../b/missing.md"
+
+
+def test_non_markdown_files_are_not_scanned(tmp_path: Path) -> None:
+    # git ls-files の glob が '*.md' に絞られていること。'*' にすると全追跡ファイルを
+    # 読もうとしてバイナリで壊れる。Task 2 の変異注入で dead pin だった箇所を pin する
+    _init_repo(tmp_path)
+    _write(tmp_path, "docs/a/index.md", "本文\n")
+    _write(tmp_path, "docs/a/notes.txt", "[先](../b/missing.md)\n")
+    _add_all(tmp_path)
+
+    assert check_markdown_links(str(tmp_path)) == []
