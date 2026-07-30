@@ -582,10 +582,20 @@ spec で未確認としていた 2 ケースを実測する。`.cache/` に作�
 
 判定の基準は、pre-commit の出力に出る `config-guard scan (リポジトリ設定の静的検査)` の行が `Skipped` かどうかである。`(no files to check)Skipped` なら発火していない。
 
-まず土台のコミットを作る。実リポジトリを汚さないよう、この後 `git reset --hard` で取り消す前提の使い捨てコミットである。
+まず戻り先を記録する。この後のダミーコミットは `git reset --hard` で取り消すが、`HEAD~3` のような相対指定は使わない。途中で 1 つでもコミットに失敗すると数がずれ、Task 1 と Task 2 の成果まで巻き戻すためである。
 
 ```bash
-mkdir -p .cache/probe-hook docs/probe-move-src
+mkdir -p .cache/probe-hook
+git rev-parse HEAD > .cache/probe-hook/base-sha.txt
+cat .cache/probe-hook/base-sha.txt
+```
+
+出力された SHA が Task 2 完了時点のコミットであることを `git log --oneline -1` で照合してから先へ進む。
+
+次に土台のコミットを作る。
+
+```bash
+mkdir -p docs/probe-move-src
 printf '本文\n' > docs/probe-delete.md
 printf '本文\n' > docs/probe-move-src/a.md
 git add docs/probe-delete.md docs/probe-move-src/a.md
@@ -615,14 +625,16 @@ git commit -F .cache/commit-probe-move.txt > .cache/probe-hook/move.log 2>&1
 grep -c 'config-guard scan.*Skipped' .cache/probe-hook/move.log
 ```
 
-実測後、ダミーの 3 コミットを取り消す。
+実測後、記録した SHA へ戻してダミーコミットを取り消す。
 
 ```bash
-git reset --hard HEAD~3
+git reset --hard "$(cat .cache/probe-hook/base-sha.txt)"
+git log --oneline -1
+git status --short
 git ls-files -v | grep '^S'
 ```
 
-`git reset --hard` の後に `home/.claude/settings.json` の skip-worktree（`S`）が残っていることを必ず確認する。ダミーコミットは settings.json を触らないので blob は変わらず保たれるはずだが、消えていたら `git update-index --skip-worktree home/.claude/settings.json` で戻す。
+`git log --oneline -1` が Task 2 完了時点のコミットを指していること、`git status --short` が空であること、そして `home/.claude/settings.json` の skip-worktree（`S`）が残っていることを必ず確認する。ダミーコミットは settings.json を触らないので blob は変わらず保たれるはずだが、消えていたら `git update-index --skip-worktree home/.claude/settings.json` で戻す。
 
 記録するのは次の 2 点。
 
