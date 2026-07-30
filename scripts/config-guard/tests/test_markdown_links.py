@@ -275,3 +275,37 @@ def test_non_markdown_files_are_not_scanned(tmp_path: Path) -> None:
     _add_all(tmp_path)
 
     assert check_markdown_links(str(tmp_path)) == []
+
+
+def test_nested_fence_excludes_inner_link(tmp_path: Path) -> None:
+    # CommonMark: 終了フェンスは開始フェンス以上の長さが要る。外側 4 本の中に内側 3 本の
+    # フェンスが入れ子でも、開始の長さを記憶しなければ内側の 3 本で早期に閉じてしまい、
+    # 「markdown について書く markdown」の例示コード中のリンクを実リンクと誤読する
+    _init_repo(tmp_path)
+    _write(
+        tmp_path,
+        "docs/a/index.md",
+        "````markdown\n内側の例:\n```\n[内側の例中のリンク](../inner.md)\n```\n````\n",
+    )
+    _add_all(tmp_path)
+
+    assert check_markdown_links(str(tmp_path)) == []
+
+
+def test_link_after_nested_fence_is_still_checked(tmp_path: Path) -> None:
+    # ネストしたフェンスが閉じた後は通常どおり検査される (除外しすぎない negative case)。
+    # 内側の 3 本で誤って閉じると外側のリンクの手前で内側のリンクも漏れて検出され、
+    # findings が 2 件になり len(findings) == 1 が崩れる
+    _init_repo(tmp_path)
+    _write(
+        tmp_path,
+        "docs/a/index.md",
+        "````markdown\n内側の例:\n```\n[内側の例中のリンク](../inner.md)\n```\n````\n"
+        "[外側のリンク](../outer.md)\n",
+    )
+    _add_all(tmp_path)
+
+    findings = check_markdown_links(str(tmp_path))
+
+    assert len(findings) == 1
+    assert findings[0].detail == "../outer.md"

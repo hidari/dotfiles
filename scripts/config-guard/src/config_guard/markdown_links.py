@@ -27,9 +27,13 @@ EXTERNAL_SCHEME = re.compile(r"^(?:https?|mailto|ftp):", re.IGNORECASE)
 
 # コードフェンスの開始と終了。行頭のインデントを許す
 # (home/.claude/skills/windows-vm-verification/SKILL.md に 3 スペースの例が実在する)。
+# バッククォート数をグループで捕捉し、開始フェンスの長さを覚えて終了判定に使う
+# (CommonMark: 終了フェンスは開始フェンス以上の長さが要る。`` ```` `` で囲んだ
+# 「markdown について書く markdown」の内側に ``` ``` `` を書く入れ子で、長さを見ずに
+# トグルすると内側の 3 本で誤って閉じてしまう)。
 # ~~~ によるフェンスは扱わない。リポジトリに 0 件で、扱わない副作用は
 # 「フェンス内が検査される」だけなので実害が出た時点で足せる
-FENCE_PATTERN = re.compile(r"^\s*`{3,}")
+FENCE_PATTERN = re.compile(r"^\s*(`{3,})")
 
 # インラインコード。バッククォートのペアで囲まれた範囲
 INLINE_CODE_PATTERN = re.compile(r"`[^`]*`")
@@ -43,12 +47,20 @@ def extract_link_targets(text: str) -> list[str]:
     パスを指摘し続けるため。
     """
     targets: list[str] = []
-    in_fence = False
+    fence_length = 0  # 0 はフェンス外。フェンス中は開始行のバッククォート数を保持する
     for line in text.splitlines():
-        if FENCE_PATTERN.match(line):
-            in_fence = not in_fence
+        match = FENCE_PATTERN.match(line)
+        if match:
+            length = len(match.group(1))
+            if fence_length == 0:
+                # フェンス開始。以後の終了判定のため長さを記憶する
+                fence_length = length
+            elif length >= fence_length:
+                # 終了フェンスは開始以上の長さが要る (CommonMark)。それ未満の
+                # バッククォート行は入れ子の例示コードであり、フェンスは閉じない
+                fence_length = 0
             continue
-        if in_fence:
+        if fence_length:
             continue
         targets.extend(LINK_PATTERN.findall(INLINE_CODE_PATTERN.sub("", line)))
     return targets
