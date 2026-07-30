@@ -11,8 +11,13 @@ open / closed 状態に依存するためで、close する側とは別のファ
 
 from __future__ import annotations
 
+import os.path
 import re
 import urllib.parse
+from pathlib import Path
+
+from config_guard.git_run import run_git
+from config_guard.models import Finding
 
 # インラインリンクのターゲット部分。画像記法 ![alt](target) も同じ形なので拾える
 LINK_PATTERN = re.compile(r"\]\(([^)]+)\)")
@@ -36,3 +41,33 @@ def link_path_to_check(target: str) -> str | None:
     # 裸の # になり、パスの一部が誤ってアンカーとして切り落とされる
     path_part = target.split("#", 1)[0]
     return urllib.parse.unquote(path_part)
+
+
+def _tracked_markdown_files(repo_root: str) -> list[str]:
+    """追跡下の .md を repo 相対パスで列挙する。"""
+    proc = run_git(repo_root, "ls-files", "-z", "*.md")
+    # 0 以外 (128 = git repo でない等) を「対象なし」と誤解して検査を素通りさせず、
+    # 明示的に失敗させる (git エラーと「リンクが無い」を取り違えない)
+    if proc.returncode != 0:
+        raise RuntimeError(f"git ls-files が失敗しました (exit {proc.returncode})")
+    return [path for path in proc.stdout.split("\0") if path]
+
+
+def check_markdown_links(repo_root: str) -> list[Finding]:
+    """追跡下の Markdown の相対リンクが実在するか検査する。"""
+    root = Path(repo_root).resolve()
+    findings: list[Finding] = []
+    for rel in _tracked_markdown_files(repo_root):
+        source = root / rel
+        for target in extract_link_targets(source.read_text(encoding="utf-8")):
+            path_part = link_path_to_check(target)
+            if path_part is None:
+                continue
+            resolved = (source.parent / path_part).resolve()
+            if resolved.exists():
+                continue
+            # 解決先はマシン依存の絶対パスにせず repo 相対で示す。repo 外へ出るリンクも
+            # ../ で表現でき、テストが tmp_path に縛られない
+            shown = os.path.relpath(resolved, root)
+            findings.append(Finding(rel, target, f"リンク先が存在しません (解決先 {shown})"))
+    return findings
