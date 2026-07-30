@@ -89,3 +89,16 @@ def test_bad_herdr_keys_is_detected(tmp_path: Path) -> None:
     findings = scan(str(repo))
 
     assert any(f.detail == "next_workspace = ctrl+alt+[" for f in findings)
+
+
+def test_broken_markdown_link_is_detected(tmp_path: Path) -> None:
+    # リンク検査が scan に配線されていること
+    repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
+    doc = repo / "docs/a/index.md"
+    doc.parent.mkdir(parents=True, exist_ok=True)
+    doc.write_text("[先](../b/missing.md)\n", encoding="utf-8")
+    _run(repo, "add", "-A")
+
+    findings = scan(str(repo))
+
+    assert any(f.detail == "../b/missing.md" for f in findings)

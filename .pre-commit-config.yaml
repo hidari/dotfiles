@@ -74,7 +74,7 @@ repos:
         language: system
         entry: bash -c 'uv run --directory scripts/config-guard config-guard "$(git rev-parse --show-toplevel)"'
         pass_filenames: false
-        files: ^(home/\.claude/skills/.*/SKILL\.md|home/\.claude/settings\.json|home/apm\.lock\.yaml|home/\.gitignore|home/\.config/herdr/config\.toml|scripts/config-guard/.*)$
+        files: ^(home/\.claude/skills/.*/SKILL\.md|home/\.claude/settings\.json|home/apm\.lock\.yaml|home/\.gitignore|home/\.config/herdr/config\.toml|scripts/config-guard/.*|.*\.md)$
 
       - id: mise-update-notifier-ruff-check
         name: mise-update-notifier ruff check

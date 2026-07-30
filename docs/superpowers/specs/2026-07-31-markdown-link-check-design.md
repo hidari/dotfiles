@@ -76,12 +76,12 @@ git の exit code が 0 以外なら例外を送出する。`apm_gitignore.py` �
 
 リンク検査は「変更されたファイルだけ見る」では機能しない。リンク先を消したとき、壊れるのはリンク元であり、そのファイルは変更されていないためである。既存の `config-guard-scan` hook は `pass_filenames: false` で常にリポジトリ全体を走査するため、この性質にそのまま合致する。`files` は「いつ発火するか」だけを決めている。
 
-ただし `files` の判定に使われる staged ファイル一覧に、削除されたファイルが含まれるかは未確認である。含まれない場合、「リンク先の `.md` を削除しただけのコミット」では hook が発火しない。Issue の close はディレクトリの rename なので新しいパスが `.md` にマッチして発火するはずだが、これも推測である。実装時に次の 2 ケースを実測して確定させる。
+`files` の判定に使われる staged ファイル一覧に、削除されたファイルが含まれるかを実測で確定させた（Task 3。ダミーコミットで `git rm` / `git mv` を試し、`git reset --hard` で取り消す実測手順を用いた）。
 
-1. `.md` を `git rm` して commit したとき hook が発火するか
-2. `.md` を含むディレクトリを `git mv` して commit したとき hook が発火するか
+1. `.md` を `git rm` して commit したとき hook が発火するか → **発火しない**。削除だけのコミットでは `files` にマッチする変更後パスが無く、`config-guard scan` は `(no files to check)Skipped` になる。
+2. `.md` を含むディレクトリを `git mv` して commit したとき hook が発火するか → **発火する**。git がリネームとして検出し、移動先の新パスが `.*\.md$` にマッチするため `config-guard scan` は `Passed` になる。
 
-いずれの場合も CI 側は常にリポジトリ全体を走査するので backstop になる。実測の結果 pre-commit が発火しないケースが残るなら、それは「CI で捕捉する」と割り切って spec に記録する。`always_run: true` への変更は、`.md` に無関係なコミットでも毎回 config-guard 全体が走ることになるため採らない。
+つまり「リンク先の `.md` を削除しただけのコミット」では pre-commit hook は発火しない。Issue を `docs/issues/closed/` へ移す操作はディレクトリの rename であり移動先パスが `.md` にマッチするため hook は発火するが、単純な削除（rename を伴わない）はローカルの pre-commit では捕捉できない。この発火しないケースは **CI 側の config-guard ジョブがリポジトリ全体を走査することを backstop とする**。`always_run: true` への変更は、`.md` に無関係なコミットでも毎回 config-guard 全体が走ることになるため採らない。
 
 ## テスト仕様
 

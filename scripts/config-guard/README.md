@@ -4,7 +4,9 @@
 
 - skills の `allowed-tools` と committed `home/.claude/settings.json` の stale なツール名参照
 - `home/apm.lock.yaml` の deployed_files が gitignore されているか（追記漏れ）
+- `home/.config/mise/config.toml` の global ツール pin が exact か
 - `home/.config/herdr/config.toml` の keybinding（`previous_*` と `next_*` の方向整合、chord 重複、アクション名の綴り）
+- 追跡下の Markdown（`git ls-files '*.md'`）の相対リンクが実在するか（Issue を `closed/` へ移すと両端のリンクが切れる）
 
 ```bash
 uv run config-guard /path/to/repo-root
