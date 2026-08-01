@@ -30,3 +30,8 @@ scripts/backup-tool/backup.toml
 # 一時作業ファイル (scratch)
 .cache/
 tmp/
+
+# superpowers の作業領域。subagent-driven-development の workspace は自身で .gitignore を
+# 生成するが brainstorming の visual companion (.superpowers/brainstorm/) は生成しないため、
+# 前者を消すと後者が git status に出る。ここで両方まとめて隠す。
+.superpowers/

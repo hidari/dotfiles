@@ -15,9 +15,11 @@ status: open
 | `docs/superpowers/specs/` | brainstorming が書く設計 | あり | 6 |
 | `.superpowers/sdd/` | subagent-driven-development の ledger / brief / report / review | なし | 94 |
 
+表は起票時点 (2026-07-31) の値である。その後 Issue #15 の markdown-link-check に対応する spec と plan の 1 対が加わり、以降の記述は plans 7 件 / specs 7 件、合わせて 7 テーマ 14 ファイルを対象にしている。
+
 Issue から plans と specs への参照は 1 件も無い。逆に plans と specs のファイル名は日付と feature 名だけで、どの Issue に属するかを名前から辿れない。
 
-さらに、両者のテーマがほとんど重なっていない。plans と specs が扱う 6 テーマは、既存の Issue のタイトルとおおむね対応が付かない。superpowers を回した作業には Issue が無く、Issue がある作業には plan も spec も無い。2 つのワークフローが並行して存在し、交わっていない状態である。
+さらに、両者のテーマはほとんど既存の Issue と重ならない。plans と specs が扱う 7 テーマのうち、既存の Issue に対応が付くのは config-drift-guard (Issue #1 と #2) と markdown-link-check (Issue #15) の 2 テーマのみで、残る node-security-notifier / windows-vm-verification-skill / session-handoff / nvim-contrast-palette / symlink-pairs-reverse-drift の 5 テーマには対応する Issue が無い。全く対応が付かないわけではないが、大半は対応が付かないという方向は変わらない。superpowers を回した作業には Issue が無い場合が多く、Issue がある作業には plan も spec も無いことが多い。2 つのワークフローが並行して存在し、ほとんど交わっていない状態である。
 
 Issue を `closed/` へ移すときも、plans と specs は元の場所に残る。Issue 単位で作業の全体を追える状態になっていない。
 
@@ -53,7 +55,7 @@ superpowers は上流の marketplace プラグインなので、書き換える�
 - skill を fork して出力先を変える。更新追随のコストを引き受ける
 - 現状維持とし、Issue 本文からのリンクで繋ぐ
 
-### 既存の 12 ファイルをどうするか
+### 既存の 14 ファイルをどうするか
 
 対応する Issue が存在しないものが多い。移すには Issue を遡って起票することになるが、完了済みの作業に Issue を作る意味があるかは別の判断になる。`docs/superpowers/` に残したまま新規分から新方式にする案もある。
 
@@ -63,14 +65,15 @@ superpowers は上流の marketplace プラグインなので、書き換える�
 
 ## タスク
 
-- [ ] plans と specs を Issue ディレクトリ配下へ寄せるかを決める
-- [ ] `.superpowers/sdd/` の扱いを決める (追跡外のまま据え置くか、Issue ディレクトリへ入れるか)
-- [ ] 決めた場合、出力先の変更方法を選ぶ
-- [ ] 既存の 12 ファイルの移行方針を決める
-- [ ] Issue を先に起票する運用にするかを決める
-- [ ] 決めた方針を `CLAUDE.md` か `dev-workflow:in-repo-issue` skill に落とす
-- [ ] 置き場の規約から外れた成果物を検出する手段を用意する (人手のリンクや移動は忘れが検出できない)
-- [ ] sdd の置き場を上流の最新形式 (plan ごとのサブディレクトリ) に追随させる
+- [x] plans と specs を Issue ディレクトリ配下へ寄せるかを決める
+- [x] `.superpowers/sdd/` の扱いを決める (追跡外のまま据え置くか、Issue ディレクトリへ入れるか)
+- [x] 決めた場合、出力先の変更方法を選ぶ
+- [x] 既存の 14 ファイルの移行方針を決める
+- [x] Issue を先に起票する運用にするかを決める
+- [x] 決めた方針を `CLAUDE.md` か `dev-workflow:in-repo-issue` skill に落とす
+- [x] 置き場の規約から外れた成果物を検出する手段を用意する (人手のリンクや移動は忘れが検出できない)
+- [x] sdd の置き場を上流の最新形式 (plan ごとのサブディレクトリ) に追随させる
+    `.superpowers/sdd/` を削除したことで、次回の plan 実行時に sdd-workspace が新形式のサブディレクトリを自動生成するため満たされる。本 Issue の作業でも `.superpowers/sdd/16-plan/` が新形式で生成されている。
 
 ## 関連
 

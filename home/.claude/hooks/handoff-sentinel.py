@@ -5,7 +5,7 @@
 通算検知) / session (.cache/handoff.md の自動注入) / record (skill からの provenance 記録)。
 しきい値等の canonical はこのファイルの定数であり、HANDOFF_* 環境変数で上書きできる。
 検知機構の故障で作業を止めないため、全経路 fail-safe (無出力 + exit 0)。
-仕様: docs/superpowers/specs/2026-07-03-session-handoff-design.md
+仕様: docs/superpowers/archive/2026-07-03-session-handoff-design.md
 """
 
 from __future__ import annotations

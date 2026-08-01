@@ -79,6 +79,18 @@ repos:
         pass_filenames: false
         always_run: true
 
+      # 上流 superpowers の brainstorming / writing-plans は既定でこの 2 パスへ書く
+      # (superpowers 6.2.0 時点)。プロジェクト CLAUDE.md による上書きが効かなかった
+      # 場合ここに落ちるので、そのときだけ落として置き場を知らせる。規約の canonical は
+      # dev-workflow:issue-scoped-artifacts skill が持つ。
+      # 捕捉対象はローカルでの成果物生成時にのみ発生するため CI ミラーは張らない。
+      # Issue ディレクトリ配下のファイル名違反の検査は別タスク (Issue #17) へ送る。
+      - id: issue-scoped-artifacts
+        name: spec と plan は Issue ディレクトリ配下へ置く
+        language: fail
+        entry: "この成果物は docs/issues/<NNN>_<title>/<NNN>-spec.md または <NNN>-plan.md へ置く"
+        files: '^docs/superpowers/(plans|specs)/'
+
       - id: mise-update-notifier-ruff-check
         name: mise-update-notifier ruff check
         language: system
