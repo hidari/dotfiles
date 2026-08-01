@@ -7,6 +7,23 @@ open / closed 状態に依存するためで、close する側とは別のファ
 
 扱うのはインラインリンク `[text](target)` のみ。参照リンク定義・HTML タグ・自動リンクは
 リポジトリに 1 件も無いため対象外とする。画像記法は同じ形なので自然にカバーされる。
+
+既知の限界: この検査は regex による行単位の近似であり、Markdown パーサではない。
+記法の変種 (タイトル付きリンク・山括弧や釣り合った括弧を含む destination)、コード領域の
+変種 (~~~ フェンス・HTML コメント・4 スペースインデントのコードブロック・複数行にまたがる
+インラインコード・同一行のバッククォートが奇数個のときのインラインコード除去の乱れ。
+釣り合ったペアはリンク文字列中でも正しく扱える)、分類の穴 (EXTERNAL_SCHEME に無い
+スキームやプロトコル相対 URL は相対パス扱いになり誤検出する)、解決の癖 (クエリ文字列・
+ルート相対パス・macOS では Path.exists が大文字小文字を区別しないこと) などは、いずれも
+扱わない (カテゴリも括弧内の例も代表であって網羅ではない)。また閉じないまま EOF に達した
+フェンスは以降の行を黙って skip する (こちらは誤検出ではなく検出漏れ側)。構文としては
+HTML コメントと 4 スペースインデント行が追跡下に実在するが、
+これらの領域内 (フェンス除外が既に効く箇所を除く) にリンク記法を含む例は無く、
+上記スキームのリンクも無いため、現状の誤検出は 0 件 (2026-08-01 に grep と scan で実測)。
+近似の穴を regex の逐次強化で塞ぐのは別の取りこぼしと引き換えになりやすく (例えば
+終了フェンスの「info string 不可」を行末アンカーで表現すると、開始フェンスの
+info string にマッチしなくなりフェンスが一度も開かない)、限界を明文化して実害が
+出た時点で個別に足す。
 """
 
 from __future__ import annotations
@@ -94,6 +111,13 @@ def check_markdown_links(repo_root: str) -> list[Finding]:
     findings: list[Finding] = []
     for rel in _tracked_markdown_files(repo_root):
         source = root / rel
+        # git ls-files は index を列挙するが read は worktree を見る。追跡下の .md を
+        # rm しただけの状態 (commit 前の削除途中) では index にあって worktree に無く、
+        # 読むと FileNotFoundError で落ちる。削除途中のファイル自身のリンクは検査対象と
+        # して意味を持たないので skip する。そのファイルへ向かう他ファイルのリンク切れは
+        # 下の実在判定が worktree を見るため通常どおり検出される
+        if not source.is_file():
+            continue
         for target in extract_link_targets(source.read_text(encoding="utf-8")):
             path_part = link_path_to_check(target)
             if path_part is None:

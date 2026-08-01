@@ -5,15 +5,23 @@
 
 from __future__ import annotations
 
+import glob
+import re
 import subprocess
 from pathlib import Path
 
+from config_guard import cli
+from config_guard.apm_gitignore import LOCKFILE_PATH
 from config_guard.git_run import isolated_git_env
+from config_guard.git_source import SETTINGS_PATH
+from config_guard.herdr_keys import CONFIG_PATH as HERDR_CONFIG_PATH
 from config_guard.markdown_links import (
+    _tracked_markdown_files,
     check_markdown_links,
     extract_link_targets,
     link_path_to_check,
 )
+from config_guard.mise_pins import MISE_CONFIG_PATH
 
 
 def test_extract_picks_up_inline_links() -> None:
@@ -178,6 +186,25 @@ def test_untracked_markdown_is_not_scanned(tmp_path: Path) -> None:
     assert check_markdown_links(str(tmp_path)) == []
 
 
+def test_tracked_but_missing_from_worktree_markdown_is_skipped(tmp_path: Path) -> None:
+    # git ls-files は index を列挙するが read は worktree を見るため、追跡下の .md を
+    # rm しただけの状態 (commit 前の削除途中) では両者が食い違う。読めないファイルは
+    # FileNotFoundError の生 traceback で落とさず skip する。削除途中のファイル自身の
+    # リンクは検査対象として意味を持たず、そのファイルへ向かう他ファイルのリンク切れは
+    # 通常どおり検出される (skip が検出漏れを生まないことを同時に pin する)
+    _init_repo(tmp_path)
+    _write(tmp_path, "docs/a/index.md", "[先](../b/target.md)\n")
+    _write(tmp_path, "docs/b/target.md", "[戻る](../a/index.md)\n")
+    _add_all(tmp_path)
+    (tmp_path / "docs/b/target.md").unlink()
+
+    findings = check_markdown_links(str(tmp_path))
+
+    assert len(findings) == 1
+    assert findings[0].source == "docs/a/index.md"
+    assert findings[0].detail == "../b/target.md"
+
+
 def test_directory_link_resolves(tmp_path: Path) -> None:
     # ディレクトリを指すリンクも実在すれば通る
     _init_repo(tmp_path)
@@ -309,3 +336,117 @@ def test_link_after_nested_fence_is_still_checked(tmp_path: Path) -> None:
 
     assert len(findings) == 1
     assert findings[0].detail == "../outer.md"
+
+
+# pre-commit の config-guard-scan hook の files は「いつ発火するか」を決める配線
+# (設計ドキュメントの配線節)。ここから選択肢を落としたり狭めたりしても実行系テストは
+# 1 つも落ちず、対応する検査だけが silent に発火しなくなるため、cross-file invariant と
+# してここで pin する (test_git_run.py の hook 照合と同じ流儀)
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_PRECOMMIT_CONFIG_PATH = _REPO_ROOT / ".pre-commit-config.yaml"
+
+
+def _scan_hook_block_lines() -> list[str]:
+    """config-guard-scan hook ブロックの行 (strip 済み) を読み出す。
+
+    apm_gitignore.parse_deployed_files と同じ stdlib のみの行パース (YAML lib 非使用)。
+    hook 内で id: が先頭に来る前提に依存するが、誤読は必ず赤側に倒れる:
+    ブロックを見つけられなければここで AssertionError になる (silent pass にはならない)。
+    """
+    lines: list[str] = []
+    in_hook = False
+    for line in _PRECOMMIT_CONFIG_PATH.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- id:"):
+            in_hook = stripped == "- id: config-guard-scan"
+            continue
+        if in_hook:
+            lines.append(stripped)
+    if not lines:
+        raise AssertionError("config-guard-scan hook ブロックが見つからない")
+    return lines
+
+
+def _scan_hook_files_pattern() -> str:
+    """config-guard-scan hook の files 正規表現を hook 定義から読み出す。
+
+    正規表現を literal でコピーすると定義と二重管理になり drift するため、必ず読み出す。
+    誤読は必ず赤側に倒れる: files: を拾えなければここで AssertionError、引用符等の
+    混入した値を返しても呼び出し側のパス照合が全滅して落ちる (silent pass にはならない)。
+    """
+    for stripped in _scan_hook_block_lines():
+        if stripped.startswith("files:"):
+            return stripped.removeprefix("files:").strip()
+    raise AssertionError("config-guard-scan hook の files 定義が見つからない")
+
+
+def _precommit_top_level_keys() -> set[str]:
+    """.pre-commit-config.yaml のトップレベル (インデント無し) のキー名を読み出す。
+
+    誤読は必ず赤側に倒れる: repos が取れなければここで AssertionError になる。
+    """
+    keys = {
+        line.split(":", 1)[0]
+        for line in _PRECOMMIT_CONFIG_PATH.read_text(encoding="utf-8").splitlines()
+        if line and not line.startswith((" ", "\t", "#")) and ":" in line
+    }
+    if "repos" not in keys:
+        raise AssertionError("トップレベルの repos が見つからない")
+    return keys
+
+
+def test_precommit_scan_hook_has_no_narrowing_keys() -> None:
+    # pre-commit (4.6.0 run.py で実測) は files と exclude の両方を search で適用するため、
+    # hook に exclude: を 1 行足すだけで一部の .md 編集が発火しなくなるが、上下の files
+    # 照合テストは files の正規表現しか読まないので緑のまま通る。types 系も同様に発火を
+    # 狭める。今日の hook は files 以外の絞り込みキーを持たない前提で成立しているので、
+    # その不在自体を pin する。将来正当に足したくなったら、このテストが「files 照合だけ
+    # では覆えなくなった」ことを知らせるシグナルとして赤くなる
+    narrowing_keys = ("exclude:", "types:", "types_or:", "exclude_types:")
+    for stripped in _scan_hook_block_lines():
+        for key in narrowing_keys:
+            assert not stripped.startswith(key), f"config-guard-scan hook に {key} が足された"
+    # 同じ狭窄は config レベルでも起きる。run.py は hook の files/exclude を適用する前に
+    # トップレベルの files/exclude を全 hook へ適用するため、こちらに 1 行足しても
+    # hook ブロックの照合はすべて緑のまま通る (実測済み)。両方の経路を 1 つの不変条件で覆う
+    assert not {"files", "exclude"} & _precommit_top_level_keys()
+
+
+def test_precommit_scan_hook_fires_on_any_markdown_file() -> None:
+    # リンク検査は追跡下の全 .md を走査するので、hook もそのすべてで発火せねばならない。
+    # 例示パス数本の照合では `docs/` 等への狭窄が緑のまま通るため、検査本体と同じ列挙
+    # (_tracked_markdown_files) で実リポジトリを全数照合する。pre-commit と同じ search
+    # 適用で振る舞いとして検証する
+    pattern = re.compile(_scan_hook_files_pattern())
+    tracked = _tracked_markdown_files(str(_REPO_ROOT))
+    # 列挙 0 件だと下の照合が何も検証しない (vacuous pass) ので先に落とす
+    assert tracked
+    unmatched = [rel for rel in tracked if not pattern.search(rel)]
+    assert unmatched == []
+    # 無関係なファイルでは発火しない (files が絞り込みとして機能していることの negative case)
+    assert not pattern.search("home/.zshrc")
+
+
+def test_precommit_scan_hook_covers_all_config_guard_inputs() -> None:
+    # scan() の各検査が読む入力ファイルの編集で hook が発火しなければ、その検査は
+    # silent に dead になる。各モジュールの canonical なパス定数を import して照合し、
+    # パスを literal で再掲しない (二重管理の drift 防止)
+    pattern = re.compile(_scan_hook_files_pattern())
+    assert pattern.search(SETTINGS_PATH)
+    assert pattern.search(LOCKFILE_PATH)
+    assert pattern.search(HERDR_CONFIG_PATH)
+    assert pattern.search(MISE_CONFIG_PATH)
+    # skills の allowed-tools 検査の入力は glob なので実パスへ展開して照合する。
+    # 「SKILL.md 専用の選択肢は `.md` の選択肢が覆うため持たない」という hook 側の
+    # 削除判断を、狭窄で壊れない不変条件としてここで文書化する
+    skill_paths = glob.glob(cli.SKILLS_GLOB, root_dir=_REPO_ROOT)
+    # 展開 0 件だと下の照合が何も検証しない (vacuous pass) ので先に落とす
+    assert skill_paths
+    for rel in skill_paths:
+        assert pattern.search(rel)
+    # config-guard 自身のコード変更でも再走が要る。パスは literal で書かず、import 済み
+    # module の実体ファイルから repo 相対へ引き直す
+    assert pattern.search(str(Path(cli.__file__).resolve().relative_to(_REPO_ROOT)))
+    # home/.gitignore は定数化されていない (apm_gitignore は直接読まず git check-ignore
+    # 経由で間接的に評価する) ため、ここだけ literal で照合する
+    assert pattern.search("home/.gitignore")
