@@ -2,7 +2,8 @@
 
 stale なツール名参照 / committed settings.json の不変条件 / apm.lock.yaml の
 deployed_files が gitignore されているか(追記漏れ) / mise の global ツール pin が
-exact か / herdr keybinding の方向整合と chord 重複を検査する。
+exact か / herdr keybinding の方向整合と chord 重複 / 追跡下の Markdown の相対リンクが
+実在するかを検査する。
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from config_guard.apm_gitignore import check_apm_deployed_files_ignored
 from config_guard.extractors import extract_skill_tokens
 from config_guard.git_source import read_committed_settings
 from config_guard.herdr_keys import check_herdr_keys, read_default_config
+from config_guard.markdown_links import check_markdown_links
 from config_guard.mise_pins import check_mise_pins
 from config_guard.models import Finding
 from config_guard.settings_invariants import check_settings_invariants
@@ -50,6 +52,10 @@ def scan(repo_root: str) -> list[Finding]:
     # herdr の keybinding: previous/next の方向整合と chord 重複。
     # アクション名の照合は herdr がある環境でのみ行う (CI には herdr が無いので skip される)。
     findings.extend(check_herdr_keys(str(root), read_default_config()))
+
+    # 追跡下の Markdown の相対リンクが実在するか。Issue を closed/ へ移すと
+    # 両端のリンクが切れるが、リンク元は変更されないため差分だけでは検出できない
+    findings.extend(check_markdown_links(str(root)))
 
     return findings
 

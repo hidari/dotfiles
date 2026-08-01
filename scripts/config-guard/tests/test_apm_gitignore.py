@@ -5,7 +5,6 @@ deployed_files パーサ(pure)と、gitignore 網羅検査(実 git repo)を検�
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 from config_guard.apm_gitignore import (
@@ -13,7 +12,7 @@ from config_guard.apm_gitignore import (
     check_apm_deployed_files_ignored,
     parse_deployed_files,
 )
-from config_guard.git_run import isolated_git_env
+from tests.conftest import init_repo, write_file
 
 # deployed_files を 2 件持ち、hashes ブロックへ漏れないことを試す最小 lockfile
 SAMPLE_LOCKFILE = """lockfile_version: '1'
@@ -62,25 +61,10 @@ def test_parse_deployed_files_empty_when_no_block() -> None:
     assert parse_deployed_files("dependencies: []\napm_version: 0.23.1\n") == []
 
 
-def _init_repo(repo: Path) -> None:
-    subprocess.run(
-        ["git", "-C", str(repo), "init", "-q"],
-        check=True,
-        capture_output=True,
-        env=isolated_git_env(),
-    )
-
-
-def _write(repo: Path, rel: str, text: str) -> None:
-    path = repo / rel
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
-
-
 def test_check_passes_when_all_deployed_files_ignored(tmp_path: Path) -> None:
-    _init_repo(tmp_path)
-    _write(tmp_path, LOCKFILE_PATH, SAMPLE_LOCKFILE)
-    _write(
+    init_repo(tmp_path)
+    write_file(tmp_path, LOCKFILE_PATH, SAMPLE_LOCKFILE)
+    write_file(
         tmp_path,
         "home/.gitignore",
         ".claude/skills/playwright-cli/\n.claude/skills/playwright-test/\n",
@@ -90,10 +74,10 @@ def test_check_passes_when_all_deployed_files_ignored(tmp_path: Path) -> None:
 
 
 def test_check_flags_unignored_deployed_file(tmp_path: Path) -> None:
-    _init_repo(tmp_path)
-    _write(tmp_path, LOCKFILE_PATH, SAMPLE_LOCKFILE)
+    init_repo(tmp_path)
+    write_file(tmp_path, LOCKFILE_PATH, SAMPLE_LOCKFILE)
     # playwright-test の追記漏れを再現(playwright-cli だけ ignore)
-    _write(tmp_path, "home/.gitignore", ".claude/skills/playwright-cli/\n")
+    write_file(tmp_path, "home/.gitignore", ".claude/skills/playwright-cli/\n")
 
     findings = check_apm_deployed_files_ignored(str(tmp_path))
 
@@ -106,14 +90,14 @@ def test_check_flags_unignored_deployed_file(tmp_path: Path) -> None:
 
 
 def test_check_empty_when_no_lockfile(tmp_path: Path) -> None:
-    _init_repo(tmp_path)
+    init_repo(tmp_path)
     assert check_apm_deployed_files_ignored(str(tmp_path)) == []
 
 
 def test_check_raises_on_git_error(tmp_path: Path) -> None:
     # git repo でないディレクトリでは git check-ignore が 128 を返す。追記漏れ(1)と
     # git エラー(128)を取り違えず、明示的に失敗することを検証する(git init しない)。
-    _write(tmp_path, LOCKFILE_PATH, SAMPLE_LOCKFILE)
+    write_file(tmp_path, LOCKFILE_PATH, SAMPLE_LOCKFILE)
 
     try:
         check_apm_deployed_files_ignored(str(tmp_path))

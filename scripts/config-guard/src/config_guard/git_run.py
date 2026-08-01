@@ -31,12 +31,32 @@ def isolated_git_env() -> dict[str, str]:
     return {k: v for k, v in os.environ.items() if k not in _GIT_LOCATION_VARS}
 
 
-def run_git(repo_root: str, *args: str) -> subprocess.CompletedProcess[str]:
-    """`git -C repo_root <args>` を GIT_* 隔離環境で実行して結果を返す。"""
+def run_git(
+    repo_root: str, *args: str, stdin: str | None = None
+) -> subprocess.CompletedProcess[str]:
+    """`git -C repo_root <args>` を GIT_* 隔離環境で実行して結果を返す。
+
+    stdin を渡すと --stdin 系サブコマンド (check-ignore 等) へ標準入力として供給する。
+    """
     return subprocess.run(
         ["git", "-C", repo_root, *args],
         capture_output=True,
         text=True,
         check=False,
+        input=stdin,
         env=isolated_git_env(),
     )
+
+
+def run_git_checked(repo_root: str, *args: str) -> str:
+    """`git -C repo_root <args>` を実行して stdout を返す。非ゼロ exit は RuntimeError。
+
+    非ゼロ (128 = git repo でない等) を「結果なし」と黙って読み替えると、git エラーと
+    「対象が無い」を取り違えて検査が素通りするため、明示的に失敗させる。
+    非ゼロが正常な答えを持つコマンド (check-ignore の 1=not ignored 等) には使わず、
+    run_git を直接使うこと。
+    """
+    proc = run_git(repo_root, *args)
+    if proc.returncode != 0:
+        raise RuntimeError(f"git {args[0]} が失敗しました (exit {proc.returncode})")
+    return proc.stdout

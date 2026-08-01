@@ -38,15 +38,24 @@ def parse_deployed_files(lockfile_text: str) -> list[str]:
     return paths
 
 
-def _is_ignored(repo_root: str, repo_rel_path: str) -> bool:
-    proc = run_git(repo_root, "check-ignore", "-q", repo_rel_path)
-    # 0=ignored / 1=not ignored。それ以外(128 fatal: git repo でない等)を「not ignored」と
-    # 誤解して findings を量産せず、明示的に失敗させる(git エラーと追記漏れを取り違えない)。
+def _ignored_paths(repo_root: str, repo_rel_paths: list[str]) -> set[str]:
+    """渡したパスのうち ignore されているものの集合を返す。
+
+    パス 1 件ごとにプロセスを起動すると deployed_files の件数分の fork/exec で検査時間を
+    支配する(実測で config-guard 全体の過半)ため、`--stdin -z` で 1 プロセスに集約する。
+    -z は入出力とも NUL 区切りで、出力には ignore されたパスだけが echo back される
+    (0=1 件以上 ignored / 1=全て not ignored、と実験で確認済み)。
+    """
+    if not repo_rel_paths:
+        # check-ignore は空入力でも exit 1 で正常終了するが、答えが自明なら起動しない
+        return set()
+    proc = run_git(repo_root, "check-ignore", "--stdin", "-z", stdin="\0".join(repo_rel_paths))
+    # 0=1 件以上 ignored / 1=全て not ignored。それ以外(128 fatal: git repo でない等)を
+    # 「not ignored」と誤解して findings を量産せず、明示的に失敗させる
+    # (git エラーと追記漏れを取り違えない)。
     if proc.returncode not in (0, 1):
-        raise RuntimeError(
-            f"git check-ignore が失敗しました (exit {proc.returncode}): {repo_rel_path}"
-        )
-    return proc.returncode == 0
+        raise RuntimeError(f"git check-ignore が失敗しました (exit {proc.returncode})")
+    return {path for path in proc.stdout.split("\0") if path}
 
 
 def check_apm_deployed_files_ignored(repo_root: str) -> list[Finding]:
@@ -59,23 +68,24 @@ def check_apm_deployed_files_ignored(repo_root: str) -> list[Finding]:
         return []
 
     deployed = parse_deployed_files(lockfile.read_text(encoding="utf-8"))
-    findings: list[Finding] = []
-    for rel in deployed:
-        # git は file のみ track するため、検査対象は leaf ファイルのみ。dir エントリ
-        # (配下に別エントリを持つ placeholder) は apm の bookkeeping であって git-trackable な
-        # 実体ではないので scope 外。加えて未展開 dir は trailing-slash パターンに
-        # git check-ignore がマッチせず false-positive になる(非存在でもファイルパスは親
-        # ディレクトリパターンに正しくマッチする)ため、いずれの観点でも leaf に絞る。
-        if any(other.startswith(rel + "/") for other in deployed):
-            continue
-        # deployed_files は home/(apm.yml の位置)基準。repo root 基準に home/ を前置する。
-        repo_rel = f"home/{rel}"
-        if not _is_ignored(repo_root, repo_rel):
-            findings.append(
-                Finding(
-                    LOCKFILE_PATH,
-                    repo_rel,
-                    "apm deploy 先が gitignore されていません (home/.gitignore に要追記)",
-                )
-            )
-    return findings
+    # git は file のみ track するため、検査対象は leaf ファイルのみ。dir エントリ
+    # (配下に別エントリを持つ placeholder) は apm の bookkeeping であって git-trackable な
+    # 実体ではないので scope 外。加えて未展開 dir は trailing-slash パターンに
+    # git check-ignore がマッチせず false-positive になる(非存在でもファイルパスは親
+    # ディレクトリパターンに正しくマッチする)ため、いずれの観点でも leaf に絞る。
+    # deployed_files は home/(apm.yml の位置)基準。repo root 基準に home/ を前置する。
+    leaves = [
+        f"home/{rel}"
+        for rel in deployed
+        if not any(other.startswith(rel + "/") for other in deployed)
+    ]
+    ignored = _ignored_paths(repo_root, leaves)
+    return [
+        Finding(
+            LOCKFILE_PATH,
+            repo_rel,
+            "apm deploy 先が gitignore されていません (home/.gitignore に要追記)",
+        )
+        for repo_rel in leaves
+        if repo_rel not in ignored
+    ]

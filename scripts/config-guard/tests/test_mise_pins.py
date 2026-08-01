@@ -12,6 +12,7 @@ from config_guard.mise_pins import (
     check_mise_pins,
     is_exact_version,
 )
+from tests.conftest import REPO_ROOT
 
 
 def _write_config(repo_root: Path, body: str) -> None:
@@ -123,7 +124,6 @@ def test_check_mise_pins_without_config_file(tmp_path: Path) -> None:
 def test_repo_mise_config_pins_every_tool_exactly() -> None:
     # 実リポジトリの drift ガード。config.toml が宣言する「exact 指定で全マシンを
     # 完全再現する」規約を、コメントではなくここで機械的に担保する
-    repo_root = Path(__file__).resolve().parents[3]
-    assert (repo_root / MISE_CONFIG_PATH).is_file(), "mise config が想定パスに無い"
+    assert (REPO_ROOT / MISE_CONFIG_PATH).is_file(), "mise config が想定パスに無い"
 
-    assert check_mise_pins(str(repo_root)) == []
+    assert check_mise_pins(str(REPO_ROOT)) == []

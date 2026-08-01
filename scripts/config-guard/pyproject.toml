@@ -23,6 +23,10 @@ dev = [
     "pytest>=8.3",
     "ruff>=0.8",
     "mypy>=1.13",
+    # tests/test_precommit_wiring.py が .pre-commit-config.yaml を構造として読むための
+    # テスト専用依存。shipped tool 本体 ([project] dependencies) は zero-dep を維持する
+    "pyyaml>=6.0",
+    "types-pyyaml>=6.0",
 ]
 
 [tool.ruff]
