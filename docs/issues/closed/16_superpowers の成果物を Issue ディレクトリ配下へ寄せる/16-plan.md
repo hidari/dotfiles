@@ -543,5 +543,5 @@ cd ~/Develop/dotfiles && gh pr view --json url,title,body
 - CI ミラーの追加。このリポジトリの CI は pre-commit を実行せず hook を再実装してミラーする方式なので、ミラーを足すとパスの literal が 2 箇所に増えて drift する。加えて CLAUDE.md が CI コストを抑える方針を持つ。捕捉したい失敗モードはローカルの pre-commit で捕捉されるため、ミラー無しで足りると判断した。
 - リポジトリルートの README の更新。`grep -in -e issue -e superpower -e spec -e plan README.md` がヒット 0 件で、更新すべき記述が存在しない (`docs/superpowers/archive/README.md` の新設は別で、Task 2 で行う)。
 - 移行する 14 ファイルの中身の書き換え。旧パスへの平文参照 8 箇所は当時の記録として残す。
-- Issue ディレクトリ配下のファイル名検査。移植可能な 1 段構成という判断は維持しつつ、dotfiles では config-guard にファイル名の検査を足す余地がある。検査対象が `issue-scoped-artifacts` hook (`docs/superpowers/`) と重ならないため literal の重複は起きず、CI 費用も増えない。規約のうち実害を防いでいるのは番号の一致であるため、別 Issue ([Issue #17](../17_Issue%20ディレクトリ配下の成果物ファイル名を%20config-guard%20で検査する/issue.md)) として起票済みで、本タスクのスコープには含めない。
+- Issue ディレクトリ配下のファイル名検査。移植可能な 1 段構成という判断は維持しつつ、dotfiles では config-guard にファイル名の検査を足す余地がある。検査対象が `issue-scoped-artifacts` hook (`docs/superpowers/`) と重ならないため literal の重複は起きず、CI 費用も増えない。規約のうち実害を防いでいるのは番号の一致であるため、別 Issue ([Issue #17](../../17_Issue%20ディレクトリ配下の成果物ファイル名を%20config-guard%20で検査する/issue.md)) として起票済みで、本タスクのスコープには含めない。
 - 既存 12 ファイルへの遡及 Issue 起票。

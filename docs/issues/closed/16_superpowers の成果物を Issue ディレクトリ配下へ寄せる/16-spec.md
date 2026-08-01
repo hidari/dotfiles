@@ -148,5 +148,5 @@ skill には自動テストの仕組みが無いため、実測で担保する�
 ## 今回やらないこと
 
 - 既存 12 ファイルへの遡及 Issue 起票。番号順と時系列が食い違い、実在しなかった因果を偽装するため行わない。
-- Issue ディレクトリ配下のファイル名検査。移植可能な 1 段構成という判断は維持する。skill が配るスニペットは全プロジェクト共通の floor であり、ここを崩さない。そのうえで dotfiles では config-guard にファイル名の検査を足す余地がある。検査対象が `issue-scoped-artifacts` hook (`docs/superpowers/`) と重ならないため literal の重複は起きず、CI は既に config-guard をフルスキャンしているので CI 費用も増えない。規約のうち実害を防いでいるのは `<NNN>` の一致であって「`docs/superpowers/` に置かないこと」ではないため、この検査には別途価値がある。[Issue #17](../17_Issue%20ディレクトリ配下の成果物ファイル名を%20config-guard%20で検査する/issue.md) として起票済み。
+- Issue ディレクトリ配下のファイル名検査。移植可能な 1 段構成という判断は維持する。skill が配るスニペットは全プロジェクト共通の floor であり、ここを崩さない。そのうえで dotfiles では config-guard にファイル名の検査を足す余地がある。検査対象が `issue-scoped-artifacts` hook (`docs/superpowers/`) と重ならないため literal の重複は起きず、CI は既に config-guard をフルスキャンしているので CI 費用も増えない。規約のうち実害を防いでいるのは `<NNN>` の一致であって「`docs/superpowers/` に置かないこと」ではないため、この検査には別途価値がある。[Issue #17](../../17_Issue%20ディレクトリ配下の成果物ファイル名を%20config-guard%20で検査する/issue.md) として起票済み。
 - config-guard の repo 非依存化。`scan()` の dotfiles 固有ハードコードは本設計の検出方式では不要になったため、別の必要が生じるまで触らない。
