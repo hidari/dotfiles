@@ -4,9 +4,9 @@
 
 **Goal:** 追跡下の Markdown の相対リンクが実在するかを config-guard で機械検査し、pre-commit と CI で止める。
 
-**Architecture:** `scripts/config-guard` に `markdown_links.py` を新設する。リンク文字列の抽出と分類を純粋関数に切り出し、ファイル走査と実在判定を `check_markdown_links(repo_root)` が担う。`cli.py` の `scan()` から既存 5 チェックと同じ形で呼び、pre-commit は既存の `config-guard-scan` hook の `files` に `.md` を足すだけで配線する。
+**Architecture:** `scripts/config-guard` に `markdown_links.py` を新設する。リンク文字列の抽出と分類を純粋関数に切り出し、ファイル走査と実在判定を `check_markdown_links(repo_root)` が担う。`cli.py` の `scan()` から既存 5 チェックと同じ形で呼び、pre-commit は既存の `config-guard-scan` hook の `files` に `.md` を足すだけで配線する（この配線方針はマージ前レビューで覆り、最終的に `files` の列挙を廃して `always_run: true` を採った。経緯は spec の配線節）。
 
-**Tech Stack:** Python 3.12 / stdlib のみ (`re`, `urllib.parse`, `pathlib`, `os.path`) / pytest / ruff / mypy strict
+**Tech Stack:** Python 3.12 / stdlib のみ (`re`, `urllib.parse`, `pathlib`) / pytest / ruff / mypy strict
 
 ## Global Constraints
 
@@ -27,7 +27,7 @@
 | `scripts/config-guard/tests/test_markdown_links.py` (新規) | 上記の仕様テスト |
 | `scripts/config-guard/src/config_guard/cli.py` (変更) | `check_markdown_links` を `scan()` に配線し docstring を更新 |
 | `scripts/config-guard/tests/test_cli.py` (変更) | 配線されていることを pin するテストを追加 |
-| `.pre-commit-config.yaml` (変更) | `config-guard-scan` hook の `files` に `.*\.md$` を追加 |
+| `.pre-commit-config.yaml` (変更) | `config-guard-scan` hook の発火条件を更新（最終形は `always_run: true`。hook 定義は `.pre-commit-config.yaml` が canonical） |
 | `scripts/config-guard/README.md` (変更) | 検査項目にリンク検査を追記 |
 
 ---
@@ -165,7 +165,7 @@ def link_path_to_check(target: str) -> str | None:
 - [ ] **Step 4: テストが通ることを確認する**
 
 Run: `uv run --directory scripts/config-guard pytest tests/test_markdown_links.py -v`
-Expected: PASS。10 件すべて。
+Expected: PASS。全件（期待件数は literal で持たない。件数とテスト名は `test_markdown_links.py` が canonical）。
 
 - [ ] **Step 5: 変異注入で pin を確かめる**
 
@@ -432,9 +432,9 @@ def check_markdown_links(repo_root: str) -> list[Finding]:
 - [ ] **Step 4: テストが通ることを確認する**
 
 Run: `uv run --directory scripts/config-guard pytest tests/test_markdown_links.py -v`
-Expected: PASS。Task 1 の 10 件と Task 2 の 11 件で 21 件。
+Expected: PASS。全件（期待件数は literal で持たない。件数とテスト名は `test_markdown_links.py` が canonical）。
 
-`tests` の値が 21 であることを目で確認する。0 件実行を件数で見抜けない罠があるため、期待するテスト名が出力に現れていることも確かめる。
+`tests` の値が Task 1 完了時点より増えていることを目で確認する。0 件実行を件数で見抜けない罠があるため、期待するテスト名が出力に現れていることも確かめる。
 
 - [ ] **Step 5: 変異注入で pin を確かめる**
 
@@ -631,7 +631,7 @@ def extract_link_targets(text: str) -> list[str]:
 - [ ] **Step 4: テストが通ることを確認する**
 
 Run: `uv run --directory scripts/config-guard pytest tests/test_markdown_links.py -v`
-Expected: PASS。既存 21 件 + 新規 6 件 = 27 件。Task 1 の純粋関数テスト 10 件が壊れていないことも確認する（これらはフェンスもインラインコードも含まないので影響しないはず）。
+Expected: PASS。全件（期待件数は literal で持たない。件数とテスト名は `test_markdown_links.py` が canonical）。Task 1 の純粋関数テストが壊れていないことも確認する（これらはフェンスもインラインコードも含まないので影響しないはず）。
 
 - [ ] **Step 5: 変異注入で pin を確かめる**
 
@@ -763,23 +763,11 @@ from config_guard.markdown_links import check_markdown_links
 - [ ] **Step 4: テストが通ることを確認する**
 
 Run: `uv run --directory scripts/config-guard pytest tests/test_cli.py -v`
-Expected: PASS。既存 4 件 + 新規 1 件 = 5 件。
+Expected: PASS。fail 0 で全件 pass（期待件数は literal で持たない。件数とテスト名は `scripts/config-guard/tests/test_cli.py` が canonical）。
 
-- [ ] **Step 5: pre-commit の files パターンを更新する**
+- [ ] **Step 5: pre-commit の発火条件を更新する**
 
-`.pre-commit-config.yaml` の `config-guard-scan` hook（77 行目付近）の `files` を変更する。
-
-変更前:
-
-```yaml
-        files: ^(home/\.claude/skills/.*/SKILL\.md|home/\.claude/settings\.json|home/apm\.lock\.yaml|home/\.gitignore|home/\.config/herdr/config\.toml|scripts/config-guard/.*)$
-```
-
-変更後:
-
-```yaml
-        files: ^(home/\.claude/skills/.*/SKILL\.md|home/\.claude/settings\.json|home/apm\.lock\.yaml|home/\.gitignore|home/\.config/herdr/config\.toml|scripts/config-guard/.*|.*\.md)$
-```
+当初の手順は `config-guard-scan` hook の `files` 列挙に `.md` の選択肢を足すものだった。この手順はマージ前レビューで覆り、`files` の列挙自体を廃して `always_run: true` とした（経緯は spec の配線節。現行の hook 定義は `.pre-commit-config.yaml` が canonical で、変更前後の literal はここに再掲しない）。
 
 - [ ] **Step 6: hook の発火条件を実測する**
 
@@ -849,29 +837,11 @@ git ls-files -v | grep '^S'
 - 削除のみのコミットで hook が発火したか（Yes / No）
 - 移動のみのコミットで hook が発火したか（Yes / No）
 
-結果を spec の該当箇所（「ただし `files` の判定に使われる staged ファイル一覧に…」の段落）へ実測値として書き戻し、推測を断定に置き換える。発火しないケースが残るなら「CI 側の全体走査が backstop」と明記する。`always_run: true` へは変更しない。
+結果を spec の該当箇所（「ただし `files` の判定に使われる staged ファイル一覧に…」の段落）へ実測値として書き戻し、推測を断定に置き換える。発火しないケースが残るなら「CI 側の全体走査が backstop」と明記する。`always_run: true` へは変更しない（この判断はマージ前レビューで覆り、最終的に `always_run: true` を採った。ここで実測した「`git rm` のみのコミットで発火しない」が理由の 1 つになっている。経緯は spec の配線節）。
 
 - [ ] **Step 7: README を更新する**
 
-`scripts/config-guard/README.md` の検査項目の箇条書き（3-7 行目）を次に差し替える。`mise` の項目は実装済みなのに README から漏れていた既存の drift なので、ボーイスカウトルールで併せて直す。
-
-変更前:
-
-```markdown
-- skills の `allowed-tools` と committed `home/.claude/settings.json` の stale なツール名参照
-- `home/apm.lock.yaml` の deployed_files が gitignore されているか（追記漏れ）
-- `home/.config/herdr/config.toml` の keybinding（`previous_*` と `next_*` の方向整合、chord 重複、アクション名の綴り）
-```
-
-変更後:
-
-```markdown
-- skills の `allowed-tools` と committed `home/.claude/settings.json` の stale なツール名参照
-- `home/apm.lock.yaml` の deployed_files が gitignore されているか（追記漏れ）
-- `home/.config/mise/config.toml` の global ツール pin が exact か
-- `home/.config/herdr/config.toml` の keybinding（`previous_*` と `next_*` の方向整合、chord 重複、アクション名の綴り）
-- 追跡下の Markdown（`git ls-files '*.md'`）の相対リンクが実在するか（Issue を `closed/` へ移すと両端のリンクが切れる）
-```
+`scripts/config-guard/README.md` の検査項目の箇条書きにリンク検査を追記する。`mise` の項目は実装済みなのに README から漏れていた既存の drift なので、ボーイスカウトルールで併せて直す（現行の一覧は README 自身が canonical で、変更前後の literal はここに再掲しない）。
 
 - [ ] **Step 8: 全チェックを通す**
 
@@ -920,4 +890,4 @@ git commit -F .cache/commit-link-wiring.txt
 - `uv run --directory scripts/config-guard config-guard "$(git rev-parse --show-toplevel)"` が「問題は検出されませんでした」
 - ruff / mypy がエラー 0 件
 - 意図的に `.md` のリンクを壊すと pre-commit がコミットを止めることを 1 度実演する
-- CI 10 checks が全て success
+- CI の全 checks が success（checks の一覧は `.github/workflows` 配下が canonical）
