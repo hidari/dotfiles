@@ -22,7 +22,7 @@
 
 ## 前提ゲート
 
-- [ ] **claude-plugins の PR #5 がマージ済みであること**
+- [x] **claude-plugins の PR #5 がマージ済みであること** (`state=MERGED` / `mergedAt=2026-08-01T15:52:24Z` / merge commit `0154798`。ローカル main を fast-forward し、マージ済みブランチはローカル・リモートとも削除済み)
 
 `gh pr merge 5 --squash` は Claude Code の auto mode classifier にブロックされるため、ユーザーが手動で実行する。実行後に次で確認する。
 
@@ -373,7 +373,7 @@ cd ~/Develop/dotfiles && git add CLAUDE.md && git commit -F .cache/commit-claude
 
 ---
 
-### Task 5: .superpowers/ を gitignore し sdd を掃除する
+### Task 5: .superpowers/ を gitignore し sdd を掃除する (実行前にコントローラが完了済み)
 
 **Files:**
 - Modify: `.gitignore`
@@ -383,9 +383,15 @@ cd ~/Develop/dotfiles && git add CLAUDE.md && git commit -F .cache/commit-claude
 - Consumes: なし
 - Produces: なし
 
-この 2 つは因果で結ばれている。現在 `.superpowers/` が git から隠れているのは `.superpowers/sdd/.gitignore` の `*` だけによるもので、sdd を消すとその .gitignore も消えて `.superpowers/` が丸見えになる。brainstorming の visual companion が書く `.superpowers/brainstorm/` はそもそも ignore されていない。
+この 2 つは因果で結ばれている。`.superpowers/` が git から隠れていたのは `.superpowers/sdd/.gitignore` の `*` だけによるもので、sdd を消すとその .gitignore も消えて `.superpowers/` が丸見えになる。brainstorming の visual companion が書く `.superpowers/brainstorm/` はそもそも ignore されていない。
 
-- [ ] **Step 1: 削除前に対象を確認する**
+このタスクは他タスクより先に、subagent-driven-development を開始する前にコントローラが実行した (commit `e587eb4`)。SDD は plan ファイルの basename から `.superpowers/sdd/16-plan/` を作り、ledger と brief と report をそこに置く。実行中に Step 4 の `rm -rf .superpowers/sdd` が走ると、進行中の作業記録ごと消える。順序でしか避けられない衝突なので、SDD の外へ出した。
+
+タスク内の順序は当初のまま `.gitignore` への追記が先、削除が後である。逆順にすると sdd の `.gitignore` が消えてからリポジトリ側へ追記するまでの間、`.superpowers/` が `git status` に丸見えになる窓ができる。
+
+以下は実行時の実測値である。
+
+- [x] **Step 1: 削除前に対象を確認する**
 
 ```bash
 cd ~/Develop/dotfiles && find .superpowers -mindepth 1 -type f | wc -l && du -sh .superpowers/sdd && git ls-files .superpowers | wc -l
@@ -393,7 +399,7 @@ cd ~/Develop/dotfiles && find .superpowers -mindepth 1 -type f | wc -l && du -sh
 
 Expected: `107`、`1.6M` 前後、そして追跡ファイルは `0`。追跡ファイルが 0 でない場合は削除せず停止して報告する。
 
-- [ ] **Step 2: .gitignore に追記する**
+- [x] **Step 2: .gitignore に追記する**
 
 Edit ツールで `.gitignore` に次の 2 行を足す。既存の `.cache/` の行の近くに置く。
 
@@ -402,7 +408,7 @@ Edit ツールで `.gitignore` に次の 2 行を足す。既存の `.cache/` �
 .superpowers/
 ```
 
-- [ ] **Step 3: ignore が効くことを確認する**
+- [x] **Step 3: ignore が効くことを確認する**
 
 ```bash
 cd ~/Develop/dotfiles && git check-ignore -v .superpowers/brainstorm/x .superpowers/sdd/y
@@ -410,7 +416,7 @@ cd ~/Develop/dotfiles && git check-ignore -v .superpowers/brainstorm/x .superpow
 
 Expected: exit 0 かつ 2 行とも `.gitignore` 由来で報告される。sdd 側の `.gitignore` ではなくリポジトリの `.gitignore` が効いていること。
 
-- [ ] **Step 4: sdd を削除する**
+- [x] **Step 4: sdd を削除する**
 
 ```bash
 cd ~/Develop/dotfiles && rm -rf .superpowers/sdd && find .superpowers -mindepth 1 | wc -l
@@ -418,7 +424,7 @@ cd ~/Develop/dotfiles && rm -rf .superpowers/sdd && find .superpowers -mindepth 
 
 Expected: `0`。次回 plan 実行時に `sdd-workspace` が `<NNN>-plan/` 形式のサブディレクトリを新規生成するため、上流最新形式への追随もこれで完了する。
 
-- [ ] **Step 5: 作業ツリーに余計な変更が出ていないことを確認する**
+- [x] **Step 5: 作業ツリーに余計な変更が出ていないことを確認する**
 
 ```bash
 cd ~/Develop/dotfiles && git status --short
@@ -426,7 +432,7 @@ cd ~/Develop/dotfiles && git status --short
 
 Expected: `.gitignore` の変更 1 件のみ。`.superpowers` 関連の未追跡ファイルが出ていないこと。
 
-- [ ] **Step 6: コミットする**
+- [x] **Step 6: コミットする**
 
 本文を `.cache/commit-superpowers-gitignore.txt` に Write ツールで書く。prefix は `chore:`。
 
