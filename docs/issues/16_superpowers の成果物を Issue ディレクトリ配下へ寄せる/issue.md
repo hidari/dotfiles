@@ -15,6 +15,8 @@ status: open
 | `docs/superpowers/specs/` | brainstorming が書く設計 | あり | 6 |
 | `.superpowers/sdd/` | subagent-driven-development の ledger / brief / report / review | なし | 94 |
 
+表は起票時点 (2026-07-31) の値である。その後 Issue #15 の markdown-link-check に対応する spec と plan の 1 対が加わり、以降の記述は plans 7 件 / specs 7 件、合わせて 7 テーマ 14 ファイルを対象にしている。
+
 Issue から plans と specs への参照は 1 件も無い。逆に plans と specs のファイル名は日付と feature 名だけで、どの Issue に属するかを名前から辿れない。
 
 さらに、両者のテーマはほとんど既存の Issue と重ならない。plans と specs が扱う 7 テーマのうち、既存の Issue に対応が付くのは config-drift-guard (Issue #1 と #2) と markdown-link-check (Issue #15) の 2 テーマのみで、残る node-security-notifier / windows-vm-verification-skill / session-handoff / nvim-contrast-palette / symlink-pairs-reverse-drift の 5 テーマには対応する Issue が無い。全く対応が付かないわけではないが、大半は対応が付かないという方向は変わらない。superpowers を回した作業には Issue が無い場合が多く、Issue がある作業には plan も spec も無いことが多い。2 つのワークフローが並行して存在し、ほとんど交わっていない状態である。

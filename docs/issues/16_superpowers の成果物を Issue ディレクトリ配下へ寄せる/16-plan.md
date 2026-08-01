@@ -506,7 +506,19 @@ Expected: exit 0。`.cache/precommit-all.txt` を読み、`Failed` が 1 件も�
 
 `dev-workflow:pre-merge-quality-gate` skill を使う。simplify / code-reviewer / boy-scout-sweep が並列で走る。指摘は confidence の高いものから対応する。
 
-- [ ] **Step 3: push して PR を出す**
+- [ ] **Step 3: claude-plugins の PR #6 がマージ済みであることを確認する**
+
+```bash
+cd ~/Develop/claude-plugins && gh pr view 6 --json state,mergedAt
+```
+
+Expected: `"state":"MERGED"` と非 null の `mergedAt`。
+
+dotfiles の CLAUDE.md は `dev-workflow:issue-scoped-artifacts` skill を参照するが、この skill は claude-plugins の PR #6 にしか存在しない。PR #6 が未マージのまま dotfiles を先にマージすると、skill が消えたのにポインタだけが残る期間ができる。
+
+`gh pr merge 6 --squash` は Claude Code の auto mode classifier にブロックされるため、ユーザーが手動で実行する。
+
+- [ ] **Step 4: push して PR を出す**
 
 push はグローバル CLAUDE.md の push ルールに従う。push 後は `git ls-remote --heads origin refactor/issue-scoped-artifacts` と `git status -sb` で成否を直接確認する。
 
@@ -516,7 +528,7 @@ PR 本文を `.cache/pr-issue-scoped-artifacts.md` に Write ツールで書く�
 cd ~/Develop/dotfiles && gh pr create --assignee @me --base main --body-file .cache/pr-issue-scoped-artifacts.md --title "refactor: superpowers の成果物を Issue ディレクトリ配下へ寄せる"
 ```
 
-- [ ] **Step 4: PR が作られ本文が載ったことを確認する**
+- [ ] **Step 5: PR が作られ本文が載ったことを確認する**
 
 ```bash
 cd ~/Develop/dotfiles && gh pr view --json url,title,body
