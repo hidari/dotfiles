@@ -46,13 +46,13 @@ Expected: `"state":"MERGED"` と非 null の `mergedAt`。
 - Consumes: なし (最初のタスク)
 - Produces: skill 名 `dev-workflow:issue-scoped-artifacts`。Task 4 の CLAUDE.md ポインタがこの名前を参照する。skill が提示する pre-commit スニペットの hook id は `issue-scoped-artifacts` で、Task 3 の `.pre-commit-config.yaml` がこの id を使う。
 
-- [ ] **Step 1: ブランチを切る**
+- [x] **Step 1: ブランチを切る**
 
 ```bash
 cd ~/Develop/claude-plugins && git checkout main && git pull --ff-only && git checkout -b feat/issue-scoped-artifacts-skill
 ```
 
-- [ ] **Step 2: SKILL.md を書く**
+- [x] **Step 2: SKILL.md を書く**
 
 frontmatter は次の literal をそのまま使う。`description` は opt-in の停止条件を含むこと。ポインタが無いプロジェクトで何もしないという判断は harness の機能ではなく、この description と本文の散文だけで実現される (`security-blue-red-team` と `web-monkey-qa` の profile 方式と同じ機構)。
 
@@ -93,7 +93,7 @@ pre-commit スニペットは次の literal とする。既に `repo: local` エ
         files: '^docs/superpowers/(plans|specs)/'
 ```
 
-`## 検出の範囲` — 捕捉するのは「CLAUDE.md の上書きが効かず成果物が上流 skill の既定パスへ落ちる」失敗モードのみ。既定パスは `docs/superpowers/plans/` と `docs/superpowers/specs/` の 2 つしか存在しないためこの失敗モードは漏れなく捕捉される。一方で Issue ディレクトリ配下のファイル名違反 (`spec.md` のような番号なし、`15_` 配下の `16-spec.md` のような番号不一致) は検出しない。ファイル名まで見るにはリポジトリ固有のロジックが要り、全プロジェクトで同一という性質を失うため意図的に見送っている。
+`## 検出の範囲` — 捕捉するのは「CLAUDE.md の上書きが効かず成果物が上流 skill の既定パスへ落ちる」失敗モードのみ。既定パスは `docs/superpowers/plans/` と `docs/superpowers/specs/` の 2 つしか存在しない (superpowers 6.2.0 時点) ためこの失敗モードは漏れなく捕捉される。一方で Issue ディレクトリ配下のファイル名違反 (`spec.md` のような番号なし、`15_` 配下の `16-spec.md` のような番号不一致) は検出しない。ファイル名まで見るにはリポジトリ固有のロジックが要り、全プロジェクトで同一という性質を失うため意図的に見送っている。
 
 `## language: fail を選ぶ理由` — 移植性。`ENVIRONMENT_DIR` が None で `install_environment` が no_install なので環境構築が発生せず、Python も Node も要らない。実行可能スクリプトを配って呼ばせる方式は、plugin の実体パスをシェルから解決する手段が無いこと (`CLAUDE_PLUGIN_ROOT` はシェルに export されない)、絶対パス直書きが gitleaks の macos-user-path ルールに抵触すること、pre-commit の外部 repo 参照が private リポジトリの clone 認証で詰まることの 3 点で塞がっている。
 
@@ -101,7 +101,7 @@ pre-commit スニペットは次の literal とする。既に `repo: local` エ
 
 `## 関連` — `dev-workflow:in-repo-issue` (Issue の起票・更新・クローズ。補助資料をディレクトリ内に置いてよいという規定を持つ)、`superpowers:brainstorming` と `superpowers:writing-plans` (出力先を規定し、ユーザー設定による上書きを明示的に許可している)、`superpowers:subagent-driven-development` (workspace 名の導出元)。
 
-- [ ] **Step 3: スクラッチリポジトリを作って hook スニペットを検証する**
+- [x] **Step 3: スクラッチリポジトリを作って hook スニペットを検証する**
 
 skill が配るスニペットが実際に機能することを確かめる。ここで検証しないと、誤ったスニペットが全プロジェクトへ配られる。
 
@@ -128,7 +128,7 @@ repos:
 cd ~/Develop/claude-plugins/.cache/snippet-smoke && printf '# ok\n' > 'docs/issues/16_テスト/16-spec.md' && printf '# ng\n' > docs/superpowers/specs/2026-08-02-x-design.md && git add -A
 ```
 
-- [ ] **Step 4: 違反ありで落ちることを確認する**
+- [x] **Step 4: 違反ありで落ちることを確認する**
 
 ```bash
 cd ~/Develop/claude-plugins/.cache/snippet-smoke && pre-commit run --all-files > run1.txt 2>&1
@@ -136,7 +136,7 @@ cd ~/Develop/claude-plugins/.cache/snippet-smoke && pre-commit run --all-files >
 
 Expected: exit 1。`run1.txt` を読み、`Failed` と違反ファイル名 `docs/superpowers/specs/2026-08-02-x-design.md` の両方が出ていること。
 
-- [ ] **Step 5: 違反なしで通ることを確認する**
+- [x] **Step 5: 違反なしで通ることを確認する**
 
 この negative case を確認しなければ「何をしても落ちる hook」と区別できない。
 
@@ -146,13 +146,13 @@ cd ~/Develop/claude-plugins/.cache/snippet-smoke && git rm -q --cached docs/supe
 
 Expected: exit 0。`run2.txt` に `(no files to check)Skipped` が出ていること。日本語ディレクトリ名の `docs/issues/16_テスト/16-spec.md` が誤検出されていないこと。
 
-- [ ] **Step 6: スクラッチを片付ける**
+- [x] **Step 6: スクラッチを片付ける**
 
 ```bash
 rm -rf ~/Develop/claude-plugins/.cache/snippet-smoke
 ```
 
-- [ ] **Step 7: コミットして PR を出す**
+- [x] **Step 7: コミットして PR を出す**
 
 コミット本文を `~/Develop/claude-plugins/.cache/commit-issue-scoped-artifacts.txt` に Write ツールで書き、prefix は `feat:` を使う。PR 本文は `~/Develop/claude-plugins/.cache/pr-issue-scoped-artifacts.md` に書き、dotfiles の Issue #16 を参照する。
 
@@ -181,7 +181,7 @@ push と PR 作成はグローバル CLAUDE.md の push ルールに従う。pus
 
 このタスクは Task 3 より必ず先に行う。順序が逆だと `pre-commit run --all-files` が 14 件の既存ファイルにマッチして即座に赤くなる。通常の `git commit` では staged ファイルしか hook に渡らないため気づかずに進み、後から `--all-files` を打った人が壊れたと誤診する窓ができる。
 
-- [ ] **Step 1: dotfiles のブランチを確認する**
+- [x] **Step 1: dotfiles のブランチを確認する**
 
 ```bash
 cd ~/Develop/dotfiles && git branch --show-current && git status --short
@@ -189,19 +189,19 @@ cd ~/Develop/dotfiles && git branch --show-current && git status --short
 
 Expected: `refactor/issue-scoped-artifacts`、working tree は clean。異なる場合は `dev-workflow:git-branch-switcher` で切り替える。
 
-- [ ] **Step 2: Issue #15 へ 2 件を移す**
+- [x] **Step 2: Issue #15 へ 2 件を移す**
 
 ```bash
 cd ~/Develop/dotfiles && git mv docs/superpowers/plans/2026-07-31-markdown-link-check.md 'docs/issues/closed/15_docs の相対リンクを pre-commit で検査する/15-plan.md' && git mv docs/superpowers/specs/2026-07-31-markdown-link-check-design.md 'docs/issues/closed/15_docs の相対リンクを pre-commit で検査する/15-spec.md'
 ```
 
-- [ ] **Step 3: 残り 12 件を archive へ退避する**
+- [x] **Step 3: 残り 12 件を archive へ退避する**
 
 ```bash
 cd ~/Develop/dotfiles && mkdir -p docs/superpowers/archive && git mv docs/superpowers/plans/*.md docs/superpowers/archive/ && git mv docs/superpowers/specs/*.md docs/superpowers/archive/ && rmdir docs/superpowers/plans docs/superpowers/specs
 ```
 
-- [ ] **Step 4: 移行結果を確認する**
+- [x] **Step 4: 移行結果を確認する**
 
 ```bash
 cd ~/Develop/dotfiles && test ! -d docs/superpowers/plans && test ! -d docs/superpowers/specs && find docs/superpowers/archive -type f -name '*.md' | wc -l
@@ -209,7 +209,7 @@ cd ~/Develop/dotfiles && test ! -d docs/superpowers/plans && test ! -d docs/supe
 
 Expected: exit 0 かつ `12`。
 
-- [ ] **Step 5: 切れる参照 2 件を直す**
+- [x] **Step 5: 切れる参照 2 件を直す**
 
 Edit ツールで置換する。どちらも Markdown リンク記法ではないため Issue #15 の相対リンク検査では守られない。
 
@@ -237,7 +237,7 @@ Edit ツールで置換する。どちらも Markdown リンク記法ではな�
 仕様は `docs/superpowers/archive/2026-07-03-session-handoff-design.md` を参照。
 ```
 
-- [ ] **Step 6: 移行した文書には README を添え、中身は書き換えない**
+- [x] **Step 6: 移行した文書には README を添え、中身は書き換えない**
 
 移行する 14 ファイル自身が旧パスへの平文参照を 8 箇所持っている。これらは書き換えない。性質が 2 種類あり、`設計 spec: docs/superpowers/specs/...` のような生きたポインタと、`git add docs/superpowers/specs/...` のような当時のコマンド転記や当時のファイル内容の転記が混在している。後者を書き換えると「当時こう実行した」という記録が事実と食い違う。前者だけを選んで直すには 1 行ずつの人の判断が要り、判断を要する対応付けを避けるという本設計の方針に反する。
 
@@ -249,7 +249,7 @@ Edit ツールで置換する。どちらも Markdown リンク記法ではな�
 
 Issue #15 へ移した 2 件も同じ性質を持つが、Issue ディレクトリ配下にあることで「Issue #15 の作業記録」という文脈が明らかなので個別の断りは置かない。
 
-- [ ] **Step 7: 生きた参照に旧パスが残っていないことを確認する**
+- [x] **Step 7: 生きた参照に旧パスが残っていないことを確認する**
 
 ```bash
 cd ~/Develop/dotfiles && git -c core.quotepath=false grep -n -e 'docs/superpowers/plans' -e 'docs/superpowers/specs' -- ':!docs/issues/16_*' ':!docs/superpowers/archive' ':!docs/issues/closed/15_*'
@@ -257,7 +257,7 @@ cd ~/Develop/dotfiles && git -c core.quotepath=false grep -n -e 'docs/superpower
 
 Expected: exit 1 (ヒット 0 件)。除外する 3 つはいずれも意図的に旧パスを含む。Issue #16 の spec と plan は設計の記述として、archive と Issue #15 配下の移行済み文書は当時の記録として旧パスに言及する。ここでヒットが出たら、それは直すべき生きた参照である。
 
-- [ ] **Step 8: config-guard で相対リンクの健全性を確認する**
+- [x] **Step 8: config-guard で相対リンクの健全性を確認する**
 
 ```bash
 cd ~/Develop/dotfiles && pre-commit run config-guard-scan --all-files > .cache/cg-after-move.txt 2>&1
@@ -267,7 +267,7 @@ Expected: exit 0。`.cache/cg-after-move.txt` を読み `Passed` であること
 
 移動する 14 ファイルが持つ Markdown リンク記法はすべてコードフェンス内とインラインコード内にある (リンク検査そのもののテストデータと記法の例示)。`markdown_links` はコード領域を除外するため、移動で基準ディレクトリが変わっても判定は変わらない。ここが赤くなった場合は移行以外の原因を疑う。
 
-- [ ] **Step 9: コミットする**
+- [x] **Step 9: コミットする**
 
 本文を `.cache/commit-migrate-artifacts.txt` に Write ツールで書く。prefix は `refactor:`。
 
@@ -286,7 +286,7 @@ cd ~/Develop/dotfiles && git add -A && git commit -F .cache/commit-migrate-artif
 - Consumes: Task 1 が確定させた hook id `issue-scoped-artifacts` とスニペットの literal。Task 2 が空にした `docs/superpowers/{plans,specs}/`。
 - Produces: なし
 
-- [ ] **Step 1: hook を挿入する**
+- [x] **Step 1: hook を挿入する**
 
 Edit ツールで `config-guard-scan` の定義ブロックの直後に次を足す。既存の `repo: local` エントリの `hooks:` 配下なので `- id:` から書く。
 
@@ -302,7 +302,7 @@ Edit ツールで `config-guard-scan` の定義ブロックの直後に次を足
         files: '^docs/superpowers/(plans|specs)/'
 ```
 
-- [ ] **Step 2: 既存ファイルで誤発火しないことを確認する**
+- [x] **Step 2: 既存ファイルで誤発火しないことを確認する**
 
 ```bash
 cd ~/Develop/dotfiles && pre-commit run issue-scoped-artifacts --all-files > .cache/hook-clean.txt 2>&1
@@ -310,7 +310,7 @@ cd ~/Develop/dotfiles && pre-commit run issue-scoped-artifacts --all-files > .ca
 
 Expected: exit 0。`.cache/hook-clean.txt` に `(no files to check)Skipped` が出ていること。Task 2 の移行が済んでいれば必ずこうなる。赤い場合は移行の取りこぼしなので Task 2 の Step 4 と Step 6 に戻る。
 
-- [ ] **Step 3: 違反ファイルを置いて落ちることを確認する**
+- [x] **Step 3: 違反ファイルを置いて落ちることを確認する**
 
 ```bash
 cd ~/Develop/dotfiles && mkdir -p docs/superpowers/specs && printf '# smoke\n' > docs/superpowers/specs/2026-08-02-smoke-design.md && git add docs/superpowers/specs/2026-08-02-smoke-design.md && pre-commit run issue-scoped-artifacts --all-files > .cache/hook-violation.txt 2>&1
@@ -318,7 +318,7 @@ cd ~/Develop/dotfiles && mkdir -p docs/superpowers/specs && printf '# smoke\n' >
 
 Expected: exit 1。`.cache/hook-violation.txt` に `Failed` と `docs/superpowers/specs/2026-08-02-smoke-design.md` の両方が出ていること。落ちなければ hook が機能していないので `files:` のパターンを見直す。
 
-- [ ] **Step 4: 違反ファイルを取り除いて緑に戻す**
+- [x] **Step 4: 違反ファイルを取り除いて緑に戻す**
 
 ```bash
 cd ~/Develop/dotfiles && git rm -q --cached docs/superpowers/specs/2026-08-02-smoke-design.md && rm -rf docs/superpowers/specs && pre-commit run issue-scoped-artifacts --all-files > .cache/hook-restored.txt 2>&1
@@ -326,7 +326,7 @@ cd ~/Develop/dotfiles && git rm -q --cached docs/superpowers/specs/2026-08-02-sm
 
 Expected: exit 0。`.cache/hook-restored.txt` が `Skipped` であること。`git status --short` で smoke 用ファイルが残っていないことも確認する。
 
-- [ ] **Step 5: コミットする**
+- [x] **Step 5: コミットする**
 
 本文を `.cache/commit-artifact-hook.txt` に Write ツールで書く。prefix は `ci:`。
 
@@ -345,25 +345,25 @@ cd ~/Develop/dotfiles && git add .pre-commit-config.yaml && git commit -F .cache
 - Consumes: Task 1 が確定させた skill 名 `dev-workflow:issue-scoped-artifacts` とポインタの推奨文面
 - Produces: なし
 
-規約の中身は書かない。skill 名だけを参照する。複数プロジェクトに同じ規約が散らばって drift するのを避けるためであり、これは spec の設計判断である。
+規約の手順と理由は書かない。成果物の名前だけを示し、規約と手順の canonical は skill 名で参照する。複数プロジェクトに同じ規約が散らばって drift するのを避けるためであり、これは spec の設計判断である (最終レビューでの裁定により、成果物の名前 `<NNN>-spec.md` / `<NNN>-plan.md` は含める形に更新した。詳細は `16-spec.md` の「規約」節参照)。
 
-- [ ] **Step 1: ポインタを足す**
+- [x] **Step 1: ポインタを足す**
 
 Edit ツールで「[MUST] 必ず守らなければならないルール」節の箇条書きに次の 1 行を足す。挿入位置は `dev-workflow:git-branch-switcher` に言及する行の直後とする。作業開始前の手順に隣接させる。
 
 ```markdown
-- superpowers の spec / plan は `dev-workflow:issue-scoped-artifacts` skill の規約に従って Issue ディレクトリ配下へ置く
+- superpowers の spec / plan は Issue ディレクトリ配下へ `<NNN>-spec.md` / `<NNN>-plan.md` として置く（規約と手順の canonical は `dev-workflow:issue-scoped-artifacts` skill）
 ```
 
-- [ ] **Step 2: 記述が 1 行に収まり規約の中身を含んでいないことを確認する**
+- [x] **Step 2: 記述が 1 行に収まり、成果物の名前を含み、規約の手順や理由までは書いていないことを確認する**
 
 ```bash
 cd ~/Develop/dotfiles && grep -n 'issue-scoped-artifacts' CLAUDE.md
 ```
 
-Expected: 1 行だけヒットする。ヒット行に `<NNN>-spec.md` のような規約の詳細が含まれていないこと。
+Expected: 1 行だけヒットする。ヒット行に `<NNN>-spec.md` / `<NNN>-plan.md` という成果物の名前が含まれ、採用手順や起票タイミングのような規約の詳細までは含まれていないこと。
 
-- [ ] **Step 3: コミットする**
+- [x] **Step 3: コミットする**
 
 本文を `.cache/commit-claudemd-pointer.txt` に Write ツールで書く。prefix は `docs:`。
 
@@ -451,7 +451,7 @@ cd ~/Develop/dotfiles && git add .gitignore && git commit -F .cache/commit-super
 - Consumes: Task 2 から Task 5 までの完了
 - Produces: なし
 
-- [ ] **Step 1: 数値と主張を実態に合わせる**
+- [x] **Step 1: 数値と主張を実態に合わせる**
 
 Edit ツールで 4 箇所を直す。
 
@@ -463,11 +463,11 @@ Edit ツールで 4 箇所を直す。
 
 69 行目のタスク「既存の 12 ファイルの移行方針を決める」を「既存の 14 ファイルの移行方針を決める」にする。
 
-- [ ] **Step 2: タスクのチェックボックスを消化する**
+- [x] **Step 2: タスクのチェックボックスを消化する**
 
 8 件すべてを `- [x]` にする。最後の「sdd の置き場を上流の最新形式に追随させる」は Task 5 の削除により次回生成時に自動で満たされるので、その旨を 1 行添える。
 
-- [ ] **Step 3: 相対リンクが健全であることを確認する**
+- [x] **Step 3: 相対リンクが健全であることを確認する**
 
 ```bash
 cd ~/Develop/dotfiles && pre-commit run config-guard-scan --all-files > .cache/cg-issue-body.txt 2>&1
@@ -475,7 +475,7 @@ cd ~/Develop/dotfiles && pre-commit run config-guard-scan --all-files > .cache/c
 
 Expected: exit 0 かつ `.cache/cg-issue-body.txt` が `Passed`。
 
-- [ ] **Step 4: コミットする**
+- [x] **Step 4: コミットする**
 
 本文を `.cache/commit-issue16-body.txt` に Write ツールで書く。prefix は `docs(issues):`。
 
@@ -494,13 +494,15 @@ cd ~/Develop/dotfiles && git add 'docs/issues/16_superpowers の成果物を Iss
 - Consumes: Task 1 から Task 6 までの完了
 - Produces: なし
 
-- [ ] **Step 1: 全 hook を通す**
+- [x] **Step 1: 全 hook を通す**
 
 ```bash
 cd ~/Develop/dotfiles && pre-commit run --all-files > .cache/precommit-all.txt 2>&1
 ```
 
 Expected: exit 0。`.cache/precommit-all.txt` を読み、`Failed` が 1 件も無いこと。`issue-scoped-artifacts` が `Skipped` であること。
+
+マージ前ゲートの指摘対応 (gate-fix-report.md) の一環として実測済み。exit 0、全 hook が Passed、`spec と plan は Issue ディレクトリ配下へ置く` (issue-scoped-artifacts) は `(no files to check)Skipped`。
 
 - [ ] **Step 2: マージ前ゲートを通す**
 
@@ -541,6 +543,5 @@ cd ~/Develop/dotfiles && gh pr view --json url,title,body
 - CI ミラーの追加。このリポジトリの CI は pre-commit を実行せず hook を再実装してミラーする方式なので、ミラーを足すとパスの literal が 2 箇所に増えて drift する。加えて CLAUDE.md が CI コストを抑える方針を持つ。捕捉したい失敗モードはローカルの pre-commit で捕捉されるため、ミラー無しで足りると判断した。
 - リポジトリルートの README の更新。`grep -in -e issue -e superpower -e spec -e plan README.md` がヒット 0 件で、更新すべき記述が存在しない (`docs/superpowers/archive/README.md` の新設は別で、Task 2 で行う)。
 - 移行する 14 ファイルの中身の書き換え。旧パスへの平文参照 8 箇所は当時の記録として残す。
-- Issue ディレクトリ配下のファイル名検査。spec の「今回やらないこと」に従う。
-- `dev-workflow:in-repo-issue` の `SKILL.md:13` の書き換え。同行は補助資料を任意として汎用的に規定しており、本規約はその具体化にあたるため矛盾しない。
+- Issue ディレクトリ配下のファイル名検査。移植可能な 1 段構成という判断は維持しつつ、dotfiles では config-guard にファイル名の検査を足す余地がある。検査対象が `issue-scoped-artifacts` hook (`docs/superpowers/`) と重ならないため literal の重複は起きず、CI 費用も増えない。規約のうち実害を防いでいるのは番号の一致であるため、別 Issue ([Issue #17](../17_Issue%20ディレクトリ配下の成果物ファイル名を%20config-guard%20で検査する/issue.md)) として起票済みで、本タスクのスコープには含めない。
 - 既存 12 ファイルへの遡及 Issue 起票。
