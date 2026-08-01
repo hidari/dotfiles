@@ -119,6 +119,10 @@ Issue ディレクトリ配下に置くファイルは次のとおり。
 
 移行で切れる 2 件の参照を新しいパスへ更新する。どちらも Markdown リンクではないため既存の検査では守られず、`git grep` による不在確認で担保する。
 
+一方で移行する 14 ファイル自身が持つ旧パスへの平文参照 8 箇所は書き換えない。性質が 2 種類あり、`設計 spec: docs/superpowers/specs/...` のような生きたポインタと、`git add docs/superpowers/specs/...` のような当時のコマンド転記や当時のファイル内容の転記が混在している。後者を書き換えると記録が事実と食い違い、前者だけを選んで直すには 1 行ずつの人の判断が要る。判断を要する対応付けを避けるという本設計の方針をここでも通す。代わりに `docs/superpowers/archive/README.md` を新設し、文書内のパスが移行前の構成を指したままであることと、現行の規約の canonical がどこにあるかを述べる。
+
+移動対象が持つ Markdown リンク記法はすべてコードフェンス内とインラインコード内にある。`markdown_links` はコード領域を除外するため、移動で基準ディレクトリが変わっても判定は変わらない。
+
 `.superpowers/sdd/` は削除する。追跡外なのでコミットには現れない。削除により次回の plan 実行時に `sdd-workspace` が `<NNN>-plan/` 形式のサブディレクトリを新規生成するため、上流最新形式への追随も同時に完了する。
 
 削除に伴い `.superpowers/sdd/.gitignore` も消える。現在 `.superpowers/` が git から隠れているのはこのファイルだけによるものなので、リポジトリの `.gitignore` に `.superpowers/` を加える。brainstorming の visual companion が書く `.superpowers/brainstorm/` はそもそも ignore されておらず、この追加で同時に塞がる。姉妹リポジトリの claude-plugins は既に `.superpowers/` を ignore しており、揃う形になる。
