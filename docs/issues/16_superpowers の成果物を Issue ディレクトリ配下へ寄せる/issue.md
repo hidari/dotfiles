@@ -13,7 +13,7 @@ status: open
 | `docs/issues/<NNN>_<title>/` | Issue 本体 | あり | 16 |
 | `docs/superpowers/plans/` | writing-plans が書く実装計画 | あり | 6 |
 | `docs/superpowers/specs/` | brainstorming が書く設計 | あり | 6 |
-| `.superpowers/sdd/` | subagent-driven-development の ledger / brief / report / review | なし | 107 |
+| `.superpowers/sdd/` | subagent-driven-development の ledger / brief / report / review | なし | 94 |
 
 Issue から plans と specs への参照は 1 件も無い。逆に plans と specs のファイル名は日付と feature 名だけで、どの Issue に属するかを名前から辿れない。
 

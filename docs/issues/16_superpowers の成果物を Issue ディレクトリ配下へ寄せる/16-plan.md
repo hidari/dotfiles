@@ -455,7 +455,7 @@ cd ~/Develop/dotfiles && git add .gitignore && git commit -F .cache/commit-super
 
 Edit ツールで 4 箇所を直す。
 
-16 行目の `.superpowers/sdd/` の件数 `94` を `107` にする。
+16 行目の `.superpowers/sdd/` の件数はこの変更を行わず `94` のまま保つ。表のヘッダが `件数 (2026-07-31 時点)` と時点を宣言しており、`94` はその時点の値として正しい。`107` は後日の値であり、混ぜると表が内部矛盾する。現在値 `107` は `16-spec.md` の一次情報節に測定日付きで記録済みなので、事実は失われない。
 
 20 行目の「plans と specs が扱う 6 テーマは、既存の Issue のタイトルとおおむね対応が付かない」を実測に合わせる。実際は 7 テーマのうち 2 テーマが 3 つの Issue に対応していた (config-drift-guard が Issue #1 と #2、markdown-link-check が Issue #15)。「ほとんど対応が付かない」という方向は正しいが「全く付かない」ではない旨を書く。
 
