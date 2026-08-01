@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
 
 from config_guard.cli import scan
-from config_guard.git_run import isolated_git_env
+from tests.conftest import init_repo, run_git, write_file
 
 GOOD_SETTINGS = {
     "permissions": {"allow": ["Bash(cat:*)"], "deny": ["NotebookRead"], "ask": []},
@@ -35,27 +34,15 @@ allowed-tools:
 """
 
 
-def _run(repo: Path, *args: str) -> None:
-    subprocess.run(
-        ["git", "-C", str(repo), *args], check=True, capture_output=True, env=isolated_git_env()
-    )
-
-
 def _make_repo(
     tmp_path: Path, skill_name: str, skill_body: str, settings: dict[str, object]
 ) -> Path:
     repo = tmp_path
-    _run(repo, "init", "-q")
-    _run(repo, "config", "user.email", "t@example.com")
-    _run(repo, "config", "user.name", "t")
-    settings_path = repo / "home/.claude/settings.json"
-    settings_path.parent.mkdir(parents=True, exist_ok=True)
-    settings_path.write_text(json.dumps(settings), encoding="utf-8")
-    skill_path = repo / f"home/.claude/skills/{skill_name}/SKILL.md"
-    skill_path.parent.mkdir(parents=True, exist_ok=True)
-    skill_path.write_text(skill_body, encoding="utf-8")
-    _run(repo, "add", "-A")
-    _run(repo, "commit", "-q", "-m", "init")
+    init_repo(repo)
+    write_file(repo, "home/.claude/settings.json", json.dumps(settings))
+    write_file(repo, f"home/.claude/skills/{skill_name}/SKILL.md", skill_body)
+    run_git(repo, "add", "-A")
+    run_git(repo, "commit", "-q", "-m", "init")
     return repo
 
 
@@ -82,9 +69,7 @@ def test_bad_settings_is_detected(tmp_path: Path) -> None:
 def test_bad_herdr_keys_is_detected(tmp_path: Path) -> None:
     # herdr の keybinding 検査が scan に配線されていること (next に前方向キー)
     repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
-    config = repo / "home/.config/herdr/config.toml"
-    config.parent.mkdir(parents=True, exist_ok=True)
-    config.write_text('[keys]\nnext_workspace = "ctrl+alt+["\n', encoding="utf-8")
+    write_file(repo, "home/.config/herdr/config.toml", '[keys]\nnext_workspace = "ctrl+alt+["\n')
 
     findings = scan(str(repo))
 
@@ -94,10 +79,8 @@ def test_bad_herdr_keys_is_detected(tmp_path: Path) -> None:
 def test_broken_markdown_link_is_detected(tmp_path: Path) -> None:
     # リンク検査が scan に配線されていること
     repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
-    doc = repo / "docs/a/index.md"
-    doc.parent.mkdir(parents=True, exist_ok=True)
-    doc.write_text("[先](../b/missing.md)\n", encoding="utf-8")
-    _run(repo, "add", "-A")
+    write_file(repo, "docs/a/index.md", "[先](../b/missing.md)\n")
+    run_git(repo, "add", "-A")
 
     findings = scan(str(repo))
 

@@ -3,20 +3,18 @@
 from __future__ import annotations
 
 import importlib.util
-from pathlib import Path
 from typing import Any
 
 import pytest
 
 from config_guard import git_run
 from config_guard.git_run import isolated_git_env
+from tests.conftest import REPO_ROOT
 
 # handoff-sentinel hook は zero-dep standalone (venv 外の system python 起動) で config_guard を
 # import できず同じ GIT_* 隔離ロジックを独立コピーで持つ (共有不能な設計境界)。両者の除外集合が
 # silent に drift すると片方の GIT_* leak が残るため import 照合で pin する。
-_HOOK_PATH = (
-    Path(__file__).resolve().parents[3] / "home" / ".claude" / "hooks" / "handoff-sentinel.py"
-)
+_HOOK_PATH = REPO_ROOT / "home" / ".claude" / "hooks" / "handoff-sentinel.py"
 
 
 def _load_hook_module() -> Any:
