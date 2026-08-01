@@ -881,11 +881,11 @@ Run: `uv run --directory scripts/config-guard mypy src tests`
 Run: `uv run --directory scripts/config-guard pytest -q`
 Run: `uv run --directory scripts/config-guard config-guard "$(git rev-parse --show-toplevel)"`
 
-Expected: lint と型検査はエラー 0 件。pytest は既存 95 件 + 新規 30 件（markdown_links 29 件 + cli 1 件）= 125 件。config-guard は「問題は検出されませんでした」。
+Expected: lint と型検査はエラー 0 件。pytest は fail 0 で全件 pass（期待件数は literal で持たない。件数とテスト名は `scripts/config-guard/tests/` 配下のテストそのものが canonical）。config-guard は「問題は検出されませんでした」。
 
-markdown_links の 29 件は Task 1 の 10 件、Task 2 の 11 件、追補の 6 件、ネストしたフェンスの fix で足した 2 件の合計。Task 3 開始時点で 124 件が緑であることを先に確認してから始めるとよい。
+markdown_links のテストの内訳も件数では再掲しない（spec のテスト仕様節と同じく `test_markdown_links.py` が canonical）。Task 3 開始時点で pytest が全件緑であることを先に確認してから始めるとよい。
 
-pytest の件数が期待どおりであることを確認する。減っていたらテストが収集されていない。
+pytest の収集件数が Task 3 開始時点から減っていないことを確認する。減っていたらテストが収集されていない。
 
 - [ ] **Step 9: コミット**
 
@@ -916,7 +916,7 @@ git commit -F .cache/commit-link-wiring.txt
 
 ## 完了条件
 
-- `uv run --directory scripts/config-guard pytest -q` が 125 件 pass
+- `uv run --directory scripts/config-guard pytest -q` が fail 0 で全件 pass（期待件数は literal で持たない。件数とテスト名は `scripts/config-guard/tests/` 配下のテストそのものが canonical）
 - `uv run --directory scripts/config-guard config-guard "$(git rev-parse --show-toplevel)"` が「問題は検出されませんでした」
 - ruff / mypy がエラー 0 件
 - 意図的に `.md` のリンクを壊すと pre-commit がコミットを止めることを 1 度実演する
