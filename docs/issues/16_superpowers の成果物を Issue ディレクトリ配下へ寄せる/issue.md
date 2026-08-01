@@ -74,4 +74,4 @@ superpowers は上流の marketplace プラグインなので、書き換える�
 
 ## 関連
 
-[Issue #15: docs の相対リンクを pre-commit で検査する](../15_docs%20の相対リンクを%20pre-commit%20で検査する/issue.md) と隣接する。本 Issue で Issue ディレクトリ配下にファイルが増えると、相対リンクの本数も増えるため検査の価値が上がる。
+[Issue #15: docs の相対リンクを pre-commit で検査する](../closed/15_docs%20の相対リンクを%20pre-commit%20で検査する/issue.md) と隣接する。本 Issue で Issue ディレクトリ配下にファイルが増えると、相対リンクの本数も増えるため検査の価値が上がる。
