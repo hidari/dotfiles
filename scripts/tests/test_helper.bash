@@ -179,6 +179,23 @@ load_raycast_toggle_functions() {
     source "$RAYCAST_TOGGLE_SCRIPT"
 }
 
+# toggle-reference-mode.sh に埋め込まれた AppleScript ブロックを取り出す。
+# heredoc なので bash から source して取り出すことはできず、開始・終了マーカーで
+# 切り出すしかない。切り出した中身はここでは一切解釈せず osacompile へ渡し、
+# 構文の妥当性は AppleScript のパーサ自身に判定させる (bats 側に AppleScript の
+# 文法を二重実装しないため)。
+# マーカーが動いて空を切り出したまま緑になるのを防ぐため、空なら失敗させる。
+extract_raycast_applescript() {
+    local dest="$1"
+
+    sed -n '/<<.APPLESCRIPT.$/,/^APPLESCRIPT$/p' "$RAYCAST_TOGGLE_SCRIPT" | sed '1d;$d' > "$dest"
+
+    if [ ! -s "$dest" ]; then
+        echo "Error: AppleScript block not found in $RAYCAST_TOGGLE_SCRIPT" >&2
+        return 1
+    fi
+}
+
 # 指定ディレクトリを cwd にして run を実行し、元の cwd へ戻す。
 # cwd を戻さないと teardown_test_home が作業中のディレクトリごと削除し、後続テストが
 # 存在しない cwd を引きずって git 探索の結果が揺れる。復元忘れを 1 件でも作らないよう

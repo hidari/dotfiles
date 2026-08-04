@@ -74,6 +74,23 @@ teardown() {
 }
 
 # =============================================================================
+# 埋め込み AppleScript
+# =============================================================================
+
+# AppleScript の構文エラーは bash 側からは見えず、実行して初めて -2700 系の実行時
+# エラーになる。予約語との衝突 (path / name など) は特に踏みやすい。
+# 挙動は GUI 依存で検証できないが、コンパイルが通ることだけは GUI 抜きで確かめられる。
+@test "applescript: the embedded block compiles" {
+    command -v osacompile > /dev/null 2>&1 || skip "osacompile is unavailable"
+
+    extract_raycast_applescript "$TEST_HOME/embedded.applescript"
+
+    run osacompile -o "$TEST_HOME/embedded.scpt" "$TEST_HOME/embedded.applescript"
+
+    [ "$status" -eq 0 ]
+}
+
+# =============================================================================
 # source ガード
 # =============================================================================
 

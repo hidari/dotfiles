@@ -21,6 +21,8 @@ EVERYDAY_PRESET="Apple XDR Display (P3-1600 nits)"
 # UI が現れるまで待つ上限 (秒)。System Settings のコールドスタートは実測で 1 秒では
 # 足りず、quit 直後の再起動では 2 秒でも UI ツリーが空のことがある。固定待ちでは
 # 保証できないので条件が満たされるまでポーリングし、この値は暴走を止める上限としてだけ使う。
+# ペインが開いた後の UI ツリー走査は 1 回あたり実測 6 秒かかるため、この上限は
+# 走査 2〜3 回分に相当する。減らすときは走査コストと突き合わせること。
 PRESET_WAIT_TIMEOUT=20
 
 # AppleScript 本体。mode / timeout / preset を引数で受け取り、3 つの役割を担う。
@@ -46,8 +48,6 @@ on run argv
 		return ""
 	end if
 
-	my openDisplaysPane()
-
 	set presetPopup to my waitForPresetPopup(timeoutSeconds)
 	if presetPopup is missing value then
 		error "プリセットのコントロールが見つかりませんでした"
@@ -65,6 +65,9 @@ on run argv
 	error "未知の mode: " & mode
 end run
 
+-- ディスプレイペインを開く。reveal はコールドスタートで「エラーを返さないまま
+-- 無視される」ことがあり、成否を戻り値からは判定できない。到達したかどうかは
+-- 呼び出し側が UI ツリーを見て判断し、届いていなければ送り直す。
 on openDisplaysPane()
 	tell application "System Settings"
 		activate
@@ -89,11 +92,13 @@ end popupValue
 -- System Settings を確実に前面へ出す。
 -- `tell application "System Settings" to activate` だけでは足りない。実測の対照:
 --   activate 1 回のみ    40 秒待って popup 0。frontmost は他アプリのまま
---   activate を毎周回     25 秒待って popup 0。frontmost にはなるが window 名は空
+--   activate を毎周回     25 秒待って popup 0 (reveal は初回のみ)。frontmost には
+--                        なるが window 名は空
 --   下の set frontmost    1 周目 (0.6 秒) で popup 3、window 名は「ディスプレイ」
 -- System Settings は SwiftUI 製で、前面に出るまでウィンドウの中身を描画しない。
 -- 一度描画されれば背面でも UI ツリーは残るため、ウォームスタートでは activate だけでも
--- 動いてしまう。これがコールドスタートでだけ失敗していた理由。
+-- 動いてしまう。ただし前面化はコールドスタート失敗の一層でしかなく、前面に出ていても
+-- ペイン遷移そのものが届かない層が別にある (waitForPresetPopup のコメントを参照)。
 on bringSettingsToFront()
 	tell application "System Events"
 		try
@@ -104,16 +109,49 @@ end bringSettingsToFront
 
 -- プリセット popup が UI ツリーに現れるまで待つ。ペインの描画完了を表す信号は
 -- 他に無いので、探しているもの自体が現れたかを条件にする。
+--
+-- ペインを開く操作を毎周回送り直すのは、コールドスタートで reveal が黙って
+-- 捨てられるため。実測の対照 (内蔵ディスプレイのみ、コールドスタート):
+--   reveal 1 回のみ   12 周 6 秒観測しても window 名は空のまま popup 0。
+--                     その状態で reveal を送り直すと 0.5 秒後に popup 1
+--   reveal 毎周回     1 周目で window 名「ディスプレイ」と popup 1 に到達
+-- activate はアプリの起動完了を待ってブロックするが、その完了判定は Apple Event で
+-- ペインを切り替えられる状態より早く返ることがある。何秒待てば足りるかは実行ごとに
+-- 揺れるので、待ち時間を伸ばすのではなく送り直しで吸収する。
 on waitForPresetPopup(timeoutSeconds)
 	set deadline to (current date) + timeoutSeconds
 	repeat
+		my openDisplaysPane()
 		my bringSettingsToFront()
 		delay 0.5
-		set found to my findPresetPopupInAllWindows()
-		if found is not missing value then return found
+		-- ペインが選ばれるまで UI ツリーの走査には入らない。走査は AX API への
+		-- 問い合わせを要素ごとに繰り返すため 1 回あたり実測 6 秒かかり、ペインが
+		-- 空のまま回すとタイムアウトの持ち分を走査だけで使い切ってしまう。
+		-- 空の間は 0.5 秒周期で reveal を送り直すほうが、同じ制限時間で試行回数を稼げる。
+		if my settingsPaneIsOpen() then
+			set found to my findPresetPopupInAllWindows()
+			if found is not missing value then return found
+		end if
 		if (current date) > deadline then return missing value
 	end repeat
 end waitForPresetPopup
+
+-- ペインが選ばれた状態かどうかを window 名で判定する。System Settings は
+-- ペインを選ぶまで window 名が空のままで、選ぶとペイン名が入る (実測)。
+-- 名前そのものはロケール依存なので、特定の文字列とは比較しない。
+on settingsPaneIsOpen()
+	tell application "System Events"
+		if not (exists application process "System Settings") then return false
+		tell application process "System Settings"
+			if (count of windows) is 0 then return false
+			set wn to ""
+			try
+				set wn to (name of window 1) as text
+			end try
+			return wn is not ""
+		end tell
+	end tell
+end settingsPaneIsOpen
 
 on findPresetPopupInAllWindows()
 	tell application "System Events"
