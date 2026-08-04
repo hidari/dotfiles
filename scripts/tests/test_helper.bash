@@ -17,6 +17,10 @@ BOOTSTRAP_SCRIPT="${BOOTSTRAP_SCRIPT:-$REPO_ROOT/bootstrap.sh}"
 STATUSLINE_SCRIPT="${STATUSLINE_SCRIPT:-$REPO_ROOT/home/.claude/statusline-command.sh}"
 ZSHRC_FILE="${ZSHRC_FILE:-$REPO_ROOT/home/.zshrc}"
 
+# Raycast のリファレンスモード切り替えスクリプト。上の 2 つと同じく変異注入で
+# コピーを読ませられるよう上書き可能にする。
+RAYCAST_TOGGLE_SCRIPT="${RAYCAST_TOGGLE_SCRIPT:-$REPO_ROOT/home/.config/raycast/scripts/toggle-reference-mode.sh}"
+
 FIXTURES_DIR="$TEST_DIR/fixtures"
 BOOTSTRAP_FIXTURES_DIR="$FIXTURES_DIR/bootstrap"
 
@@ -165,6 +169,20 @@ load_zshrc_claude_functions() {
     load_marker_block "$ZSHRC_FILE" '^# Claude Code 起動$' '^########################################$'
 }
 
+# Raycast のリファレンスモード切り替えスクリプトを読み込む。
+# 上の 2 つと違い marker-slice を使わず丸ごと source できるのは、スクリプト末尾の
+# BASH_SOURCE ガードが source 時の main 実行を抑えているため。marker 方式は
+# 「ブロックの外に関数を置くと読み込まれない」制約を呼び込むので、新規スクリプトでは
+# ガード方式を採る。ガードが生きていることは raycast-reference-mode.bats が pin する。
+#
+# AppleScript 本体もこの source で $DISPLAY_APPLESCRIPT として手に入る。ファイルを
+# マーカーで切り出す必要が無いので、切り出し範囲が狭まって断片だけを検査していた、
+# という失敗の形が起こらない。
+load_raycast_toggle_functions() {
+    # shellcheck source=/dev/null
+    source "$RAYCAST_TOGGLE_SCRIPT"
+}
+
 # 指定ディレクトリを cwd にして run を実行し、元の cwd へ戻す。
 # cwd を戻さないと teardown_test_home が作業中のディレクトリごと削除し、後続テストが
 # 存在しない cwd を引きずって git 探索の結果が揺れる。復元忘れを 1 件でも作らないよう
@@ -293,6 +311,50 @@ FAKE
     export PATH="$fake_bin:$PATH"
 }
 
+# テスト用の偽 osascript を PATH 先頭に用意する。
+# リファレンスモード切り替えは実 GUI を操作するため、実物を呼ぶとテストが System
+# Settings を開いてしまい CI でも回せない。呼び出し引数だけを記録して制御可能な値を
+# 返す偽物に差し替え、bash 側のオーケストレーション (読む → 決める → 適用する →
+# 突き合わせる) を GUI 抜きで検証する。UI 操作そのものの検証は live smoke に委ねる。
+#
+# 呼び出し形式は `osascript - <mode> <timeout> <preset> <presetList>` を前提とする。
+# 引数は 4 つ固定で、read と close では preset が空文字になる。
+# 制御用の環境変数:
+#   FAKE_CURRENT_PRESET  read が返す現在値 (未設定なら空 = 読み取り失敗の再現)
+#   FAKE_APPLIED_PRESET  apply が返す適用後の値 (未設定なら要求値をそのまま返す)
+#   FAKE_OSASCRIPT_FAIL  この mode の呼び出しを非ゼロ終了させる
+setup_fake_osascript() {
+    local fake_bin="$TEST_HOME/fakebin"
+    mkdir -p "$fake_bin"
+    export FAKE_OSASCRIPT_LOG="$TEST_HOME/osascript_calls.log"
+    : > "$FAKE_OSASCRIPT_LOG"
+
+    cat > "$fake_bin/osascript" <<'FAKE'
+#!/usr/bin/env bash
+# AppleScript 本体は stdin から渡るので読み捨てる。読まないと呼び出し側が
+# SIGPIPE で落ち、偽物の存在自体がテスト結果を変えてしまう。
+cat > /dev/null
+
+mode="$2"
+preset="$4"
+presets="$5"
+printf 'mode=%s preset=%s presets=%s\n' "$mode" "$preset" "$presets" >> "$FAKE_OSASCRIPT_LOG"
+
+if [ "${FAKE_OSASCRIPT_FAIL:-}" = "$mode" ]; then
+    echo "fake osascript failure for mode=$mode" >&2
+    exit 1
+fi
+
+case "$mode" in
+    read) printf '%s' "${FAKE_CURRENT_PRESET-}" ;;
+    apply) printf '%s' "${FAKE_APPLIED_PRESET-$preset}" ;;
+esac
+FAKE
+    chmod +x "$fake_bin/osascript"
+
+    export PATH="$fake_bin:$PATH"
+}
+
 # statusline-command.sh へ渡す stdin JSON を組み立てる。
 # 引数を省くと cwd が空になり git 探索経路へ入らないため、アカウント分離の観測に絞れる。
 statusline_input_json() {
@@ -353,6 +415,26 @@ assert_contains() {
     echo "assert_contains: expected substring not found" >&2
     echo "  expected to contain: $needle" >&2
     echo "  actual: $haystack" >&2
+    return 1
+}
+
+# 配列が指定の要素を含むことを確認する。第 1 引数が探す値、残りが配列。
+# 部分一致の assert_contains と違い要素単位で完全一致を見るので、
+# 「別要素の一部にたまたま含まれている」を通さない。
+assert_array_contains() {
+    local needle="$1"
+    shift
+
+    local element
+    for element in "$@"; do
+        if [ "$element" = "$needle" ]; then
+            return 0
+        fi
+    done
+
+    echo "assert_array_contains: expected element not found" >&2
+    echo "  expected: $needle" >&2
+    echo "  actual: $*" >&2
     return 1
 }
 
