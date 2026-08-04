@@ -174,26 +174,13 @@ load_zshrc_claude_functions() {
 # BASH_SOURCE ガードが source 時の main 実行を抑えているため。marker 方式は
 # 「ブロックの外に関数を置くと読み込まれない」制約を呼び込むので、新規スクリプトでは
 # ガード方式を採る。ガードが生きていることは raycast-reference-mode.bats が pin する。
+#
+# AppleScript 本体もこの source で $DISPLAY_APPLESCRIPT として手に入る。ファイルを
+# マーカーで切り出す必要が無いので、切り出し範囲が狭まって断片だけを検査していた、
+# という失敗の形が起こらない。
 load_raycast_toggle_functions() {
     # shellcheck source=/dev/null
     source "$RAYCAST_TOGGLE_SCRIPT"
-}
-
-# toggle-reference-mode.sh に埋め込まれた AppleScript ブロックを取り出す。
-# heredoc なので bash から source して取り出すことはできず、開始・終了マーカーで
-# 切り出すしかない。切り出した中身はここでは一切解釈せず osacompile へ渡し、
-# 構文の妥当性は AppleScript のパーサ自身に判定させる (bats 側に AppleScript の
-# 文法を二重実装しないため)。
-# マーカーが動いて空を切り出したまま緑になるのを防ぐため、空なら失敗させる。
-extract_raycast_applescript() {
-    local dest="$1"
-
-    sed -n '/<<.APPLESCRIPT.$/,/^APPLESCRIPT$/p' "$RAYCAST_TOGGLE_SCRIPT" | sed '1d;$d' > "$dest"
-
-    if [ ! -s "$dest" ]; then
-        echo "Error: AppleScript block not found in $RAYCAST_TOGGLE_SCRIPT" >&2
-        return 1
-    fi
 }
 
 # 指定ディレクトリを cwd にして run を実行し、元の cwd へ戻す。
@@ -330,7 +317,8 @@ FAKE
 # 返す偽物に差し替え、bash 側のオーケストレーション (読む → 決める → 適用する →
 # 突き合わせる) を GUI 抜きで検証する。UI 操作そのものの検証は live smoke に委ねる。
 #
-# 呼び出し形式は `osascript - <mode> <timeout> [preset]` を前提とする。
+# 呼び出し形式は `osascript - <mode> <timeout> <preset> <presetList>` を前提とする。
+# 引数は 4 つ固定で、read と close では preset が空文字になる。
 # 制御用の環境変数:
 #   FAKE_CURRENT_PRESET  read が返す現在値 (未設定なら空 = 読み取り失敗の再現)
 #   FAKE_APPLIED_PRESET  apply が返す適用後の値 (未設定なら要求値をそのまま返す)
@@ -348,11 +336,11 @@ setup_fake_osascript() {
 cat > /dev/null
 
 mode="$2"
-preset="${4:-}"
-printf 'mode=%s preset=%s\n' "$mode" "$preset" >> "$FAKE_OSASCRIPT_LOG"
+preset="$4"
+presets="$5"
+printf 'mode=%s preset=%s presets=%s\n' "$mode" "$preset" "$presets" >> "$FAKE_OSASCRIPT_LOG"
 
-# 空同士の一致で無関係な呼び出しまで落とさないよう、指定があるときだけ比較する。
-if [ -n "${FAKE_OSASCRIPT_FAIL:-}" ] && [ "${FAKE_OSASCRIPT_FAIL}" = "$mode" ]; then
+if [ "${FAKE_OSASCRIPT_FAIL:-}" = "$mode" ]; then
     echo "fake osascript failure for mode=$mode" >&2
     exit 1
 fi
@@ -427,6 +415,26 @@ assert_contains() {
     echo "assert_contains: expected substring not found" >&2
     echo "  expected to contain: $needle" >&2
     echo "  actual: $haystack" >&2
+    return 1
+}
+
+# 配列が指定の要素を含むことを確認する。第 1 引数が探す値、残りが配列。
+# 部分一致の assert_contains と違い要素単位で完全一致を見るので、
+# 「別要素の一部にたまたま含まれている」を通さない。
+assert_array_contains() {
+    local needle="$1"
+    shift
+
+    local element
+    for element in "$@"; do
+        if [ "$element" = "$needle" ]; then
+            return 0
+        fi
+    done
+
+    echo "assert_array_contains: expected element not found" >&2
+    echo "  expected: $needle" >&2
+    echo "  actual: $*" >&2
     return 1
 }
 
