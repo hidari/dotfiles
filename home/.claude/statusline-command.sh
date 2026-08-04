@@ -306,8 +306,13 @@ git_staged=""
 git_unstaged=""
 project=""
 if [ -n "$cwd" ] && [ -d "$cwd" ]; then
-  if git -C "$cwd" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    project=$(basename "$(git -C "$cwd" --no-optional-locks rev-parse --show-toplevel 2>/dev/null)")
+  # 作業ツリーの内外は --show-toplevel の成否で判定する。--is-inside-work-tree は
+  # 答えを stdout の文字列で返すコマンドで、.git ディレクトリ内や bare リポジトリでは
+  # "false" を出力しながら exit 0 を返すため、exit code では判定できない。
+  # ここで取得したルートはそのまま project 名の導出に使うので rev-parse も 1 回で済む。
+  # .zshrc の _claude_task_list_id とも述語が揃う。
+  if project_root=$(git -C "$cwd" --no-optional-locks rev-parse --show-toplevel 2>/dev/null); then
+    project=$(basename "$project_root")
     git_branch=$(git -C "$cwd" --no-optional-locks branch --show-current 2>/dev/null || echo "detached")
     if ! git -C "$cwd" --no-optional-locks diff --cached --quiet 2>/dev/null; then
       git_staged="!"

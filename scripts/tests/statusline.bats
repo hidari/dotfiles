@@ -333,6 +333,30 @@ expected_tag_for() {
     assert_contains "${lines[3]}" "myrepo"
 }
 
+# `git rev-parse --is-inside-work-tree` は答えを stdout の文字列で返すコマンドで、
+# .git ディレクトリの中や bare リポジトリでは "false" を出力しながら exit 0 を返す。
+# exit code だけで作業ツリーの内外を判定すると、この 2 経路で分岐へ入ってしまう。
+# 分岐の中では --show-toplevel が exit 128 で落ちてプロジェクト名が空になる一方、
+# branch --show-current は成功するため、4 行目が畳まれず「プロジェクト名だけが
+# 空の行」が残る。作業ツリーの外という点ではリポジトリ外と同じなので 3 行に畳む。
+@test "statusline: collapses to three lines inside a .git directory" {
+    setup_fake_keychain
+    setup_test_repo "$TEST_HOME/myrepo"
+
+    statusline_raw "$TEST_HOME/out.txt" "$TEST_HOME/myrepo/.git"
+
+    [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 2 ]
+}
+
+@test "statusline: collapses to three lines inside a bare repository" {
+    setup_fake_keychain
+    git init -q --bare "$TEST_HOME/bare.git"
+
+    statusline_raw "$TEST_HOME/out.txt" "$TEST_HOME/bare.git"
+
+    [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 2 ]
+}
+
 @test "statusline: keeps repository info out of the first line" {
     # 4 行目へ移したのに 1 行目にも残っている二重表示を防ぐ
     setup_fake_keychain
