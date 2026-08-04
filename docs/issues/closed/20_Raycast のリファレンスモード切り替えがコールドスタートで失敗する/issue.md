@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: closed
 ---
 
 # Raycast のリファレンスモード切り替えがコールドスタートで失敗する
