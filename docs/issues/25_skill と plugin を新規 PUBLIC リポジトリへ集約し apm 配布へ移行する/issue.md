@@ -111,3 +111,5 @@ plugin 認識が同時に成立する。marketplace の宣言も `settings.json`
 - [Issue #21: PUBLIC リポジトリに露出している個人情報と private リポジトリ情報を棚卸しする](../21_PUBLIC%20リポジトリに露出している個人情報と%20private%20リポジトリ情報を棚卸しする/issue.md)
   露出の除去は #21、構造の変更は本 Issue という分担。ただし #21 の露出一覧に
   「追加の設定ディレクトリ名 77 件」が漏れているため、#21 側への追記が必要
+- [Issue #26: refactor: Claude Code フックの共通基盤を集約する](../26_Claude%20Code%20フックの共通基盤を集約する/issue.md)
+  Phase 3a のレビューで検出したフック周りの重複。本 Issue のスコープを超えるため分けた
