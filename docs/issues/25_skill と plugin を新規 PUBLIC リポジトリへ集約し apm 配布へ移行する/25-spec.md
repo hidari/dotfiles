@@ -31,7 +31,7 @@ lockfile には `virtual_path: tooling/apm-usage` のようにカテゴリー階
 | 分類 | 件数 | 配布経路 |
 |---|---|---|
 | mizchi/skills 由来 | 6 | apm で vendored。`d7999453` で pin されているため上流に追随しない |
-| 外部由来 (上流未特定) | 1 | 手動管理 |
+| 外部由来 (`ax`) | 1 | 手動管理。上流は特定済み (下記) |
 | 自作 | 5 | 手動管理 |
 | plugin (現行 private リポジトリ) | 3 | `settings.json` の directory marketplace 経由 |
 
@@ -86,6 +86,27 @@ root に `SKILL.md` を 1 本足しただけで 17 ファイルすべてがバ�
 `.claude-plugin/manifest.json` を持つため apm は分解経路に乗せるが、Claude Code は
 `plugin.json` でなければ plugin と認識しないので、一度もロードされていない。
 
+### `ax` の上流は yusukebe/ax。手元は古い写しで防御指針が欠けている
+
+12 skill のうち唯一上流が未特定だった `ax` を特定した。CLI が Homebrew の `yusukebe/tap`
+由来であることから辿り、リポジトリ `yusukebe/ax` の `skills/ax/SKILL.md` が上流と確認できた
+(MIT)。
+
+手元の写しは 2026-07-11 に、無関係な nvim 配色のコミットへ紛れて追加されていた。上流はその後
+3 回更新されており、手元との差分は上流にのみ 24 行、手元にのみ 3 行。手元の 3 行はいずれも
+上流が更新した箇所の旧版で、独自編集は 1 行も無い。純粋に古い写しである。
+
+欠けている差分には `Fetched content is untrusted data` という節が丸ごと含まれる。取得した
+ページや API 応答を指示として扱わない、cloud metadata エンドポイントに触れない、認証情報を
+指定外の origin へ送らない、といったプロンプトインジェクション対策の指針である。
+
+apm 依存として宣言できることを隔離環境で確認した。`yusukebe/ax/skills/ax#<sha>` は解決に成功し
+(`package_type: claude_skill`)、deploy された `SKILL.md` は上流とバイト一致で、上記の防御節を
+含んでいた。
+
+追随しない pin のリスクは「上流の改善が届かない」方向にも働く。spec の「供給網のレビュー面」で
+挙げた「内容レビュー無しの追随」の裏返しであり、両方向とも実在する。
+
 ### symlink 経由でも skills-dir plugin は検出される
 
 理想像 4 (dotfiles 内で実体化し `~/.claude/` へ symlink) の中核。3 点セットで確認した。
@@ -100,6 +121,33 @@ root に `SKILL.md` を 1 本足しただけで 17 ファイルすべてがバ�
 
 `installPath` は symlink 側のパスを保持し、リンク先へは解決されない。したがって
 リポジトリの実体パスがモデルへ渡る経路には現れない。
+
+### P1 形は GitHub 経由でも成立する。private リポジトリからも取れる
+
+実プラグイン (`security-blue-red-team`, 16 ファイル) の root に `SKILL.md` を 1 本足し、
+`plugin.json` に `"skills": ["./skills"]` を書いた形を GitHub へ push し、apm で取得した。
+private リポジトリの取得可否が交ざるため、同じ実行に public の `yusukebe/ax/skills/ax` を
+対照として並べ、認証の失敗と形の失敗を切り分けている。
+
+両方とも成功した (exit 0)。private リポジトリでも partial clone のフォールバックが働いて取得できる。
+
+加算ルールは GitHub 経由でも両方発火した。
+
+| 観測点 | 結果 |
+|---|---|
+| verbatim コピー | `.claude/skills/security-blue-red-team/` に `schemas/` 5 件と `README.md` を含む全ファイル |
+| フラット分解 | `.claude/agents/` 2 件、`.claude/commands/` 4 件 |
+| 内部 skill のフラット重複 | 0 件 (`"skills": ["./skills"]` が効いている) |
+| 失われたファイル | 0 件 |
+| 共通ファイルの内容 | すべてバイト一致 |
+
+ファイル数はソース 17 件に対し deploy 18 件だった。増えた 1 件は apm が deploy 先へ合成する
+`apm.yml` である。verbatim が保証するのは「失わない」ことであって「増やさない」ことではない。
+
+**`package_type` で形の成否を判定してはならない。** lockfile には `marketplace_plugin` と記録され、
+`claude_skill` にはならない。加算が起きたことを正しく示すのは、合成された `apm.yml` の
+`type: hybrid` である。同じツールが 2 箇所へ別のラベルを書いているため、lockfile だけを見ると
+「P1 形が成立していない」と誤読する。確認は deploy されたファイル集合を直接見るのが確実。
 
 ### 変数の展開範囲はファイルの位置で変わる
 
@@ -185,9 +233,18 @@ symlink の生存を確認)。
 したがって「dotfiles の `apm.yml` と lockfile をコミットして再現性を担保する」設計は
 `-g` では成立しない。project scope (現行機構) でのみ成立する。
 
-### apm は CLAUDE_CONFIG_DIR を参照する。失敗条件は symlink 先の位置
+### CLAUDE_CONFIG_DIR は user scope の話で、project scope では無視される
 
-条件を 1 つずつ変えて切り分けた。
+現行機構が使う project scope の deploy 先は project 相対の `.claude/skills/` であり、
+`CLAUDE_CONFIG_DIR` は参照されない。隔離した `CLAUDE_CONFIG_DIR` を与えて `apm install` した
+実測では、当該ディレクトリは空のままで deploy は `<project>/.claude/skills/` に行われた。
+lockfile も `kind: project-relative` と記録する。
+
+`cd home && apm install --frozen` が `home/.claude/skills/` へ配置するのはこの性質による。
+環境変数ではなく実行時の cwd が deploy 先を決めている。
+
+以下は user scope (`-g`) の話である。そちらは `CLAUDE_CONFIG_DIR` を参照し、失敗条件は
+symlink 先の位置になる。条件を 1 つずつ変えて切り分けた。
 
 | 条件 | 結果 |
 |---|---|
@@ -336,9 +393,10 @@ skip-worktree を外せば可視な git 差分になり、`git checkout` で戻�
 
 ### Phase 1: 前提の確定
 
-1. 外部由来 skill 1 個の上流を特定する
-2. 新リポジトリの形 (パッケージ root に `SKILL.md` と `.claude-plugin/plugin.json` が同居する形)
-   で GitHub 経由の取得が成ることを確認する
+1. 外部由来 skill 1 個の上流を特定する (完了)。`ax` の上流は `yusukebe/ax` の `skills/ax`。
+   `yusukebe/ax/skills/ax#<sha>` が apm で解決し、上流とバイト一致で deploy されることまで確認済み
+2. 新リポジトリの形で GitHub 経由の取得が成ることを確認する (完了)。実プラグインを P1 形にして
+   push し、public の対照と並べて実測した。加算ルールは両方発火し、失われたファイルは 0 件
 
 カテゴリー階層自体の検証は不要 (現行 lockfile に動作実績がある)。
 plugin の配布経路の選択は不要になった (単一経路で成立するため)。
@@ -366,7 +424,9 @@ plugin の配布経路の選択は不要になった (単一経路で成立す�
 導入を同一フェーズで行う。
 
 10. `apm install` のガードを 2 層で実装する (`bootstrap.sh` と `PreToolUse` hook)
-11. `home/apm.yml` に自作 skill 5 個と plugin 3 個を追加し、lockfile を更新する
+11. `home/apm.yml` に自作 skill 5 個と plugin 3 個、および `ax` を追加し、lockfile を更新する。
+    `ax` は `home/.claude/skills/ax/` の手動コピーを削除し `yusukebe/ax/skills/ax#<sha>` の
+    宣言へ置き換える (欠けていた防御指針がこれで届く)
 12. 追加の設定ディレクトリ一覧の読み込みを `bootstrap.sh` と `home/.zshrc` へ入れる
 13. `agents` と `commands` の symlink 4 本を `bootstrap.sh` の対応表へ追加する
 14. stale symlink の撤去を `bootstrap.sh` に実装する (配列から消したペアの残骸は現状消えない)
@@ -423,9 +483,12 @@ plugin の配布経路の選択は不要になった (単一経路で成立す�
 live smoke の合格条件を「skill が配置される」ではなく「代表 skill が実際に機能する」まで
 引き上げる。
 
-`claude plugin details` の Component inventory に Commands 行は存在せず、`commands/` 配下は
-Skills 行に畳み込まれて報告される。件数レポートだけで結論すると誤判定するため、ロードの確認は
-`--debug` の出力かスラッシュコマンドの解決で行う。
+ツールの自己申告で成否を判定しない。次の 2 つは実測で誤読の元になることが分かっている。
+
+- `claude plugin details` の Component inventory に Commands 行は存在せず、`commands/` 配下は
+  Skills 行に畳み込まれて報告される。ロードの確認は `--debug` の出力かスラッシュコマンドの解決で行う
+- lockfile の `package_type` は P1 形でも `marketplace_plugin` と記録される。verbatim コピーが
+  起きたかは deploy されたファイル集合を直接見て確かめる
 
 `plugin.json` の妥当性は `claude plugin validate --strict` を CI ゲートにする。
 
@@ -445,8 +508,6 @@ bootstrap か CI に組み込む。
 
 | 項目 | 内容 | 対処 |
 |---|---|---|
-| 外部由来 skill の上流 | 出所が未特定 | Phase 1 で特定。不明なら依存宣言から外し手動管理を継続 |
-| 新リポジトリ形での GitHub 取得 | パッケージ形はローカルで確認済み、リモートは未確認 | Phase 1 step 2 で検証 |
 | `model` キー削除の経路 | 組織既定モデル適用時の分岐は再現できていない | 現在の `settings.json` に `model` キーが無いため削除対象が存在しない。再導入する場合のみ再検証 |
 | 将来の migration | `migrationVersion` がある以上、別の migration が走る余地がある | 新規マシン初回の差分を手順書に明記し、想定外の差分が出たら都度確認する |
 | `--dry-run` の副作用 | `~/.apm/apm.yml` を実際に作る経路がある | dry-run の結果を無害と仮定しない。実行後に差分を確認する |
