@@ -97,6 +97,7 @@ plugin 認識が同時に成立する。marketplace の宣言も `settings.json`
 - [ ] hook の `herdr-agent-state.sh` パスを `$HOME` 参照へ変える
 - [ ] skip-worktree を解除する
 - [ ] 現行 private plugin リポジトリをアーカイブする
+- [ ] `install.sh` が張った `~/.claude/plugins/<plugin 名>` の symlink 3 本を撤去する
 
 ## 関連
 

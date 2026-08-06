@@ -171,9 +171,13 @@ root の `SKILL.md` は plugin の component として数えられないため�
 変数が展開されることと、実ファイルがその変数を使っていることは別である。移設前の 3 plugin は
 schema とテンプレートを `~/.claude/plugins/<plugin 名>/...` の絶対パスで名指ししていた (17 箇所)。
 
-このパスが解決していたのは、開発機の `~/.claude/plugins/<plugin 名>` が private リポジトリの
-`plugins/<plugin 名>` を指す手作りの symlink だったため。Claude Code が実際に読むのは marketplace の
-cache (`~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`) であり、apm の deploy 先は
+このパスが解決していたのは、private リポジトリの `install.sh` が `~/.claude/plugins/<plugin 名>`
+から `plugins/<plugin 名>` への symlink を張っていたため。install.sh 自身がこれを「絶対パス参照を
+解決するための contract」と書いている。つまり事故ではなく設計だったが、この contract は
+install.sh を持つ private リポジトリにしか無く、配布物には付いてこない。
+
+Claude Code が plugin 本体を読むのは marketplace の cache
+(`~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`) であり、apm の deploy 先は
 `<project>/.claude/skills/<name>/` なので、配布先ではどちらの経路でも解決しない。
 
 再発は `scripts/check-package-shape.py` の検査で防ぐ。パッケージ名を伴う自己参照だけを違反とし、
@@ -501,6 +505,8 @@ plugin の配布経路の選択は不要になった (単一経路で成立す�
 19. hook の `herdr-agent-state.sh` パスを `$HOME` 参照へ変える
 20. skip-worktree を解除し、live と committed を 1 本にする
 21. 現行 private plugin リポジトリをアーカイブする
+22. `install.sh` が張った `~/.claude/plugins/<plugin 名>` の symlink 3 本を撤去する。
+    アーカイブしただけでは残り、参照先が消えれば dangling になる
 
 修飾名の一括更新は不要 (パッケージ名と `plugin.json` の `name` を一致させる限り現行の
 修飾名が維持されるため)。
