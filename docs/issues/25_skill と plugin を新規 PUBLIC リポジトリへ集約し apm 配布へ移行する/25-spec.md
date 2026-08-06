@@ -440,9 +440,18 @@ ${HOME}/.config/dotfiles/claude-config-dirs
 - 検査対象は cwd が属する git リポジトリ。`apm install` が deploy 先を破壊する性質はどの
   リポジトリでも同じなので dotfiles 限定にはしない。git リポジトリの外では「git から戻す」
   前提が成り立たないので検査しない
-- 対象サブコマンドは `install` だけでなく deploy 先を書き換える兄弟 (`update` / `uninstall` 等)
-  を含む。`install` だけを見ると bypass 経路が素通りしてガードの主張が偽になる。一致判定は
-  正規表現ではなくトークン化で行う (`echo apm install` のような引用文字列を誤検出しないため)
+- 対象サブコマンドは denylist ではなく read-only の allowlist で決める。`apm --help` (0.27.0) の
+  サブコマンドは 34 個あり pre-1.0 で今後も増えるため、denylist は上流が増えるたびに黙って穴が
+  開く。しかも false negative は「何も起きない」形で返るので、ガードの主張が偽になったことに
+  気づけない。false positive は「コミットするか stash する」という可視で安価な失敗で済む
+- 一致判定は正規表現ではなくトークン化で行う (`echo "apm install"` のような引用文字列を
+  誤検出しないため)。トークン化は `shlex.split` ではなく `punctuation_chars=True` の
+  `shlex.shlex` を使う。前者は `;` `&` `|` `(` `)` を区切りとして扱わないため、演算子が語へ
+  密着すると (`apm install; git status` など) 判定が外れる
+- allowlist にする以上、apm がコマンド位置にあることも見る。位置を問わないと
+  `grep -rn apm bootstrap.sh` のような検索まで対象になる
+- 検査対象には、コマンド中の `cd` で展開なしに解決できる移動先も加える。session cwd だけを
+  見ると、別リポジトリへ移ってから apm を走らせる経路が素通りする
 - 緊急回避のため環境変数で無効化できる
 
 hook は deny のときだけ JSON を出し、それ以外は無出力の exit 0 とする。複数の `PreToolUse` hook が
@@ -627,8 +636,21 @@ plugin の配布経路の選択は不要になった (単一経路で成立す�
 
 - 検査対象を壊す (ツリーを汚した状態でガードが止めること)
 - 検査機構そのものを壊す (ガードの判定行を消して素通りすること)
-- 検査機構の取り付けを外す (`install_apm_skills()` からの呼び出し、および `PreToolUse` の
+- 検査機構の取り付けを外す (`install_apm_packages()` からの呼び出し、および `PreToolUse` の
   登録を外して素通りすること)
+
+層 1 (bash) と層 2 (python) は同じ不変条件を別実装で守るため、層をまたいだ判定の一致も
+pin する。片方だけ直しても双方のテストは緑のまま通るためで、実際 `git status --porcelain -z`
+の rename パース (`XY <to>\0<from>\0` の 2 チャンク) は両層に同じ欠陥が入っており、どちらか
+一方のテストでは原理的に見えなかった。
+
+#### 訂正: `apm uninstall` は実在する
+
+Phase 3a の実装時に「`apm --help` から実名を採った」として `uninstall` を対象から外したが、
+実機 0.27.0 の `apm --help` には `uninstall` が存在する。spec 側は当初から
+「`install` だけを見ると bypass 経路が素通りする」として兄弟を含めるよう書いており、実装だけが
+spec から外れていた。この取りこぼしが denylist という方式の代償を実地で示したため、判定を
+read-only の allowlist へ反転した。
 
 ### 移行経路のテスト
 
@@ -675,7 +697,8 @@ bootstrap か CI に組み込む。
 | 履歴に残る露出 | 現ツリーを直しても履歴の 77 件は残る | 主張を「新規露出を足さない」に限定する。履歴書き換えの是非は Issue #21 で扱う |
 | 複数 hook の合成規則 | 同一イベントの hook が deny と allow を同時に返したときどちらが勝つかは未文書化 | 新 hook が allow を出さない設計で回避する。実測でも `tirith` は `apm install` を無音 allow するため衝突しない |
 | skills-dir plugin の有効化 | apm が配置した plugin は一覧に出るが `enabled=False` で、`enabledPlugins` に書いても変わらない。component が修飾名で解決されるかは marketplace 版が有効なため切り分けられていない | Phase 4 の入口 gate にする。marketplace を消す前に、隔離した設定ディレクトリで component の解決を確認する。解決しないなら marketplace 経路を残すか別の有効化手段を探す |
-| hook 登録を pin する検査の不在 | `settings.json` の hooks セクションを見る検査が 1 件も無く、既存の `tirith-check.py` ですら配線を外して全テストが緑になる | Phase 3a で config-guard に必須 hook の配線検査を足し、既存 hook も同時に pin する |
+| hook 登録を pin する検査の不在 | `settings.json` の hooks セクションを見る検査が 1 件も無く、既存の `tirith-check.py` ですら配線を外して全テストが緑になる | Phase 3a で config-guard に必須 hook の配線検査を足し、既存 hook も同時に pin する。配線は event だけでなく matcher まで見る (matcher を別ツールへ変えると本体が残ったまま起動しなくなるため) |
+| ターミナル直叩きが未カバー | 2 層は bootstrap 経由と Claude Code 経由を塞ぐが、シェルから直接 `apm` を叩く経路は hook を通らない | 現状は未対処。全経路を 1 箇所で覆う機構としては `~/.local/bin` に clean 検査付きの apm シムを置く案があるが、PATH 順序と `command -v apm` 判定へ干渉する別の脆さを持つため採らない。検討して採らなかったことをここに記録する |
 
 ## 却下した案
 
