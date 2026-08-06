@@ -73,11 +73,12 @@ plugin 認識が同時に成立する。marketplace の宣言も `settings.json`
 
 - [x] plugin の公開基準を決める (安全性の 2 点のみ。3 個とも公開対象)
 - [x] 初回コミット前の露出監査を行う (要対応は `plugin.json` の author のメールアドレスのみ)
-- [ ] 新リポジトリの検出網 (pre-commit + gitleaks + `claude plugin validate --strict`) を整備する
-- [ ] `agentic-coding-tools` を PUBLIC で作成し、自作 skill 5 個と plugin 3 個を移設する
-- [ ] 各パッケージの root に `SKILL.md` を足し、`plugin.json` の `name` を apm のパッケージ名と
+- [x] 新リポジトリの検出網 (pre-commit + gitleaks + `claude plugin validate --strict`) を整備する
+- [x] `agentic-coding-tools` を PUBLIC で作成し、自作 skill 5 個と plugin 3 個を移設する
+- [x] 各パッケージの root に `SKILL.md` を足し、`plugin.json` の `name` を apm のパッケージ名と
       一致させ、`"skills": ["./skills"]` に直す
-- [ ] README を frontmatter から生成する仕組みと CI 検査を入れる
+- [x] README を frontmatter から生成する仕組みと CI 検査を入れる
+- [x] 決め打ちのインストールパス 17 箇所を変数参照へ直し、同じ形を弾く検査を足す
 
 ### Phase 3: dotfiles 側の切り替え
 
