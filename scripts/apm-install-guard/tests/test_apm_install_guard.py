@@ -150,11 +150,12 @@ def test_non_ascii_path_is_not_quoted(tmp_path: Path) -> None:
     assert "日本語ファイル.txt" in reason(proc)
 
 
-def test_destructive_subcommands_are_guarded(tmp_path: Path) -> None:
-    """install 以外にも deploy 先を書き換える兄弟がある。install だけ見ると bypass できる。
+def test_subcommands_outside_the_readonly_set_are_guarded(tmp_path: Path) -> None:
+    """読み取り専用と確認できたもの以外は全て止める。
 
-    対象は apm --help の実際の一覧から選んでいる (推測で名前を作らない)。
-    deps は第 2 引数まで見る。deps list / deps tree は読み取り専用で止める理由がない。
+    install だけを見ると兄弟から bypass できる。さらに denylist だと apm が
+    サブコマンドを増やすたびに黙って穴が開くため、判定は allowlist 側に置く。
+    ここに並ぶ名前は apm --help (0.27.0) の実際の一覧から採っている。
     """
     repo = init_repo(tmp_path / "repo")
     (repo / "a.txt").write_text("changed\n")
@@ -163,28 +164,106 @@ def test_destructive_subcommands_are_guarded(tmp_path: Path) -> None:
         "apm install",
         "apm update",
         "apm prune",
+        "apm uninstall dev-workflow",
         "apm deps clean",
         "apm deps update",
+        # deploy 先ではなくても書き込むもの。allowlist 方式ではこれらも止まる
+        "apm compile",
+        "apm init",
+        "apm pack",
+        "apm unpack bundle.tgz",
+        "apm mcp install foo",
+        "apm run build",
     ):
         proc = run_hook(body(command, str(repo)))
         assert decision(proc) == "deny", command
 
 
 def test_readonly_apm_subcommands_pass_through(tmp_path: Path) -> None:
-    """読み取り専用のサブコマンドは deploy 先を書き換えないので止めない。"""
+    """読み取り専用のサブコマンドは何も書き換えないので止めない。
+
+    このリストが allowlist の canonical な表現になる。ここから漏れたコマンドは
+    dirty ツリーで止まるので、追加は「読み取り専用だと確認できた」ときだけ行う。
+    """
     repo = init_repo(tmp_path / "repo")
     (repo / "a.txt").write_text("changed\n")
 
     for command in (
-        "apm list",
-        "apm --version",
         "apm audit",
+        "apm doctor",
+        "apm find skill",
+        "apm list",
         "apm outdated",
+        "apm policy",
+        "apm preview build",
+        "apm search foo",
+        "apm targets",
+        "apm view dev-workflow",
         "apm deps list",
         "apm deps tree",
     ):
         proc = run_hook(body(command, str(repo)))
         assert proc.stdout.strip() == "", command
+
+
+def test_flags_only_invocation_passes_through(tmp_path: Path) -> None:
+    """サブコマンドを伴わない呼び出しは help を出すだけで何も書き換えない。"""
+    repo = init_repo(tmp_path / "repo")
+    (repo / "a.txt").write_text("changed\n")
+
+    for command in ("apm", "apm --help", "apm --version", "apm -v"):
+        proc = run_hook(body(command, str(repo)))
+        assert proc.stdout.strip() == "", command
+
+
+def test_operators_adjacent_to_words_are_still_detected(tmp_path: Path) -> None:
+    """シェル演算子が語に密着してもトークン化が崩れないこと。
+
+    shlex.split は ; & | ( ) を区切りとして扱わないため、素朴に使うと
+    `apm install; git status` が `install;` という 1 トークンになり判定が外れる。
+    ここが外れるとガードの主張 (dirty なら止まる) が静かに偽になる。
+    """
+    repo = init_repo(tmp_path / "repo")
+    (repo / "a.txt").write_text("changed\n")
+
+    for command in (
+        "apm install; git status",
+        "git stash&&apm install",
+        "(apm install)",
+        "apm install|tee log",
+        "git status;apm prune",
+    ):
+        proc = run_hook(body(command, str(repo)))
+        assert decision(proc) == "deny", command
+
+
+def test_apm_as_an_argument_is_not_detected(tmp_path: Path) -> None:
+    """コマンド位置にない apm は起動ではないので見ない。
+
+    allowlist 方式では「読み取り専用一覧に無い語」が全て対象になるため、位置を
+    問わずに拾うと `grep -rn apm bootstrap.sh` のような検索まで止まってしまう。
+    """
+    repo = init_repo(tmp_path / "repo")
+    (repo / "a.txt").write_text("changed\n")
+
+    for command in (
+        "grep -rn apm bootstrap.sh",
+        "which apm",
+        "echo apm install",
+        "git log --grep apm main",
+    ):
+        proc = run_hook(body(command, str(repo)))
+        assert proc.stdout.strip() == "", command
+
+
+def test_env_assignment_prefix_does_not_hide_the_invocation(tmp_path: Path) -> None:
+    """VAR=x apm install の形はコマンド位置とみなす。"""
+    repo = init_repo(tmp_path / "repo")
+    (repo / "a.txt").write_text("changed\n")
+
+    proc = run_hook(body("APM_LOG_LEVEL=DEBUG apm install", str(repo)))
+
+    assert decision(proc) == "deny"
 
 
 def test_quoted_string_is_not_detected(tmp_path: Path) -> None:
@@ -197,15 +276,60 @@ def test_quoted_string_is_not_detected(tmp_path: Path) -> None:
     assert proc.stdout.strip() == ""
 
 
-def test_bare_apm_install_is_detected_regardless_of_position(tmp_path: Path) -> None:
-    """位置は問わない。誤爆より bypass の方が危険なので保守的に倒す仕様。
-
-    裸で `apm install` と書かれていれば、連結の後ろでも検出する。
-    """
+def test_apm_after_an_operator_is_detected(tmp_path: Path) -> None:
+    """連結の後ろでもコマンド位置なら検出する。"""
     repo = init_repo(tmp_path / "repo")
     (repo / "a.txt").write_text("changed\n")
 
     proc = run_hook(body("cd home && apm install --frozen", str(repo)))
+
+    assert decision(proc) == "deny"
+
+
+def test_cd_into_another_dirty_repository_is_detected(tmp_path: Path) -> None:
+    """session cwd だけを見ると、コマンド内で別リポジトリへ移る経路が素通りする。
+
+    ガードが生まれた原因 (apm がパッケージ外のファイルを消す) は、どのリポジトリで
+    起きても同じ損失になる。session cwd が clean でも移動先が汚れていれば止める。
+    """
+    session = init_repo(tmp_path / "session")
+    target = init_repo(tmp_path / "target")
+    (target / "a.txt").write_text("changed\n")
+
+    proc = run_hook(body(f"cd {target} && apm install --frozen", str(session)))
+
+    assert decision(proc) == "deny"
+    assert "a.txt" in reason(proc)
+
+
+def test_cd_target_needing_expansion_falls_back_to_the_session_cwd(tmp_path: Path) -> None:
+    """展開が要る cd 先は解決できない。検査を足せないだけで、緩くはしない。"""
+    session = init_repo(tmp_path / "session")
+    (session / "a.txt").write_text("changed\n")
+
+    proc = run_hook(body('cd "$TARGET" && apm install', str(session)))
+
+    assert decision(proc) == "deny"
+    assert "a.txt" in reason(proc)
+
+
+def test_relative_cd_inside_the_same_repository_stays_one_target(tmp_path: Path) -> None:
+    """同一リポジトリ内の移動は root が同じなので判定は変わらない。"""
+    repo = init_repo(tmp_path / "repo")
+    (repo / "home").mkdir()
+
+    proc = run_hook(body("cd home && apm install --frozen", str(repo)))
+
+    assert proc.stdout.strip() == ""
+
+
+def test_git_that_cannot_be_executed_denies(tmp_path: Path) -> None:
+    """検査できなかったことを「リポジトリ外なので対象外」と同じ無音 allow に潰さない。"""
+    repo = init_repo(tmp_path / "repo")
+    empty_bin = tmp_path / "empty-bin"
+    empty_bin.mkdir()
+
+    proc = run_hook(body("apm install", str(repo)), {"PATH": str(empty_bin)})
 
     assert decision(proc) == "deny"
 
