@@ -712,18 +712,34 @@ unmirrored_claude_targets() {
     # tracked な source をこの配列へ置くと、SYMLINK_PAIRS の「source は checkout に必ず
     # 実在する」不変条件の外で管理されることになり、どちらのテストにも捕まらなくなる。
     # 逆に apm 生成物が ignore されていなければ deploy のたびに tree が汚れる。
+    #
+    # 検査は実リポジトリではなく home/.gitignore だけを持つ scratch リポジトリで行う。
+    # 末尾スラッシュ付きの ignore パターンはディレクトリにのみ一致し、git は実体の有無で
+    # ディレクトリかを判定するため、source 自体を実リポジトリへ問い合わせると apm 配置済みの
+    # ローカルでだけ緑になり fresh clone (CI) で赤くなる。実体の無い状態を再現したうえで
+    # 配下のパスを問い合わせれば、どちらの環境でも同じ判定になる。
     load_pairs_array APM_SYMLINK_PAIRS
     [ "${#APM_SYMLINK_PAIRS[@]}" -gt 0 ]
+
+    local probe="$TEST_HOME/gitignore-probe"
+    mkdir -p "$probe/home"
+    git -C "$probe" init -q
+    cp "$REPO_ROOT/home/.gitignore" "$probe/home/.gitignore"
 
     local pair source checked=0
     for pair in "${APM_SYMLINK_PAIRS[@]}"; do
         source="${pair%%|*}"
-        run git -C "$REPO_ROOT" check-ignore -q "$source"
+        run git -C "$probe" check-ignore -q "$source/deployed-file"
         [ "$status" -eq 0 ] || { echo "gitignore されていない source: $source" >&2; return 1; }
         checked=$((checked + 1))
     done
     # 検査件数と対象件数の一致を確かめる (途中で数え漏らしていないこと)
     [ "$checked" -eq "${#APM_SYMLINK_PAIRS[@]}" ]
+
+    # 対照。これが無いと check-ignore が常に 0 を返す壊れ方 (パターンの取り違えや
+    # probe リポジトリの作成失敗) を「全件 ignore 済み」と読んでしまう
+    run git -C "$probe" check-ignore -q "home/.claude/settings.json"
+    [ "$status" -ne 0 ]
 }
 
 @test "SYMLINK_PAIRS: no longer carries apm-generated sources" {
