@@ -80,14 +80,17 @@ plugin 認識が同時に成立する。marketplace の宣言も `settings.json`
 - [x] README を frontmatter から生成する仕組みと CI 検査を入れる
 - [x] 決め打ちのインストールパス 17 箇所を変数参照へ直し、同じ形を弾く検査を足す
 
-### Phase 3: dotfiles 側の切り替え
+### Phase 3a: 供給経路の切り替えとガード
 
-- [ ] `apm install` のガードを `bootstrap.sh` と `PreToolUse` hook の 2 層で実装する
-- [ ] `home/apm.yml` に自作 skill と plugin を追加し lockfile を更新する
-- [ ] 設定ディレクトリ一覧の読み込みを `bootstrap.sh` と `home/.zshrc` へ入れる
-- [ ] `agents` と `commands` の symlink 4 本を `bootstrap.sh` の対応表へ追加する
-- [ ] stale symlink の撤去を `bootstrap.sh` に実装する
+- [ ] `home/apm.yml` に自作 skill と plugin と `ax` を追加し lockfile を更新する
 - [ ] `home/.claude/skills/` を追跡停止する (`.gitignore` 追加と `git rm -r --cached` は同一コミット)
+- [ ] apm 生成物を source とする symlink を `APM_SYMLINK_PAIRS` へ分離する
+- [ ] `apm install` のガードを `bootstrap.sh` と `PreToolUse` hook の 2 層で実装する
+
+### Phase 3b: 設定ディレクトリの外部化
+
+- [ ] 設定ディレクトリ一覧の読み込みを `bootstrap.sh` と `home/.zshrc` へ入れる
+- [ ] stale symlink の撤去を `bootstrap.sh` に実装する
 - [ ] テストをパラメータ化し、任意の名前で動くことを検証する形にする
 
 ### Phase 4: 後始末
