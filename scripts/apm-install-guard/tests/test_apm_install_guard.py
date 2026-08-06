@@ -9,12 +9,15 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
-HOOK = Path(__file__).resolve().parents[3] / "home" / ".claude" / "hooks" / "apm-install-guard.py"
+REPO = Path(__file__).resolve().parents[3]
+HOOK = REPO / "home" / ".claude" / "hooks" / "apm-install-guard.py"
+BOOTSTRAP = REPO / "bootstrap.sh"
 
 
 def run_hook(
@@ -57,6 +60,22 @@ def reason(proc: subprocess.CompletedProcess[str]) -> str:
     value = payload["hookSpecificOutput"]["permissionDecisionReason"]
     assert isinstance(value, str)
     return value
+
+
+def listed_paths(proc: subprocess.CompletedProcess[str]) -> list[str]:
+    """deny 理由に並んだブロッカーのパスを返す。"""
+    return [line[2:] for line in reason(proc).splitlines() if line.startswith("  ")]
+
+
+def bash_blockers(repo: Path) -> list[str]:
+    """層 1 (bootstrap.sh の apm_install_blockers) を実際に source して呼ぶ。
+
+    text-parse せず bash 自身に解釈させる。BASH_SOURCE ガードがあるので source
+    しても main は走らない。
+    """
+    script = f"source {shlex.quote(str(BOOTSTRAP))}; apm_install_blockers {shlex.quote(str(repo))}"
+    proc = subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=True)
+    return proc.stdout.splitlines()
 
 
 def init_repo(path: Path) -> Path:
@@ -148,6 +167,88 @@ def test_non_ascii_path_is_not_quoted(tmp_path: Path) -> None:
 
     assert decision(proc) == "deny"
     assert "日本語ファイル.txt" in reason(proc)
+
+
+def test_renamed_path_is_reported_once_and_intact(tmp_path: Path) -> None:
+    """porcelain -z の rename は "XY <to>\\0<from>\\0" の 2 チャンクで返る。
+
+    from 側は状態フィールドを持たないため、全チャンクへ一律に 3 文字削りを適用すると
+    存在しないパスが診断に並び、件数も水増しされる。診断は復旧の手掛かりなので、
+    実在しないパスを並べるとガードそのものの信用が落ちる。
+    """
+    repo = init_repo(tmp_path / "repo")
+    subprocess.run(["git", "mv", "a.txt", "renamed.txt"], cwd=repo, check=True)
+
+    proc = run_hook(body("apm install", str(repo)))
+
+    assert decision(proc) == "deny"
+    assert listed_paths(proc) == ["renamed.txt"]
+    assert "変更が 1 件" in reason(proc)
+
+
+def test_rename_from_outside_the_allowed_manifest_is_a_blocker(tmp_path: Path) -> None:
+    """移動先が許可対象でも、移動元が違えばそれは失われうる変更なので止める。"""
+    repo = init_repo(tmp_path / "repo")
+    (repo / "home").mkdir()
+    subprocess.run(["git", "mv", "a.txt", "home/apm.yml"], cwd=repo, check=True)
+
+    proc = run_hook(body("apm install", str(repo)))
+
+    assert decision(proc) == "deny"
+    # 壊れたパスではなく、その記録が指す実在のパスで報告すること
+    assert listed_paths(proc) == ["home/apm.yml"]
+
+
+def test_both_layers_agree_on_the_same_tree(tmp_path: Path) -> None:
+    """層 1 (bash) と層 2 (python) が同じツリーで同じ判定を出すこと。
+
+    プロセスが別で実装を共有できないため、片方だけ直しても双方のテストは緑のまま
+    通ってしまう。実際 porcelain の rename パースは両方に同じ欠陥が入っていた。
+    層をまたいだ一致は、どちらか一方のテストでは原理的に見えない。
+    """
+
+    def clean(_: Path) -> None:
+        return None
+
+    def modified(repo: Path) -> None:
+        (repo / "a.txt").write_text("changed\n")
+
+    def untracked(repo: Path) -> None:
+        (repo / "new.txt").write_text("x\n")
+
+    def only_manifest(repo: Path) -> None:
+        (repo / "home").mkdir()
+        (repo / "home" / "apm.yml").write_text("name: x\n")
+        (repo / "home" / "apm.lock.yaml").write_text("v: 1\n")
+        subprocess.run(["git", "add", "home"], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "manifest"], cwd=repo, check=True)
+        (repo / "home" / "apm.yml").write_text("name: y\n")
+
+    def renamed(repo: Path) -> None:
+        subprocess.run(["git", "mv", "a.txt", "renamed.txt"], cwd=repo, check=True)
+
+    def path_with_space(repo: Path) -> None:
+        (repo / "has space.txt").write_text("x\n")
+
+    fixtures = {
+        "clean": clean,
+        "modified": modified,
+        "untracked": untracked,
+        "only_manifest": only_manifest,
+        "renamed": renamed,
+        "path_with_space": path_with_space,
+    }
+
+    for name, prepare in fixtures.items():
+        repo = init_repo(tmp_path / name)
+        prepare(repo)
+
+        layer1 = bash_blockers(repo)
+        layer2 = run_hook(body("apm install", str(repo)))
+
+        assert bool(layer1) == (decision(layer2) == "deny"), f"{name}: layer1={layer1}"
+        if layer1:
+            assert sorted(layer1) == sorted(listed_paths(layer2)), name
 
 
 def test_subcommands_outside_the_readonly_set_are_guarded(tmp_path: Path) -> None:

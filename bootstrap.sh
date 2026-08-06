@@ -349,18 +349,50 @@ install_mise_tools() {
 # git リポジトリでなければ「git から戻す」前提そのものが無いので検査しない。
 # パスは NUL 区切りで受け取る。空白や日本語を含むパスを空白分割すると分断され、落ちた分は
 # 「エラー」ではなく「短い正常な結果」として返るため出力を見ても気づけない。
+# 検査できなかったときは 1 を返す。git の失敗を空出力へ潰すと clean と区別できず、
+# bootstrap が新規マシン（git が壊れやすい環境）で無防備に apm install を走らせる。
+
+# パスが apm install の入出力なら真。これらだけが変更された状態は正常な中間状態であり、
+# 例外が無いと pin を更新するたびにガードが手順を止める。
+apm_io_path() {
+    case "${1##*/}" in
+        apm.yml | apm.lock.yaml) return 0 ;;
+    esac
+    return 1
+}
+
 apm_install_blockers() {
     local repo="$1"
-    local entry path
+    local entry status path from
+
+    # リポジトリ外は検査対象外。この判定を先に置かないと、下の status 失敗検査が
+    # 「リポジトリ外」を「検査できなかった」と取り違える。
+    if ! git -C "$repo" rev-parse --show-toplevel > /dev/null 2>&1; then
+        return 0
+    fi
+    # NUL 区切りの出力はコマンド置換では失われる（bash が NUL を捨てる）ためプロセス置換で
+    # 読む。その形では git の exit code を受け取れないので、成否だけを別呼び出しで確かめる。
+    if ! git -C "$repo" status --porcelain -z > /dev/null 2>&1; then
+        return 1
+    fi
 
     while IFS= read -r -d '' entry; do
         # porcelain の各エントリは "XY <path>" 形式。先頭 3 文字が状態フィールド
+        status="${entry:0:2}"
         path="${entry:3}"
-        case "${path##*/}" in
-            apm.yml|apm.lock.yaml) continue ;;
+        from=""
+        # rename と copy だけは "XY <to>\0<from>\0" の 2 チャンクで返る。from 側は状態
+        # フィールドを持たないので、同じ規則で切ると実在しないパスになる。
+        case "$status" in
+            *R* | *C*) IFS= read -r -d '' from || from="" ;;
         esac
+        # 1 つの記録が指すパスがすべて apm の入出力のときだけ許可する。移動先が apm.yml でも
+        # 移動元が違えば、それは失われうる変更である。
+        if apm_io_path "$path" && { [ -z "$from" ] || apm_io_path "$from"; }; then
+            continue
+        fi
         printf '%s\n' "$path"
-    done < <(git -C "$repo" status --porcelain -z 2> /dev/null)
+    done < <(git -C "$repo" status --porcelain -z)
 }
 
 # apm.yml (home/) が宣言するスキルを apm.lock.yaml の pin 通りに実体化する（冪等）。
@@ -382,7 +414,10 @@ install_apm_skills() {
     # 他の install_* と違い warn + return 0 にしないのは、skip すると skill の供給が
     # 欠けたまま bootstrap が成功したように見えるため。
     local blockers
-    blockers="$(apm_install_blockers "$DOTFILES_DIR")"
+    if ! blockers="$(apm_install_blockers "$DOTFILES_DIR")"; then
+        error "Failed to inspect the working tree; refusing to run apm install"
+        return 1
+    fi
     if [ -n "$blockers" ]; then
         error "Uncommitted changes found; refusing to run apm install"
         error "apm overwrites deploy targets and deletes files not in the package"

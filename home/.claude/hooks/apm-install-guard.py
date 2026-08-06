@@ -256,13 +256,22 @@ def dirty_paths(root: str) -> list[str]:
     if proc.returncode != 0:
         raise GitUnavailableError(f"git status が失敗しました: {proc.stderr.strip()}")
 
+    entries = [entry for entry in proc.stdout.split("\0") if entry]
     blockers: list[str] = []
-    for entry in proc.stdout.split("\0"):
-        if not entry:
-            continue
+    index = 0
+    while index < len(entries):
         # porcelain の各エントリは "XY <path>" 形式。先頭 3 文字が状態フィールド
-        path = entry[3:]
-        if path.rsplit("/", 1)[-1] in ALLOWED_DIRTY_BASENAMES:
+        status, path = entries[index][:2], entries[index][3:]
+        index += 1
+        paths = [path]
+        # rename と copy だけは "XY <to>\0<from>\0" の 2 チャンクで返る。from 側は状態
+        # フィールドを持たないので、同じ規則で切ると先頭 3 文字が削れて実在しないパスになる。
+        if ("R" in status or "C" in status) and index < len(entries):
+            paths.append(entries[index])
+            index += 1
+        # 1 つの記録が指すパスがすべて apm の入出力のときだけ許可する。移動先が apm.yml でも
+        # 移動元が違えば、それは失われうる変更である。
+        if all(p.rsplit("/", 1)[-1] in ALLOWED_DIRTY_BASENAMES for p in paths):
             continue
         blockers.append(path)
     return blockers

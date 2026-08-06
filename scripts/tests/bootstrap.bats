@@ -452,6 +452,61 @@ init_committed_repo() {
     [ -z "$output" ]
 }
 
+@test "apm_install_blockers: a rename is one blocker with an intact path" {
+    # rename と copy だけ porcelain -z が "XY <to>\0<from>\0" の 2 チャンクを返す。
+    # from 側は状態フィールドを持たないため、一律に 3 文字削ると実在しないパスが
+    # 診断へ並び件数も水増しされる
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+    git -C "$repo" mv a.txt renamed.txt
+
+    run apm_install_blockers "$repo"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "renamed.txt" ]
+}
+
+@test "apm_install_blockers: a rename into the manifest still counts its source" {
+    # 移動先が許可対象でも移動元が違えば、それは失われうる変更
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+    mkdir -p "$repo/home"
+    git -C "$repo" mv a.txt home/apm.yml
+
+    run apm_install_blockers "$repo"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "home/apm.yml" ]
+}
+
+@test "apm_install_blockers: a git failure is not reported as a clean tree" {
+    # status の失敗を空出力へ潰すと clean と区別できず、bootstrap が無防備に
+    # apm install を走らせる。新規マシンは git が壊れやすい環境なので、
+    # 「検査できなかった」は「検査対象外」と別に扱う
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+
+    local bin_dir="$TEST_HOME/fake-bin"
+    mkdir -p "$bin_dir"
+    REAL_GIT="$(command -v git)"
+    export REAL_GIT
+    cat > "$bin_dir/git" << 'STUB'
+#!/bin/bash
+for arg in "$@"; do
+    if [ "$arg" = "status" ]; then
+        echo "fatal: simulated git failure" >&2
+        exit 128
+    fi
+done
+exec "$REAL_GIT" "$@"
+STUB
+    chmod +x "$bin_dir/git"
+
+    PATH="$bin_dir:$PATH" run apm_install_blockers "$repo"
+
+    [ "$status" -eq 1 ]
+}
+
 @test "install_apm_skills: refuses to run when the tree is dirty" {
     DRY_RUN=false
     local repo="$TEST_HOME/repo"
@@ -474,6 +529,43 @@ STUB
 
     [ "$status" -ne 0 ]
     assert_contains "$output" "a.txt"
+    [ ! -e "$APM_STUB_REC" ]
+}
+
+@test "install_apm_skills: refuses to run when the tree cannot be inspected" {
+    # apm_install_blockers が「検査できなかった」を返しても、呼び出し元が受けなければ
+    # 空の blockers として通ってしまう。検査機構の取り付け側を見る
+    DRY_RUN=false
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+    mkdir -p "$repo/home"
+
+    local bin_dir="$TEST_HOME/fake-bin"
+    mkdir -p "$bin_dir"
+    cat > "$bin_dir/apm" << 'STUB'
+#!/bin/sh
+touch "$APM_STUB_REC"
+STUB
+    chmod +x "$bin_dir/apm"
+    REAL_GIT="$(command -v git)"
+    export REAL_GIT
+    cat > "$bin_dir/git" << 'STUB'
+#!/bin/bash
+for arg in "$@"; do
+    if [ "$arg" = "status" ]; then
+        echo "fatal: simulated git failure" >&2
+        exit 128
+    fi
+done
+exec "$REAL_GIT" "$@"
+STUB
+    chmod +x "$bin_dir/git"
+    export APM_STUB_REC="$TEST_HOME/apm-was-called"
+    DOTFILES_DIR="$repo"
+
+    PATH="$bin_dir:$PATH" run install_apm_skills
+
+    [ "$status" -ne 0 ]
     [ ! -e "$APM_STUB_REC" ]
 }
 
