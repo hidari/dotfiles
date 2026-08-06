@@ -23,6 +23,12 @@ _USER_PATH = re.compile(r"/(Users|home)/[a-z_][a-z0-9._-]*")
 # path 付き Glob(...)/Grep(...) permission 規則の検出パターン（bare は対象外）。
 _INEFFECTIVE_PATH_RULE = re.compile(r"^(?:Glob|Grep)\((.+)\)$")
 
+# PreToolUse に必ず配線されていなければならないフック（本体のファイル名で照合する）。
+# フック本体が存在しても settings.json から外れれば何も守らないため、取り付け自体を
+# 不変条件にする。これが無いと検査機構の 3 種変異のうち「取り付けを外す」をテストで
+# 捕まえられない（実際この検査を足すまで、tirith-check.py の配線を外しても全テストが緑だった）。
+_REQUIRED_PRETOOLUSE_HOOKS: tuple[str, ...] = ("tirith-check.py", "apm-install-guard.py")
+
 # committed に許可する公開 marketplace。ここに無い marketplace を参照する plugin は弾く。
 _PUBLIC_MARKETPLACES: frozenset[str] = frozenset(
     {
@@ -46,6 +52,35 @@ def _iter_strings(obj: Any) -> list[str]:
         for value in obj:
             out.extend(_iter_strings(value))
     return out
+
+
+def _pretooluse_commands(settings: dict[str, Any]) -> list[str]:
+    """hooks.PreToolUse に配線された command 文字列を集める。
+
+    グループを分けるか 1 グループに複数要素を置くかは配線の自由度なので、両方を平らに集める。
+    イベントは PreToolUse だけを見る。PostToolUse に置いても呼び出し前には走らないため。
+    """
+    hooks = settings.get("hooks")
+    if not isinstance(hooks, dict):
+        return []
+    groups = hooks.get("PreToolUse")
+    if not isinstance(groups, list):
+        return []
+
+    commands: list[str] = []
+    for group in groups:
+        if not isinstance(group, dict):
+            continue
+        entries = group.get("hooks")
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            command = entry.get("command")
+            if isinstance(command, str):
+                commands.append(command)
+    return commands
 
 
 def _ineffective_path_rule_reason(token: str) -> str | None:
@@ -99,5 +134,13 @@ def check_settings_invariants(settings: dict[str, Any]) -> list[Finding]:
         for reason in (validate_tool_token(token), _ineffective_path_rule_reason(token)):
             if reason is not None:
                 findings.append(Finding(_SRC, token, reason))
+
+    # 6. 必須フックが PreToolUse に配線されているか
+    commands = _pretooluse_commands(settings)
+    for script in _REQUIRED_PRETOOLUSE_HOOKS:
+        if not any(script in command for command in commands):
+            findings.append(
+                Finding(_SRC, script, f"PreToolUse に必須フックが配線されていません: {script}")
+            )
 
     return findings

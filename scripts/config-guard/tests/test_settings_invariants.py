@@ -21,7 +21,37 @@ GOOD: dict[str, Any] = {
         "feature-dev@claude-plugins-official": True,
         "superpowers@superpowers-marketplace": True,
     },
+    # 必須フックの配線。欠けていると他の検査のテストにも findings が混ざるため、
+    # 「狙った検査だけが落とす」最小の差分を保つ意味でも clean な形をここに置く
+    "hooks": {
+        "PreToolUse": [
+            {
+                "matcher": "Bash",
+                "hooks": [
+                    {"type": "command", "command": 'python3 "$HOME/.claude/hooks/tirith-check.py"'}
+                ],
+            },
+            {
+                "matcher": "Bash",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": 'python3 "$HOME/.claude/hooks/apm-install-guard.py"',
+                    }
+                ],
+            },
+        ]
+    },
 }
+
+
+def _pretooluse(*commands: str) -> dict[str, Any]:
+    """PreToolUse に指定のコマンドだけを持つ hooks セクションを作る。"""
+    return {
+        "PreToolUse": [
+            {"matcher": "Bash", "hooks": [{"type": "command", "command": c}]} for c in commands
+        ]
+    }
 
 
 class TestGood:
@@ -89,4 +119,82 @@ class TestIneffectiveFilePathRules:
     def test_bare_glob_and_grep_not_flagged(self) -> None:
         # bare な Glob/Grep はツール全体の gate として有効なので対象外
         settings = {**GOOD, "permissions": {"deny": ["Glob", "Grep"]}}
+        assert check_settings_invariants(settings) == []
+
+
+class TestRequiredHooks:
+    """フック本体が存在しても settings.json から外れれば何も守らない。
+
+    取り付けそのものを不変条件として pin する。これが無いと「本体のロジックは pin されて
+    いるが配線が外れても誰も気づかない」状態になり、検査機構の 3 種変異のうち
+    「取り付けを外す」がテストで捕まえられなくなる。
+    """
+
+    def test_missing_apm_install_guard_is_flagged(self) -> None:
+        settings = {
+            **GOOD,
+            "hooks": _pretooluse('python3 "$HOME/.claude/hooks/tirith-check.py"'),
+        }
+        findings = check_settings_invariants(settings)
+        assert [f.detail for f in findings] == ["apm-install-guard.py"]
+
+    def test_missing_tirith_check_is_flagged(self) -> None:
+        settings = {
+            **GOOD,
+            "hooks": _pretooluse('python3 "$HOME/.claude/hooks/apm-install-guard.py"'),
+        }
+        findings = check_settings_invariants(settings)
+        assert [f.detail for f in findings] == ["tirith-check.py"]
+
+    def test_missing_hooks_section_flags_every_required_hook(self) -> None:
+        settings = {k: v for k, v in GOOD.items() if k != "hooks"}
+        findings = check_settings_invariants(settings)
+        assert {f.detail for f in findings} == {"tirith-check.py", "apm-install-guard.py"}
+
+    def test_hook_wired_to_another_event_does_not_count(self) -> None:
+        # PostToolUse に置いても PreToolUse の呼び出しは守られない。
+        # イベントを見ない実装だとこの pin は空虚になる
+        settings = {
+            **GOOD,
+            "hooks": {
+                **_pretooluse('python3 "$HOME/.claude/hooks/tirith-check.py"'),
+                "PostToolUse": [
+                    {
+                        "matcher": "*",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": 'python3 "$HOME/.claude/hooks/apm-install-guard.py"',
+                            }
+                        ],
+                    }
+                ],
+            },
+        }
+        findings = check_settings_invariants(settings)
+        assert [f.detail for f in findings] == ["apm-install-guard.py"]
+
+    def test_both_hooks_in_one_group_is_accepted(self) -> None:
+        # グループを分けるか 1 グループに 2 要素を置くかは配線の自由度。
+        # 形ではなく「PreToolUse から呼ばれること」を仕様にする
+        settings = {
+            **GOOD,
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "matcher": "Bash",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": 'python3 "$HOME/.claude/hooks/tirith-check.py"',
+                            },
+                            {
+                                "type": "command",
+                                "command": 'python3 "$HOME/.claude/hooks/apm-install-guard.py"',
+                            },
+                        ],
+                    }
+                ]
+            },
+        }
         assert check_settings_invariants(settings) == []

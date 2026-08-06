@@ -203,6 +203,34 @@ repos:
         pass_filenames: false
         files: ^(home/\.claude/hooks/handoff-sentinel\.py|scripts/handoff-sentinel/.*)$
 
+      - id: apm-install-guard-ruff-check
+        name: apm-install-guard ruff check
+        language: system
+        entry: uv run --directory scripts/apm-install-guard ruff check --config pyproject.toml ../../home/.claude/hooks/apm-install-guard.py tests
+        pass_filenames: false
+        files: ^(home/\.claude/hooks/apm-install-guard\.py|scripts/apm-install-guard/.*)$
+
+      - id: apm-install-guard-ruff-format
+        name: apm-install-guard ruff format --check
+        language: system
+        entry: uv run --directory scripts/apm-install-guard ruff format --check --config pyproject.toml ../../home/.claude/hooks/apm-install-guard.py tests
+        pass_filenames: false
+        files: ^(home/\.claude/hooks/apm-install-guard\.py|scripts/apm-install-guard/.*)$
+
+      - id: apm-install-guard-mypy
+        name: apm-install-guard mypy
+        language: system
+        entry: uv run --directory scripts/apm-install-guard mypy --config-file pyproject.toml ../../home/.claude/hooks/apm-install-guard.py tests
+        pass_filenames: false
+        files: ^(home/\.claude/hooks/apm-install-guard\.py|scripts/apm-install-guard/.*)$
+
+      - id: apm-install-guard-pytest
+        name: apm-install-guard pytest
+        language: system
+        entry: uv run --directory scripts/apm-install-guard pytest -q
+        pass_filenames: false
+        files: ^(home/\.claude/hooks/apm-install-guard\.py|scripts/apm-install-guard/.*)$
+
       - id: gitleaks
         name: gitleaks (secret / user-path leak guard)
         language: system

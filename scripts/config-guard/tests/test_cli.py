@@ -11,6 +11,21 @@ from tests.conftest import init_repo, run_git, write_file
 GOOD_SETTINGS = {
     "permissions": {"allow": ["Bash(cat:*)"], "deny": ["NotebookRead"], "ask": []},
     "enabledPlugins": {"feature-dev@claude-plugins-official": True},
+    # 必須フックの配線。欠けていると他の検査の統合テストにも findings が混ざる
+    "hooks": {
+        "PreToolUse": [
+            {
+                "matcher": "Bash",
+                "hooks": [
+                    {"type": "command", "command": 'python3 "$HOME/.claude/hooks/tirith-check.py"'},
+                    {
+                        "type": "command",
+                        "command": 'python3 "$HOME/.claude/hooks/apm-install-guard.py"',
+                    },
+                ],
+            }
+        ]
+    },
 }
 
 GOOD_SKILL = """\
