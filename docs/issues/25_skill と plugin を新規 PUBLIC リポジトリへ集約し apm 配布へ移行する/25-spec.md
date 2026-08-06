@@ -172,6 +172,26 @@ deploy 先ディレクトリ名が末尾セグメントであることは、パ�
 一致させる規約が配布先でも保たれることを意味する。3 階層のパス (`skills/tooling/herdr`) でも
 規則は変わらない。
 
+### skills-dir plugin は一覧に出るが enabled にはならない
+
+Phase 3a の live smoke で観測した。apm が配置した 3 plugin は `claude plugin list --json` に
+`<name>@skills-dir` として現れるが、いずれも `enabled=False` である。marketplace 経由の
+`<name>@hidari-plugins` は `enabled=True` で、実際に動いているのはこちらである。
+
+`enabledPlugins` に `dev-workflow@skills-dir: true` を書いても `enabled=False` のままだった。
+`claude plugin details dev-workflow@skills-dir` は「not found」を返す。一方 `claude plugin init`
+のヘルプは「auto-loads next session as `<name>@skills-dir`」と書いており、skills-dir plugin は
+marketplace とは別系統で自動ロードされる設計に見える。
+
+root の `SKILL.md` が skill として読まれることは確認できている (セッション開始時の skill 一覧に
+3 パッケージが現れる)。確認できていないのは component 側で、`agents/` `commands/` 配下と
+`skills/<name>/` が `<plugin>:<component>` の修飾名で解決されるかどうかは、現在 marketplace 版が
+有効なため切り分けられない。
+
+これは Phase 4 の項目 18 (marketplace 宣言の削除) の前提を揺るがす。spec は当初「marketplace の
+宣言も settings.json の plugin エントリも不要になる」と書いたが、その根拠は「symlink 経由でも
+skills-dir plugin は検出される」という検出の実測であり、検出は有効化を意味しない。
+
 ### 変数の展開範囲はファイルの位置で変わる
 
 root の `SKILL.md` は plugin の component として数えられないため、扱いが分かれる。
@@ -564,12 +584,22 @@ plugin の配布経路の選択は不要になった (単一経路で成立す�
 
 ### Phase 4: 後始末
 
-17. Issue ドキュメントの記述を伏字化する
-18. `settings.json` から marketplace 宣言と `enabledPlugins` を削除する
-19. hook の `herdr-agent-state.sh` パスを `$HOME` 参照へ変える
-20. skip-worktree を解除し、live と committed を 1 本にする
-21. 現行 private plugin リポジトリをアーカイブする
-22. `install.sh` が張った `~/.claude/plugins/<plugin 名>` の symlink 3 本を撤去する。
+入口 gate として先に次を確かめる。marketplace を消すと plugin の component が失われる恐れがある
+(Phase 3a の live smoke で `<name>@skills-dir` が `enabled=False` だったため)。
+
+17. 隔離した設定ディレクトリで、apm が配置した skills-dir plugin の component
+    (`agents/` `commands/` `skills/<name>/`) が `<plugin>:<component>` の修飾名で解決されることを
+    確認する。現在は marketplace 版が有効なため切り分けられない。解決しないなら marketplace 経路を
+    残す判断へ切り替える
+
+その上で後始末する。
+
+18. Issue ドキュメントの記述を伏字化する
+19. `settings.json` から marketplace 宣言と `enabledPlugins` を削除する
+20. hook の `herdr-agent-state.sh` パスを `$HOME` 参照へ変える
+21. skip-worktree を解除し、live と committed を 1 本にする
+22. 現行 private plugin リポジトリをアーカイブする
+23. `install.sh` が張った `~/.claude/plugins/<plugin 名>` の symlink 3 本を撤去する。
     アーカイブしただけでは残り、参照先が消えれば dangling になる
 
 修飾名の一括更新は不要 (パッケージ名と `plugin.json` の `name` を一致させる限り現行の
@@ -644,7 +674,7 @@ bootstrap か CI に組み込む。
 | plugin の品質 | 公開に耐えないという判断が移行の動機の一部 | Phase 2 の入口 gate で基準を決める。公開は不可逆なので後追いできない |
 | 履歴に残る露出 | 現ツリーを直しても履歴の 77 件は残る | 主張を「新規露出を足さない」に限定する。履歴書き換えの是非は Issue #21 で扱う |
 | 複数 hook の合成規則 | 同一イベントの hook が deny と allow を同時に返したときどちらが勝つかは未文書化 | 新 hook が allow を出さない設計で回避する。実測でも `tirith` は `apm install` を無音 allow するため衝突しない |
-| marketplace と apm の二重ロード | 3 plugin が marketplace 経由と apm 経由で同時に載る期間ができる (marketplace の削除は Phase 4) | Phase 3a の live smoke で修飾名の解決を実測する。壊れていれば Phase 4 の項目 18 を 3a へ前倒す |
+| skills-dir plugin の有効化 | apm が配置した plugin は一覧に出るが `enabled=False` で、`enabledPlugins` に書いても変わらない。component が修飾名で解決されるかは marketplace 版が有効なため切り分けられていない | Phase 4 の入口 gate にする。marketplace を消す前に、隔離した設定ディレクトリで component の解決を確認する。解決しないなら marketplace 経路を残すか別の有効化手段を探す |
 | hook 登録を pin する検査の不在 | `settings.json` の hooks セクションを見る検査が 1 件も無く、既存の `tirith-check.py` ですら配線を外して全テストが緑になる | Phase 3a で config-guard に必須 hook の配線検査を足し、既存 hook も同時に pin する |
 
 ## 却下した案

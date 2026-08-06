@@ -82,10 +82,10 @@ plugin 認識が同時に成立する。marketplace の宣言も `settings.json`
 
 ### Phase 3a: 供給経路の切り替えとガード
 
-- [ ] `home/apm.yml` に自作 skill と plugin と `ax` を追加し lockfile を更新する
-- [ ] `home/.claude/skills/` を追跡停止する (`.gitignore` 追加と `git rm -r --cached` は同一コミット)
-- [ ] apm 生成物を source とする symlink を `APM_SYMLINK_PAIRS` へ分離する
-- [ ] `apm install` のガードを `bootstrap.sh` と `PreToolUse` hook の 2 層で実装する
+- [x] `home/apm.yml` に自作 skill と plugin と `ax` を追加し lockfile を更新する
+- [x] `home/.claude/skills/` を追跡停止する (`.gitignore` 追加と `git rm -r --cached` は同一コミット)
+- [x] apm 生成物を source とする symlink を `APM_SYMLINK_PAIRS` へ分離する
+- [x] `apm install` のガードを `bootstrap.sh` と `PreToolUse` hook の 2 層で実装する
 
 ### Phase 3b: 設定ディレクトリの外部化
 
@@ -95,6 +95,7 @@ plugin 認識が同時に成立する。marketplace の宣言も `settings.json`
 
 ### Phase 4: 後始末
 
+- [ ] skills-dir plugin の component が修飾名で解決されることを隔離環境で確認する (入口 gate)
 - [ ] Issue ドキュメントの記述を伏字化する
 - [ ] `settings.json` から marketplace 宣言と `enabledPlugins` を削除する
 - [ ] hook の `herdr-agent-state.sh` パスを `$HOME` 参照へ変える

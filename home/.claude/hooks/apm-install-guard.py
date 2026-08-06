@@ -11,7 +11,11 @@ apm install は deploy 先を rsync --delete 相当で書き換え、git tracked
 
 対象は cwd が属する git リポジトリ。apm install の破壊性はどのリポジトリでも同じなので特定の
 リポジトリに限定しない。git リポジトリの外では「git から戻す」前提そのものが無いので検査しない。
-緊急時は APM_INSTALL_GUARD_DISABLE=1 で無効化できる。
+
+緊急時は APM_INSTALL_GUARD_DISABLE=1 で無効化できるが、これはフックのプロセス環境を見る。
+フックは Claude Code が起動するため、Bash コマンドへ前置しても届かない (実測で確認)。
+settings.json の env に置くか Claude Code の起動環境に入れること。ターミナルから直接 apm を
+叩く場合はそもそもフックを通らない。
 
 deny のときだけ JSON を出し、それ以外は無出力の exit 0 とする。複数の PreToolUse フックが deny と
 allow を同時に返したときの合成規則は公式ドキュメントに記載が無いため (「All matching hooks run in
@@ -205,7 +209,8 @@ def main() -> None:
         f"{root} に未コミットの変更が {len(blockers)} 件あるため中止しました。\n"
         f"{listed}{more}\n"
         "コミットまたは stash してから再実行してください。"
-        "緊急時は APM_INSTALL_GUARD_DISABLE=1 で無効化できます。"
+        "無効化する場合は settings.json の env に APM_INSTALL_GUARD_DISABLE=1 を置きます "
+        "(コマンドへの前置ではフックのプロセスに届きません)。"
     )
 
 
