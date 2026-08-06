@@ -59,19 +59,119 @@ closed 配下の Issue 2 件はディレクトリ名自体に運用形態が現�
 
 ## 実測した事実
 
-apm 0.27.0 で確認した。隔離した HOME 配下で実行し、実環境は変更していない。
+apm 0.27.0 / Claude Code 2.1.223 で確認した。すべて使い捨てディレクトリと隔離した
+`CLAUDE_CONFIG_DIR` で実行し、前後で `~/.apm/apm.yml` のハッシュ一致と `git status` の空、
+および `~/.claude/settings.json` のハッシュ一致を確認している。
 
-### plugin は agents / commands / skills へ展開されるが、schemas は展開されない
+「0 件」を結論の根拠にした箇所には、正常なら非空になる対照を必ず並べてある。
 
-plugin 1 個を install した結果、`.claude/agents/` 2 件、`.claude/commands/` 4 件、
-`.claude/skills/` 3 件が配置された。一方 `schemas/` 4 件は `apm_modules/` の下にしか置かれず、
-`.claude/plugins/` は作られない。
+### apm と Claude Code は別々のファイルを見ている
 
-これは機能破壊になる。plugin の skill 本文が
-`~/.claude/plugins/<plugin>/schemas/<name>.schema.yml` という Claude Code ネイティブの plugin
-配置を名指ししているため (4 skill、計 7 箇所)、apm 配布に切り替えるとこのパスが存在しなくなる。
-「plugin は配置後に素の primitive になる」は agents / commands / skills に限った話で、
-共有アセットには成り立たない。
+判定は排他的な分岐ではなく、独立に評価される加算ルールである。
+
+| 見る主体 | 判定に使うもの | 判定が真のときの効果 |
+|---|---|---|
+| apm | root に `SKILL.md` があるか | root 全体を verbatim コピー |
+| apm | root に `.claude-plugin/` ディレクトリがあるか (中のファイル名は不問) | `agents/` `commands/` `skills/` をフラット分解 |
+| Claude Code | `.claude-plugin/plugin.json` というファイル名そのもの | `<name>@skills-dir` plugin として読み込む |
+
+両方を置くと両方が発火する。実プラグイン (現行 3 plugin のうち 1 つ) での追試では、
+root に `SKILL.md` を 1 本足しただけで 17 ファイルすべてがバイト一致で運ばれ、失われた
+ファイルは 0 件だった。
+
+対照として、`.claude-plugin/` を持たないパッケージは `agents/` と `commands/` があっても
+フラット deploy が 0 件になる。エラーも警告も出ず黙って捨てられる。
+
+判定基準のずれは既に実害を出している。mizchi/skills の `justfile` は
+`.claude-plugin/manifest.json` を持つため apm は分解経路に乗せるが、Claude Code は
+`plugin.json` でなければ plugin と認識しないので、一度もロードされていない。
+
+### symlink 経由でも skills-dir plugin は検出される
+
+理想像 4 (dotfiles 内で実体化し `~/.claude/` へ symlink) の中核。3 点セットで確認した。
+
+| ケース | 結果 |
+|---|---|
+| `<config-dir>/skills` が実ディレクトリ (対照) | `probe-pkg@skills-dir` を検出 |
+| `<config-dir>/skills` が symlink (本命) | `probe-pkg@skills-dir` を検出 |
+| symlink かつ `.claude-plugin/` を削除 (変異注入) | 検出 0 件 |
+
+変異注入で確かに検出されなくなるので、この確認は生きた pin である。
+
+`installPath` は symlink 側のパスを保持し、リンク先へは解決されない。したがって
+リポジトリの実体パスがモデルへ渡る経路には現れない。
+
+### 変数の展開範囲はファイルの位置で変わる
+
+root の `SKILL.md` は plugin の component として数えられないため、扱いが分かれる。
+
+| 位置 | `${CLAUDE_SKILL_DIR}` | `${CLAUDE_PLUGIN_ROOT}` |
+|---|---|---|
+| root の `SKILL.md` | 展開される | literal のまま (エラーにならず静かに壊れる) |
+| `skills/` `agents/` `commands/` hooks | 展開される | 展開される |
+
+これが schema 参照問題の答えになる。agent と command は skill ディレクトリの外に置かれるため
+相対参照ができず、そこが schema 置き場の再設計を必要にしていた。component 側では
+`${CLAUDE_PLUGIN_ROOT}` が展開されるので、verbatim コピーされた `schemas/` の実体に届く。
+
+### plugin id と名前空間は plugin.json の name が決める
+
+ディレクトリ名は使われない (`installPath` だけがディレクトリを指す)。component は
+`<plugin名>:<component名>` で名前空間化され、素の名前では解決できない。
+
+apm は `apm.yml` のパッケージ名でディレクトリを作るため、パッケージ名と `plugin.json` の
+`name` を一致させる規約が要る。ずれると呼び出し名が想定と変わる。
+
+一致させる限り、現行の修飾名 (`dev-workflow:git-branch-switcher` 等) はそのまま生き残る。
+
+### plugin.json の宣言フィールドと禁止形
+
+宣言フィールドは配列で、`claude plugin validate --strict` が canonical な検証手段になる。
+CI と pre-commit のゲートに使えるため、フィールド名の一覧を本書に再掲しない。
+
+運用上の確定事項は 2 つ。
+
+- `"skills": ["./"]` は禁止。apm を無限再帰させ `File name too long` で install が落ちる。
+  `claude plugin init` の既定形がこれなので、生成後に必ず直す
+- `"skills": ["./skills"]` はフラット側の skill 重複だけを消し、Claude Code 側のロードは維持する。
+  `agents` / `commands` に同じ中間解は存在せず、空配列で消すと Claude Code 側の component まで
+  無効化される
+
+したがって「フラット汚染ゼロかつ全 component 生存」は現行の組み合わせでは達成できない。
+
+### apm install は tracked file を黙って破壊する
+
+`--force` なしでも git tracked かつ手書きのファイルを上書きし、パッケージに含まれない
+ファイルを削除する。ログには `(files unchanged)` と表示される。deploy 先は verbatim コピー
+ではなく `rsync --delete` 相当のミラーである。
+
+### settings.json の書き換えは設定ディレクトリごとに初回 1 回だけ
+
+`claude plugin list --json` のような読み取り専用に見えるコマンドで
+`skipAutoPermissionPrompt` が削除される。同時に置いた未知キーは保持されるので、スキーマの
+掃除ではなく特定キー狙いの migration である。
+
+発火条件と抑止可能性を切り分けた。
+
+| 条件 | settings.json |
+|---|---|
+| 素の呼び出し (baseline) | 書き換えられる |
+| `--settings <file>` | 書き換えられる |
+| `--setting-sources project,local` (user を読まない) | 書き換えられる |
+| `--bare` (hooks / plugin sync を切る最小モード) | 書き換えられる |
+| `chmod 444` | 書き換えられる |
+| `--version` のみ | 変化なし |
+| 同じ設定ディレクトリでの 2 回目以降 | 変化なし |
+| 消えたキーを戻してからの再実行 | 変化なし (キーは残る) |
+
+`--setting-sources` で読み込み対象から外しても書き換わることから、書き戻しは設定の読み込み
+経路ではなく独立した migration 処理として走っている。状態は `<config-dir>/.claude.json` の
+`migrationVersion` に記録される。
+
+`chmod 444` が効かないのは、一時ファイルを書いて rename する置換方式のため。必要なのは
+ディレクトリの書き込み権限だけで、ファイルの権限は迂回される。同じ理由で symlink は
+リンク先へ解決されてから置換されるため、symlink 自体は壊れない (実測で inode の変化と
+symlink の生存を確認)。
 
 ### `-g` は cwd の manifest を読まない
 
@@ -104,51 +204,64 @@ plugin 1 個を install した結果、`.claude/agents/` 2 件、`.claude/comman
 先が HOME 外へ出る) が重なると、実環境では起きない失敗が再現する。隔離環境で実環境の再現を
 主張するには、環境変数だけでなくパスの相対関係まで写す必要がある。
 
-### marketplace の source は絶対 URL で保存される
+### git source の生成物に個人情報は入らない
 
-`apm marketplace list` の表示はチルダだが、`~/.apm/marketplaces.json` には `file:///` の絶対
-URL で保存される。ローカルユーザー名が入らないのは「コミットされるファイル」に限った話で、
+git source で取得した生成物 62 ファイルに `/Users` は 0 件、gitleaks は 0 leaks だった。
+対照として local source (`file:///` 経由) では `/Users` が 25 件と 31 件、gitleaks は 35 leaks
+検出される。
+
+なお `apm marketplace list` の表示はチルダだが、`~/.apm/marketplaces.json` には `file:///` の
+絶対 URL で保存される。ローカルユーザー名が入らないのは「コミットされるファイル」に限った話で、
 追跡外の設定には入る。
 
 ## 設計
 
-### 方針: 現行機構を維持する
+### 方針: 単一経路にする
 
-動作実績のある project scope 機構をそのまま使う。
+パッケージの root に `SKILL.md` と `.claude-plugin/plugin.json` の両方を置く。これで apm の
+verbatim コピーと Claude Code の plugin 認識が同時に成立し、skill と plugin を 1 つの宣言系統で
+配れる。
 
-```
-bootstrap.sh    ( cd "$DOTFILES_DIR/home" && apm install --frozen )
-                → home/.claude/skills/ へ配置
-                → 既存の symlink 2 本が ~/.claude/skills と追加の設定ディレクトリへ供給
-```
-
-`-g` へ乗り換えない理由は前節のとおりで、コミットした manifest と lockfile が読まれなくなる。
+配布は動作実績のある project scope 機構 (`cd home && apm install --frozen` + committed lockfile
++ symlink) を維持する。`-g` へ乗り換えない理由は前節のとおりで、コミットした manifest と
+lockfile が読まれなくなる。
 
 `home/.claude/skills/` は削除せず、`.gitignore` への追加と `git rm -r --cached` で追跡だけを
 止める。実体は apm が配置し、symlink の供給網は現状のまま生きる。
 
-### リポジトリ構成
+marketplace の宣言も `settings.json` の plugin エントリも不要になる。
+
+### パッケージの形
+
+新リポジトリに置く 1 パッケージの構成を示す。この形が本設計の中核であり、
+`claude plugin validate --strict` で機械検証できる。
 
 ```
-agentic-coding-tools (PUBLIC, 新規)
-├── README.md                        skill 一覧と install 例 (frontmatter から生成)
-├── .claude-plugin/marketplace.json  plugins/ のためだけに必要
-├── skills/
-│   ├── meta/session-handoff/
-│   ├── tooling/herdr/
-│   ├── tooling/markdown-to-pdf/
-│   ├── tooling/chrome-devtools-debugger/
-│   └── devops/windows-vm-verification/
-└── plugins/
-    ├── dev-workflow/
-    ├── security-blue-red-team/
-    └── web-monkey-qa/
-
-dotfiles (PUBLIC, 継続)
-├── home/apm.yml       他者由来 + 自作の skill を宣言 (既存ファイルの書き換え)
-├── home/apm.lock.yaml pin を更新
-└── home/.claude/skills/  追跡停止。実体は apm が配置
+<package>/
+├── SKILL.md                     apm に verbatim 経路を選ばせ、同時に入口 skill になる
+├── .claude-plugin/plugin.json   Claude Code に plugin と認識させる。name はパッケージ名と一致必須
+├── skills/<name>/               plugin component
+├── agents/<name>.md             plugin component
+├── commands/<name>.md           plugin component
+└── schemas/ · README.md         verbatim コピーに便乗して運ばれる。component ではない
 ```
+
+deploy 先の `~/.claude/skills/<dir>/` には `.apm/` を除く全ファイルがバイト一致で複製される。
+`.git/` や `node_modules/` も運ばれるため、配りたくないものを root に置いてはならない。
+
+### フラット重複を受け入れる
+
+`.claude-plugin/` があると apm は agent と command をフラットにも展開するため、
+`~/.claude/agents/` と `~/.claude/commands/` に重複が生じる。前節のとおりこれは消せない
+(消すと Claude Code 側の component まで無効化される)。
+
+したがって重複を受け入れ、`agents` と `commands` の symlink を新設する。
+`plugin.json` には `"skills": ["./skills"]` だけを書き、`agents` と `commands` は宣言しない。
+
+### リポジトリの役割分担
+
+`agentic-coding-tools` (PUBLIC, 新規) が自作 skill 5 個と plugin 3 個を持ち、dotfiles は
+`home/apm.yml` と `home/apm.lock.yaml` の宣言 2 ファイルだけを追跡する。
 
 境界は「マシンに固有か、エージェントの振る舞いか」。`hooks/` と `statusline-command.sh` は
 Claude Code の設定でありエージェント資産ではないため dotfiles に残す。
@@ -156,31 +269,9 @@ Claude Code の設定でありエージェント資産ではないため dotfile
 新規リポジトリにするのは、現行 private リポジトリを公開に切り替えると private 前提の履歴も
 すべて公開されるため。新規なら公開して問題ない状態だけを最初のコミットにできる。
 
-### plugin の配布経路
-
-schemas が展開されない問題があるため、2 案のいずれかを選ぶ。実装前に決める。
-
-- 案 A: plugin だけは新 PUBLIC リポジトリを marketplace として Claude Code に登録し、
-  `claude plugin install` 経路を維持する。schema 参照は現状のまま動く。ただし
-  `settings.json` に marketplace の宣言が残る (絶対パスではなく GitHub source になるので
-  秘匿情報は入らない)
-- 案 B: skill 本文の schema 参照をレイアウト非依存に書き換え (skill 同梱の相対参照へ寄せる)、
-  plugin も apm で配る
-
-案 A のほうが変更が小さく、機能破壊のリスクがない。案 B は配布経路が 1 本化するが、
-4 skill 7 箇所の書き換えと、書き換え後に実際に schema を読めることの確認が要る。
-
-### namespace の消失
-
-apm が展開すると `dev-workflow:git-branch-switcher` のような plugin 修飾名は消え、
-素の `git-branch-switcher` になる。以下が修飾名を名指ししているため、案 B を採る場合は
-一括更新が要る。
-
-- global CLAUDE.md の作業プロトコル (MUST)
-- project CLAUDE.md
-- skill 間の相互参照 (pre-merge-quality-gate から e2e-scenario-impact-check 等)
-
-案 A ならこの問題は起きない。
+hook と MCP サーバ定義も skills-dir plugin から配布できることを確認しているが、hook は任意
+コマンドを実行するため、「ユーザースコープには公開可能な情報しか入り得ない」という不変条件は
+hook のコマンド文字列にも及ぶ。
 
 ### アカウント運用の外部化
 
@@ -195,6 +286,22 @@ ${HOME}/.config/dotfiles/claude-config-dirs
   なので変更しない
 - 増えたら行を足すだけで、リポジトリ側の変更は要らない
 
+### apm install のガードを機構にする
+
+`apm install` は tracked file を黙って破壊するため、実行前にリポジトリが clean であることを
+確認する。目的は破壊の防止ではなく復旧可能性の確保である。ツリーが clean なら apm が何を
+壊しても git から戻せるが、汚れていれば未コミットの作業が復旧不能に消える。この整理から、
+検査範囲は deploy 先ではなくリポジトリ全体になる。
+
+手順書に書くのではなく 2 層の機構にする。
+
+- `bootstrap.sh` の `install_apm_skills()` に、`apm install --frozen` の手前でガードを置く。
+  既存の `DRY_RUN` パターンに合わせる。自動実行経路をこれで塞ぐ
+- `PreToolUse` hook で、Bash コマンド文字列が `apm install` に一致したときにツリーの汚れを
+  見てブロックする。手打ちおよびエージェント経由の実行はこちらで塞ぐ
+
+あわせて、`apm.yml` への追加と `git rm` を同一コミットにすることを必須とする。
+
 ### 秘匿性の主張の範囲
 
 達成できるのは「現ツリーに新規露出を足さない」ことまでである。git 履歴には 77 件が残り続け、
@@ -205,52 +312,70 @@ Issue #21 自身が「履歴を書き換えれば消える前提を置くな」�
 書いた瞬間、それ自体が名前をツリーへ戻す。検査は名前 literal を含まない形にする
 (追跡外の `claude-config-dirs` から pattern を読む pre-commit 検査、または汎用形 + allowlist)。
 
+### skip-worktree の廃止
+
+marketplace の絶対パスと plugin エントリが `settings.json` から消えるため、skip-worktree の
+理由はなくなる。
+
+残るのは新規マシンの初回起動で `skipAutoPermissionPrompt` が 1 回だけ消える事象だが、これは
+skip-worktree を外せば可視な git 差分になり、`git checkout` で戻せば定着する (実測済み)。
+この書き換えを不可視にしていたのは skip-worktree そのものだったため、廃止の障害にはならない。
+
+留保として、`migrationVersion` が存在する以上、将来のバージョンが別の migration を走らせる
+余地は残る。
+
 ## 移行手順
 
 ### Phase 1: 前提の確定
 
-1. plugin の配布経路を案 A / 案 B から選ぶ
-2. 外部由来 skill 1 個の上流を特定する
-3. 新リポジトリの形 (marketplace.json と skills/ の同居) で GitHub 経由の取得が成ることを確認する
+1. 外部由来 skill 1 個の上流を特定する
+2. 新リポジトリの形 (パッケージ root に `SKILL.md` と `.claude-plugin/plugin.json` が同居する形)
+   で GitHub 経由の取得が成ることを確認する
 
 カテゴリー階層自体の検証は不要 (現行 lockfile に動作実績がある)。
+plugin の配布経路の選択は不要になった (単一経路で成立するため)。
 
 ### Phase 2: 新規リポジトリの構築
 
 入口 gate として先に次を行う。公開は不可逆で、repo 削除ではクローンやキャッシュを巻き戻せない。
 
-4. plugin の公開基準を決める。基準を満たさないものは初回コミットに含めない
-5. 初回コミット前の露出監査を行う (`gitleaks dir` 走査、私物パスと実プロジェクト名の scrub、
-   plugin.json の author に個人情報が入っていないかの確認)
-6. 新リポジトリ自身の検出網 (pre-commit + gitleaks) を整備する
+3. plugin の公開基準を決める。基準を満たさないものは初回コミットに含めない
+4. 初回コミット前の露出監査を行う (`gitleaks dir` 走査、私物パスと実プロジェクト名の scrub、
+   `plugin.json` の author に個人情報が入っていないかの確認)
+5. 新リポジトリ自身の検出網 (pre-commit + gitleaks + `claude plugin validate --strict`) を整備する
 
 その上で構築する。
 
-7. `agentic-coding-tools` を PUBLIC で作成する
-8. 自作 skill 5 個を移設する (dotfiles からは削除しない。Phase 3 まで並行稼働)
-9. plugin 3 個を移設する
-10. README 自動生成と CI 検査を入れる
+6. `agentic-coding-tools` を PUBLIC で作成する
+7. 自作 skill 5 個を移設する (dotfiles からは削除しない。Phase 3 まで並行稼働)
+8. plugin 3 個を移設し、各パッケージの root に `SKILL.md` を足す。`plugin.json` の `name` を
+   apm のパッケージ名と一致させ、`"skills": ["./skills"]` に直す
+9. README 自動生成と CI 検査を入れる
 
 ### Phase 3: dotfiles 側の切り替え
 
 このフェーズは分割しない。skill の供給が途切れる窓を作らないため、追跡停止と設定ファイル駆動の
 導入を同一フェーズで行う。
 
-11. `home/apm.yml` に自作 skill 5 個を追加し、lockfile を更新する
+10. `apm install` のガードを 2 層で実装する (`bootstrap.sh` と `PreToolUse` hook)
+11. `home/apm.yml` に自作 skill 5 個と plugin 3 個を追加し、lockfile を更新する
 12. 追加の設定ディレクトリ一覧の読み込みを `bootstrap.sh` と `home/.zshrc` へ入れる
-13. stale symlink の撤去を `bootstrap.sh` に実装する (配列から消したペアの残骸は現状消えない)
-14. `home/.claude/skills/` を `.gitignore` へ追加し `git rm -r --cached` する
-15. テストをパラメータ化し、任意のディレクトリ名で動くことを検証する形にする
+13. `agents` と `commands` の symlink 4 本を `bootstrap.sh` の対応表へ追加する
+14. stale symlink の撤去を `bootstrap.sh` に実装する (配列から消したペアの残骸は現状消えない)
+15. `home/.claude/skills/` を `.gitignore` へ追加し `git rm -r --cached` する。
+    この 2 つは同一コミットにする
+16. テストをパラメータ化し、任意のディレクトリ名で動くことを検証する形にする
 
 ### Phase 4: 後始末
 
-16. Issue ドキュメントの記述を伏字化する
-17. 案 A なら `settings.json` の marketplace を GitHub source へ差し替え、案 B なら削除する
-18. `enabledPlugins` を経路に合わせて整理する
+17. Issue ドキュメントの記述を伏字化する
+18. `settings.json` から marketplace 宣言と `enabledPlugins` を削除する
 19. hook の `herdr-agent-state.sh` パスを `$HOME` 参照へ変える
 20. skip-worktree を解除し、live と committed を 1 本にする
-21. 案 B を選んだ場合、修飾名の参照を一括更新する
-22. 現行 private plugin リポジトリをアーカイブする
+21. 現行 private plugin リポジトリをアーカイブする
+
+修飾名の一括更新は不要 (パッケージ名と `plugin.json` の `name` を一致させる限り現行の
+修飾名が維持されるため)。
 
 ## テスト戦略
 
@@ -268,6 +393,15 @@ Issue #21 自身が「履歴を書き換えれば消える前提を置くな」�
 フォールバック」は、壊しても既定値が偶然一致して緑のままになりやすいので、フォールバック先を
 別の名前へ変えて赤くなることを見る。
 
+### apm install ガードのテスト
+
+ガードは検査機構なので、変異は 3 種いる。1 種だけで完了としない。
+
+- 検査対象を壊す (ツリーを汚した状態でガードが止めること)
+- 検査機構そのものを壊す (ガードの判定行を消して素通りすること)
+- 検査機構の取り付けを外す (`install_apm_skills()` からの呼び出し、および `PreToolUse` の
+  登録を外して素通りすること)
+
 ### 移行経路のテスト
 
 新規 clone からの live smoke だけでは不十分である。一番壊れやすいのは移行前の状態が残った実機で、
@@ -279,8 +413,13 @@ Issue #21 自身が「履歴を書き換えれば消える前提を置くな」�
 ### 機能のテスト
 
 live smoke の合格条件を「skill が配置される」ではなく「代表 skill が実際に機能する」まで
-引き上げる。特に案 B を選ぶ場合、schema を読む skill が schema を見つけられることを確認する。
-配置の有無しか見ないテストでは schema 参照切れを検出できない。
+引き上げる。
+
+`claude plugin details` の Component inventory に Commands 行は存在せず、`commands/` 配下は
+Skills 行に畳み込まれて報告される。件数レポートだけで結論すると誤判定するため、ロードの確認は
+`--debug` の出力かスラッシュコマンドの解決で行う。
+
+`plugin.json` の妥当性は `claude plugin validate --strict` を CI ゲートにする。
 
 ### 露出の回帰検査
 
@@ -298,14 +437,34 @@ bootstrap か CI に組み込む。
 
 | 項目 | 内容 | 対処 |
 |---|---|---|
-| plugin の配布経路 | 案 A / 案 B の選択が未確定 | Phase 1 で決める。案 A が変更小 |
 | 外部由来 skill の上流 | 出所が未特定 | Phase 1 で特定。不明なら依存宣言から外し手動管理を継続 |
-| 新リポジトリ形での GitHub 取得 | marketplace.json と skills/ の同居はローカルで確認済み、リモートは未確認 | Phase 1 step 3 で検証 |
+| 新リポジトリ形での GitHub 取得 | パッケージ形はローカルで確認済み、リモートは未確認 | Phase 1 step 2 で検証 |
+| `model` キー削除の経路 | 組織既定モデル適用時の分岐は再現できていない | 現在の `settings.json` に `model` キーが無いため削除対象が存在しない。再導入する場合のみ再検証 |
+| 将来の migration | `migrationVersion` がある以上、別の migration が走る余地がある | 新規マシン初回の差分を手順書に明記し、想定外の差分が出たら都度確認する |
 | `--dry-run` の副作用 | `~/.apm/apm.yml` を実際に作る経路がある | dry-run の結果を無害と仮定しない。実行後に差分を確認する |
 | plugin の品質 | 公開に耐えないという判断が移行の動機の一部 | Phase 2 の入口 gate で基準を決める。公開は不可逆なので後追いできない |
 | 履歴に残る露出 | 現ツリーを直しても履歴の 77 件は残る | 主張を「新規露出を足さない」に限定する。履歴書き換えの是非は Issue #21 で扱う |
 
 ## 却下した案
+
+### plugin だけ marketplace 経路を維持する (旧案 A)
+
+`settings.json` に GitHub source の marketplace 宣言が残る。単一経路で schema 参照が解決する
+ことが分かったため不要になった。加えてこの案では skip-worktree を廃止できない
+(config-guard が適用後も 2 件検出する)。
+
+### skill 本文の schema 参照を書き換えて配布経路を 1 本化する (旧案 B)
+
+component 側で `${CLAUDE_PLUGIN_ROOT}` が展開されるため、書き換えずに解決する。
+
+### schema の置き場を再設計する (旧案 C)
+
+同上。`schemas/` は verbatim コピーで運ばれ、component から届く。複製も発生しない。
+
+### `--settings` フラグまたは生成物方式で settings.json の書き換えを止める
+
+`--settings` / `--setting-sources` / `--bare` / `chmod 444` のいずれでも書き換えは止まらない。
+かつ書き換えは初回 1 回だけで可視な差分として戻せるため、対策自体が不要になった。
 
 ### `apm install -g` への乗り換え
 
@@ -323,8 +482,8 @@ clone 1 回で完結し移行も最小だが、マシン設定とエージェン
 
 ### plugin を解体してすべて skill 化する
 
-単位が 1 つになり使い分けの迷いは消えるが、agent と command を失う。apm が配布時に展開する
-ことが実測で分かったため、オーサリング側で解体する理由がない。
+単位が 1 つになり使い分けの迷いは消えるが、agent と command を失う。単一経路で両方を配れる
+ため、オーサリング側で解体する理由がない。
 
 ### 他者由来の skill も新リポジトリへ移す
 

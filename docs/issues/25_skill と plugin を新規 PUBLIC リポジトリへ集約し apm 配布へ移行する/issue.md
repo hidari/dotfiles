@@ -49,6 +49,11 @@ Issue #21 の露出一覧はこの分類を持っていない。
 (`cd home && apm install --frozen` + committed lockfile + symlink) を維持し、
 `home/.claude/skills/` は削除ではなく追跡停止に留める。
 
+skill と plugin は別経路にしない。パッケージの root に `SKILL.md` と
+`.claude-plugin/plugin.json` の両方を置くことで、apm の verbatim コピーと Claude Code の
+plugin 認識が同時に成立する。marketplace の宣言も `settings.json` の plugin エントリも
+不要になる。
+
 新規リポジトリにするのは、現行 private リポジトリを公開に切り替えると private 前提の履歴も
 すべて公開されるため。新規なら公開して問題ない状態だけを最初のコミットにできる。
 
@@ -61,7 +66,6 @@ Issue #21 の露出一覧はこの分類を持っていない。
 
 ### Phase 1: 前提の確定
 
-- [ ] plugin の配布経路を決める (marketplace 経由を維持するか、schema 参照を書き換えて apm 化するか)
 - [ ] 外部由来 skill 1 個の上流を特定する
 - [ ] 新リポジトリの形で GitHub 経由の取得が成ることを確認する
 
@@ -69,22 +73,26 @@ Issue #21 の露出一覧はこの分類を持っていない。
 
 - [ ] plugin の公開基準を決める (公開は不可逆なので構築前に行う)
 - [ ] 初回コミット前の露出監査を行う
-- [ ] 新リポジトリの検出網 (pre-commit + gitleaks) を整備する
+- [ ] 新リポジトリの検出網 (pre-commit + gitleaks + `claude plugin validate --strict`) を整備する
 - [ ] `agentic-coding-tools` を PUBLIC で作成し、自作 skill 5 個と plugin 3 個を移設する
+- [ ] 各パッケージの root に `SKILL.md` を足し、`plugin.json` の `name` を apm のパッケージ名と
+      一致させ、`"skills": ["./skills"]` に直す
 - [ ] README を frontmatter から生成する仕組みと CI 検査を入れる
 
 ### Phase 3: dotfiles 側の切り替え
 
-- [ ] `home/apm.yml` に自作 skill を追加し lockfile を更新する
+- [ ] `apm install` のガードを `bootstrap.sh` と `PreToolUse` hook の 2 層で実装する
+- [ ] `home/apm.yml` に自作 skill と plugin を追加し lockfile を更新する
 - [ ] 設定ディレクトリ一覧の読み込みを `bootstrap.sh` と `home/.zshrc` へ入れる
+- [ ] `agents` と `commands` の symlink 4 本を `bootstrap.sh` の対応表へ追加する
 - [ ] stale symlink の撤去を `bootstrap.sh` に実装する
-- [ ] `home/.claude/skills/` を追跡停止する
+- [ ] `home/.claude/skills/` を追跡停止する (`.gitignore` 追加と `git rm -r --cached` は同一コミット)
 - [ ] テストをパラメータ化し、任意の名前で動くことを検証する形にする
 
 ### Phase 4: 後始末
 
 - [ ] Issue ドキュメントの記述を伏字化する
-- [ ] `settings.json` の marketplace と `enabledPlugins` を経路に合わせて整理する
+- [ ] `settings.json` から marketplace 宣言と `enabledPlugins` を削除する
 - [ ] hook の `herdr-agent-state.sh` パスを `$HOME` 参照へ変える
 - [ ] skip-worktree を解除する
 - [ ] 現行 private plugin リポジトリをアーカイブする
