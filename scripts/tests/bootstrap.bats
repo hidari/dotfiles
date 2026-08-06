@@ -344,6 +344,162 @@ STUB
     assert_contains "$(sed -n '2p' "$rec")" "--frozen"
 }
 
+# -----------------------------------------------------------------------------
+# apm_install_blockers tests (apm install を阻む未コミット変更の列挙)
+# -----------------------------------------------------------------------------
+
+# コミットを 1 つ持つテスト用リポジトリを作る。
+# setup_test_repo はコミットを作らないが、status --porcelain の比較には
+# 「追跡されている既存ファイル」が要るのでここで用意する。
+init_committed_repo() {
+    local repo="$1"
+    mkdir -p "$repo"
+    git -C "$repo" init -q
+    git -C "$repo" config user.email "test@example.com"
+    git -C "$repo" config user.name "test"
+    echo hello > "$repo/a.txt"
+    git -C "$repo" add a.txt
+    git -C "$repo" commit -qm init
+}
+
+@test "apm_install_blockers: a clean tree yields no blockers" {
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+
+    run apm_install_blockers "$repo"
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "apm_install_blockers: a modified tracked file is a blocker" {
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+    echo changed > "$repo/a.txt"
+
+    run apm_install_blockers "$repo"
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "a.txt"
+}
+
+@test "apm_install_blockers: an untracked file is a blocker" {
+    # untracked は git から戻せないので、apm が deploy 先で消したときに復旧できない
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+    echo new > "$repo/untracked.txt"
+
+    run apm_install_blockers "$repo"
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "untracked.txt"
+}
+
+@test "apm_install_blockers: the apm manifest and lockfile are allowed" {
+    # apm install の入出力なので、これらだけが変更されている状態は正常な中間状態。
+    # 例外が無いと pin 更新のたびにガードが自分の手順をブロックする
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+    mkdir -p "$repo/home"
+    echo "name: x" > "$repo/home/apm.yml"
+    echo "v: 1" > "$repo/home/apm.lock.yaml"
+    git -C "$repo" add home/apm.yml home/apm.lock.yaml
+    git -C "$repo" commit -qm manifest
+    echo "name: y" > "$repo/home/apm.yml"
+    echo "v: 2" > "$repo/home/apm.lock.yaml"
+
+    run apm_install_blockers "$repo"
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "apm_install_blockers: a path with spaces stays a single entry" {
+    # 空白で分割すると 1 件が 2 件に化け、落ちた分は「短い正常な結果」として返るので
+    # 出力を見ても気づけない。NUL 区切りで受けていることを件数で確かめる
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+    echo x > "$repo/has space.txt"
+
+    run apm_install_blockers "$repo"
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "has space.txt"
+    [ "$(printf '%s\n' "$output" | grep -c .)" -eq 1 ]
+}
+
+@test "apm_install_blockers: a non-ASCII path stays a single entry" {
+    # 日本語を含むパスも空白分割と同じ理由で分断されうる (git は既定でクォート表記にする)
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+    echo x > "$repo/日本語ファイル.txt"
+
+    run apm_install_blockers "$repo"
+
+    [ "$status" -eq 0 ]
+    [ "$(printf '%s\n' "$output" | grep -c .)" -eq 1 ]
+    refute_contains "$output" '\\'
+}
+
+@test "apm_install_blockers: a directory that is not a git repo yields no blockers" {
+    # git が無ければ「git から戻す」前提そのものが無いので、ガードの守備範囲外
+    local plain="$TEST_HOME/plain"
+    mkdir -p "$plain"
+
+    run apm_install_blockers "$plain"
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "install_apm_skills: refuses to run when the tree is dirty" {
+    DRY_RUN=false
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+    mkdir -p "$repo/home"
+    echo changed > "$repo/a.txt"
+
+    # apm が呼ばれたら痕跡を残す stub。ガードが効いていれば痕跡は残らない
+    local bin_dir="$TEST_HOME/fake-bin"
+    mkdir -p "$bin_dir"
+    cat > "$bin_dir/apm" <<'STUB'
+#!/bin/sh
+touch "$APM_STUB_REC"
+STUB
+    chmod +x "$bin_dir/apm"
+    export APM_STUB_REC="$TEST_HOME/apm-was-called"
+    DOTFILES_DIR="$repo"
+
+    PATH="$bin_dir:$PATH" run install_apm_skills
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "a.txt"
+    [ ! -e "$APM_STUB_REC" ]
+}
+
+@test "install_apm_skills: runs when the tree is clean" {
+    # 上の negative 対照。ガードが常に止めるだけの実装になっていないことを担保する
+    DRY_RUN=false
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+    mkdir -p "$repo/home"
+
+    local bin_dir="$TEST_HOME/fake-bin"
+    mkdir -p "$bin_dir"
+    cat > "$bin_dir/apm" <<'STUB'
+#!/bin/sh
+touch "$APM_STUB_REC"
+STUB
+    chmod +x "$bin_dir/apm"
+    export APM_STUB_REC="$TEST_HOME/apm-was-called"
+    DOTFILES_DIR="$repo"
+
+    PATH="$bin_dir:$PATH" run install_apm_skills
+
+    [ "$status" -eq 0 ]
+    [ -e "$APM_STUB_REC" ]
+}
+
 # =============================================================================
 # SYMLINK_PAIRS 整合性テスト
 # =============================================================================

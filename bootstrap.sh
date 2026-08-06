@@ -338,6 +338,31 @@ install_mise_tools() {
     mise install
 }
 
+# apm install を阻む未コミットの変更を列挙する（1 行 1 パス。無ければ何も出さない）。
+# apm install は deploy 先を rsync --delete 相当で書き換え、tracked file も黙って上書きし、
+# パッケージに含まれないファイルを削除する。しかもログには (files unchanged) と出るため
+# 差分に気づけない。ツリーが clean なら apm が何を壊しても git から戻せるので、目的は
+# 破壊の防止ではなく復旧可能性の確保になる。この整理から検査範囲は deploy 先ではなく
+# リポジトリ全体になる。
+# apm.yml と apm.lock.yaml は apm install の入出力であり、これらだけが変更された状態は
+# 正常な中間状態なので許可する。例外が無いと pin を更新するたびにガードが手順を止める。
+# git リポジトリでなければ「git から戻す」前提そのものが無いので検査しない。
+# パスは NUL 区切りで受け取る。空白や日本語を含むパスを空白分割すると分断され、落ちた分は
+# 「エラー」ではなく「短い正常な結果」として返るため出力を見ても気づけない。
+apm_install_blockers() {
+    local repo="$1"
+    local entry path
+
+    while IFS= read -r -d '' entry; do
+        # porcelain の各エントリは "XY <path>" 形式。先頭 3 文字が状態フィールド
+        path="${entry:3}"
+        case "${path##*/}" in
+            apm.yml|apm.lock.yaml) continue ;;
+        esac
+        printf '%s\n' "$path"
+    done < <(git -C "$repo" status --porcelain -z 2> /dev/null)
+}
+
 # apm.yml (home/) が宣言するスキルを apm.lock.yaml の pin 通りに実体化する（冪等）。
 # apm は cwd の apm.yml/apm.lock.yaml を基準に home/.claude/skills へ展開するため、必ず home/ で実行する。
 install_apm_skills() {
@@ -351,6 +376,19 @@ install_apm_skills() {
     if ! command -v apm &> /dev/null; then
         warn "apm not found; skipping apm-managed skill installation"
         return 0
+    fi
+
+    # 未コミットの変更がある状態で走らせると、apm の上書き・削除で復旧不能に失われる。
+    # 他の install_* と違い warn + return 0 にしないのは、skip すると skill の供給が
+    # 欠けたまま bootstrap が成功したように見えるため。
+    local blockers
+    blockers="$(apm_install_blockers "$DOTFILES_DIR")"
+    if [ -n "$blockers" ]; then
+        error "Uncommitted changes found; refusing to run apm install"
+        error "apm overwrites deploy targets and deletes files not in the package"
+        printf '%s\n' "$blockers" >&2
+        error "Commit or stash your work, then re-run bootstrap"
+        return 1
     fi
 
     # --frozen は lockfile 不在/不整合時に install を拒否し、pin されたスキルの再現性を担保する。
