@@ -71,8 +71,8 @@ plugin 認識が同時に成立する。marketplace の宣言も `settings.json`
 
 ### Phase 2: 新規リポジトリの構築
 
-- [ ] plugin の公開基準を決める (公開は不可逆なので構築前に行う)
-- [ ] 初回コミット前の露出監査を行う
+- [x] plugin の公開基準を決める (安全性の 2 点のみ。3 個とも公開対象)
+- [x] 初回コミット前の露出監査を行う (要対応は `plugin.json` の author のメールアドレスのみ)
 - [ ] 新リポジトリの検出網 (pre-commit + gitleaks + `claude plugin validate --strict`) を整備する
 - [ ] `agentic-coding-tools` を PUBLIC で作成し、自作 skill 5 個と plugin 3 個を移設する
 - [ ] 各パッケージの root に `SKILL.md` を足し、`plugin.json` の `name` を apm のパッケージ名と
