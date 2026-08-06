@@ -249,6 +249,14 @@ marketplace の宣言も `settings.json` の plugin エントリも不要にな�
 deploy 先の `~/.claude/skills/<dir>/` には `.apm/` を除く全ファイルがバイト一致で複製される。
 `.git/` や `node_modules/` も運ばれるため、配りたくないものを root に置いてはならない。
 
+命名の規約が 2 つある。どちらも破ると静かに壊れる。
+
+- パッケージ名 (apm がディレクトリ名に使う) と `plugin.json` の `name` を一致させる。
+  ずれると component の修飾名が想定と変わる
+- root の `SKILL.md` の name と、パッケージ内 `skills/<name>/` の name を重複させない。
+  衝突すると skills directory loader が既に surfacing 済みと判断して plugin 側の skill を
+  skip する
+
 ### フラット重複を受け入れる
 
 `.claude-plugin/` があると apm は agent と command をフラットにも展開するため、
