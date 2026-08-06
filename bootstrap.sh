@@ -39,15 +39,12 @@ SYMLINK_PAIRS=(
     "home/.claude/CLAUDE.md|.claude/CLAUDE.md"
     "home/.claude/.mcp.json|.claude/.mcp.json"
     "home/.claude/hooks|.claude/hooks"
-    "home/.claude/skills|.claude/skills"
     # 2 アカウント運用 (CLAUDE_CONFIG_DIR=~/.claude-hamiltonian) 側へ同じ実体を張る。
     # hooks / statusline-command.sh / .mcp.json は張らない。前 2 つは settings.json が
     # $HOME/.claude/ 配下を絶対パスで参照して symlink 経由で解決されるため、
     # .mcp.json は Claude Code が読まないため (どちらも 2 本目は死んだ symlink になる)。
     "home/.claude/settings.json|.claude-hamiltonian/settings.json"
     "home/.claude/CLAUDE.md|.claude-hamiltonian/CLAUDE.md"
-    "home/.claude/skills|.claude-hamiltonian/skills"
-    "home/.claude/skills/windows-vm-verification/winvm.py|.local/bin/winvm"
     "scripts/backup-tool/backup|.local/bin/backup"
     "scripts/util-tools/small-id-gen/small-id-gen.sh|.local/bin/small-id-gen"
 )
@@ -64,6 +61,22 @@ HOME_SYMLINK_PAIRS=(
     # 実体を個人側に置くのは意図的な非対称。中立な置き場へ移す余地はあるが、
     # 既存タスクの移行を bootstrap が担わないため今は採らない。
     ".claude/tasks|.claude-hamiltonian/tasks"
+)
+
+# apm が deploy した成果物を source とするシンボリックリンク定義（ソース|ターゲット）。
+# SYMLINK_PAIRS と分けているのは source の性質が違うため。あちらの source は git 管理下で
+# 必ず実在する（欠けていればバグ）が、こちらは apm install が配置するまで存在しない。
+# fresh clone や --dotfiles-only では実体が無いので、存在するときだけ張る。
+# skills/ は root に SKILL.md を持つパッケージの verbatim コピー、agents/ と commands/ は
+# .claude-plugin/ を持つパッケージのフラット分解で生まれる。
+APM_SYMLINK_PAIRS=(
+    "home/.claude/skills|.claude/skills"
+    "home/.claude/agents|.claude/agents"
+    "home/.claude/commands|.claude/commands"
+    "home/.claude/skills|.claude-hamiltonian/skills"
+    "home/.claude/agents|.claude-hamiltonian/agents"
+    "home/.claude/commands|.claude-hamiltonian/commands"
+    "home/.claude/skills/windows-vm-verification/winvm.py|.local/bin/winvm"
 )
 
 # =============================================================================
@@ -362,6 +375,24 @@ setup_home_symlinks() {
     done
 }
 
+# apm が deploy した成果物へのシンボリックリンクを作成する（冪等）。
+# source が無いときは張らずに警告する。create_symlink の ln -sf は source の存在を見ないため
+# リンク先の無い symlink を作れてしまい、参照した側が黙って失敗する。
+# setup_home_symlinks と違って source を作らないのは、実体を用意できるのが apm だけだから。
+# 空ディレクトリを先に作ると apm 未実行と実行済みが見分けられなくなる。
+setup_apm_symlinks() {
+    local pair source target
+    for pair in "${APM_SYMLINK_PAIRS[@]}"; do
+        source="$DOTFILES_DIR/${pair%%|*}"
+        target="$HOME/${pair##*|}"
+        if [ ! -e "$source" ]; then
+            warn "apm source not found; skipping symlink: $source"
+            continue
+        fi
+        create_symlink "$source" "$target"
+    done
+}
+
 setup_dotfiles() {
     log "Setting up dotfiles..."
 
@@ -619,12 +650,14 @@ main() {
 
     # mise の pin ツールと apm スキルを実体化する。
     # mise install は config.toml の symlink 後でなければならない（setup_dotfiles が張る）。
-    # apm は home/ の repo dir へ直接展開するため ~/.claude/skills の symlink 順序には非依存。
+    # setup_apm_symlinks は install_apm_skills の後でなければならない。source は apm が
+    # 配置する生成物で、先に張ろうとしても実体が無く全て skip されるため。
     # Claude plugin セットアップも settings.json symlink 後・claude 導入後に実行する
     # （先に実行すると claude が ~/.claude/settings.json を生成し setup_dotfiles の symlink と衝突するため）。
     if [ "$DOTFILES_ONLY" = false ]; then
         install_mise_tools
         install_apm_skills
+        setup_apm_symlinks
         setup_claude_plugins
         # LaunchAgent と pre-commit フックはツール/サービス系のため --dotfiles-only では導入しない
         setup_launch_agent

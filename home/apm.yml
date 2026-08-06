@@ -1,6 +1,6 @@
 name: dotfiles-skills
 version: 1.0.0
-description: dotfiles が apm 経由で配信する vendored skill 群 (install-at-bootstrap)
+description: dotfiles が apm 経由で配信する skill と plugin (install-at-bootstrap)
 author: Hidari
 targets:
 - claude
@@ -12,6 +12,15 @@ dependencies:
   - mizchi/skills/tooling/ast-grep-practice#d7999453cdb4e0e09df1c7f82fd23752539c546c
   - mizchi/skills/tooling/apm-usage#d7999453cdb4e0e09df1c7f82fd23752539c546c
   - mizchi/skills/tooling/justfile#d7999453cdb4e0e09df1c7f82fd23752539c546c
+  - yusukebe/ax/skills/ax#8abbca2fc400c2ff4866248ba1ec9309b948812f
+  - hidari/agentic-coding-tools/skills/devops/windows-vm-verification#78edcdac01c2a85ba957a55b5d446125ee3b643e
+  - hidari/agentic-coding-tools/skills/meta/session-handoff#78edcdac01c2a85ba957a55b5d446125ee3b643e
+  - hidari/agentic-coding-tools/skills/tooling/chrome-devtools-debugger#78edcdac01c2a85ba957a55b5d446125ee3b643e
+  - hidari/agentic-coding-tools/skills/tooling/herdr#78edcdac01c2a85ba957a55b5d446125ee3b643e
+  - hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf#78edcdac01c2a85ba957a55b5d446125ee3b643e
+  - hidari/agentic-coding-tools/plugins/dev-workflow#78edcdac01c2a85ba957a55b5d446125ee3b643e
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team#78edcdac01c2a85ba957a55b5d446125ee3b643e
+  - hidari/agentic-coding-tools/plugins/web-monkey-qa#78edcdac01c2a85ba957a55b5d446125ee3b643e
   mcp: []
 includes: auto
 scripts: {}

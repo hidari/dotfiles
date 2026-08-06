@@ -530,6 +530,129 @@ unmirrored_claude_targets() {
 }
 
 # =============================================================================
+# APM_SYMLINK_PAIRS / setup_apm_symlinks tests
+# =============================================================================
+#
+# SYMLINK_PAIRS とは source の性質が違うので独立に pin する。あちらの source は
+# git 管理下で必ず実在するが、こちらは apm install が配置するまで存在しない。
+# 配列を分けている理由は bootstrap.sh 側のコメントが持つ。
+
+@test "APM_SYMLINK_PAIRS: every source is an apm deploy path" {
+    load_pairs_array APM_SYMLINK_PAIRS
+    # 空配列 (slice 破綻) での vacuous pass を防ぐ negative guard
+    [ "${#APM_SYMLINK_PAIRS[@]}" -gt 0 ]
+
+    local pair source
+    for pair in "${APM_SYMLINK_PAIRS[@]}"; do
+        source="${pair%%|*}"
+        case "$source" in
+            home/.claude/skills|home/.claude/agents|home/.claude/commands|home/.claude/skills/*) ;;
+            *) echo "apm deploy パスではない source: $source" >&2; return 1 ;;
+        esac
+    done
+}
+
+@test "APM_SYMLINK_PAIRS: every source is gitignored" {
+    # tracked な source をこの配列へ置くと、SYMLINK_PAIRS の「source は checkout に必ず
+    # 実在する」不変条件の外で管理されることになり、どちらのテストにも捕まらなくなる。
+    # 逆に apm 生成物が ignore されていなければ deploy のたびに tree が汚れる。
+    load_pairs_array APM_SYMLINK_PAIRS
+    [ "${#APM_SYMLINK_PAIRS[@]}" -gt 0 ]
+
+    local pair source checked=0
+    for pair in "${APM_SYMLINK_PAIRS[@]}"; do
+        source="${pair%%|*}"
+        run git -C "$REPO_ROOT" check-ignore -q "$source"
+        [ "$status" -eq 0 ] || { echo "gitignore されていない source: $source" >&2; return 1; }
+        checked=$((checked + 1))
+    done
+    # 検査件数と対象件数の一致を確かめる (途中で数え漏らしていないこと)
+    [ "$checked" -eq "${#APM_SYMLINK_PAIRS[@]}" ]
+}
+
+@test "SYMLINK_PAIRS: no longer carries apm-generated sources" {
+    # 追跡停止で source が checkout に存在しなくなったため、SYMLINK_PAIRS に残すと
+    # 「all sources exist in repo」が fresh clone で構造的に赤くなる。
+    # 配列の取り違えを、症状 (CI の赤) ではなく原因の側で捕まえる。
+    load_pairs_array SYMLINK_PAIRS
+    [ "${#SYMLINK_PAIRS[@]}" -gt 0 ]
+
+    local pair source
+    for pair in "${SYMLINK_PAIRS[@]}"; do
+        source="${pair%%|*}"
+        case "$source" in
+            home/.claude/skills|home/.claude/skills/*|home/.claude/agents|home/.claude/commands)
+                echo "apm 生成物は APM_SYMLINK_PAIRS へ移すこと: $source" >&2; return 1 ;;
+        esac
+    done
+}
+
+@test "APM_SYMLINK_PAIRS: shared Claude config is mirrored to the second account" {
+    # apm 生成物も 2 アカウントで共有する。SYMLINK_PAIRS 側と同じ規約なので
+    # 判定関数を共有し、allowlist は持たない (全ての .claude/ target に mirror が要る)
+    load_pairs_array APM_SYMLINK_PAIRS
+    [ "${#APM_SYMLINK_PAIRS[@]}" -gt 0 ]
+
+    local actual
+    actual="$(unmirrored_claude_targets "${APM_SYMLINK_PAIRS[@]}")"
+    [ -z "$actual" ] || { echo "2 アカウント配線の drift 検出:"; echo "$actual"; false; }
+}
+
+@test "setup_apm_symlinks: skips pairs whose source does not exist" {
+    # apm 未実行や --dotfiles-only では source が無い。create_symlink の ln -sf は
+    # source の存在を見ないため、黙って壊れた symlink を張れてしまう
+    DOTFILES_DIR="$TEST_HOME/repo"
+    APM_SYMLINK_PAIRS=("home/.claude/agents|.claude/agents")
+
+    run setup_apm_symlinks
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "apm source not found"
+    [ ! -L "$TEST_HOME/.claude/agents" ]
+    [ ! -e "$TEST_HOME/.claude/agents" ]
+}
+
+@test "setup_apm_symlinks: links pairs whose source exists" {
+    DOTFILES_DIR="$TEST_HOME/repo"
+    APM_SYMLINK_PAIRS=("home/.claude/agents|.claude/agents")
+    mkdir -p "$DOTFILES_DIR/home/.claude/agents"
+
+    run setup_apm_symlinks
+
+    [ "$status" -eq 0 ]
+    [ -L "$TEST_HOME/.claude/agents" ]
+    [ "$(readlink "$TEST_HOME/.claude/agents")" = "$DOTFILES_DIR/home/.claude/agents" ]
+}
+
+@test "setup_apm_symlinks: stays idempotent on a second run" {
+    DOTFILES_DIR="$TEST_HOME/repo"
+    APM_SYMLINK_PAIRS=("home/.claude/agents|.claude/agents")
+    mkdir -p "$DOTFILES_DIR/home/.claude/agents"
+    setup_apm_symlinks
+
+    run setup_apm_symlinks
+
+    [ "$status" -eq 0 ]
+    [ -L "$TEST_HOME/.claude/agents" ]
+    [ "$(readlink "$TEST_HOME/.claude/agents")" = "$DOTFILES_DIR/home/.claude/agents" ]
+    # 入れ子 (.claude/agents/agents) が作られていないこと
+    [ ! -e "$TEST_HOME/.claude/agents/agents" ]
+}
+
+@test "setup_apm_symlinks: dry-run mode does not create anything" {
+    DOTFILES_DIR="$TEST_HOME/repo"
+    APM_SYMLINK_PAIRS=("home/.claude/agents|.claude/agents")
+    mkdir -p "$DOTFILES_DIR/home/.claude/agents"
+    DRY_RUN=true
+
+    run setup_apm_symlinks
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "[DRY-RUN] ln -sf"
+    [ ! -e "$TEST_HOME/.claude/agents" ]
+}
+
+# =============================================================================
 # HOME_SYMLINK_PAIRS / setup_home_symlinks tests
 # =============================================================================
 #
@@ -772,6 +895,29 @@ STUB
 
     [ "$status" -eq 0 ]
     assert_contains "$output" "[DRY-RUN] ln -sf $TEST_HOME/.claude/tasks $TEST_HOME/.claude-hamiltonian/tasks"
+}
+
+@test "main: dry-run wires the apm symlinks after the apm install step" {
+    # 配列と関数が揃っていてもフローから呼ばれなければ何も起きない。
+    # フィクスチャには apm 生成物が無いので skip の警告が出る。これが呼ばれた証拠になる
+    # (fresh clone で apm 未実行のときに実機で起きる状態そのもの)。
+    run bash "$BOOTSTRAP_SCRIPT" --dry-run
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "apm source not found"
+    # apm install の後に張ることを順序で pin する。先に張ると source が無く全て skip される
+    assert_contains_in_order "$output" "[DRY-RUN] apm install --frozen" "apm source not found"
+}
+
+@test "main: --dotfiles-only dry-run skips the apm symlinks" {
+    # apm 自体が走らない経路では symlink も張らない (dangling を作らないため)。
+    # 上のテストの negative 対照で、警告の有無が gate の位置を示す
+    run bash "$BOOTSTRAP_SCRIPT" --dry-run --dotfiles-only
+
+    [ "$status" -eq 0 ]
+    refute_contains "$output" "apm source not found"
+    # gate の positive 対照 (vacuous な全 skip でないことを担保)
+    assert_contains "$output" "[DRY-RUN] ln -sf"
 }
 
 @test "main: confirm prompt discloses the LaunchAgent before install" {
