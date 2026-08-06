@@ -66,8 +66,8 @@ plugin 認識が同時に成立する。marketplace の宣言も `settings.json`
 
 ### Phase 1: 前提の確定
 
-- [ ] 外部由来 skill 1 個の上流を特定する
-- [ ] 新リポジトリの形で GitHub 経由の取得が成ることを確認する
+- [x] 外部由来 skill 1 個の上流を特定する (`ax` → `yusukebe/ax` の `skills/ax`)
+- [x] 新リポジトリの形で GitHub 経由の取得が成ることを確認する
 
 ### Phase 2: 新規リポジトリの構築
 
