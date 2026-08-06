@@ -12,7 +12,7 @@ status: open
 skill と plugin の管理が 4 つの問題を抱えている。いずれも置き場と公開範囲に起因する。
 
 なお apm による skill 配布自体は既に稼働しており (`home/apm.yml` + `home/apm.lock.yaml` +
-`bootstrap.sh` の `install_apm_skills`)、本 Issue は新規導入ではなく既存運用の再設計である。
+`bootstrap.sh` の `install_apm_packages`)、本 Issue は新規導入ではなく既存運用の再設計である。
 
 ### 1. 置き場が分かれていて基準がない
 
