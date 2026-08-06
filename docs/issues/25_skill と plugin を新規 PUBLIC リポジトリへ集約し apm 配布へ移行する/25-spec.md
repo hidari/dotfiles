@@ -162,6 +162,28 @@ root の `SKILL.md` は plugin の component として数えられないため�
 相対参照ができず、そこが schema 置き場の再設計を必要にしていた。component 側では
 `${CLAUDE_PLUGIN_ROOT}` が展開されるので、verbatim コピーされた `schemas/` の実体に届く。
 
+`${CLAUDE_SKILL_DIR}` の置換は対照付きで実測した。存在しない変数を同じ SKILL.md に並べると、
+前者だけが skill ディレクトリの絶対パスへ置換され、後者は literal のまま残る。置換はモデルが
+読む前に行われるため、シェルコマンドの中に書いても壊れない。
+
+### 決め打ちのインストールパスは開発機の symlink にだけ当たっていた
+
+変数が展開されることと、実ファイルがその変数を使っていることは別である。移設前の 3 plugin は
+schema とテンプレートを `~/.claude/plugins/<plugin 名>/...` の絶対パスで名指ししていた (17 箇所)。
+
+このパスが解決していたのは、private リポジトリの `install.sh` が `~/.claude/plugins/<plugin 名>`
+から `plugins/<plugin 名>` への symlink を張っていたため。install.sh 自身がこれを「絶対パス参照を
+解決するための contract」と書いている。つまり事故ではなく設計だったが、この contract は
+install.sh を持つ private リポジトリにしか無く、配布物には付いてこない。
+
+Claude Code が plugin 本体を読むのは marketplace の cache
+(`~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`) であり、apm の deploy 先は
+`<project>/.claude/skills/<name>/` なので、配布先ではどちらの経路でも解決しない。
+
+再発は `scripts/check-package-shape.py` の検査で防ぐ。パッケージ名を伴う自己参照だけを違反とし、
+ユーザー環境そのものへの参照 (`~/.claude/CLAUDE.md` や skill 一覧の走査) は素通しする。この
+区別が要るのは、後者が `retrospective-codify` の正当な仕事だからである。
+
 ### plugin id と名前空間は plugin.json の name が決める
 
 ディレクトリ名は使われない (`installPath` だけがディレクトリを指す)。component は
@@ -445,17 +467,20 @@ plugin の配布経路の選択は不要になった (単一経路で成立す�
    2 点。3 plugin とも満たすため全数が公開対象
 4. 初回コミット前の露出監査を行う (完了)。`plugins/` 配下は私物パス 0 件・実プロジェクト名 0 件・
    private リポジトリ名 0 件。要対応は `plugin.json` の author のメールアドレスのみ
-5. 新リポジトリ自身の検出網 (pre-commit + gitleaks + `claude plugin validate --strict`) を整備する。
-   gitleaks には dotfiles と同じ `macos-user-path` ルールを持たせる (既定ルールだけでは検査されない)
+5. 新リポジトリ自身の検出網 (pre-commit + gitleaks + `claude plugin validate --strict`) を整備する
+   (完了)。gitleaks には dotfiles と同じ `macos-user-path` ルールを持たせる (既定ルールだけでは
+   検査されない)
 
 その上で構築する。
 
-6. `agentic-coding-tools` を PUBLIC で作成する
-7. 自作 skill 5 個を移設する (dotfiles からは削除しない。Phase 3 まで並行稼働)
-8. plugin 3 個を移設し、各パッケージの root に `SKILL.md` を足す。`plugin.json` の `name` を
+6. `agentic-coding-tools` を PUBLIC で作成する (完了)。初回コミット `78edcda`、CI 3 job とも
+   実走して success。LICENSE は MIT (README が MIT を謳っていたが実体が無かった)
+7. 自作 skill 5 個を移設する (完了。dotfiles からは削除しない。Phase 3 まで並行稼働)
+8. plugin 3 個を移設し、各パッケージの root に `SKILL.md` を足す (完了)。`plugin.json` の `name` を
    apm のパッケージ名と一致させ、`"skills": ["./skills"]` に直し、author からメールアドレスを
-   除去する。運ぶのは `plugins/` 配下のみとし、作業成果物のディレクトリは持ち込まない
-9. README 自動生成と CI 検査を入れる
+   除去する。運ぶのは `plugins/` 配下のみとし、作業成果物のディレクトリは持ち込まない。
+   併せて決め打ちのインストールパス 17 箇所を変数参照へ直し、同じ形を弾く検査を足す
+9. README 自動生成と CI 検査を入れる (完了)
 
 ### Phase 3: dotfiles 側の切り替え
 
@@ -480,6 +505,8 @@ plugin の配布経路の選択は不要になった (単一経路で成立す�
 19. hook の `herdr-agent-state.sh` パスを `$HOME` 参照へ変える
 20. skip-worktree を解除し、live と committed を 1 本にする
 21. 現行 private plugin リポジトリをアーカイブする
+22. `install.sh` が張った `~/.claude/plugins/<plugin 名>` の symlink 3 本を撤去する。
+    アーカイブしただけでは残り、参照先が消えれば dangling になる
 
 修飾名の一括更新は不要 (パッケージ名と `plugin.json` の `name` を一致させる限り現行の
 修飾名が維持されるため)。
@@ -561,13 +588,17 @@ bootstrap か CI に組み込む。
 ことが分かったため不要になった。加えてこの案では skip-worktree を廃止できない
 (config-guard が適用後も 2 件検出する)。
 
-### skill 本文の schema 参照を書き換えて配布経路を 1 本化する (旧案 B)
+### skill 本文の schema 参照を書き換えて配布経路を 1 本化する (旧案 B) — 却下は誤りだった
 
-component 側で `${CLAUDE_PLUGIN_ROOT}` が展開されるため、書き換えずに解決する。
+当初は「component 側で `${CLAUDE_PLUGIN_ROOT}` が展開されるため書き換えずに解決する」として
+却下した。これは誤りである。展開されるのは能力であって、実ファイルがその変数を使っているか
+どうかは別の話だった。移設時に実ファイルを見ると 17 箇所が絶対パスを直書きしており、書き換えは
+必要だった。Phase 2 の項目 8 で実施済み。
 
 ### schema の置き場を再設計する (旧案 C)
 
-同上。`schemas/` は verbatim コピーで運ばれ、component から届く。複製も発生しない。
+`schemas/` は verbatim コピーで運ばれるため、参照の形を `${CLAUDE_PLUGIN_ROOT}` に直すだけで
+component から届く。置き場そのものは変えなくてよく、複製も発生しない。
 
 ### `--settings` フラグまたは生成物方式で settings.json の書き換えを止める
 
