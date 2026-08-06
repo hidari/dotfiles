@@ -196,6 +196,51 @@ run_in_dir() {
     cd "$saved" || return 1
 }
 
+# 偽バイナリの置き場を FAKE_BIN へ export する。値は返さない。
+# コマンド置換で呼ぶとサブシェルになり export が親へ届かないため、変数で受け渡す。
+# 届かない場合、stub 自体は作られるので「呼ばれた記録が無い」= ガードが効いた、という
+# 偽の緑になりうる。
+setup_fake_bin_dir() {
+    export FAKE_BIN="$TEST_HOME/fakebin"
+    mkdir -p "$FAKE_BIN"
+}
+
+# テスト用の偽 apm バイナリを FAKE_BIN へ用意する。
+# 呼び出しの記録先は APM_STUB_REC で、1 行目に cwd (pwd -P)、2 行目に引数を書く。
+# 呼ばれたかどうかだけを見るテストは記録ファイルの有無で判定できる。
+setup_fake_apm() {
+    setup_fake_bin_dir
+    export APM_STUB_REC="$TEST_HOME/apm-invocation.txt"
+
+    cat > "$FAKE_BIN/apm" << 'FAKE'
+#!/bin/sh
+pwd -P > "$APM_STUB_REC"
+printf '%s\n' "$*" >> "$APM_STUB_REC"
+FAKE
+    chmod +x "$FAKE_BIN/apm"
+}
+
+# git status だけを失敗させる偽 git を FAKE_BIN へ用意する。
+# それ以外のサブコマンドは実物へ委譲するので、リポジトリ判定はそのまま働く。
+# 「検査できなかった」を「clean」と取り違えないことを見るために使う。
+setup_failing_git_status() {
+    setup_fake_bin_dir
+    REAL_GIT="$(command -v git)"
+    export REAL_GIT
+
+    cat > "$FAKE_BIN/git" << 'FAKE'
+#!/usr/bin/env bash
+for arg in "$@"; do
+    if [ "$arg" = "status" ]; then
+        echo "fatal: simulated git failure" >&2
+        exit 128
+    fi
+done
+exec "$REAL_GIT" "$@"
+FAKE
+    chmod +x "$FAKE_BIN/git"
+}
+
 # テスト用の偽 claude バイナリを PATH 先頭に用意する
 # - plugin list / marketplace list --json は環境変数で制御した JSON を返す
 #   （FAKE_PLUGINS_JSON / FAKE_MARKETPLACES_JSON、既定は空配列）

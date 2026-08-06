@@ -320,20 +320,13 @@ teardown() {
     DRY_RUN=false
     # apm を stub して呼び出し時の cwd と引数を記録し、実作業行 (cd home && apm install --frozen) を検証する。
     # 早期 return ガードだけでなく唯一の実作業行を通す（shell-out の cd 先・flag はユニットで担保する）。
-    local bin_dir="$TEST_HOME/fake-bin"
-    local rec="$TEST_HOME/apm-invocation.txt"
-    mkdir -p "$bin_dir"
-    cat > "$bin_dir/apm" <<'STUB'
-#!/bin/sh
-pwd -P > "$APM_STUB_REC"
-printf '%s\n' "$*" >> "$APM_STUB_REC"
-STUB
-    chmod +x "$bin_dir/apm"
-    export APM_STUB_REC="$rec"
+    local rec
+    setup_fake_apm
+    rec="$APM_STUB_REC"
     DOTFILES_DIR="$TEST_HOME/dotfiles"
     mkdir -p "$DOTFILES_DIR/home"
 
-    PATH="$bin_dir:$PATH" run install_apm_skills
+    PATH="$FAKE_BIN:$PATH" run install_apm_skills
 
     [ "$status" -eq 0 ]
     # symlink 差を排すため両辺 pwd -P で比較する
@@ -353,10 +346,7 @@ STUB
 # 「追跡されている既存ファイル」が要るのでここで用意する。
 init_committed_repo() {
     local repo="$1"
-    mkdir -p "$repo"
-    git -C "$repo" init -q
-    git -C "$repo" config user.email "test@example.com"
-    git -C "$repo" config user.name "test"
+    setup_test_repo "$repo"
     echo hello > "$repo/a.txt"
     git -C "$repo" add a.txt
     git -C "$repo" commit -qm init
@@ -485,24 +475,9 @@ init_committed_repo() {
     # 「検査できなかった」は「検査対象外」と別に扱う
     local repo="$TEST_HOME/repo"
     init_committed_repo "$repo"
+    setup_failing_git_status
 
-    local bin_dir="$TEST_HOME/fake-bin"
-    mkdir -p "$bin_dir"
-    REAL_GIT="$(command -v git)"
-    export REAL_GIT
-    cat > "$bin_dir/git" << 'STUB'
-#!/bin/bash
-for arg in "$@"; do
-    if [ "$arg" = "status" ]; then
-        echo "fatal: simulated git failure" >&2
-        exit 128
-    fi
-done
-exec "$REAL_GIT" "$@"
-STUB
-    chmod +x "$bin_dir/git"
-
-    PATH="$bin_dir:$PATH" run apm_install_blockers "$repo"
+    PATH="$FAKE_BIN:$PATH" run apm_install_blockers "$repo"
 
     [ "$status" -eq 1 ]
 }
@@ -514,18 +489,11 @@ STUB
     mkdir -p "$repo/home"
     echo changed > "$repo/a.txt"
 
-    # apm が呼ばれたら痕跡を残す stub。ガードが効いていれば痕跡は残らない
-    local bin_dir="$TEST_HOME/fake-bin"
-    mkdir -p "$bin_dir"
-    cat > "$bin_dir/apm" <<'STUB'
-#!/bin/sh
-touch "$APM_STUB_REC"
-STUB
-    chmod +x "$bin_dir/apm"
-    export APM_STUB_REC="$TEST_HOME/apm-was-called"
+    # apm が呼ばれたら記録を残す stub。ガードが効いていれば記録は残らない
+    setup_fake_apm
     DOTFILES_DIR="$repo"
 
-    PATH="$bin_dir:$PATH" run install_apm_skills
+    PATH="$FAKE_BIN:$PATH" run install_apm_skills
 
     [ "$status" -ne 0 ]
     assert_contains "$output" "a.txt"
@@ -540,30 +508,11 @@ STUB
     init_committed_repo "$repo"
     mkdir -p "$repo/home"
 
-    local bin_dir="$TEST_HOME/fake-bin"
-    mkdir -p "$bin_dir"
-    cat > "$bin_dir/apm" << 'STUB'
-#!/bin/sh
-touch "$APM_STUB_REC"
-STUB
-    chmod +x "$bin_dir/apm"
-    REAL_GIT="$(command -v git)"
-    export REAL_GIT
-    cat > "$bin_dir/git" << 'STUB'
-#!/bin/bash
-for arg in "$@"; do
-    if [ "$arg" = "status" ]; then
-        echo "fatal: simulated git failure" >&2
-        exit 128
-    fi
-done
-exec "$REAL_GIT" "$@"
-STUB
-    chmod +x "$bin_dir/git"
-    export APM_STUB_REC="$TEST_HOME/apm-was-called"
+    setup_fake_apm
+    setup_failing_git_status
     DOTFILES_DIR="$repo"
 
-    PATH="$bin_dir:$PATH" run install_apm_skills
+    PATH="$FAKE_BIN:$PATH" run install_apm_skills
 
     [ "$status" -ne 0 ]
     [ ! -e "$APM_STUB_REC" ]
@@ -576,17 +525,10 @@ STUB
     init_committed_repo "$repo"
     mkdir -p "$repo/home"
 
-    local bin_dir="$TEST_HOME/fake-bin"
-    mkdir -p "$bin_dir"
-    cat > "$bin_dir/apm" <<'STUB'
-#!/bin/sh
-touch "$APM_STUB_REC"
-STUB
-    chmod +x "$bin_dir/apm"
-    export APM_STUB_REC="$TEST_HOME/apm-was-called"
+    setup_fake_apm
     DOTFILES_DIR="$repo"
 
-    PATH="$bin_dir:$PATH" run install_apm_skills
+    PATH="$FAKE_BIN:$PATH" run install_apm_skills
 
     [ "$status" -eq 0 ]
     [ -e "$APM_STUB_REC" ]

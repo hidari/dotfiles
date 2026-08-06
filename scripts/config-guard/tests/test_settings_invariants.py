@@ -5,6 +5,12 @@ from __future__ import annotations
 from typing import Any
 
 from config_guard.settings_invariants import check_settings_invariants
+from tests.conftest import (
+    APM_GUARD_HOOK_COMMAND,
+    TIRITH_HOOK_COMMAND,
+    hook_group,
+    pretooluse,
+)
 
 GOOD: dict[str, Any] = {
     "permissions": {
@@ -23,35 +29,8 @@ GOOD: dict[str, Any] = {
     },
     # 必須フックの配線。欠けていると他の検査のテストにも findings が混ざるため、
     # 「狙った検査だけが落とす」最小の差分を保つ意味でも clean な形をここに置く
-    "hooks": {
-        "PreToolUse": [
-            {
-                "matcher": "Bash",
-                "hooks": [
-                    {"type": "command", "command": 'python3 "$HOME/.claude/hooks/tirith-check.py"'}
-                ],
-            },
-            {
-                "matcher": "Bash",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": 'python3 "$HOME/.claude/hooks/apm-install-guard.py"',
-                    }
-                ],
-            },
-        ]
-    },
+    "hooks": pretooluse(hook_group(TIRITH_HOOK_COMMAND), hook_group(APM_GUARD_HOOK_COMMAND)),
 }
-
-
-def _pretooluse(*commands: str) -> dict[str, Any]:
-    """PreToolUse に指定のコマンドだけを持つ hooks セクションを作る。"""
-    return {
-        "PreToolUse": [
-            {"matcher": "Bash", "hooks": [{"type": "command", "command": c}]} for c in commands
-        ]
-    }
 
 
 class TestGood:
@@ -131,18 +110,12 @@ class TestRequiredHooks:
     """
 
     def test_missing_apm_install_guard_is_flagged(self) -> None:
-        settings = {
-            **GOOD,
-            "hooks": _pretooluse('python3 "$HOME/.claude/hooks/tirith-check.py"'),
-        }
+        settings = {**GOOD, "hooks": pretooluse(hook_group(TIRITH_HOOK_COMMAND))}
         findings = check_settings_invariants(settings)
         assert [f.detail for f in findings] == ["apm-install-guard.py"]
 
     def test_missing_tirith_check_is_flagged(self) -> None:
-        settings = {
-            **GOOD,
-            "hooks": _pretooluse('python3 "$HOME/.claude/hooks/apm-install-guard.py"'),
-        }
+        settings = {**GOOD, "hooks": pretooluse(hook_group(APM_GUARD_HOOK_COMMAND))}
         findings = check_settings_invariants(settings)
         assert [f.detail for f in findings] == ["tirith-check.py"]
 
@@ -157,18 +130,8 @@ class TestRequiredHooks:
         settings = {
             **GOOD,
             "hooks": {
-                **_pretooluse('python3 "$HOME/.claude/hooks/tirith-check.py"'),
-                "PostToolUse": [
-                    {
-                        "matcher": "*",
-                        "hooks": [
-                            {
-                                "type": "command",
-                                "command": 'python3 "$HOME/.claude/hooks/apm-install-guard.py"',
-                            }
-                        ],
-                    }
-                ],
+                **pretooluse(hook_group(TIRITH_HOOK_COMMAND)),
+                "PostToolUse": [hook_group(APM_GUARD_HOOK_COMMAND, matcher="*")],
             },
         }
         findings = check_settings_invariants(settings)
@@ -179,100 +142,31 @@ class TestRequiredHooks:
         # フック本体は残ったまま Bash 呼び出しで一切起動しなくなる。実測で確認した穴
         settings = {
             **GOOD,
-            "hooks": {
-                "PreToolUse": [
-                    {
-                        "matcher": "Bash",
-                        "hooks": [
-                            {
-                                "type": "command",
-                                "command": 'python3 "$HOME/.claude/hooks/tirith-check.py"',
-                            }
-                        ],
-                    },
-                    {
-                        "matcher": "Read",
-                        "hooks": [
-                            {
-                                "type": "command",
-                                "command": 'python3 "$HOME/.claude/hooks/apm-install-guard.py"',
-                            }
-                        ],
-                    },
-                ]
-            },
+            "hooks": pretooluse(
+                hook_group(TIRITH_HOOK_COMMAND),
+                hook_group(APM_GUARD_HOOK_COMMAND, matcher="Read"),
+            ),
         }
         findings = check_settings_invariants(settings)
         assert [f.detail for f in findings] == ["apm-install-guard.py"]
-
-    def test_matchers_that_cover_bash_are_accepted(self) -> None:
-        # 省略・空文字・"*" は全ツールに一致する。選言も Bash を含めば守られている
-        for matcher in (None, "", "*", "Bash", "Bash|Read"):
-            group: dict[str, Any] = {
-                "hooks": [
-                    {"type": "command", "command": 'python3 "$HOME/.claude/hooks/tirith-check.py"'},
-                    {
-                        "type": "command",
-                        "command": 'python3 "$HOME/.claude/hooks/apm-install-guard.py"',
-                    },
-                ]
-            }
-            if matcher is not None:
-                group["matcher"] = matcher
-            settings = {**GOOD, "hooks": {"PreToolUse": [group]}}
-            assert check_settings_invariants(settings) == [], matcher
 
     def test_unparsable_matcher_is_flagged(self) -> None:
         # 正規表現として壊れた matcher は「一致するかもしれない」と楽観しない
         settings = {
             **GOOD,
-            "hooks": {
-                "PreToolUse": [
-                    {
-                        "matcher": "Bash",
-                        "hooks": [
-                            {
-                                "type": "command",
-                                "command": 'python3 "$HOME/.claude/hooks/tirith-check.py"',
-                            }
-                        ],
-                    },
-                    {
-                        "matcher": "[Bash",
-                        "hooks": [
-                            {
-                                "type": "command",
-                                "command": 'python3 "$HOME/.claude/hooks/apm-install-guard.py"',
-                            }
-                        ],
-                    },
-                ]
-            },
+            "hooks": pretooluse(
+                hook_group(TIRITH_HOOK_COMMAND),
+                hook_group(APM_GUARD_HOOK_COMMAND, matcher="[Bash"),
+            ),
         }
         findings = check_settings_invariants(settings)
         assert [f.detail for f in findings] == ["apm-install-guard.py"]
 
-    def test_both_hooks_in_one_group_is_accepted(self) -> None:
-        # グループを分けるか 1 グループに 2 要素を置くかは配線の自由度。
-        # 形ではなく「PreToolUse から呼ばれること」を仕様にする
-        settings = {
-            **GOOD,
-            "hooks": {
-                "PreToolUse": [
-                    {
-                        "matcher": "Bash",
-                        "hooks": [
-                            {
-                                "type": "command",
-                                "command": 'python3 "$HOME/.claude/hooks/tirith-check.py"',
-                            },
-                            {
-                                "type": "command",
-                                "command": 'python3 "$HOME/.claude/hooks/apm-install-guard.py"',
-                            },
-                        ],
-                    }
-                ]
-            },
-        }
-        assert check_settings_invariants(settings) == []
+    def test_matchers_that_cover_bash_are_accepted(self) -> None:
+        # 省略・空文字・"*" は全ツールに一致し、選言も Bash を含めば守られている。
+        # グループを分けるか 1 グループに 2 要素を置くかも配線の自由度なので、
+        # 形ではなく「Bash の PreToolUse から呼ばれること」を仕様にする
+        for matcher in (None, "", "*", "Bash", "Bash|Read"):
+            group = hook_group(TIRITH_HOOK_COMMAND, APM_GUARD_HOOK_COMMAND, matcher=matcher)
+            settings = {**GOOD, "hooks": pretooluse(group)}
+            assert check_settings_invariants(settings) == [], matcher

@@ -20,23 +20,31 @@ HOOK = REPO / "home" / ".claude" / "hooks" / "apm-install-guard.py"
 BOOTSTRAP = REPO / "bootstrap.sh"
 
 
-def run_hook(
-    body: dict[str, Any], extra_env: dict[str, str] | None = None
+def run_hook_raw(
+    payload: str, extra_env: dict[str, str] | None = None
 ) -> subprocess.CompletedProcess[str]:
-    """基底環境から APM_INSTALL_GUARD_ 系を除いてから extra_env だけを適用して起動する。
+    """stdin へ生の文字列を流してフックを起動する。
 
-    実行環境に無効化フラグが立っていると、全テストが「無音 allow」で緑になってしまう。
+    基底環境から APM_INSTALL_GUARD_ 系を除いてから extra_env だけを適用する。実行環境に
+    無効化フラグが立っていると、全テストが「無音 allow」で緑になってしまう。この除去を
+    書き写した経路を作らないため、JSON を送る場合も生文字列を送る場合もここを通す。
     """
     env = {k: v for k, v in os.environ.items() if not k.startswith("APM_INSTALL_GUARD_")}
     env.update(extra_env or {})
     return subprocess.run(
         [sys.executable, str(HOOK)],
-        input=json.dumps(body),
+        input=payload,
         capture_output=True,
         text=True,
         env=env,
         check=False,
     )
+
+
+def run_hook(
+    body: dict[str, Any], extra_env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
+    return run_hook_raw(json.dumps(body), extra_env)
 
 
 def decision(proc: subprocess.CompletedProcess[str]) -> str | None:
@@ -522,39 +530,18 @@ def test_non_git_cwd_passes_through(tmp_path: Path) -> None:
     assert proc.stdout.strip() == ""
 
 
-def test_malformed_json_denies() -> None:
-    """入力が壊れているときは素通りさせない (fail-closed)。"""
-    env = {k: v for k, v in os.environ.items() if not k.startswith("APM_INSTALL_GUARD_")}
-    proc = subprocess.run(
-        [sys.executable, str(HOOK)],
-        input="{not json",
-        capture_output=True,
-        text=True,
-        env=env,
-        check=False,
-    )
+def test_unusable_input_denies() -> None:
+    """入力が壊れている・空のときは素通りさせない (fail-closed)。"""
+    for payload in ("{not json", ""):
+        proc = run_hook_raw(payload)
 
-    assert proc.returncode == 0
-    assert decision(proc) == "deny"
+        assert proc.returncode == 0, payload
+        assert decision(proc) == "deny", payload
 
 
-def test_empty_input_denies() -> None:
-    env = {k: v for k, v in os.environ.items() if not k.startswith("APM_INSTALL_GUARD_")}
-    proc = subprocess.run(
-        [sys.executable, str(HOOK)],
-        input="",
-        capture_output=True,
-        text=True,
-        env=env,
-        check=False,
-    )
-
-    assert decision(proc) == "deny"
-
-
-def test_missing_cwd_denies(tmp_path: Path) -> None:
+def test_missing_cwd_denies() -> None:
     """cwd が取れないとどのリポジトリを見ればよいか決まらないので許可しない。"""
-    payload = body("apm install", "")
+    payload = body("apm install", "/nonexistent")
     del payload["cwd"]
 
     proc = run_hook(payload)
