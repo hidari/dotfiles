@@ -291,13 +291,13 @@ teardown() {
 }
 
 # =============================================================================
-# install_apm_skills tests (apm.yml 宣言スキルの実体化)
+# install_apm_packages tests (apm.yml が宣言する skill と plugin の実体化)
 # =============================================================================
 
-@test "install_apm_skills: dry-run shows apm install without executing" {
+@test "install_apm_packages: dry-run shows apm install without executing" {
     DRY_RUN=true
 
-    run install_apm_skills
+    run install_apm_packages
 
     [ "$status" -eq 0 ]
     assert_contains "$output" "[DRY-RUN] apm install"
@@ -305,18 +305,18 @@ teardown() {
     refute_contains "$output" "apm not found"
 }
 
-@test "install_apm_skills: warns and skips when apm is not on PATH" {
+@test "install_apm_packages: warns and skips when apm is not on PATH" {
     DRY_RUN=false
     local empty_dir="$TEST_HOME/empty-path"
     mkdir -p "$empty_dir"
 
-    PATH="$empty_dir" run install_apm_skills
+    PATH="$empty_dir" run install_apm_packages
 
     [ "$status" -eq 0 ]
     assert_contains "$output" "apm not found"
 }
 
-@test "install_apm_skills: runs 'apm install --frozen' with cwd = DOTFILES_DIR/home" {
+@test "install_apm_packages: runs 'apm install --frozen' with cwd = DOTFILES_DIR/home" {
     DRY_RUN=false
     # apm を stub して呼び出し時の cwd と引数を記録し、実作業行 (cd home && apm install --frozen) を検証する。
     # 早期 return ガードだけでなく唯一の実作業行を通す（shell-out の cd 先・flag はユニットで担保する）。
@@ -326,7 +326,7 @@ teardown() {
     DOTFILES_DIR="$TEST_HOME/dotfiles"
     mkdir -p "$DOTFILES_DIR/home"
 
-    PATH="$FAKE_BIN:$PATH" run install_apm_skills
+    PATH="$FAKE_BIN:$PATH" run install_apm_packages
 
     [ "$status" -eq 0 ]
     # symlink 差を排すため両辺 pwd -P で比較する
@@ -337,9 +337,9 @@ teardown() {
     assert_contains "$(sed -n '2p' "$rec")" "--frozen"
 }
 
-# -----------------------------------------------------------------------------
-# apm_install_blockers tests (apm install を阻む未コミット変更の列挙)
-# -----------------------------------------------------------------------------
+# =============================================================================
+# apm install ガード tests (未コミット変更の列挙と、それを受けた中止)
+# =============================================================================
 
 # コミットを 1 つ持つテスト用リポジトリを作る。
 # setup_test_repo はコミットを作らないが、status --porcelain の比較には
@@ -482,7 +482,7 @@ init_committed_repo() {
     [ "$status" -eq 1 ]
 }
 
-@test "install_apm_skills: refuses to run when the tree is dirty" {
+@test "install_apm_packages: refuses to run when the tree is dirty" {
     DRY_RUN=false
     local repo="$TEST_HOME/repo"
     init_committed_repo "$repo"
@@ -493,14 +493,14 @@ init_committed_repo() {
     setup_fake_apm
     DOTFILES_DIR="$repo"
 
-    PATH="$FAKE_BIN:$PATH" run install_apm_skills
+    PATH="$FAKE_BIN:$PATH" run install_apm_packages
 
     [ "$status" -ne 0 ]
     assert_contains "$output" "a.txt"
     [ ! -e "$APM_STUB_REC" ]
 }
 
-@test "install_apm_skills: refuses to run when the tree cannot be inspected" {
+@test "install_apm_packages: refuses to run when the tree cannot be inspected" {
     # apm_install_blockers が「検査できなかった」を返しても、呼び出し元が受けなければ
     # 空の blockers として通ってしまう。検査機構の取り付け側を見る
     DRY_RUN=false
@@ -512,13 +512,13 @@ init_committed_repo() {
     setup_failing_git_status
     DOTFILES_DIR="$repo"
 
-    PATH="$FAKE_BIN:$PATH" run install_apm_skills
+    PATH="$FAKE_BIN:$PATH" run install_apm_packages
 
     [ "$status" -ne 0 ]
     [ ! -e "$APM_STUB_REC" ]
 }
 
-@test "install_apm_skills: runs when the tree is clean" {
+@test "install_apm_packages: runs when the tree is clean" {
     # 上の negative 対照。ガードが常に止めるだけの実装になっていないことを担保する
     DRY_RUN=false
     local repo="$TEST_HOME/repo"
@@ -528,7 +528,7 @@ init_committed_repo() {
     setup_fake_apm
     DOTFILES_DIR="$repo"
 
-    PATH="$FAKE_BIN:$PATH" run install_apm_skills
+    PATH="$FAKE_BIN:$PATH" run install_apm_packages
 
     [ "$status" -eq 0 ]
     [ -e "$APM_STUB_REC" ]
@@ -776,8 +776,8 @@ unmirrored_claude_targets() {
     [ "$status" -ne 0 ]
 }
 
-@test "SYMLINK_PAIRS: no longer carries apm-generated sources" {
-    # 追跡停止で source が checkout に存在しなくなったため、SYMLINK_PAIRS に残すと
+@test "SYMLINK_PAIRS: carries no apm-generated sources" {
+    # apm 生成物は checkout に存在しないので、SYMLINK_PAIRS に置くと
     # 「all sources exist in repo」が fresh clone で構造的に赤くなる。
     # 配列の取り違えを、症状 (CI の赤) ではなく原因の側で捕まえる。
     load_pairs_array SYMLINK_PAIRS

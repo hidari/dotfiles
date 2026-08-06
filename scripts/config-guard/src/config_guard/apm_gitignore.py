@@ -1,10 +1,12 @@
-"""apm が deploy する vendored skill が全て gitignore されているか検査する。
+"""apm が deploy する成果物が全て gitignore されているか検査する。
 
-apm.lock.yaml の deployed_files は「apm が .claude/skills 配下へ展開する再生成物」の
-canonical な一覧。install-at-bootstrap では deploy 先を gitignore して bootstrap で再生成する
-前提なので、deployed_files は全て home/.gitignore で ignore されねばならない。ignore が
-per-skill 手書きのため skill 追加時に追記漏れが起きうる(漏れると vendored skill が tracked に
-なり誤コミットされる)ので、lockfile を真実源に機械検査して二重管理の drift を検出する。
+apm.lock.yaml の deployed_files は「apm が展開する再生成物」の canonical な一覧。
+install-at-bootstrap では deploy 先を gitignore して bootstrap で再生成する前提なので、
+deployed_files は全て home/.gitignore で ignore されねばならない。
+
+ignore はディレクトリ単位なのでパッケージ追加では追記が要らない。この検査が捕まえるのは
+apm が新しい deploy root を作った場合で、そのとき成果物が tracked になり誤コミットされる。
+lockfile を真実源に機械検査して、ignore 規則が deploy 先の実態から遅れることを検出する。
 """
 
 from __future__ import annotations

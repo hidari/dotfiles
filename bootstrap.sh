@@ -67,8 +67,7 @@ HOME_SYMLINK_PAIRS=(
 # SYMLINK_PAIRS と分けているのは source の性質が違うため。あちらの source は git 管理下で
 # 必ず実在する（欠けていればバグ）が、こちらは apm install が配置するまで存在しない。
 # fresh clone や --dotfiles-only では実体が無いので、存在するときだけ張る。
-# skills/ は root に SKILL.md を持つパッケージの verbatim コピー、agents/ と commands/ は
-# .claude-plugin/ を持つパッケージのフラット分解で生まれる。
+# 3 ディレクトリそれぞれの由来は home/.gitignore のコメントが持つ。
 APM_SYMLINK_PAIRS=(
     "home/.claude/skills|.claude/skills"
     "home/.claude/agents|.claude/agents"
@@ -395,10 +394,12 @@ apm_install_blockers() {
     done < <(git -C "$repo" status --porcelain -z)
 }
 
-# apm.yml (home/) が宣言するスキルを apm.lock.yaml の pin 通りに実体化する（冪等）。
-# apm は cwd の apm.yml/apm.lock.yaml を基準に home/.claude/skills へ展開するため、必ず home/ で実行する。
-install_apm_skills() {
-    log "Installing apm-managed skills..."
+# apm.yml (home/) が宣言する skill と plugin を apm.lock.yaml の pin 通りに実体化する（冪等）。
+# apm は cwd の apm.yml/apm.lock.yaml を基準に展開先を決めるため、必ず home/ で実行する。
+# 展開先は APM_SYMLINK_PAIRS の source と同じ 3 ディレクトリで、由来は home/.gitignore の
+# コメントが持つ。
+install_apm_packages() {
+    log "Installing apm-managed skills and plugins..."
 
     if [ "$DRY_RUN" = true ]; then
         echo "[DRY-RUN] apm install --frozen (in $DOTFILES_DIR/home)"
@@ -406,7 +407,7 @@ install_apm_skills() {
     fi
 
     if ! command -v apm &> /dev/null; then
-        warn "apm not found; skipping apm-managed skill installation"
+        warn "apm not found; skipping apm-managed package installation"
         return 0
     fi
 
@@ -723,13 +724,13 @@ main() {
 
     # mise の pin ツールと apm スキルを実体化する。
     # mise install は config.toml の symlink 後でなければならない（setup_dotfiles が張る）。
-    # setup_apm_symlinks は install_apm_skills の後でなければならない。source は apm が
+    # setup_apm_symlinks は install_apm_packages の後でなければならない。source は apm が
     # 配置する生成物で、先に張ろうとしても実体が無く全て skip されるため。
     # Claude plugin セットアップも settings.json symlink 後・claude 導入後に実行する
     # （先に実行すると claude が ~/.claude/settings.json を生成し setup_dotfiles の symlink と衝突するため）。
     if [ "$DOTFILES_ONLY" = false ]; then
         install_mise_tools
-        install_apm_skills
+        install_apm_packages
         setup_apm_symlinks
         setup_claude_plugins
         # LaunchAgent と pre-commit フックはツール/サービス系のため --dotfiles-only では導入しない

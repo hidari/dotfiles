@@ -28,7 +28,7 @@ allow を同時に返したときの合成規則は公式ドキュメントに�
 parallel」までしか書かれていない)、allow を出さないことで既存フックの判定を打ち消す経路を
 原理的に無くしている。
 
-bootstrap.sh の install_apm_skills にも同じ判定がある。あちらは自動実行経路を、こちらは手打ちと
+bootstrap.sh の install_apm_packages にも同じ判定がある。あちらは自動実行経路を、こちらは手打ちと
 エージェント経由を塞ぐ。プロセスが別なので実装は共有できない。両者の判定が一致していることは
 scripts/tests/bootstrap.bats の cross-pin テストが見る。
 """

@@ -84,7 +84,6 @@ repos:
       # 場合ここに落ちるので、そのときだけ落として置き場を知らせる。規約の canonical は
       # dev-workflow:issue-scoped-artifacts skill が持つ。
       # 捕捉対象はローカルでの成果物生成時にのみ発生するため CI ミラーは張らない。
-      # Issue ディレクトリ配下のファイル名違反の検査は別タスク (Issue #17) へ送る。
       - id: issue-scoped-artifacts
         name: spec と plan は Issue ディレクトリ配下へ置く
         language: fail
