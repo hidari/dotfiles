@@ -29,6 +29,9 @@ _INEFFECTIVE_PATH_RULE = re.compile(r"^(?:Glob|Grep)\((.+)\)$")
 # 捕まえられない（実際この検査を足すまで、tirith-check.py の配線を外しても全テストが緑だった）。
 _REQUIRED_PRETOOLUSE_HOOKS: tuple[str, ...] = ("tirith-check.py", "apm-install-guard.py")
 
+# 必須フックが守るツール。matcher がこれに一致しないグループは配線として数えない。
+_GUARDED_TOOL = "Bash"
+
 # committed に許可する公開 marketplace。ここに無い marketplace を参照する plugin は弾く。
 _PUBLIC_MARKETPLACES: frozenset[str] = frozenset(
     {
@@ -54,11 +57,31 @@ def _iter_strings(obj: Any) -> list[str]:
     return out
 
 
+def _matcher_covers_guarded_tool(matcher: Any) -> bool:
+    """グループの matcher が対象ツールに一致するか。
+
+    省略・空文字・"*" は全ツールに一致する。それ以外は正規表現として完全一致で照合する。
+    Claude Code が部分一致で解決する場合、`ash` のような書き方をここでは一致とみなさないが、
+    この向きの誤りは「動いている配線を config-guard が咎める」可視で安価な失敗で済む。
+    逆向きに緩めると、起動しない配線を配線済みと読む沈黙した失敗になる。
+    """
+    if matcher is None or matcher in ("", "*"):
+        return True
+    if not isinstance(matcher, str):
+        return False
+    try:
+        return re.fullmatch(matcher, _GUARDED_TOOL) is not None
+    except re.error:
+        return False
+
+
 def _pretooluse_commands(settings: dict[str, Any]) -> list[str]:
-    """hooks.PreToolUse に配線された command 文字列を集める。
+    """hooks.PreToolUse で対象ツールに配線された command 文字列を集める。
 
     グループを分けるか 1 グループに複数要素を置くかは配線の自由度なので、両方を平らに集める。
     イベントは PreToolUse だけを見る。PostToolUse に置いても呼び出し前には走らないため。
+    matcher が対象ツールに一致しないグループは数えない。本体が残っていても起動しないので、
+    それは配線を外したのと同じである。
     """
     hooks = settings.get("hooks")
     if not isinstance(hooks, dict):
@@ -70,6 +93,8 @@ def _pretooluse_commands(settings: dict[str, Any]) -> list[str]:
     commands: list[str] = []
     for group in groups:
         if not isinstance(group, dict):
+            continue
+        if not _matcher_covers_guarded_tool(group.get("matcher")):
             continue
         entries = group.get("hooks")
         if not isinstance(entries, list):

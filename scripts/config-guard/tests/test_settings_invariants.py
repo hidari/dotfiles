@@ -174,6 +174,84 @@ class TestRequiredHooks:
         findings = check_settings_invariants(settings)
         assert [f.detail for f in findings] == ["apm-install-guard.py"]
 
+    def test_matcher_that_misses_bash_is_flagged(self) -> None:
+        # 配線を外す方法はイベントの差し替えだけではない。matcher を別ツールへ変えると
+        # フック本体は残ったまま Bash 呼び出しで一切起動しなくなる。実測で確認した穴
+        settings = {
+            **GOOD,
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "matcher": "Bash",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": 'python3 "$HOME/.claude/hooks/tirith-check.py"',
+                            }
+                        ],
+                    },
+                    {
+                        "matcher": "Read",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": 'python3 "$HOME/.claude/hooks/apm-install-guard.py"',
+                            }
+                        ],
+                    },
+                ]
+            },
+        }
+        findings = check_settings_invariants(settings)
+        assert [f.detail for f in findings] == ["apm-install-guard.py"]
+
+    def test_matchers_that_cover_bash_are_accepted(self) -> None:
+        # 省略・空文字・"*" は全ツールに一致する。選言も Bash を含めば守られている
+        for matcher in (None, "", "*", "Bash", "Bash|Read"):
+            group: dict[str, Any] = {
+                "hooks": [
+                    {"type": "command", "command": 'python3 "$HOME/.claude/hooks/tirith-check.py"'},
+                    {
+                        "type": "command",
+                        "command": 'python3 "$HOME/.claude/hooks/apm-install-guard.py"',
+                    },
+                ]
+            }
+            if matcher is not None:
+                group["matcher"] = matcher
+            settings = {**GOOD, "hooks": {"PreToolUse": [group]}}
+            assert check_settings_invariants(settings) == [], matcher
+
+    def test_unparsable_matcher_is_flagged(self) -> None:
+        # 正規表現として壊れた matcher は「一致するかもしれない」と楽観しない
+        settings = {
+            **GOOD,
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "matcher": "Bash",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": 'python3 "$HOME/.claude/hooks/tirith-check.py"',
+                            }
+                        ],
+                    },
+                    {
+                        "matcher": "[Bash",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": 'python3 "$HOME/.claude/hooks/apm-install-guard.py"',
+                            }
+                        ],
+                    },
+                ]
+            },
+        }
+        findings = check_settings_invariants(settings)
+        assert [f.detail for f in findings] == ["apm-install-guard.py"]
+
     def test_both_hooks_in_one_group_is_accepted(self) -> None:
         # グループを分けるか 1 グループに 2 要素を置くかは配線の自由度。
         # 形ではなく「PreToolUse から呼ばれること」を仕様にする
