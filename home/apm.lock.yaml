@@ -1,9 +1,235 @@
 lockfile_version: '1'
-generated_at: '2026-07-17T16:06:55.850670+00:00'
-apm_version: 0.23.1
+generated_at: '2026-08-06T15:47:38.419679+00:00'
+apm_version: 0.27.0
 dependencies:
+- repo_url: hidari/agentic-coding-tools
+  name: dev-workflow
+  host: github.com
+  resolved_commit: 78edcdac01c2a85ba957a55b5d446125ee3b643e
+  resolved_ref: 78edcdac01c2a85ba957a55b5d446125ee3b643e
+  version: 0.2.0
+  virtual_path: plugins/dev-workflow
+  is_virtual: true
+  package_type: marketplace_plugin
+  deployed_files:
+  - .claude/skills/dev-workflow
+  - .claude/skills/dev-workflow/.claude-plugin/plugin.json
+  - .claude/skills/dev-workflow/SKILL.md
+  - .claude/skills/dev-workflow/apm.yml
+  - .claude/skills/dev-workflow/skills/commit-and-pr-message/SKILL.md
+  - .claude/skills/dev-workflow/skills/e2e-scenario-impact-check/SKILL.md
+  - .claude/skills/dev-workflow/skills/git-branch-switcher/SKILL.md
+  - .claude/skills/dev-workflow/skills/in-repo-issue/SKILL.md
+  - .claude/skills/dev-workflow/skills/in-repo-issue/templates/issue.md
+  - .claude/skills/dev-workflow/skills/issue-scoped-artifacts/SKILL.md
+  - .claude/skills/dev-workflow/skills/pre-merge-quality-gate/SKILL.md
+  - .claude/skills/dev-workflow/skills/retrospective-codify/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/dev-workflow/.claude-plugin/plugin.json: sha256:b3f089a7afe6662bb94187addc20bafd34152c265688ca9c5ee1599473e32f5e
+    .claude/skills/dev-workflow/SKILL.md: sha256:cc5454d70df96ca56cf022a80e3b9f661d2376134221dcd505fe99c2325c7049
+    .claude/skills/dev-workflow/apm.yml: sha256:73591f62724c3e2f6195b6b26141d312d937823372b75a69a54638ed028b9450
+    .claude/skills/dev-workflow/skills/commit-and-pr-message/SKILL.md: sha256:18246d7ba3a73179a13fccfc8b947dd8ecd0078bdecf75efead0d71df6913270
+    .claude/skills/dev-workflow/skills/e2e-scenario-impact-check/SKILL.md: sha256:b072d406248212b52736eb0e8e1b7200e18f0229cfbe4c8b7430dcf76d3ee039
+    .claude/skills/dev-workflow/skills/git-branch-switcher/SKILL.md: sha256:8d2fab903016a6ce30ee3dd1271777d4cc75f7d420a434bd8244a8348d824ac6
+    .claude/skills/dev-workflow/skills/in-repo-issue/SKILL.md: sha256:09ff8758fb71d66dc53fc0d03096a91de1a12161767654b6ab9edab32dc0c1b3
+    .claude/skills/dev-workflow/skills/in-repo-issue/templates/issue.md: sha256:10609086c252ad022eee038d73eb1d41260a436c378e198bbc51f20f0d2b8695
+    .claude/skills/dev-workflow/skills/issue-scoped-artifacts/SKILL.md: sha256:08407461cc273ad487ea848d09b527a3c73e8c0d31ec52bd0f88c4a911940989
+    .claude/skills/dev-workflow/skills/pre-merge-quality-gate/SKILL.md: sha256:be7cb7891bd6a60b7b5efdeb5270dfd57a638a7b00dcb014f9cb3f223ef127f6
+    .claude/skills/dev-workflow/skills/retrospective-codify/SKILL.md: sha256:0de6cf497cf6d71db3430b83990f646d4e585a275601820b82ca00ddc0d4e419
+  content_hash: sha256:c1a9dc0a82bc1c408dede742c800db2090642b35cbd671df61aa3b0b65cd6ce2
+- repo_url: hidari/agentic-coding-tools
+  name: security-blue-red-team
+  host: github.com
+  resolved_commit: 78edcdac01c2a85ba957a55b5d446125ee3b643e
+  resolved_ref: 78edcdac01c2a85ba957a55b5d446125ee3b643e
+  version: 0.4.1
+  virtual_path: plugins/security-blue-red-team
+  is_virtual: true
+  package_type: marketplace_plugin
+  deployed_files:
+  - .claude/agents/blue-team-agent.md
+  - .claude/agents/red-team-agent.md
+  - .claude/commands/security-blueteam.md
+  - .claude/commands/security-cleanup.md
+  - .claude/commands/security-redteam.md
+  - .claude/commands/security-vulnerability-assessment.md
+  - .claude/skills/security-blue-red-team
+  - .claude/skills/security-blue-red-team/.claude-plugin/plugin.json
+  - .claude/skills/security-blue-red-team/README.md
+  - .claude/skills/security-blue-red-team/SKILL.md
+  - .claude/skills/security-blue-red-team/agents/blue-team-agent.md
+  - .claude/skills/security-blue-red-team/agents/red-team-agent.md
+  - .claude/skills/security-blue-red-team/apm.yml
+  - .claude/skills/security-blue-red-team/commands/security-blueteam.md
+  - .claude/skills/security-blue-red-team/commands/security-cleanup.md
+  - .claude/skills/security-blue-red-team/commands/security-redteam.md
+  - .claude/skills/security-blue-red-team/commands/security-vulnerability-assessment.md
+  - .claude/skills/security-blue-red-team/schemas/cleanup-queue.schema.json
+  - .claude/skills/security-blue-red-team/schemas/findings.schema.json
+  - .claude/skills/security-blue-red-team/schemas/security-profile.schema.yml
+  - .claude/skills/security-blue-red-team/schemas/security-profile.template.yml
+  - .claude/skills/security-blue-red-team/schemas/tests/cleanup-queue.schema.test.mjs
+  - .claude/skills/security-blue-red-team/skills/security-blue-team/SKILL.md
+  - .claude/skills/security-blue-red-team/skills/security-red-team/SKILL.md
+  - .claude/skills/security-blue-red-team/skills/security-vulnerability-assessment/SKILL.md
+  deployed_file_hashes:
+    .claude/agents/blue-team-agent.md: sha256:0540ec44dd527a322d5a6ea0137cda8545d587e8e32cf4953ebd18c9f04635c9
+    .claude/agents/red-team-agent.md: sha256:db8133a5b09af6fa6625a1d516ef64759b63f8c3531bc1f711617b22ad1e80e0
+    .claude/commands/security-blueteam.md: sha256:240d4575aa2f844fe5a8d5822717b9c9115ec0aae40117d3b5f98ad3c8acc253
+    .claude/commands/security-cleanup.md: sha256:3c318dfc790521adc507a8d32c2ac9ef2ea039a8232dded0108cad160b4b5d63
+    .claude/commands/security-redteam.md: sha256:ce619e9a4b2a21c498860d7e5407a1c1d6c6ef88751a1926866e87f7d16cb57c
+    .claude/commands/security-vulnerability-assessment.md: sha256:dcf56d1991e8d8d93e772666f50f980b2f65811a2fedbc36c1fcc49bc57d55a5
+    .claude/skills/security-blue-red-team/.claude-plugin/plugin.json: sha256:0177137412f9e6d9466963bf028b9a8890ead11744fb95c1b612843a5e76f739
+    .claude/skills/security-blue-red-team/README.md: sha256:26ac0ceb7ae118e0bed12fa91a0f04a465a745ea913bce67c44685c0d0c8f7c1
+    .claude/skills/security-blue-red-team/SKILL.md: sha256:ffda08fd6952c470f92472fd21bf9b7f20659f875737e3c3f22454f9ad718cef
+    .claude/skills/security-blue-red-team/agents/blue-team-agent.md: sha256:0540ec44dd527a322d5a6ea0137cda8545d587e8e32cf4953ebd18c9f04635c9
+    .claude/skills/security-blue-red-team/agents/red-team-agent.md: sha256:db8133a5b09af6fa6625a1d516ef64759b63f8c3531bc1f711617b22ad1e80e0
+    .claude/skills/security-blue-red-team/apm.yml: sha256:5a9ba7105bd7474613db4ff974202cce2e1b3f2664db4466c042da1502078fe5
+    .claude/skills/security-blue-red-team/commands/security-blueteam.md: sha256:9815cd15694eb582359a22229ebcecd8ec32dbc4fec3f69a912ee1b9e272575e
+    .claude/skills/security-blue-red-team/commands/security-cleanup.md: sha256:188d2966222a9fbcba49d0a06959d5395109bcb77f58fe0c08d5d70e2ac2e44b
+    .claude/skills/security-blue-red-team/commands/security-redteam.md: sha256:7299c8087d512594c0156b62594111465cf3b4dd431db19b9cffb0616f81ec9e
+    .claude/skills/security-blue-red-team/commands/security-vulnerability-assessment.md: sha256:ac7e923d320f510f2c6ef49ff4af2ee1692d5e675aae44fc3c6d6830d82eccaf
+    .claude/skills/security-blue-red-team/schemas/cleanup-queue.schema.json: sha256:fc3023526beb83380f3af2e5504180ef153f426ffb294f31e59b831d3a9e0e43
+    .claude/skills/security-blue-red-team/schemas/findings.schema.json: sha256:f785936e4d1f079758f9c114a4b7826c606af8c4892b913eec86ede8d01c6e6e
+    .claude/skills/security-blue-red-team/schemas/security-profile.schema.yml: sha256:f4c02808344007b37a5a84f8b45683502eeeb2518741ce5c14afaba434caefb2
+    .claude/skills/security-blue-red-team/schemas/security-profile.template.yml: sha256:8574fd21021a1e6829c76cbd4e3169c8fa16ad57a5a0f55132caa202a6c08b8b
+    .claude/skills/security-blue-red-team/schemas/tests/cleanup-queue.schema.test.mjs: sha256:4082ba604939b8ca007faf99cd8235e450ccd258e73a2bcec644e5f706f72d18
+    .claude/skills/security-blue-red-team/skills/security-blue-team/SKILL.md: sha256:6400817177e796eabf00d7683d6408843bf012b24a9ee7faab42192609069e4b
+    .claude/skills/security-blue-red-team/skills/security-red-team/SKILL.md: sha256:35a79359704d764b6f7ff863580eeeaf2b99251320e240edc672657c4b2eed24
+    .claude/skills/security-blue-red-team/skills/security-vulnerability-assessment/SKILL.md: sha256:774780dd26efd42927978a9dce136efd7fb1667588967a16f57f94bddbb52420
+  content_hash: sha256:33864750469b81afe98b53a99761eee1ec9a49b13e8f61653d80a60ade90658c
+- repo_url: hidari/agentic-coding-tools
+  name: web-monkey-qa
+  host: github.com
+  resolved_commit: 78edcdac01c2a85ba957a55b5d446125ee3b643e
+  resolved_ref: 78edcdac01c2a85ba957a55b5d446125ee3b643e
+  version: 0.1.0
+  virtual_path: plugins/web-monkey-qa
+  is_virtual: true
+  package_type: marketplace_plugin
+  deployed_files:
+  - .claude/agents/monkey-explorer-agent.md
+  - .claude/commands/monkey-qa.md
+  - .claude/skills/web-monkey-qa
+  - .claude/skills/web-monkey-qa/.claude-plugin/plugin.json
+  - .claude/skills/web-monkey-qa/README.md
+  - .claude/skills/web-monkey-qa/SKILL.md
+  - .claude/skills/web-monkey-qa/agents/monkey-explorer-agent.md
+  - .claude/skills/web-monkey-qa/apm.yml
+  - .claude/skills/web-monkey-qa/commands/monkey-qa.md
+  - .claude/skills/web-monkey-qa/schemas/findings.schema.json
+  - .claude/skills/web-monkey-qa/schemas/monkey-qa-profile.schema.yml
+  - .claude/skills/web-monkey-qa/schemas/monkey-qa-profile.template.yml
+  - .claude/skills/web-monkey-qa/schemas/tests/findings.schema.test.mjs
+  - .claude/skills/web-monkey-qa/skills/monkey-qa/SKILL.md
+  deployed_file_hashes:
+    .claude/agents/monkey-explorer-agent.md: sha256:591d049178f465e8e70ea5a63f0709e46209412fa12ea68d2be055b7c9401580
+    .claude/commands/monkey-qa.md: sha256:ff426b6b606a0cd8e3a943110c09e8fea06cec673b3c4f942c71a58c8a518f65
+    .claude/skills/web-monkey-qa/.claude-plugin/plugin.json: sha256:25f6ea2f6b075c45590db461f6ac780534b2e721f96ab127db379043e8c9f058
+    .claude/skills/web-monkey-qa/README.md: sha256:5be7e8f9f647c4be9ccbda95b8927da243f26d52444028e7a84788ec4e3f80c6
+    .claude/skills/web-monkey-qa/SKILL.md: sha256:0ffce1939724f7b3dc932a042db9bd53e6d1cfb502e8a296ed0abdf319c7bbc8
+    .claude/skills/web-monkey-qa/agents/monkey-explorer-agent.md: sha256:591d049178f465e8e70ea5a63f0709e46209412fa12ea68d2be055b7c9401580
+    .claude/skills/web-monkey-qa/apm.yml: sha256:27b2d51c1a291f5ec21d17b1e6fff73ae80f2e60ff1bcfeefaabccf823b9346e
+    .claude/skills/web-monkey-qa/commands/monkey-qa.md: sha256:a775802c8833c457f4f34595e7d3f4f0bf947c23591bb415f09ace87ce574e82
+    .claude/skills/web-monkey-qa/schemas/findings.schema.json: sha256:922bcb7bd0ddcf75678171aae6e2b949c018fb3f6b6e96ebc31f57f1ea04202e
+    .claude/skills/web-monkey-qa/schemas/monkey-qa-profile.schema.yml: sha256:4f4ea6234c7eb7ede3620b8ad73ea8825e4fe97fe668959a884a52c7d431e7b1
+    .claude/skills/web-monkey-qa/schemas/monkey-qa-profile.template.yml: sha256:a412dbf03e8b453e890a51bd8b0b8b3969d03108579387a512b9c2ec3e64279e
+    .claude/skills/web-monkey-qa/schemas/tests/findings.schema.test.mjs: sha256:125989b172a95326e01817041973ae88ecb7ec0ff6fd60aba481224f946a609c
+    .claude/skills/web-monkey-qa/skills/monkey-qa/SKILL.md: sha256:4bfde9cb349b61a4fc4aa890f988633acf171f18d89038ff0f969e22bb598132
+  content_hash: sha256:9c332927fe574b9ab5fdaf1b98ecb9b55d7e42909e5eedeae42c1d0bbec48883
+- repo_url: hidari/agentic-coding-tools
+  name: windows-vm-verification
+  host: github.com
+  resolved_commit: 78edcdac01c2a85ba957a55b5d446125ee3b643e
+  resolved_ref: 78edcdac01c2a85ba957a55b5d446125ee3b643e
+  version: unknown
+  virtual_path: skills/devops/windows-vm-verification
+  is_virtual: true
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/windows-vm-verification
+  - .claude/skills/windows-vm-verification/.gitignore
+  - .claude/skills/windows-vm-verification/SKILL.md
+  - .claude/skills/windows-vm-verification/references/ssh-config.template
+  - .claude/skills/windows-vm-verification/references/troubleshooting.md
+  - .claude/skills/windows-vm-verification/test_winvm.py
+  - .claude/skills/windows-vm-verification/winvm.py
+  deployed_file_hashes:
+    .claude/skills/windows-vm-verification/.gitignore: sha256:862263fa1f46c20f0d1e4dac5ffcc75abd55c08211b2c3864c5f8764b9d87793
+    .claude/skills/windows-vm-verification/SKILL.md: sha256:a6afab1f5d329d02544637a3665a835691a26f6db099bd6cb30f25e09b11b0c6
+    .claude/skills/windows-vm-verification/references/ssh-config.template: sha256:66d2ee2a102d7b3f25da0320458f719d05be301c299a48cef6554f5fb84e9979
+    .claude/skills/windows-vm-verification/references/troubleshooting.md: sha256:0144fee5fb48c7d1343db887c70a5f03eb8af76501d730577851eb09b6e24afa
+    .claude/skills/windows-vm-verification/test_winvm.py: sha256:5f0e1c8b0a4a6c65d83aae2cf2c62fd9f41b32151b2aa6d35d3be19725aa2653
+    .claude/skills/windows-vm-verification/winvm.py: sha256:97c018cf304abe2b0b81c65026f605bc70d7bd37600a2f82193059fdb179008b
+  content_hash: sha256:a7502b70ade7d252c9b3ff7b5402177e57e473a382de50967f3763ccb618d97f
+- repo_url: hidari/agentic-coding-tools
+  name: session-handoff
+  host: github.com
+  resolved_commit: 78edcdac01c2a85ba957a55b5d446125ee3b643e
+  resolved_ref: 78edcdac01c2a85ba957a55b5d446125ee3b643e
+  version: unknown
+  virtual_path: skills/meta/session-handoff
+  is_virtual: true
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/session-handoff
+  - .claude/skills/session-handoff/SKILL.md
+  - .claude/skills/session-handoff/template.md
+  deployed_file_hashes:
+    .claude/skills/session-handoff/SKILL.md: sha256:c8fac68e4a0510d1c9a1fe9404fd00d6286a33cbd4c6db5cea26183a820e43b5
+    .claude/skills/session-handoff/template.md: sha256:c4567c2d17636da1fe1641325dffc95a1ba60185930c5098e685698c71b5d776
+  content_hash: sha256:2f77575d16288c02edbff70752c1405c548b69ae3edefcca11e2d2634392fc71
+- repo_url: hidari/agentic-coding-tools
+  name: chrome-devtools-debugger
+  host: github.com
+  resolved_commit: 78edcdac01c2a85ba957a55b5d446125ee3b643e
+  resolved_ref: 78edcdac01c2a85ba957a55b5d446125ee3b643e
+  version: unknown
+  virtual_path: skills/tooling/chrome-devtools-debugger
+  is_virtual: true
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/chrome-devtools-debugger
+  - .claude/skills/chrome-devtools-debugger/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/chrome-devtools-debugger/SKILL.md: sha256:d814438e6755a139b93682365ae9fb4f4bbcc2a8f83e20522a2b1ee5271aea4b
+  content_hash: sha256:f812466dfd2b6b35e954ed761823e9d6b1241a99ec032c9ef7bfda672c23cf4d
+- repo_url: hidari/agentic-coding-tools
+  name: herdr
+  host: github.com
+  resolved_commit: 78edcdac01c2a85ba957a55b5d446125ee3b643e
+  resolved_ref: 78edcdac01c2a85ba957a55b5d446125ee3b643e
+  version: unknown
+  virtual_path: skills/tooling/herdr
+  is_virtual: true
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/herdr
+  - .claude/skills/herdr/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/herdr/SKILL.md: sha256:75826452ca09623a7309c0a0d9bd6b29b24c55cf100632fc83bd69a685241f17
+  content_hash: sha256:69d3762de6941e5632e7cbcaeea3584b47ce906a9275afb333d5405ff5480b80
+- repo_url: hidari/agentic-coding-tools
+  name: markdown-to-pdf
+  host: github.com
+  resolved_commit: 78edcdac01c2a85ba957a55b5d446125ee3b643e
+  resolved_ref: 78edcdac01c2a85ba957a55b5d446125ee3b643e
+  version: unknown
+  virtual_path: skills/tooling/markdown-to-pdf
+  is_virtual: true
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/markdown-to-pdf
+  - .claude/skills/markdown-to-pdf/SKILL.md
+  - .claude/skills/markdown-to-pdf/scripts/render.py
+  - .claude/skills/markdown-to-pdf/scripts/style.css
+  deployed_file_hashes:
+    .claude/skills/markdown-to-pdf/SKILL.md: sha256:d58d468fe7240c0951d720c958e610b06ef069bbf9455dea59dd74cae0bfcf31
+    .claude/skills/markdown-to-pdf/scripts/render.py: sha256:c536e8c3f5525a0d7aad6eacd84c7207133e10df4e9b046102a618c88bdce56d
+    .claude/skills/markdown-to-pdf/scripts/style.css: sha256:be7ecf56c0a6368d66e748d3c765e313149e6a172bbc8bd37aff9d7c567cf72f
+  content_hash: sha256:3097a1f069d9e7f767ceebd89a6cac26d63af67d221d4a78954678290b95defa
 - repo_url: mizchi/skills
-  name: skills
+  name: empirical-prompt-tuning
   host: github.com
   resolved_commit: d7999453cdb4e0e09df1c7f82fd23752539c546c
   resolved_ref: d7999453cdb4e0e09df1c7f82fd23752539c546c
@@ -22,7 +248,7 @@ dependencies:
     .claude/skills/empirical-prompt-tuning/SKILL.md: sha256:252418e7ef022981d2dda2e3ec57fa1c786d30af68c50b7e062edf1d7361b0cb
   content_hash: sha256:20e7fba93c7267ba6e3a7b27787ca49191b762dffcfb804b01da9183b1b0c891
 - repo_url: mizchi/skills
-  name: skills
+  name: playwright-cli
   host: github.com
   resolved_commit: d7999453cdb4e0e09df1c7f82fd23752539c546c
   resolved_ref: d7999453cdb4e0e09df1c7f82fd23752539c546c
@@ -39,7 +265,7 @@ dependencies:
     .claude/skills/playwright-cli/SKILL.md: sha256:dc6f7e100b20369010393b116f3d748cfa7d3b298046638e854b5a02d4e0e7f7
   content_hash: sha256:91b5ce28a1c5080740817a5977279c60d9467aeeb1aa992ea4363c8d148dca43
 - repo_url: mizchi/skills
-  name: skills
+  name: playwright-test
   host: github.com
   resolved_commit: d7999453cdb4e0e09df1c7f82fd23752539c546c
   resolved_ref: d7999453cdb4e0e09df1c7f82fd23752539c546c
@@ -58,7 +284,7 @@ dependencies:
     .claude/skills/playwright-test/SKILL.md: sha256:b66dbd57a461cfd40c7a2b91af156b6923b3bba39a4ae712528b5c0ce3dba3fd
   content_hash: sha256:7f85a2a1a1b2c96604c97676239c2df91558fb6c1fa5a89c78683bb68375026a
 - repo_url: mizchi/skills
-  name: skills
+  name: apm-usage
   host: github.com
   resolved_commit: d7999453cdb4e0e09df1c7f82fd23752539c546c
   resolved_ref: d7999453cdb4e0e09df1c7f82fd23752539c546c
@@ -81,7 +307,7 @@ dependencies:
     .claude/skills/apm-usage/references/publishing.md: sha256:392878fba913c9cc2eac9ecf028fce1671138bf59c03e66d2e44225757552034
   content_hash: sha256:519bcaa185327320805cfbc89d655499c68485029e995676bdd490665b688a70
 - repo_url: mizchi/skills
-  name: skills
+  name: ast-grep-practice
   host: github.com
   resolved_commit: d7999453cdb4e0e09df1c7f82fd23752539c546c
   resolved_ref: d7999453cdb4e0e09df1c7f82fd23752539c546c
@@ -132,3 +358,946 @@ dependencies:
     .claude/skills/justfile/assets/gh_action_example.yaml: sha256:3ce1e44cb9570948b055c84f36e8affab20a080000b21d76b07e89864c08f9a2
     .claude/skills/justfile/assets/justfile: sha256:c7a70af405eaa460f73bd49f011b1f1e0dd09f6ecc866a3c3640b8cae7a5c208
   content_hash: sha256:da495bb7093f221ae80bd5290fc9221057f801dbea40c86a5a7243abe572d071
+- repo_url: yusukebe/ax
+  name: ax
+  host: github.com
+  resolved_commit: 8abbca2fc400c2ff4866248ba1ec9309b948812f
+  resolved_ref: 8abbca2fc400c2ff4866248ba1ec9309b948812f
+  version: unknown
+  virtual_path: skills/ax
+  is_virtual: true
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/ax
+  - .claude/skills/ax/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/ax/SKILL.md: sha256:4acbbc5574e36a21c27fbc3099cc40638e074e7cada674e00d23698cef34d37c
+  content_hash: sha256:3e8c939cce32daf43d9567706393259555828ac52ab3c0c2750371eff99a35e8
+deployments:
+- kind: project-relative
+  target: claude
+  value: .claude/agents/blue-team-agent.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:0540ec44dd527a322d5a6ea0137cda8545d587e8e32cf4953ebd18c9f04635c9
+- kind: project-relative
+  target: claude
+  value: .claude/agents/monkey-explorer-agent.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/web-monkey-qa
+  active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
+  content_hash: sha256:591d049178f465e8e70ea5a63f0709e46209412fa12ea68d2be055b7c9401580
+- kind: project-relative
+  target: claude
+  value: .claude/agents/red-team-agent.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:db8133a5b09af6fa6625a1d516ef64759b63f8c3531bc1f711617b22ad1e80e0
+- kind: project-relative
+  target: claude
+  value: .claude/commands/monkey-qa.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/web-monkey-qa
+  active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
+  content_hash: sha256:ff426b6b606a0cd8e3a943110c09e8fea06cec673b3c4f942c71a58c8a518f65
+- kind: project-relative
+  target: claude
+  value: .claude/commands/security-blueteam.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:240d4575aa2f844fe5a8d5822717b9c9115ec0aae40117d3b5f98ad3c8acc253
+- kind: project-relative
+  target: claude
+  value: .claude/commands/security-cleanup.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:3c318dfc790521adc507a8d32c2ac9ef2ea039a8232dded0108cad160b4b5d63
+- kind: project-relative
+  target: claude
+  value: .claude/commands/security-redteam.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:ce619e9a4b2a21c498860d7e5407a1c1d6c6ef88751a1926866e87f7d16cb57c
+- kind: project-relative
+  target: claude
+  value: .claude/commands/security-vulnerability-assessment.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:dcf56d1991e8d8d93e772666f50f980b2f65811a2fedbc36c1fcc49bc57d55a5
+- kind: project-relative
+  target: claude
+  value: .claude/skills/apm-usage
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/tooling/apm-usage
+  active_owner: mizchi/skills/tooling/apm-usage
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/apm-usage/README.md
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/tooling/apm-usage
+  active_owner: mizchi/skills/tooling/apm-usage
+  content_hash: sha256:600c52fe2390d9064433123aabbe3f8b9d702e7702fd6437718a82bc0ff5c580
+- kind: project-relative
+  target: claude
+  value: .claude/skills/apm-usage/SKILL-ja.md
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/tooling/apm-usage
+  active_owner: mizchi/skills/tooling/apm-usage
+  content_hash: sha256:095dff73f08d8c23fff1b8106729b1e57e34088ffae23e25d7461e17a88b9743
+- kind: project-relative
+  target: claude
+  value: .claude/skills/apm-usage/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/tooling/apm-usage
+  active_owner: mizchi/skills/tooling/apm-usage
+  content_hash: sha256:dc975426518a7e264f56ad3a8219bca5a75170fa38f83f59f1f7a7be86f0822b
+- kind: project-relative
+  target: claude
+  value: .claude/skills/apm-usage/references/manifest-schema.md
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/tooling/apm-usage
+  active_owner: mizchi/skills/tooling/apm-usage
+  content_hash: sha256:f49955b8be35046fc963bffbf134af101055c3164ae55f86d6bc8bc001304b13
+- kind: project-relative
+  target: claude
+  value: .claude/skills/apm-usage/references/publishing.md
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/tooling/apm-usage
+  active_owner: mizchi/skills/tooling/apm-usage
+  content_hash: sha256:392878fba913c9cc2eac9ecf028fce1671138bf59c03e66d2e44225757552034
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ast-grep-practice
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/tooling/ast-grep-practice
+  active_owner: mizchi/skills/tooling/ast-grep-practice
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ast-grep-practice/README.md
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/tooling/ast-grep-practice
+  active_owner: mizchi/skills/tooling/ast-grep-practice
+  content_hash: sha256:117059807d964371b7006bcc5ec24512bb992ecd643c128281be3ba760cf9a47
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ast-grep-practice/SKILL-ja.md
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/tooling/ast-grep-practice
+  active_owner: mizchi/skills/tooling/ast-grep-practice
+  content_hash: sha256:dbe683eb03d6c32f5bb1c254adf77a20c20625de0bb4b40f43a890d617709e60
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ast-grep-practice/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/tooling/ast-grep-practice
+  active_owner: mizchi/skills/tooling/ast-grep-practice
+  content_hash: sha256:9183634a2e375f826fede62515b8d1414200cdc3643d93393ed1c3b36e45beeb
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ast-grep-practice/references/cli.md
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/tooling/ast-grep-practice
+  active_owner: mizchi/skills/tooling/ast-grep-practice
+  content_hash: sha256:20f47f7693019f6e392cf59a2bb0f938c3763ff177f7eb5f6ed1360bc9b78938
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ast-grep-practice/references/kind-catalog.md
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/tooling/ast-grep-practice
+  active_owner: mizchi/skills/tooling/ast-grep-practice
+  content_hash: sha256:0a616ac78efa38aeeee5b8afc939bee0489c5d1d92b82475480e429d03a14ec4
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ast-grep-practice/references/rule-yaml.md
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/tooling/ast-grep-practice
+  active_owner: mizchi/skills/tooling/ast-grep-practice
+  content_hash: sha256:1b801dd897252f442384980235eaf06354bb6dc0ac8378f196e4e20746e1c7c0
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ast-grep-practice/references/testing.md
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/tooling/ast-grep-practice
+  active_owner: mizchi/skills/tooling/ast-grep-practice
+  content_hash: sha256:d7e2282b5b6ef954891af059adbe9b8ae23edcc385ba00f6a9e80e42ac6607d7
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ax
+  runtime: null
+  scope: project
+  owners:
+  - yusukebe/ax/skills/ax
+  active_owner: yusukebe/ax/skills/ax
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ax/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - yusukebe/ax/skills/ax
+  active_owner: yusukebe/ax/skills/ax
+  content_hash: sha256:4acbbc5574e36a21c27fbc3099cc40638e074e7cada674e00d23698cef34d37c
+- kind: project-relative
+  target: claude
+  value: .claude/skills/chrome-devtools-debugger
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/tooling/chrome-devtools-debugger
+  active_owner: hidari/agentic-coding-tools/skills/tooling/chrome-devtools-debugger
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/chrome-devtools-debugger/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/tooling/chrome-devtools-debugger
+  active_owner: hidari/agentic-coding-tools/skills/tooling/chrome-devtools-debugger
+  content_hash: sha256:d814438e6755a139b93682365ae9fb4f4bbcc2a8f83e20522a2b1ee5271aea4b
+- kind: project-relative
+  target: claude
+  value: .claude/skills/dev-workflow
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/dev-workflow
+  active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/dev-workflow/.claude-plugin/plugin.json
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/dev-workflow
+  active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
+  content_hash: sha256:b3f089a7afe6662bb94187addc20bafd34152c265688ca9c5ee1599473e32f5e
+- kind: project-relative
+  target: claude
+  value: .claude/skills/dev-workflow/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/dev-workflow
+  active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
+  content_hash: sha256:cc5454d70df96ca56cf022a80e3b9f661d2376134221dcd505fe99c2325c7049
+- kind: project-relative
+  target: claude
+  value: .claude/skills/dev-workflow/apm.yml
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/dev-workflow
+  active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
+  content_hash: sha256:73591f62724c3e2f6195b6b26141d312d937823372b75a69a54638ed028b9450
+- kind: project-relative
+  target: claude
+  value: .claude/skills/dev-workflow/skills/commit-and-pr-message/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/dev-workflow
+  active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
+  content_hash: sha256:18246d7ba3a73179a13fccfc8b947dd8ecd0078bdecf75efead0d71df6913270
+- kind: project-relative
+  target: claude
+  value: .claude/skills/dev-workflow/skills/e2e-scenario-impact-check/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/dev-workflow
+  active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
+  content_hash: sha256:b072d406248212b52736eb0e8e1b7200e18f0229cfbe4c8b7430dcf76d3ee039
+- kind: project-relative
+  target: claude
+  value: .claude/skills/dev-workflow/skills/git-branch-switcher/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/dev-workflow
+  active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
+  content_hash: sha256:8d2fab903016a6ce30ee3dd1271777d4cc75f7d420a434bd8244a8348d824ac6
+- kind: project-relative
+  target: claude
+  value: .claude/skills/dev-workflow/skills/in-repo-issue/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/dev-workflow
+  active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
+  content_hash: sha256:09ff8758fb71d66dc53fc0d03096a91de1a12161767654b6ab9edab32dc0c1b3
+- kind: project-relative
+  target: claude
+  value: .claude/skills/dev-workflow/skills/in-repo-issue/templates/issue.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/dev-workflow
+  active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
+  content_hash: sha256:10609086c252ad022eee038d73eb1d41260a436c378e198bbc51f20f0d2b8695
+- kind: project-relative
+  target: claude
+  value: .claude/skills/dev-workflow/skills/issue-scoped-artifacts/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/dev-workflow
+  active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
+  content_hash: sha256:08407461cc273ad487ea848d09b527a3c73e8c0d31ec52bd0f88c4a911940989
+- kind: project-relative
+  target: claude
+  value: .claude/skills/dev-workflow/skills/pre-merge-quality-gate/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/dev-workflow
+  active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
+  content_hash: sha256:be7cb7891bd6a60b7b5efdeb5270dfd57a638a7b00dcb014f9cb3f223ef127f6
+- kind: project-relative
+  target: claude
+  value: .claude/skills/dev-workflow/skills/retrospective-codify/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/dev-workflow
+  active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
+  content_hash: sha256:0de6cf497cf6d71db3430b83990f646d4e585a275601820b82ca00ddc0d4e419
+- kind: project-relative
+  target: claude
+  value: .claude/skills/empirical-prompt-tuning
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/meta/empirical-prompt-tuning
+  active_owner: mizchi/skills/meta/empirical-prompt-tuning
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/empirical-prompt-tuning/README.md
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/meta/empirical-prompt-tuning
+  active_owner: mizchi/skills/meta/empirical-prompt-tuning
+  content_hash: sha256:c7db7d27122bcffe416e5607700a7cd1778cad260d3e104c5bb6da7b7f976b3d
+- kind: project-relative
+  target: claude
+  value: .claude/skills/empirical-prompt-tuning/SKILL-ja.md
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/meta/empirical-prompt-tuning
+  active_owner: mizchi/skills/meta/empirical-prompt-tuning
+  content_hash: sha256:0a38d830802c2e08a7faca13928fedf6911e00b896946b4b03910d662de6dea5
+- kind: project-relative
+  target: claude
+  value: .claude/skills/empirical-prompt-tuning/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/meta/empirical-prompt-tuning
+  active_owner: mizchi/skills/meta/empirical-prompt-tuning
+  content_hash: sha256:252418e7ef022981d2dda2e3ec57fa1c786d30af68c50b7e062edf1d7361b0cb
+- kind: project-relative
+  target: claude
+  value: .claude/skills/herdr
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/tooling/herdr
+  active_owner: hidari/agentic-coding-tools/skills/tooling/herdr
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/herdr/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/tooling/herdr
+  active_owner: hidari/agentic-coding-tools/skills/tooling/herdr
+  content_hash: sha256:75826452ca09623a7309c0a0d9bd6b29b24c55cf100632fc83bd69a685241f17
+- kind: project-relative
+  target: claude
+  value: .claude/skills/justfile
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/tooling/justfile
+  active_owner: mizchi/skills/tooling/justfile
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/justfile/.claude-plugin/manifest.json
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/tooling/justfile
+  active_owner: mizchi/skills/tooling/justfile
+  content_hash: sha256:0905f1d62b295d40dae89ecf77eda3c05666941bee692b8220ab95ab0336bf5d
+- kind: project-relative
+  target: claude
+  value: .claude/skills/justfile/README.md
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/tooling/justfile
+  active_owner: mizchi/skills/tooling/justfile
+  content_hash: sha256:de18db9c0fa6c24e2de883a14a79b26f32f953b4f137c6e5325ffcd38025d960
+- kind: project-relative
+  target: claude
+  value: .claude/skills/justfile/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/tooling/justfile
+  active_owner: mizchi/skills/tooling/justfile
+  content_hash: sha256:32bf798b16c88d9d6c79127834503e5e7aa6d50249ce3dae63fa7db4895a90e0
+- kind: project-relative
+  target: claude
+  value: .claude/skills/justfile/apm.yml
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/tooling/justfile
+  active_owner: mizchi/skills/tooling/justfile
+  content_hash: sha256:810d355f26fbec0a1efbb9798c1eebca8da54dcfb4268e3e07107dfc6807448f
+- kind: project-relative
+  target: claude
+  value: .claude/skills/justfile/assets/gh_action_example.yaml
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/tooling/justfile
+  active_owner: mizchi/skills/tooling/justfile
+  content_hash: sha256:3ce1e44cb9570948b055c84f36e8affab20a080000b21d76b07e89864c08f9a2
+- kind: project-relative
+  target: claude
+  value: .claude/skills/justfile/assets/justfile
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/tooling/justfile
+  active_owner: mizchi/skills/tooling/justfile
+  content_hash: sha256:c7a70af405eaa460f73bd49f011b1f1e0dd09f6ecc866a3c3640b8cae7a5c208
+- kind: project-relative
+  target: claude
+  value: .claude/skills/markdown-to-pdf
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf
+  active_owner: hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/markdown-to-pdf/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf
+  active_owner: hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf
+  content_hash: sha256:d58d468fe7240c0951d720c958e610b06ef069bbf9455dea59dd74cae0bfcf31
+- kind: project-relative
+  target: claude
+  value: .claude/skills/markdown-to-pdf/scripts/render.py
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf
+  active_owner: hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf
+  content_hash: sha256:c536e8c3f5525a0d7aad6eacd84c7207133e10df4e9b046102a618c88bdce56d
+- kind: project-relative
+  target: claude
+  value: .claude/skills/markdown-to-pdf/scripts/style.css
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf
+  active_owner: hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf
+  content_hash: sha256:be7ecf56c0a6368d66e748d3c765e313149e6a172bbc8bd37aff9d7c567cf72f
+- kind: project-relative
+  target: claude
+  value: .claude/skills/playwright-cli
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/testing/playwright-cli
+  active_owner: mizchi/skills/testing/playwright-cli
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/playwright-cli/README.md
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/testing/playwright-cli
+  active_owner: mizchi/skills/testing/playwright-cli
+  content_hash: sha256:0b6236838eaeac59ee64828cb86b485e7318a8162da65f31e9064e14b39b7b38
+- kind: project-relative
+  target: claude
+  value: .claude/skills/playwright-cli/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/testing/playwright-cli
+  active_owner: mizchi/skills/testing/playwright-cli
+  content_hash: sha256:dc6f7e100b20369010393b116f3d748cfa7d3b298046638e854b5a02d4e0e7f7
+- kind: project-relative
+  target: claude
+  value: .claude/skills/playwright-test
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/testing/playwright-test
+  active_owner: mizchi/skills/testing/playwright-test
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/playwright-test/README.md
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/testing/playwright-test
+  active_owner: mizchi/skills/testing/playwright-test
+  content_hash: sha256:71567cf469a618744f63e72578d189a4dda5ef81c6e60169348579af3f0112fb
+- kind: project-relative
+  target: claude
+  value: .claude/skills/playwright-test/SKILL-ja.md
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/testing/playwright-test
+  active_owner: mizchi/skills/testing/playwright-test
+  content_hash: sha256:63d2cd55468c576e986fe4eb7b799d9203f38540688a8988588c551d8b19548e
+- kind: project-relative
+  target: claude
+  value: .claude/skills/playwright-test/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/testing/playwright-test
+  active_owner: mizchi/skills/testing/playwright-test
+  content_hash: sha256:b66dbd57a461cfd40c7a2b91af156b6923b3bba39a4ae712528b5c0ce3dba3fd
+- kind: project-relative
+  target: claude
+  value: .claude/skills/security-blue-red-team
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/security-blue-red-team/.claude-plugin/plugin.json
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:0177137412f9e6d9466963bf028b9a8890ead11744fb95c1b612843a5e76f739
+- kind: project-relative
+  target: claude
+  value: .claude/skills/security-blue-red-team/README.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:26ac0ceb7ae118e0bed12fa91a0f04a465a745ea913bce67c44685c0d0c8f7c1
+- kind: project-relative
+  target: claude
+  value: .claude/skills/security-blue-red-team/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:ffda08fd6952c470f92472fd21bf9b7f20659f875737e3c3f22454f9ad718cef
+- kind: project-relative
+  target: claude
+  value: .claude/skills/security-blue-red-team/agents/blue-team-agent.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:0540ec44dd527a322d5a6ea0137cda8545d587e8e32cf4953ebd18c9f04635c9
+- kind: project-relative
+  target: claude
+  value: .claude/skills/security-blue-red-team/agents/red-team-agent.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:db8133a5b09af6fa6625a1d516ef64759b63f8c3531bc1f711617b22ad1e80e0
+- kind: project-relative
+  target: claude
+  value: .claude/skills/security-blue-red-team/apm.yml
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:5a9ba7105bd7474613db4ff974202cce2e1b3f2664db4466c042da1502078fe5
+- kind: project-relative
+  target: claude
+  value: .claude/skills/security-blue-red-team/commands/security-blueteam.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:9815cd15694eb582359a22229ebcecd8ec32dbc4fec3f69a912ee1b9e272575e
+- kind: project-relative
+  target: claude
+  value: .claude/skills/security-blue-red-team/commands/security-cleanup.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:188d2966222a9fbcba49d0a06959d5395109bcb77f58fe0c08d5d70e2ac2e44b
+- kind: project-relative
+  target: claude
+  value: .claude/skills/security-blue-red-team/commands/security-redteam.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:7299c8087d512594c0156b62594111465cf3b4dd431db19b9cffb0616f81ec9e
+- kind: project-relative
+  target: claude
+  value: .claude/skills/security-blue-red-team/commands/security-vulnerability-assessment.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:ac7e923d320f510f2c6ef49ff4af2ee1692d5e675aae44fc3c6d6830d82eccaf
+- kind: project-relative
+  target: claude
+  value: .claude/skills/security-blue-red-team/schemas/cleanup-queue.schema.json
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:fc3023526beb83380f3af2e5504180ef153f426ffb294f31e59b831d3a9e0e43
+- kind: project-relative
+  target: claude
+  value: .claude/skills/security-blue-red-team/schemas/findings.schema.json
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:f785936e4d1f079758f9c114a4b7826c606af8c4892b913eec86ede8d01c6e6e
+- kind: project-relative
+  target: claude
+  value: .claude/skills/security-blue-red-team/schemas/security-profile.schema.yml
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:f4c02808344007b37a5a84f8b45683502eeeb2518741ce5c14afaba434caefb2
+- kind: project-relative
+  target: claude
+  value: .claude/skills/security-blue-red-team/schemas/security-profile.template.yml
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:8574fd21021a1e6829c76cbd4e3169c8fa16ad57a5a0f55132caa202a6c08b8b
+- kind: project-relative
+  target: claude
+  value: .claude/skills/security-blue-red-team/schemas/tests/cleanup-queue.schema.test.mjs
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:4082ba604939b8ca007faf99cd8235e450ccd258e73a2bcec644e5f706f72d18
+- kind: project-relative
+  target: claude
+  value: .claude/skills/security-blue-red-team/skills/security-blue-team/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:6400817177e796eabf00d7683d6408843bf012b24a9ee7faab42192609069e4b
+- kind: project-relative
+  target: claude
+  value: .claude/skills/security-blue-red-team/skills/security-red-team/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:35a79359704d764b6f7ff863580eeeaf2b99251320e240edc672657c4b2eed24
+- kind: project-relative
+  target: claude
+  value: .claude/skills/security-blue-red-team/skills/security-vulnerability-assessment/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team
+  active_owner: hidari/agentic-coding-tools/plugins/security-blue-red-team
+  content_hash: sha256:774780dd26efd42927978a9dce136efd7fb1667588967a16f57f94bddbb52420
+- kind: project-relative
+  target: claude
+  value: .claude/skills/session-handoff
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/meta/session-handoff
+  active_owner: hidari/agentic-coding-tools/skills/meta/session-handoff
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/session-handoff/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/meta/session-handoff
+  active_owner: hidari/agentic-coding-tools/skills/meta/session-handoff
+  content_hash: sha256:c8fac68e4a0510d1c9a1fe9404fd00d6286a33cbd4c6db5cea26183a820e43b5
+- kind: project-relative
+  target: claude
+  value: .claude/skills/session-handoff/template.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/meta/session-handoff
+  active_owner: hidari/agentic-coding-tools/skills/meta/session-handoff
+  content_hash: sha256:c4567c2d17636da1fe1641325dffc95a1ba60185930c5098e685698c71b5d776
+- kind: project-relative
+  target: claude
+  value: .claude/skills/web-monkey-qa
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/web-monkey-qa
+  active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/web-monkey-qa/.claude-plugin/plugin.json
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/web-monkey-qa
+  active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
+  content_hash: sha256:25f6ea2f6b075c45590db461f6ac780534b2e721f96ab127db379043e8c9f058
+- kind: project-relative
+  target: claude
+  value: .claude/skills/web-monkey-qa/README.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/web-monkey-qa
+  active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
+  content_hash: sha256:5be7e8f9f647c4be9ccbda95b8927da243f26d52444028e7a84788ec4e3f80c6
+- kind: project-relative
+  target: claude
+  value: .claude/skills/web-monkey-qa/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/web-monkey-qa
+  active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
+  content_hash: sha256:0ffce1939724f7b3dc932a042db9bd53e6d1cfb502e8a296ed0abdf319c7bbc8
+- kind: project-relative
+  target: claude
+  value: .claude/skills/web-monkey-qa/agents/monkey-explorer-agent.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/web-monkey-qa
+  active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
+  content_hash: sha256:591d049178f465e8e70ea5a63f0709e46209412fa12ea68d2be055b7c9401580
+- kind: project-relative
+  target: claude
+  value: .claude/skills/web-monkey-qa/apm.yml
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/web-monkey-qa
+  active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
+  content_hash: sha256:27b2d51c1a291f5ec21d17b1e6fff73ae80f2e60ff1bcfeefaabccf823b9346e
+- kind: project-relative
+  target: claude
+  value: .claude/skills/web-monkey-qa/commands/monkey-qa.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/web-monkey-qa
+  active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
+  content_hash: sha256:a775802c8833c457f4f34595e7d3f4f0bf947c23591bb415f09ace87ce574e82
+- kind: project-relative
+  target: claude
+  value: .claude/skills/web-monkey-qa/schemas/findings.schema.json
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/web-monkey-qa
+  active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
+  content_hash: sha256:922bcb7bd0ddcf75678171aae6e2b949c018fb3f6b6e96ebc31f57f1ea04202e
+- kind: project-relative
+  target: claude
+  value: .claude/skills/web-monkey-qa/schemas/monkey-qa-profile.schema.yml
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/web-monkey-qa
+  active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
+  content_hash: sha256:4f4ea6234c7eb7ede3620b8ad73ea8825e4fe97fe668959a884a52c7d431e7b1
+- kind: project-relative
+  target: claude
+  value: .claude/skills/web-monkey-qa/schemas/monkey-qa-profile.template.yml
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/web-monkey-qa
+  active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
+  content_hash: sha256:a412dbf03e8b453e890a51bd8b0b8b3969d03108579387a512b9c2ec3e64279e
+- kind: project-relative
+  target: claude
+  value: .claude/skills/web-monkey-qa/schemas/tests/findings.schema.test.mjs
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/web-monkey-qa
+  active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
+  content_hash: sha256:125989b172a95326e01817041973ae88ecb7ec0ff6fd60aba481224f946a609c
+- kind: project-relative
+  target: claude
+  value: .claude/skills/web-monkey-qa/skills/monkey-qa/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/plugins/web-monkey-qa
+  active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
+  content_hash: sha256:4bfde9cb349b61a4fc4aa890f988633acf171f18d89038ff0f969e22bb598132
+- kind: project-relative
+  target: claude
+  value: .claude/skills/windows-vm-verification
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/devops/windows-vm-verification
+  active_owner: hidari/agentic-coding-tools/skills/devops/windows-vm-verification
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/windows-vm-verification/.gitignore
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/devops/windows-vm-verification
+  active_owner: hidari/agentic-coding-tools/skills/devops/windows-vm-verification
+  content_hash: sha256:862263fa1f46c20f0d1e4dac5ffcc75abd55c08211b2c3864c5f8764b9d87793
+- kind: project-relative
+  target: claude
+  value: .claude/skills/windows-vm-verification/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/devops/windows-vm-verification
+  active_owner: hidari/agentic-coding-tools/skills/devops/windows-vm-verification
+  content_hash: sha256:a6afab1f5d329d02544637a3665a835691a26f6db099bd6cb30f25e09b11b0c6
+- kind: project-relative
+  target: claude
+  value: .claude/skills/windows-vm-verification/references/ssh-config.template
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/devops/windows-vm-verification
+  active_owner: hidari/agentic-coding-tools/skills/devops/windows-vm-verification
+  content_hash: sha256:66d2ee2a102d7b3f25da0320458f719d05be301c299a48cef6554f5fb84e9979
+- kind: project-relative
+  target: claude
+  value: .claude/skills/windows-vm-verification/references/troubleshooting.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/devops/windows-vm-verification
+  active_owner: hidari/agentic-coding-tools/skills/devops/windows-vm-verification
+  content_hash: sha256:0144fee5fb48c7d1343db887c70a5f03eb8af76501d730577851eb09b6e24afa
+- kind: project-relative
+  target: claude
+  value: .claude/skills/windows-vm-verification/test_winvm.py
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/devops/windows-vm-verification
+  active_owner: hidari/agentic-coding-tools/skills/devops/windows-vm-verification
+  content_hash: sha256:5f0e1c8b0a4a6c65d83aae2cf2c62fd9f41b32151b2aa6d35d3be19725aa2653
+- kind: project-relative
+  target: claude
+  value: .claude/skills/windows-vm-verification/winvm.py
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/devops/windows-vm-verification
+  active_owner: hidari/agentic-coding-tools/skills/devops/windows-vm-verification
+  content_hash: sha256:97c018cf304abe2b0b81c65026f605bc70d7bd37600a2f82193059fdb179008b

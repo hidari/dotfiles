@@ -291,13 +291,13 @@ teardown() {
 }
 
 # =============================================================================
-# install_apm_skills tests (apm.yml 宣言スキルの実体化)
+# install_apm_packages tests (apm.yml が宣言する skill と plugin の実体化)
 # =============================================================================
 
-@test "install_apm_skills: dry-run shows apm install without executing" {
+@test "install_apm_packages: dry-run shows apm install without executing" {
     DRY_RUN=true
 
-    run install_apm_skills
+    run install_apm_packages
 
     [ "$status" -eq 0 ]
     assert_contains "$output" "[DRY-RUN] apm install"
@@ -305,35 +305,28 @@ teardown() {
     refute_contains "$output" "apm not found"
 }
 
-@test "install_apm_skills: warns and skips when apm is not on PATH" {
+@test "install_apm_packages: warns and skips when apm is not on PATH" {
     DRY_RUN=false
     local empty_dir="$TEST_HOME/empty-path"
     mkdir -p "$empty_dir"
 
-    PATH="$empty_dir" run install_apm_skills
+    PATH="$empty_dir" run install_apm_packages
 
     [ "$status" -eq 0 ]
     assert_contains "$output" "apm not found"
 }
 
-@test "install_apm_skills: runs 'apm install --frozen' with cwd = DOTFILES_DIR/home" {
+@test "install_apm_packages: runs 'apm install --frozen' with cwd = DOTFILES_DIR/home" {
     DRY_RUN=false
     # apm を stub して呼び出し時の cwd と引数を記録し、実作業行 (cd home && apm install --frozen) を検証する。
     # 早期 return ガードだけでなく唯一の実作業行を通す（shell-out の cd 先・flag はユニットで担保する）。
-    local bin_dir="$TEST_HOME/fake-bin"
-    local rec="$TEST_HOME/apm-invocation.txt"
-    mkdir -p "$bin_dir"
-    cat > "$bin_dir/apm" <<'STUB'
-#!/bin/sh
-pwd -P > "$APM_STUB_REC"
-printf '%s\n' "$*" >> "$APM_STUB_REC"
-STUB
-    chmod +x "$bin_dir/apm"
-    export APM_STUB_REC="$rec"
+    local rec
+    setup_fake_apm
+    rec="$APM_STUB_REC"
     DOTFILES_DIR="$TEST_HOME/dotfiles"
     mkdir -p "$DOTFILES_DIR/home"
 
-    PATH="$bin_dir:$PATH" run install_apm_skills
+    PATH="$FAKE_BIN:$PATH" run install_apm_packages
 
     [ "$status" -eq 0 ]
     # symlink 差を排すため両辺 pwd -P で比較する
@@ -342,6 +335,203 @@ STUB
     [ "$(sed -n '1p' "$rec")" = "$expected_cwd" ]
     assert_contains "$(sed -n '2p' "$rec")" "install"
     assert_contains "$(sed -n '2p' "$rec")" "--frozen"
+}
+
+# =============================================================================
+# apm install ガード tests (未コミット変更の列挙と、それを受けた中止)
+# =============================================================================
+
+# コミットを 1 つ持つテスト用リポジトリを作る。
+# setup_test_repo はコミットを作らないが、status --porcelain の比較には
+# 「追跡されている既存ファイル」が要るのでここで用意する。
+init_committed_repo() {
+    local repo="$1"
+    setup_test_repo "$repo"
+    echo hello > "$repo/a.txt"
+    git -C "$repo" add a.txt
+    git -C "$repo" commit -qm init
+}
+
+@test "apm_install_blockers: a clean tree yields no blockers" {
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+
+    run apm_install_blockers "$repo"
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "apm_install_blockers: a modified tracked file is a blocker" {
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+    echo changed > "$repo/a.txt"
+
+    run apm_install_blockers "$repo"
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "a.txt"
+}
+
+@test "apm_install_blockers: an untracked file is a blocker" {
+    # untracked は git から戻せないので、apm が deploy 先で消したときに復旧できない
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+    echo new > "$repo/untracked.txt"
+
+    run apm_install_blockers "$repo"
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "untracked.txt"
+}
+
+@test "apm_install_blockers: the apm manifest and lockfile are allowed" {
+    # apm install の入出力なので、これらだけが変更されている状態は正常な中間状態。
+    # 例外が無いと pin 更新のたびにガードが自分の手順をブロックする
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+    mkdir -p "$repo/home"
+    echo "name: x" > "$repo/home/apm.yml"
+    echo "v: 1" > "$repo/home/apm.lock.yaml"
+    git -C "$repo" add home/apm.yml home/apm.lock.yaml
+    git -C "$repo" commit -qm manifest
+    echo "name: y" > "$repo/home/apm.yml"
+    echo "v: 2" > "$repo/home/apm.lock.yaml"
+
+    run apm_install_blockers "$repo"
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "apm_install_blockers: a path with spaces stays a single entry" {
+    # 空白で分割すると 1 件が 2 件に化け、落ちた分は「短い正常な結果」として返るので
+    # 出力を見ても気づけない。NUL 区切りで受けていることを件数で確かめる
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+    echo x > "$repo/has space.txt"
+
+    run apm_install_blockers "$repo"
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "has space.txt"
+    [ "$(printf '%s\n' "$output" | grep -c .)" -eq 1 ]
+}
+
+@test "apm_install_blockers: a non-ASCII path stays a single entry" {
+    # 日本語を含むパスも空白分割と同じ理由で分断されうる (git は既定でクォート表記にする)
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+    echo x > "$repo/日本語ファイル.txt"
+
+    run apm_install_blockers "$repo"
+
+    [ "$status" -eq 0 ]
+    [ "$(printf '%s\n' "$output" | grep -c .)" -eq 1 ]
+    refute_contains "$output" '\\'
+}
+
+@test "apm_install_blockers: a directory that is not a git repo yields no blockers" {
+    # git が無ければ「git から戻す」前提そのものが無いので、ガードの守備範囲外
+    local plain="$TEST_HOME/plain"
+    mkdir -p "$plain"
+
+    run apm_install_blockers "$plain"
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "apm_install_blockers: a rename is one blocker with an intact path" {
+    # rename と copy だけ porcelain -z が "XY <to>\0<from>\0" の 2 チャンクを返す。
+    # from 側は状態フィールドを持たないため、一律に 3 文字削ると実在しないパスが
+    # 診断へ並び件数も水増しされる
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+    git -C "$repo" mv a.txt renamed.txt
+
+    run apm_install_blockers "$repo"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "renamed.txt" ]
+}
+
+@test "apm_install_blockers: a rename into the manifest still counts its source" {
+    # 移動先が許可対象でも移動元が違えば、それは失われうる変更
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+    mkdir -p "$repo/home"
+    git -C "$repo" mv a.txt home/apm.yml
+
+    run apm_install_blockers "$repo"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "home/apm.yml" ]
+}
+
+@test "apm_install_blockers: a git failure is not reported as a clean tree" {
+    # status の失敗を空出力へ潰すと clean と区別できず、bootstrap が無防備に
+    # apm install を走らせる。新規マシンは git が壊れやすい環境なので、
+    # 「検査できなかった」は「検査対象外」と別に扱う
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+    setup_failing_git_status
+
+    PATH="$FAKE_BIN:$PATH" run apm_install_blockers "$repo"
+
+    [ "$status" -eq 1 ]
+}
+
+@test "install_apm_packages: refuses to run when the tree is dirty" {
+    DRY_RUN=false
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+    mkdir -p "$repo/home"
+    echo changed > "$repo/a.txt"
+
+    # apm が呼ばれたら記録を残す stub。ガードが効いていれば記録は残らない
+    setup_fake_apm
+    DOTFILES_DIR="$repo"
+
+    PATH="$FAKE_BIN:$PATH" run install_apm_packages
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "a.txt"
+    [ ! -e "$APM_STUB_REC" ]
+}
+
+@test "install_apm_packages: refuses to run when the tree cannot be inspected" {
+    # apm_install_blockers が「検査できなかった」を返しても、呼び出し元が受けなければ
+    # 空の blockers として通ってしまう。検査機構の取り付け側を見る
+    DRY_RUN=false
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+    mkdir -p "$repo/home"
+
+    setup_fake_apm
+    setup_failing_git_status
+    DOTFILES_DIR="$repo"
+
+    PATH="$FAKE_BIN:$PATH" run install_apm_packages
+
+    [ "$status" -ne 0 ]
+    [ ! -e "$APM_STUB_REC" ]
+}
+
+@test "install_apm_packages: runs when the tree is clean" {
+    # 上の negative 対照。ガードが常に止めるだけの実装になっていないことを担保する
+    DRY_RUN=false
+    local repo="$TEST_HOME/repo"
+    init_committed_repo "$repo"
+    mkdir -p "$repo/home"
+
+    setup_fake_apm
+    DOTFILES_DIR="$repo"
+
+    PATH="$FAKE_BIN:$PATH" run install_apm_packages
+
+    [ "$status" -eq 0 ]
+    [ -e "$APM_STUB_REC" ]
 }
 
 # =============================================================================
@@ -527,6 +717,145 @@ unmirrored_claude_targets() {
         echo "2 アカウント配線の drift 検出 (上記 diff: expected=allowlist vs actual=未 mirror)" >&2
         return 1
     fi
+}
+
+# =============================================================================
+# APM_SYMLINK_PAIRS / setup_apm_symlinks tests
+# =============================================================================
+#
+# SYMLINK_PAIRS とは source の性質が違うので独立に pin する。あちらの source は
+# git 管理下で必ず実在するが、こちらは apm install が配置するまで存在しない。
+# 配列を分けている理由は bootstrap.sh 側のコメントが持つ。
+
+@test "APM_SYMLINK_PAIRS: every source is an apm deploy path" {
+    load_pairs_array APM_SYMLINK_PAIRS
+    # 空配列 (slice 破綻) での vacuous pass を防ぐ negative guard
+    [ "${#APM_SYMLINK_PAIRS[@]}" -gt 0 ]
+
+    local pair source
+    for pair in "${APM_SYMLINK_PAIRS[@]}"; do
+        source="${pair%%|*}"
+        case "$source" in
+            home/.claude/skills|home/.claude/agents|home/.claude/commands|home/.claude/skills/*) ;;
+            *) echo "apm deploy パスではない source: $source" >&2; return 1 ;;
+        esac
+    done
+}
+
+@test "APM_SYMLINK_PAIRS: every source is gitignored" {
+    # tracked な source をこの配列へ置くと、SYMLINK_PAIRS の「source は checkout に必ず
+    # 実在する」不変条件の外で管理されることになり、どちらのテストにも捕まらなくなる。
+    # 逆に apm 生成物が ignore されていなければ deploy のたびに tree が汚れる。
+    #
+    # 検査は実リポジトリではなく home/.gitignore だけを持つ scratch リポジトリで行う。
+    # 末尾スラッシュ付きの ignore パターンはディレクトリにのみ一致し、git は実体の有無で
+    # ディレクトリかを判定するため、source 自体を実リポジトリへ問い合わせると apm 配置済みの
+    # ローカルでだけ緑になり fresh clone (CI) で赤くなる。実体の無い状態を再現したうえで
+    # 配下のパスを問い合わせれば、どちらの環境でも同じ判定になる。
+    load_pairs_array APM_SYMLINK_PAIRS
+    [ "${#APM_SYMLINK_PAIRS[@]}" -gt 0 ]
+
+    local probe="$TEST_HOME/gitignore-probe"
+    mkdir -p "$probe/home"
+    git -C "$probe" init -q
+    cp "$REPO_ROOT/home/.gitignore" "$probe/home/.gitignore"
+
+    local pair source checked=0
+    for pair in "${APM_SYMLINK_PAIRS[@]}"; do
+        source="${pair%%|*}"
+        run git -C "$probe" check-ignore -q "$source/deployed-file"
+        [ "$status" -eq 0 ] || { echo "gitignore されていない source: $source" >&2; return 1; }
+        checked=$((checked + 1))
+    done
+    # 検査件数と対象件数の一致を確かめる (途中で数え漏らしていないこと)
+    [ "$checked" -eq "${#APM_SYMLINK_PAIRS[@]}" ]
+
+    # 対照。これが無いと check-ignore が常に 0 を返す壊れ方 (パターンの取り違えや
+    # probe リポジトリの作成失敗) を「全件 ignore 済み」と読んでしまう
+    run git -C "$probe" check-ignore -q "home/.claude/settings.json"
+    [ "$status" -ne 0 ]
+}
+
+@test "SYMLINK_PAIRS: carries no apm-generated sources" {
+    # apm 生成物は checkout に存在しないので、SYMLINK_PAIRS に置くと
+    # 「all sources exist in repo」が fresh clone で構造的に赤くなる。
+    # 配列の取り違えを、症状 (CI の赤) ではなく原因の側で捕まえる。
+    load_pairs_array SYMLINK_PAIRS
+    [ "${#SYMLINK_PAIRS[@]}" -gt 0 ]
+
+    local pair source
+    for pair in "${SYMLINK_PAIRS[@]}"; do
+        source="${pair%%|*}"
+        case "$source" in
+            home/.claude/skills|home/.claude/skills/*|home/.claude/agents|home/.claude/commands)
+                echo "apm 生成物は APM_SYMLINK_PAIRS へ移すこと: $source" >&2; return 1 ;;
+        esac
+    done
+}
+
+@test "APM_SYMLINK_PAIRS: shared Claude config is mirrored to the second account" {
+    # apm 生成物も 2 アカウントで共有する。SYMLINK_PAIRS 側と同じ規約なので
+    # 判定関数を共有し、allowlist は持たない (全ての .claude/ target に mirror が要る)
+    load_pairs_array APM_SYMLINK_PAIRS
+    [ "${#APM_SYMLINK_PAIRS[@]}" -gt 0 ]
+
+    local actual
+    actual="$(unmirrored_claude_targets "${APM_SYMLINK_PAIRS[@]}")"
+    [ -z "$actual" ] || { echo "2 アカウント配線の drift 検出:"; echo "$actual"; false; }
+}
+
+@test "setup_apm_symlinks: skips pairs whose source does not exist" {
+    # apm 未実行や --dotfiles-only では source が無い。create_symlink の ln -sf は
+    # source の存在を見ないため、黙って壊れた symlink を張れてしまう
+    DOTFILES_DIR="$TEST_HOME/repo"
+    APM_SYMLINK_PAIRS=("home/.claude/agents|.claude/agents")
+
+    run setup_apm_symlinks
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "apm source not found"
+    [ ! -L "$TEST_HOME/.claude/agents" ]
+    [ ! -e "$TEST_HOME/.claude/agents" ]
+}
+
+@test "setup_apm_symlinks: links pairs whose source exists" {
+    DOTFILES_DIR="$TEST_HOME/repo"
+    APM_SYMLINK_PAIRS=("home/.claude/agents|.claude/agents")
+    mkdir -p "$DOTFILES_DIR/home/.claude/agents"
+
+    run setup_apm_symlinks
+
+    [ "$status" -eq 0 ]
+    [ -L "$TEST_HOME/.claude/agents" ]
+    [ "$(readlink "$TEST_HOME/.claude/agents")" = "$DOTFILES_DIR/home/.claude/agents" ]
+}
+
+@test "setup_apm_symlinks: stays idempotent on a second run" {
+    DOTFILES_DIR="$TEST_HOME/repo"
+    APM_SYMLINK_PAIRS=("home/.claude/agents|.claude/agents")
+    mkdir -p "$DOTFILES_DIR/home/.claude/agents"
+    setup_apm_symlinks
+
+    run setup_apm_symlinks
+
+    [ "$status" -eq 0 ]
+    [ -L "$TEST_HOME/.claude/agents" ]
+    [ "$(readlink "$TEST_HOME/.claude/agents")" = "$DOTFILES_DIR/home/.claude/agents" ]
+    # 入れ子 (.claude/agents/agents) が作られていないこと
+    [ ! -e "$TEST_HOME/.claude/agents/agents" ]
+}
+
+@test "setup_apm_symlinks: dry-run mode does not create anything" {
+    DOTFILES_DIR="$TEST_HOME/repo"
+    APM_SYMLINK_PAIRS=("home/.claude/agents|.claude/agents")
+    mkdir -p "$DOTFILES_DIR/home/.claude/agents"
+    DRY_RUN=true
+
+    run setup_apm_symlinks
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "[DRY-RUN] ln -sf"
+    [ ! -e "$TEST_HOME/.claude/agents" ]
 }
 
 # =============================================================================
@@ -772,6 +1101,29 @@ STUB
 
     [ "$status" -eq 0 ]
     assert_contains "$output" "[DRY-RUN] ln -sf $TEST_HOME/.claude/tasks $TEST_HOME/.claude-hamiltonian/tasks"
+}
+
+@test "main: dry-run wires the apm symlinks after the apm install step" {
+    # 配列と関数が揃っていてもフローから呼ばれなければ何も起きない。
+    # フィクスチャには apm 生成物が無いので skip の警告が出る。これが呼ばれた証拠になる
+    # (fresh clone で apm 未実行のときに実機で起きる状態そのもの)。
+    run bash "$BOOTSTRAP_SCRIPT" --dry-run
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "apm source not found"
+    # apm install の後に張ることを順序で pin する。先に張ると source が無く全て skip される
+    assert_contains_in_order "$output" "[DRY-RUN] apm install --frozen" "apm source not found"
+}
+
+@test "main: --dotfiles-only dry-run skips the apm symlinks" {
+    # apm 自体が走らない経路では symlink も張らない (dangling を作らないため)。
+    # 上のテストの negative 対照で、警告の有無が gate の位置を示す
+    run bash "$BOOTSTRAP_SCRIPT" --dry-run --dotfiles-only
+
+    [ "$status" -eq 0 ]
+    refute_contains "$output" "apm source not found"
+    # gate の positive 対照 (vacuous な全 skip でないことを担保)
+    assert_contains "$output" "[DRY-RUN] ln -sf"
 }
 
 @test "main: confirm prompt discloses the LaunchAgent before install" {

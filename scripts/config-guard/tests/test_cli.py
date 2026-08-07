@@ -6,11 +6,21 @@ import json
 from pathlib import Path
 
 from config_guard.cli import scan
-from tests.conftest import init_repo, run_git, write_file
+from tests.conftest import (
+    APM_GUARD_HOOK_COMMAND,
+    TIRITH_HOOK_COMMAND,
+    hook_group,
+    init_repo,
+    pretooluse,
+    run_git,
+    write_file,
+)
 
 GOOD_SETTINGS = {
     "permissions": {"allow": ["Bash(cat:*)"], "deny": ["NotebookRead"], "ask": []},
     "enabledPlugins": {"feature-dev@claude-plugins-official": True},
+    # 必須フックの配線。欠けていると他の検査の統合テストにも findings が混ざる
+    "hooks": pretooluse(hook_group(TIRITH_HOOK_COMMAND, APM_GUARD_HOOK_COMMAND)),
 }
 
 GOOD_SKILL = """\

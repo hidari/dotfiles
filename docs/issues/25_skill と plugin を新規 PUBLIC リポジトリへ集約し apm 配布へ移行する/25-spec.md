@@ -149,6 +149,49 @@ private リポジトリの取得可否が交ざるため、同じ実行に publi
 `type: hybrid` である。同じツールが 2 箇所へ別のラベルを書いているため、lockfile だけを見ると
 「P1 形が成立していない」と誤読する。確認は deploy されたファイル集合を直接見るのが確実。
 
+### deploy 先の名前とフラット分解の記録範囲
+
+新リポジトリの実パッケージ 15 件を隔離ディレクトリへ install して確かめた。実行前後で
+`~/.apm/apm.yml` と `~/.claude/settings.json` の md5 が不変、repo は clean のままである。
+
+| 観測点 | 結果 |
+|---|---|
+| deploy 先ディレクトリ名 | パスの末尾セグメント。`skills/tooling/herdr` も `plugins/dev-workflow` も階層の深さによらず末尾だけを使う |
+| フラット分解 | `.claude/agents/` 3 件、`.claude/commands/` 5 件 |
+| フラット分解分の lockfile 記録 | `deployed_files` に記録される |
+| 依存 15 件の deploy 総数 | 88 ファイル、skills ディレクトリ 15 個 |
+| 合成 `apm.yml` | 4 件 (plugin 3 + `justfile`)。パッケージ側に manifest を置く必要はない |
+| 現行 tracked 15 件との差 | 消える 1 件 (`ax/README.md`)、内容が変わる 2 件、バイト一致 12 件 |
+| `.gitignore` への副作用 | cwd の `.gitignore` に `apm_modules/` を自動追記する |
+
+フラット分解分が `deployed_files` に載ることが ignore の設計を決める。config-guard の
+`apm_gitignore` 検査は lockfile の全 leaf を `git check-ignore` に通すため、`agents/` と
+`commands/` を ignore しなければ必ず赤になる。ignore するかどうかは選択の余地がない。
+
+deploy 先ディレクトリ名が末尾セグメントであることは、パッケージ名と `plugin.json` の `name` を
+一致させる規約が配布先でも保たれることを意味する。3 階層のパス (`skills/tooling/herdr`) でも
+規則は変わらない。
+
+### skills-dir plugin は一覧に出るが enabled にはならない
+
+Phase 3a の live smoke で観測した。apm が配置した 3 plugin は `claude plugin list --json` に
+`<name>@skills-dir` として現れるが、いずれも `enabled=False` である。marketplace 経由の
+`<name>@hidari-plugins` は `enabled=True` で、実際に動いているのはこちらである。
+
+`enabledPlugins` に `dev-workflow@skills-dir: true` を書いても `enabled=False` のままだった。
+`claude plugin details dev-workflow@skills-dir` は「not found」を返す。一方 `claude plugin init`
+のヘルプは「auto-loads next session as `<name>@skills-dir`」と書いており、skills-dir plugin は
+marketplace とは別系統で自動ロードされる設計に見える。
+
+root の `SKILL.md` が skill として読まれることは確認できている (セッション開始時の skill 一覧に
+3 パッケージが現れる)。確認できていないのは component 側で、`agents/` `commands/` 配下と
+`skills/<name>/` が `<plugin>:<component>` の修飾名で解決されるかどうかは、現在 marketplace 版が
+有効なため切り分けられない。
+
+これは Phase 4 の項目 18 (marketplace 宣言の削除) の前提を揺るがす。spec は当初「marketplace の
+宣言も settings.json の plugin エントリも不要になる」と書いたが、その根拠は「symlink 経由でも
+skills-dir plugin は検出される」という検出の実測であり、検出は有効化を意味しない。
+
 ### 変数の展開範囲はファイルの位置で変わる
 
 root の `SKILL.md` は plugin の component として数えられないため、扱いが分かれる。
@@ -389,6 +432,34 @@ ${HOME}/.config/dotfiles/claude-config-dirs
 
 あわせて、`apm.yml` への追加と `git rm` を同一コミットにすることを必須とする。
 
+ガードの細部は 4 点。
+
+- 許可する例外は `apm.yml` と `apm.lock.yaml` の 2 ファイルのみ。これらは `apm install` の
+  入出力であり、変更されている状態は正常な中間状態である。例外が無いと pin を更新するたびに
+  ガードが自分の手順をブロックする
+- 検査対象は cwd が属する git リポジトリ。`apm install` が deploy 先を破壊する性質はどの
+  リポジトリでも同じなので dotfiles 限定にはしない。git リポジトリの外では「git から戻す」
+  前提が成り立たないので検査しない
+- 対象サブコマンドは denylist ではなく read-only の allowlist で決める。`apm --help` (0.27.0) の
+  サブコマンドは 34 個あり pre-1.0 で今後も増えるため、denylist は上流が増えるたびに黙って穴が
+  開く。しかも false negative は「何も起きない」形で返るので、ガードの主張が偽になったことに
+  気づけない。false positive は「コミットするか stash する」という可視で安価な失敗で済む
+- 一致判定は正規表現ではなくトークン化で行う (`echo "apm install"` のような引用文字列を
+  誤検出しないため)。トークン化は `shlex.split` ではなく `punctuation_chars=True` の
+  `shlex.shlex` を使う。前者は `;` `&` `|` `(` `)` を区切りとして扱わないため、演算子が語へ
+  密着すると (`apm install; git status` など) 判定が外れる
+- allowlist にする以上、apm がコマンド位置にあることも見る。位置を問わないと
+  `grep -rn apm bootstrap.sh` のような検索まで対象になる
+- 検査対象には、コマンド中の `cd` で展開なしに解決できる移動先も加える。session cwd だけを
+  見ると、別リポジトリへ移ってから apm を走らせる経路が素通りする
+- 緊急回避のため環境変数で無効化できる
+
+hook は deny のときだけ JSON を出し、それ以外は無出力の exit 0 とする。複数の `PreToolUse` hook が
+deny と allow を同時に返したときの合成規則は公式ドキュメントに記載が無く (「All matching hooks
+run in parallel」までしか書かれていない)、allow を出さなければ既存 hook の判定を打ち消す経路が
+原理的に生じない。なお `tirith` は `apm install` を clean と判定する (無音 allow) ことを実測済みで、
+現時点で衝突は起きない。
+
 ### plugin の公開基準
 
 次の 2 点のみを基準とする。
@@ -484,28 +555,60 @@ plugin の配布経路の選択は不要になった (単一経路で成立す�
 
 ### Phase 3: dotfiles 側の切り替え
 
-このフェーズは分割しない。skill の供給が途切れる窓を作らないため、追跡停止と設定ファイル駆動の
-導入を同一フェーズで行う。
+当初は「このフェーズは分割しない。skill の供給が途切れる窓を作らないため」としていたが、
+その根拠は実測で成立しないことが分かった。`git rm -r --cached` は working tree を残すため
+追跡を止めても実体は消えず、symlink も literal のまま生きるので供給は途切れない。窓があるのは
+「他マシンの bootstrap 再現性」の側だけで、これは lockfile を同じコミットに含めれば閉じる。
 
-10. `apm install` のガードを 2 層で実装する (`bootstrap.sh` と `PreToolUse` hook)
+一方で項目 12 は `bootstrap.sh` の配列機構と bats の読み込み機構、テスト 52 箇所の作り直しを
+伴い、単独で Phase 2 級の規模がある。よって 2 つに分ける。
+
+順序も入れ替えた。項目 10 のガードは「ツリーが clean でなければ `apm install` を止める」もので、
+項目 11 の lockfile 更新は `apm.yml` を編集した状態 (= dirty) で `apm install` を回す必要がある。
+ガードを先に入れるとガードが自分の移行手順をブロックする。ガードは最後に置く。
+
+#### Phase 3a: 供給経路の切り替えとガード
+
 11. `home/apm.yml` に自作 skill 5 個と plugin 3 個、および `ax` を追加し、lockfile を更新する。
     `ax` は `home/.claude/skills/ax/` の手動コピーを削除し `yusukebe/ax/skills/ax#<sha>` の
     宣言へ置き換える (欠けていた防御指針がこれで届く)
-12. 追加の設定ディレクトリ一覧の読み込みを `bootstrap.sh` と `home/.zshrc` へ入れる
-13. `agents` と `commands` の symlink 4 本を `bootstrap.sh` の対応表へ追加する
-14. stale symlink の撤去を `bootstrap.sh` に実装する (配列から消したペアの残骸は現状消えない)
 15. `home/.claude/skills/` を `.gitignore` へ追加し `git rm -r --cached` する。
-    この 2 つは同一コミットにする
+    この 2 つは項目 11 と同一コミットにする。ignore はディレクトリ単位に畳み、フラット分解が
+    生む `agents/` と `commands/` も対象に含める
+13. apm 生成物を source とする symlink を `APM_SYMLINK_PAIRS` へ分離する。`SYMLINK_PAIRS` の
+    不変条件 (source は git 管理下で必ず実在する) が追跡停止で壊れるため、静的配列への追加では
+    なく配列の分離になる
+10. `apm install` のガードを 2 層で実装する (`bootstrap.sh` と `PreToolUse` hook)
+
+#### Phase 3b: 設定ディレクトリの外部化
+
+12. 追加の設定ディレクトリ一覧の読み込みを `bootstrap.sh` と `home/.zshrc` へ入れる。
+    `home/.zshrc` はランチャ関数名そのものがディレクトリ名を持つため、関数の動的生成になる
+14. stale symlink の撤去を `bootstrap.sh` に実装する (配列から消したペアの残骸は現状消えない)。
+    設定ファイルが未作成のまま走らせると生きた symlink を stale と誤認する経路があるため、
+    `$HOME` 直下に該当ディレクトリがあるのに設定ファイルが無い場合は警告して撤去を skip する
 16. テストをパラメータ化し、任意のディレクトリ名で動くことを検証する形にする
+
+実装計画は [25-plan.md](25-plan.md) にある。
 
 ### Phase 4: 後始末
 
-17. Issue ドキュメントの記述を伏字化する
-18. `settings.json` から marketplace 宣言と `enabledPlugins` を削除する
-19. hook の `herdr-agent-state.sh` パスを `$HOME` 参照へ変える
-20. skip-worktree を解除し、live と committed を 1 本にする
-21. 現行 private plugin リポジトリをアーカイブする
-22. `install.sh` が張った `~/.claude/plugins/<plugin 名>` の symlink 3 本を撤去する。
+入口 gate として先に次を確かめる。marketplace を消すと plugin の component が失われる恐れがある
+(Phase 3a の live smoke で `<name>@skills-dir` が `enabled=False` だったため)。
+
+17. 隔離した設定ディレクトリで、apm が配置した skills-dir plugin の component
+    (`agents/` `commands/` `skills/<name>/`) が `<plugin>:<component>` の修飾名で解決されることを
+    確認する。現在は marketplace 版が有効なため切り分けられない。解決しないなら marketplace 経路を
+    残す判断へ切り替える
+
+その上で後始末する。
+
+18. Issue ドキュメントの記述を伏字化する
+19. `settings.json` から marketplace 宣言と `enabledPlugins` を削除する
+20. hook の `herdr-agent-state.sh` パスを `$HOME` 参照へ変える
+21. skip-worktree を解除し、live と committed を 1 本にする
+22. 現行 private plugin リポジトリをアーカイブする
+23. `install.sh` が張った `~/.claude/plugins/<plugin 名>` の symlink 3 本を撤去する。
     アーカイブしただけでは残り、参照先が消えれば dangling になる
 
 修飾名の一括更新は不要 (パッケージ名と `plugin.json` の `name` を一致させる限り現行の
@@ -533,8 +636,21 @@ plugin の配布経路の選択は不要になった (単一経路で成立す�
 
 - 検査対象を壊す (ツリーを汚した状態でガードが止めること)
 - 検査機構そのものを壊す (ガードの判定行を消して素通りすること)
-- 検査機構の取り付けを外す (`install_apm_skills()` からの呼び出し、および `PreToolUse` の
+- 検査機構の取り付けを外す (`install_apm_packages()` からの呼び出し、および `PreToolUse` の
   登録を外して素通りすること)
+
+層 1 (bash) と層 2 (python) は同じ不変条件を別実装で守るため、層をまたいだ判定の一致も
+pin する。片方だけ直しても双方のテストは緑のまま通るためで、実際 `git status --porcelain -z`
+の rename パース (`XY <to>\0<from>\0` の 2 チャンク) は両層に同じ欠陥が入っており、どちらか
+一方のテストでは原理的に見えなかった。
+
+#### 訂正: `apm uninstall` は実在する
+
+Phase 3a の実装時に「`apm --help` から実名を採った」として `uninstall` を対象から外したが、
+実機 0.27.0 の `apm --help` には `uninstall` が存在する。spec 側は当初から
+「`install` だけを見ると bypass 経路が素通りする」として兄弟を含めるよう書いており、実装だけが
+spec から外れていた。この取りこぼしが denylist という方式の代償を実地で示したため、判定を
+read-only の allowlist へ反転した。
 
 ### 移行経路のテスト
 
@@ -579,6 +695,10 @@ bootstrap か CI に組み込む。
 | `--dry-run` の副作用 | `~/.apm/apm.yml` を実際に作る経路がある | dry-run の結果を無害と仮定しない。実行後に差分を確認する |
 | plugin の品質 | 公開に耐えないという判断が移行の動機の一部 | Phase 2 の入口 gate で基準を決める。公開は不可逆なので後追いできない |
 | 履歴に残る露出 | 現ツリーを直しても履歴の 77 件は残る | 主張を「新規露出を足さない」に限定する。履歴書き換えの是非は Issue #21 で扱う |
+| 複数 hook の合成規則 | 同一イベントの hook が deny と allow を同時に返したときどちらが勝つかは未文書化 | 新 hook が allow を出さない設計で回避する。実測でも `tirith` は `apm install` を無音 allow するため衝突しない |
+| skills-dir plugin の有効化 | apm が配置した plugin は一覧に出るが `enabled=False` で、`enabledPlugins` に書いても変わらない。component が修飾名で解決されるかは marketplace 版が有効なため切り分けられていない | Phase 4 の入口 gate にする。marketplace を消す前に、隔離した設定ディレクトリで component の解決を確認する。解決しないなら marketplace 経路を残すか別の有効化手段を探す |
+| hook 登録を pin する検査の不在 | `settings.json` の hooks セクションを見る検査が 1 件も無く、既存の `tirith-check.py` ですら配線を外して全テストが緑になる | Phase 3a で config-guard に必須 hook の配線検査を足し、既存 hook も同時に pin する。配線は event だけでなく matcher まで見る (matcher を別ツールへ変えると本体が残ったまま起動しなくなるため) |
+| ターミナル直叩きが未カバー | 2 層は bootstrap 経由と Claude Code 経由を塞ぐが、シェルから直接 `apm` を叩く経路は hook を通らない | 現状は未対処。全経路を 1 箇所で覆う機構としては `~/.local/bin` に clean 検査付きの apm シムを置く案があるが、PATH 順序と `command -v apm` 判定へ干渉する別の脆さを持つため採らない。検討して採らなかったことをここに記録する |
 
 ## 却下した案
 

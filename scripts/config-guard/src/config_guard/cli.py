@@ -1,7 +1,7 @@
 """リポジトリをスキャンして構造逸脱を検出する。
 
 stale なツール名参照 / committed settings.json の不変条件 / apm.lock.yaml の
-deployed_files が gitignore されているか(追記漏れ) / mise の global ツール pin が
+deployed_files が gitignore されているか(新しい deploy root の検出) / mise の global ツール pin が
 exact か / herdr keybinding の方向整合と chord 重複 / 追跡下の Markdown の相対リンクが
 実在するかを検査する。
 """
@@ -43,7 +43,7 @@ def scan(repo_root: str) -> list[Finding]:
     settings = read_committed_settings(str(root))
     findings.extend(check_settings_invariants(settings))
 
-    # apm.lock.yaml の deployed_files が全て gitignore されているか（追記漏れ検出）
+    # apm.lock.yaml の deployed_files が全て gitignore されているか（新しい deploy root の検出）
     findings.extend(check_apm_deployed_files_ignored(str(root)))
 
     # mise の global ツール pin が exact か（浮動 pin はマシン間で解決版がずれる）

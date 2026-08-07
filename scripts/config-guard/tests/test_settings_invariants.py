@@ -5,6 +5,12 @@ from __future__ import annotations
 from typing import Any
 
 from config_guard.settings_invariants import check_settings_invariants
+from tests.conftest import (
+    APM_GUARD_HOOK_COMMAND,
+    TIRITH_HOOK_COMMAND,
+    hook_group,
+    pretooluse,
+)
 
 GOOD: dict[str, Any] = {
     "permissions": {
@@ -21,6 +27,9 @@ GOOD: dict[str, Any] = {
         "feature-dev@claude-plugins-official": True,
         "superpowers@superpowers-marketplace": True,
     },
+    # 必須フックの配線。欠けていると他の検査のテストにも findings が混ざるため、
+    # 「狙った検査だけが落とす」最小の差分を保つ意味でも clean な形をここに置く
+    "hooks": pretooluse(hook_group(TIRITH_HOOK_COMMAND), hook_group(APM_GUARD_HOOK_COMMAND)),
 }
 
 
@@ -90,3 +99,74 @@ class TestIneffectiveFilePathRules:
         # bare な Glob/Grep はツール全体の gate として有効なので対象外
         settings = {**GOOD, "permissions": {"deny": ["Glob", "Grep"]}}
         assert check_settings_invariants(settings) == []
+
+
+class TestRequiredHooks:
+    """フック本体が存在しても settings.json から外れれば何も守らない。
+
+    取り付けそのものを不変条件として pin する。これが無いと「本体のロジックは pin されて
+    いるが配線が外れても誰も気づかない」状態になり、検査機構の 3 種変異のうち
+    「取り付けを外す」がテストで捕まえられなくなる。
+    """
+
+    def test_missing_apm_install_guard_is_flagged(self) -> None:
+        settings = {**GOOD, "hooks": pretooluse(hook_group(TIRITH_HOOK_COMMAND))}
+        findings = check_settings_invariants(settings)
+        assert [f.detail for f in findings] == ["apm-install-guard.py"]
+
+    def test_missing_tirith_check_is_flagged(self) -> None:
+        settings = {**GOOD, "hooks": pretooluse(hook_group(APM_GUARD_HOOK_COMMAND))}
+        findings = check_settings_invariants(settings)
+        assert [f.detail for f in findings] == ["tirith-check.py"]
+
+    def test_missing_hooks_section_flags_every_required_hook(self) -> None:
+        settings = {k: v for k, v in GOOD.items() if k != "hooks"}
+        findings = check_settings_invariants(settings)
+        assert {f.detail for f in findings} == {"tirith-check.py", "apm-install-guard.py"}
+
+    def test_hook_wired_to_another_event_does_not_count(self) -> None:
+        # PostToolUse に置いても PreToolUse の呼び出しは守られない。
+        # イベントを見ない実装だとこの pin は空虚になる
+        settings = {
+            **GOOD,
+            "hooks": {
+                **pretooluse(hook_group(TIRITH_HOOK_COMMAND)),
+                "PostToolUse": [hook_group(APM_GUARD_HOOK_COMMAND, matcher="*")],
+            },
+        }
+        findings = check_settings_invariants(settings)
+        assert [f.detail for f in findings] == ["apm-install-guard.py"]
+
+    def test_matcher_that_misses_bash_is_flagged(self) -> None:
+        # 配線を外す方法はイベントの差し替えだけではない。matcher を別ツールへ変えると
+        # フック本体は残ったまま Bash 呼び出しで一切起動しなくなる。実測で確認した穴
+        settings = {
+            **GOOD,
+            "hooks": pretooluse(
+                hook_group(TIRITH_HOOK_COMMAND),
+                hook_group(APM_GUARD_HOOK_COMMAND, matcher="Read"),
+            ),
+        }
+        findings = check_settings_invariants(settings)
+        assert [f.detail for f in findings] == ["apm-install-guard.py"]
+
+    def test_unparsable_matcher_is_flagged(self) -> None:
+        # 正規表現として壊れた matcher は「一致するかもしれない」と楽観しない
+        settings = {
+            **GOOD,
+            "hooks": pretooluse(
+                hook_group(TIRITH_HOOK_COMMAND),
+                hook_group(APM_GUARD_HOOK_COMMAND, matcher="[Bash"),
+            ),
+        }
+        findings = check_settings_invariants(settings)
+        assert [f.detail for f in findings] == ["apm-install-guard.py"]
+
+    def test_matchers_that_cover_bash_are_accepted(self) -> None:
+        # 省略・空文字・"*" は全ツールに一致し、選言も Bash を含めば守られている。
+        # グループを分けるか 1 グループに 2 要素を置くかも配線の自由度なので、
+        # 形ではなく「Bash の PreToolUse から呼ばれること」を仕様にする
+        for matcher in (None, "", "*", "Bash", "Bash|Read"):
+            group = hook_group(TIRITH_HOOK_COMMAND, APM_GUARD_HOOK_COMMAND, matcher=matcher)
+            settings = {**GOOD, "hooks": pretooluse(group)}
+            assert check_settings_invariants(settings) == [], matcher

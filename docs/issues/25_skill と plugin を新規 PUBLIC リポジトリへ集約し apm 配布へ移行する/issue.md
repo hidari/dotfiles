@@ -12,7 +12,7 @@ status: open
 skill と plugin の管理が 4 つの問題を抱えている。いずれも置き場と公開範囲に起因する。
 
 なお apm による skill 配布自体は既に稼働しており (`home/apm.yml` + `home/apm.lock.yaml` +
-`bootstrap.sh` の `install_apm_skills`)、本 Issue は新規導入ではなく既存運用の再設計である。
+`bootstrap.sh` の `install_apm_packages`)、本 Issue は新規導入ではなく既存運用の再設計である。
 
 ### 1. 置き場が分かれていて基準がない
 
@@ -80,18 +80,22 @@ plugin 認識が同時に成立する。marketplace の宣言も `settings.json`
 - [x] README を frontmatter から生成する仕組みと CI 検査を入れる
 - [x] 決め打ちのインストールパス 17 箇所を変数参照へ直し、同じ形を弾く検査を足す
 
-### Phase 3: dotfiles 側の切り替え
+### Phase 3a: 供給経路の切り替えとガード
 
-- [ ] `apm install` のガードを `bootstrap.sh` と `PreToolUse` hook の 2 層で実装する
-- [ ] `home/apm.yml` に自作 skill と plugin を追加し lockfile を更新する
+- [x] `home/apm.yml` に自作 skill と plugin と `ax` を追加し lockfile を更新する
+- [x] `home/.claude/skills/` を追跡停止する (`.gitignore` 追加と `git rm -r --cached` は同一コミット)
+- [x] apm 生成物を source とする symlink を `APM_SYMLINK_PAIRS` へ分離する
+- [x] `apm install` のガードを `bootstrap.sh` と `PreToolUse` hook の 2 層で実装する
+
+### Phase 3b: 設定ディレクトリの外部化
+
 - [ ] 設定ディレクトリ一覧の読み込みを `bootstrap.sh` と `home/.zshrc` へ入れる
-- [ ] `agents` と `commands` の symlink 4 本を `bootstrap.sh` の対応表へ追加する
 - [ ] stale symlink の撤去を `bootstrap.sh` に実装する
-- [ ] `home/.claude/skills/` を追跡停止する (`.gitignore` 追加と `git rm -r --cached` は同一コミット)
 - [ ] テストをパラメータ化し、任意の名前で動くことを検証する形にする
 
 ### Phase 4: 後始末
 
+- [ ] skills-dir plugin の component が修飾名で解決されることを隔離環境で確認する (入口 gate)
 - [ ] Issue ドキュメントの記述を伏字化する
 - [ ] `settings.json` から marketplace 宣言と `enabledPlugins` を削除する
 - [ ] hook の `herdr-agent-state.sh` パスを `$HOME` 参照へ変える
@@ -107,3 +111,5 @@ plugin 認識が同時に成立する。marketplace の宣言も `settings.json`
 - [Issue #21: PUBLIC リポジトリに露出している個人情報と private リポジトリ情報を棚卸しする](../21_PUBLIC%20リポジトリに露出している個人情報と%20private%20リポジトリ情報を棚卸しする/issue.md)
   露出の除去は #21、構造の変更は本 Issue という分担。ただし #21 の露出一覧に
   「追加の設定ディレクトリ名 77 件」が漏れているため、#21 側への追記が必要
+- [Issue #26: refactor: Claude Code フックの共通基盤を集約する](../26_Claude%20Code%20フックの共通基盤を集約する/issue.md)
+  Phase 3a のレビューで検出したフック周りの重複。本 Issue のスコープを超えるため分けた

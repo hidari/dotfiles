@@ -39,15 +39,12 @@ SYMLINK_PAIRS=(
     "home/.claude/CLAUDE.md|.claude/CLAUDE.md"
     "home/.claude/.mcp.json|.claude/.mcp.json"
     "home/.claude/hooks|.claude/hooks"
-    "home/.claude/skills|.claude/skills"
     # 2 アカウント運用 (CLAUDE_CONFIG_DIR=~/.claude-hamiltonian) 側へ同じ実体を張る。
     # hooks / statusline-command.sh / .mcp.json は張らない。前 2 つは settings.json が
     # $HOME/.claude/ 配下を絶対パスで参照して symlink 経由で解決されるため、
     # .mcp.json は Claude Code が読まないため (どちらも 2 本目は死んだ symlink になる)。
     "home/.claude/settings.json|.claude-hamiltonian/settings.json"
     "home/.claude/CLAUDE.md|.claude-hamiltonian/CLAUDE.md"
-    "home/.claude/skills|.claude-hamiltonian/skills"
-    "home/.claude/skills/windows-vm-verification/winvm.py|.local/bin/winvm"
     "scripts/backup-tool/backup|.local/bin/backup"
     "scripts/util-tools/small-id-gen/small-id-gen.sh|.local/bin/small-id-gen"
 )
@@ -64,6 +61,21 @@ HOME_SYMLINK_PAIRS=(
     # 実体を個人側に置くのは意図的な非対称。中立な置き場へ移す余地はあるが、
     # 既存タスクの移行を bootstrap が担わないため今は採らない。
     ".claude/tasks|.claude-hamiltonian/tasks"
+)
+
+# apm が deploy した成果物を source とするシンボリックリンク定義（ソース|ターゲット）。
+# SYMLINK_PAIRS と分けているのは source の性質が違うため。あちらの source は git 管理下で
+# 必ず実在する（欠けていればバグ）が、こちらは apm install が配置するまで存在しない。
+# fresh clone や --dotfiles-only では実体が無いので、存在するときだけ張る。
+# 3 ディレクトリそれぞれの由来は home/.gitignore のコメントが持つ。
+APM_SYMLINK_PAIRS=(
+    "home/.claude/skills|.claude/skills"
+    "home/.claude/agents|.claude/agents"
+    "home/.claude/commands|.claude/commands"
+    "home/.claude/skills|.claude-hamiltonian/skills"
+    "home/.claude/agents|.claude-hamiltonian/agents"
+    "home/.claude/commands|.claude-hamiltonian/commands"
+    "home/.claude/skills/windows-vm-verification/winvm.py|.local/bin/winvm"
 )
 
 # =============================================================================
@@ -325,10 +337,69 @@ install_mise_tools() {
     mise install
 }
 
-# apm.yml (home/) が宣言するスキルを apm.lock.yaml の pin 通りに実体化する（冪等）。
-# apm は cwd の apm.yml/apm.lock.yaml を基準に home/.claude/skills へ展開するため、必ず home/ で実行する。
-install_apm_skills() {
-    log "Installing apm-managed skills..."
+# apm install を阻む未コミットの変更を列挙する（1 行 1 パス。無ければ何も出さない）。
+# apm install は deploy 先を rsync --delete 相当で書き換え、tracked file も黙って上書きし、
+# パッケージに含まれないファイルを削除する。しかもログには (files unchanged) と出るため
+# 差分に気づけない。ツリーが clean なら apm が何を壊しても git から戻せるので、目的は
+# 破壊の防止ではなく復旧可能性の確保になる。この整理から検査範囲は deploy 先ではなく
+# リポジトリ全体になる。
+# apm.yml と apm.lock.yaml は apm install の入出力であり、これらだけが変更された状態は
+# 正常な中間状態なので許可する。例外が無いと pin を更新するたびにガードが手順を止める。
+# git リポジトリでなければ「git から戻す」前提そのものが無いので検査しない。
+# パスは NUL 区切りで受け取る。空白や日本語を含むパスを空白分割すると分断され、落ちた分は
+# 「エラー」ではなく「短い正常な結果」として返るため出力を見ても気づけない。
+# 検査できなかったときは 1 を返す。git の失敗を空出力へ潰すと clean と区別できず、
+# bootstrap が新規マシン（git が壊れやすい環境）で無防備に apm install を走らせる。
+
+# パスが apm install の入出力なら真。これらだけが変更された状態は正常な中間状態であり、
+# 例外が無いと pin を更新するたびにガードが手順を止める。
+apm_io_path() {
+    case "${1##*/}" in
+        apm.yml | apm.lock.yaml) return 0 ;;
+    esac
+    return 1
+}
+
+apm_install_blockers() {
+    local repo="$1"
+    local entry status path from
+
+    # リポジトリ外は検査対象外。この判定を先に置かないと、下の status 失敗検査が
+    # 「リポジトリ外」を「検査できなかった」と取り違える。
+    if ! git -C "$repo" rev-parse --show-toplevel > /dev/null 2>&1; then
+        return 0
+    fi
+    # NUL 区切りの出力はコマンド置換では失われる（bash が NUL を捨てる）ためプロセス置換で
+    # 読む。その形では git の exit code を受け取れないので、成否だけを別呼び出しで確かめる。
+    if ! git -C "$repo" status --porcelain -z > /dev/null 2>&1; then
+        return 1
+    fi
+
+    while IFS= read -r -d '' entry; do
+        # porcelain の各エントリは "XY <path>" 形式。先頭 3 文字が状態フィールド
+        status="${entry:0:2}"
+        path="${entry:3}"
+        from=""
+        # rename と copy だけは "XY <to>\0<from>\0" の 2 チャンクで返る。from 側は状態
+        # フィールドを持たないので、同じ規則で切ると実在しないパスになる。
+        case "$status" in
+            *R* | *C*) IFS= read -r -d '' from || from="" ;;
+        esac
+        # 1 つの記録が指すパスがすべて apm の入出力のときだけ許可する。移動先が apm.yml でも
+        # 移動元が違えば、それは失われうる変更である。
+        if apm_io_path "$path" && { [ -z "$from" ] || apm_io_path "$from"; }; then
+            continue
+        fi
+        printf '%s\n' "$path"
+    done < <(git -C "$repo" status --porcelain -z)
+}
+
+# apm.yml (home/) が宣言する skill と plugin を apm.lock.yaml の pin 通りに実体化する（冪等）。
+# apm は cwd の apm.yml/apm.lock.yaml を基準に展開先を決めるため、必ず home/ で実行する。
+# 展開先は APM_SYMLINK_PAIRS の source と同じ 3 ディレクトリで、由来は home/.gitignore の
+# コメントが持つ。
+install_apm_packages() {
+    log "Installing apm-managed skills and plugins..."
 
     if [ "$DRY_RUN" = true ]; then
         echo "[DRY-RUN] apm install --frozen (in $DOTFILES_DIR/home)"
@@ -336,8 +407,24 @@ install_apm_skills() {
     fi
 
     if ! command -v apm &> /dev/null; then
-        warn "apm not found; skipping apm-managed skill installation"
+        warn "apm not found; skipping apm-managed package installation"
         return 0
+    fi
+
+    # 未コミットの変更がある状態で走らせると、apm の上書き・削除で復旧不能に失われる。
+    # 他の install_* と違い warn + return 0 にしないのは、skip すると skill の供給が
+    # 欠けたまま bootstrap が成功したように見えるため。
+    local blockers
+    if ! blockers="$(apm_install_blockers "$DOTFILES_DIR")"; then
+        error "Failed to inspect the working tree; refusing to run apm install"
+        return 1
+    fi
+    if [ -n "$blockers" ]; then
+        error "Uncommitted changes found; refusing to run apm install"
+        error "apm overwrites deploy targets and deletes files not in the package"
+        printf '%s\n' "$blockers" >&2
+        error "Commit or stash your work, then re-run bootstrap"
+        return 1
     fi
 
     # --frozen は lockfile 不在/不整合時に install を拒否し、pin されたスキルの再現性を担保する。
@@ -358,6 +445,24 @@ setup_home_symlinks() {
         source="$HOME/${pair%%|*}"
         target="$HOME/${pair##*|}"
         ensure_directory "$source"
+        create_symlink "$source" "$target"
+    done
+}
+
+# apm が deploy した成果物へのシンボリックリンクを作成する（冪等）。
+# source が無いときは張らずに警告する。create_symlink の ln -sf は source の存在を見ないため
+# リンク先の無い symlink を作れてしまい、参照した側が黙って失敗する。
+# setup_home_symlinks と違って source を作らないのは、実体を用意できるのが apm だけだから。
+# 空ディレクトリを先に作ると apm 未実行と実行済みが見分けられなくなる。
+setup_apm_symlinks() {
+    local pair source target
+    for pair in "${APM_SYMLINK_PAIRS[@]}"; do
+        source="$DOTFILES_DIR/${pair%%|*}"
+        target="$HOME/${pair##*|}"
+        if [ ! -e "$source" ]; then
+            warn "apm source not found; skipping symlink: $source"
+            continue
+        fi
         create_symlink "$source" "$target"
     done
 }
@@ -619,12 +724,14 @@ main() {
 
     # mise の pin ツールと apm スキルを実体化する。
     # mise install は config.toml の symlink 後でなければならない（setup_dotfiles が張る）。
-    # apm は home/ の repo dir へ直接展開するため ~/.claude/skills の symlink 順序には非依存。
+    # setup_apm_symlinks は install_apm_packages の後でなければならない。source は apm が
+    # 配置する生成物で、先に張ろうとしても実体が無く全て skip されるため。
     # Claude plugin セットアップも settings.json symlink 後・claude 導入後に実行する
     # （先に実行すると claude が ~/.claude/settings.json を生成し setup_dotfiles の symlink と衝突するため）。
     if [ "$DOTFILES_ONLY" = false ]; then
         install_mise_tools
-        install_apm_skills
+        install_apm_packages
+        setup_apm_symlinks
         setup_claude_plugins
         # LaunchAgent と pre-commit フックはツール/サービス系のため --dotfiles-only では導入しない
         setup_launch_agent
