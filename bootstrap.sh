@@ -256,6 +256,35 @@ install_brew_packages() {
     brew bundle --file="$DOTFILES_DIR/home/.Brewfile"
 }
 
+# Pester (PowerShell のテストフレームワーク) を導入する（冪等）。
+#
+# pwsh は Brewfile が入れるが Pester は同梱されないため別に要る。PSGallery から
+# 取るので、gitleaks と同じく版を固定して開発機と CI を揃える。固定しないと
+# 破壊的変更が入った版が黙って降ってきて、テストの赤が自分の変更由来か
+# 判別できなくなる。
+install_pester() {
+    local pester_version="6.0.1" # CI (.github/workflows/test.yml の pester job) と揃える
+
+    log "Installing Pester (PowerShell test framework)..."
+
+    if ! command -v pwsh &> /dev/null; then
+        warn "pwsh not found; skipping Pester installation"
+        return 0
+    fi
+
+    if pwsh -NoProfile -Command "if (Get-Module -ListAvailable -Name Pester | Where-Object { \$_.Version -eq '$pester_version' }) { exit 0 } else { exit 1 }"; then
+        log "Pester $pester_version is already installed. Skipping..."
+        return 0
+    fi
+
+    if [ "$DRY_RUN" = true ]; then
+        echo "[DRY-RUN] Install Pester $pester_version"
+        return 0
+    fi
+
+    pwsh -NoProfile -Command "Install-Module Pester -RequiredVersion '$pester_version' -Scope CurrentUser -Force -SkipPublisherCheck -Repository PSGallery"
+}
+
 install_rust() {
     log "Installing Rust..."
     if command -v rustc &> /dev/null; then
@@ -713,6 +742,7 @@ main() {
     if [ "$DOTFILES_ONLY" = false ]; then
         install_homebrew
         install_brew_packages
+        install_pester
         install_rust
         install_mise
         install_claude_code

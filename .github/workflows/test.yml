@@ -76,6 +76,26 @@ jobs:
       - name: Run shellcheck
         run: git ls-files -z '*.sh' | xargs -0 -r shellcheck
 
+  pester:
+    name: Pester (PowerShell)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      # pwsh は ubuntu-latest 同梱だが Pester は含まれない。PSGallery から取るので
+      # 版を固定して開発機と揃える (固定しないと破壊的変更が黙って降ってくる)。
+      - name: Install Pester
+        shell: pwsh
+        run: |
+          $version = '6.0.1' # 開発機 (bootstrap.sh の install_pester) と揃える
+          Install-Module Pester -RequiredVersion $version -Scope CurrentUser -Force -SkipPublisherCheck -Repository PSGallery
+
+      # pre-commit の pester hook の CI ミラー (backstop)。
+      # ラッパを通すのはテストが 0 件でも Pester が成功として終わるため。
+      - name: Run Pester
+        shell: pwsh
+        run: ./scripts/ci/run-pester.ps1 -Path scripts/windows-vm/tests/
+
   backup-tool:
     name: backup-tool (python)
     runs-on: ubuntu-latest
