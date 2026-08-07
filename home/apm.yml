@@ -13,14 +13,14 @@ dependencies:
   - mizchi/skills/tooling/apm-usage#d7999453cdb4e0e09df1c7f82fd23752539c546c
   - mizchi/skills/tooling/justfile#d7999453cdb4e0e09df1c7f82fd23752539c546c
   - yusukebe/ax/skills/ax#8abbca2fc400c2ff4866248ba1ec9309b948812f
-  - hidari/agentic-coding-tools/skills/devops/windows-vm-verification#78edcdac01c2a85ba957a55b5d446125ee3b643e
-  - hidari/agentic-coding-tools/skills/meta/session-handoff#78edcdac01c2a85ba957a55b5d446125ee3b643e
-  - hidari/agentic-coding-tools/skills/tooling/chrome-devtools-debugger#78edcdac01c2a85ba957a55b5d446125ee3b643e
-  - hidari/agentic-coding-tools/skills/tooling/herdr#78edcdac01c2a85ba957a55b5d446125ee3b643e
-  - hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf#78edcdac01c2a85ba957a55b5d446125ee3b643e
-  - hidari/agentic-coding-tools/plugins/dev-workflow#78edcdac01c2a85ba957a55b5d446125ee3b643e
-  - hidari/agentic-coding-tools/plugins/security-blue-red-team#78edcdac01c2a85ba957a55b5d446125ee3b643e
-  - hidari/agentic-coding-tools/plugins/web-monkey-qa#78edcdac01c2a85ba957a55b5d446125ee3b643e
+  - hidari/agentic-coding-tools/skills/devops/windows-vm-verification#d03931638f41a945e26e56407810d1adff872114
+  - hidari/agentic-coding-tools/skills/meta/session-handoff#d03931638f41a945e26e56407810d1adff872114
+  - hidari/agentic-coding-tools/skills/tooling/chrome-devtools-debugger#d03931638f41a945e26e56407810d1adff872114
+  - hidari/agentic-coding-tools/skills/tooling/herdr#d03931638f41a945e26e56407810d1adff872114
+  - hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf#d03931638f41a945e26e56407810d1adff872114
+  - hidari/agentic-coding-tools/plugins/dev-workflow#d03931638f41a945e26e56407810d1adff872114
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team#d03931638f41a945e26e56407810d1adff872114
+  - hidari/agentic-coding-tools/plugins/web-monkey-qa#d03931638f41a945e26e56407810d1adff872114
   mcp: []
 includes: auto
 scripts: {}
