@@ -147,6 +147,8 @@ rustup は `%USERPROFILE%\.cargo\bin` を User スコープの PATH へ足す。
 
 ## 関連
 
+検証の証跡は [19-verification.md](19-verification.md) が持つ。本文が結論と理由を書くのに対し、あちらは実測値そのもの (変異注入の結果表、BOM 有無のトークン数、冪等性の 3 回分、削除したパスの一覧) を持つ。
+
 skill の実体は PUBLIC リポジトリ `agentic-coding-tools` の `skills/devops/windows-vm-verification/` にある (Issue #25 Phase 2 で移設済み)。dotfiles へは apm 経由で配布され、`home/apm.yml` の pin が参照するコミットを決める。dotfiles 側で必要なのは pin の更新だけである。
 
 skill 側の実装は `agentic-coding-tools` の main (`d039316`) に入っている。dotfiles 側の pin もこのコミットを指す。
