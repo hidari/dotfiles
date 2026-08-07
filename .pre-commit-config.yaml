@@ -251,6 +251,18 @@ repos:
         pass_filenames: false
         files: ^(sgconfig\.yml|rules/.*|rule-tests/.*)$
 
+      # Windows 検証 VM 向け .ps1 の単体テスト。対象が scripts/windows-vm/ に閉じるので
+      # files で絞り、無関係なコミットを遅くしない。
+      # Invoke-Pester を直接呼ばずラッパを通すのは、テストが 0 件でも成功として終わり
+      # 「検査が消えた」ことに気づけないため (理由の canonical は run-pester.ps1 のコメント)。
+      # CI (.github/workflows/test.yml の pester job) でもミラーし --no-verify を backstop する。
+      - id: pester
+        name: Pester (PowerShell 単体テスト)
+        language: system
+        entry: pwsh -NoProfile -File scripts/ci/run-pester.ps1 -Path scripts/windows-vm/tests/
+        pass_filenames: false
+        files: ^scripts/(windows-vm/|ci/run-pester\.ps1$)
+
       # .sh の静的解析。CLAUDE.md の「警告0/ノイズ0」を prose でなくツールで担保する。
       # .bats は bats 構文 (@test) を shellcheck がパースできないため対象外 (files で .sh のみ)。
       # CI (.github/workflows/test.yml の shellcheck job) でもミラーし --no-verify を backstop する。

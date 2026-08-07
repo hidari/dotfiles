@@ -14,6 +14,7 @@ brew "gh"                                 # GitHub CLI
 brew "libpq"                              # PostgreSQL通信するクライアントライブラリ
 brew "mise"                               # ランタイム/ツールバージョン管理 (node, pnpm)
 brew "microsoft/apm/apm"                  # Agent Package Manager (skill/plugin の宣言的配信)
+brew "powershell"                         # Windows 検証 VM 向け .ps1 の Pester テスト実行に使う
 
 # --- Platform CLI
 brew "stripe/stripe-cli/stripe"           # Stripe決済プラットフォームCLI

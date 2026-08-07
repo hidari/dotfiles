@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: closed
 ---
 
 # Windows 検証の基盤を VMware Fusion から Parallels へ移す
@@ -101,6 +101,36 @@ MSIX は app execution alias 経由で露出するが、SSH のような非対�
 
 `powershell` まで MISSING という**ありえない値**が出たのが気づきの手がかりだった。必ず見つかるはずの対照を検査に混ぜておくと、検査自体の故障を検出できる。
 
+### BOM の無い `.ps1` は日本語環境でだけ壊れる
+
+Windows PowerShell 5.1 は BOM の無い `.ps1` をシステムの ANSI コードページ (ja-JP では CP932) として読む。UTF-8 で書いた日本語コメントのバイト列が別の文字に化け、化けたバイトがアポストロフィを生んで文字列の終端を失う。
+
+実測では BOM 無しで 695 トークン / パースエラー 7 件、BOM 付きで 1273 トークン / 0 件だった。**英語ロケールの Windows では再現しない。** 実行前に `[Management.Automation.Language.Parser]::ParseFile` へ通して初めて分かった。
+
+pwsh(7) は BOM 無しでも UTF-8 として読むので、pwsh だけで確認すると見逃す。このスクリプトは pwsh 自身を導入対象に含むため 5.1 で動く必要があり、BOM は省略できない。
+
+### PATH のレジストリ変更はセッションへ即座に伝わらない
+
+rustup は `%USERPROFILE%\.cargo\bin` を User スコープの PATH へ足す。導入直後に張った SSH セッションではこれがまだ載っておらず、導入済みなのに `rustup` を解決できず再導入が走った。**再導入しても結果は同じなので、出力の状態表示を見ないと気づけない。**
+
+後から張り直したセッションには載っていたので、SSH セッションに User PATH が載らないという構造的な欠落ではなく反映の遅れである (セッションの PATH に `.cargo` が含まれることを、必ずあるはずの `System32` を対照に置いて確認した)。
+
+冪等性は 1 回目の実行では確かめられない。2 回目で初めて出た。
+
+### アンインストールの名前一致は他アプリのデータを巻き込む
+
+`*vmware*` で残骸を探すと `~/Library/Application Support/TourBox Console/icons/VMware Fusion.png` が一致する。これは TourBox Console が持つ「VMware Fusion 用プロファイル」のアイコンで、VMware のファイルではない。機械的に消すと無関係なアプリの UI を壊す。
+
+同様に一致する `com.vmware.fusion.sfl4` (最近使った項目) と `com.apple.helpd` 配下のヘルプキャッシュは macOS が生成・管理するもので、消しても再生成される。
+
+**「残存 0 件」を目標にすると害の方が大きい。** 名前で対象を選ぶ掃除では、一致したものを消す前に所有者を確認すること。
+
+### 削除スクリプトの最終確認が嘘をついた
+
+`find ... || echo "残存なし"` と書いたため、50 件以上を列挙した直後に「残存なし」と出力した。`find` は読めないディレクトリがあると、結果を出しつつ exit 1 を返す。
+
+列挙と判定を同じコマンドに載せると、こうして成功に見える形で壊れる。件数を別に数えて判定する形に直した。
+
 ## タスク
 
 - [x] Parallels 側の IP 解決方式を実機で確かめる (`prlctl list -f` で足りるか、leases のパースが要るか)
@@ -111,14 +141,17 @@ MSIX は app execution alias 経由で露出するが、SSH のような非対�
 - [x] `winvm.py` を新しい仕様に合わせて実装する
 - [x] `SKILL.md` と `references/troubleshooting.md` を新しい手順に更新する
 - [x] full chain の live smoke を実機で 1 回通す (IP 解決 → scp 同期 → remote 実行 → health)
-- [ ] `home/apm.yml` の pin を skill 更新後のコミットへ上げ、`apm install` で配布し直す
-- [ ] VMware Fusion の VM (87G) と VMware Fusion.app を削除する
+- [x] `home/apm.yml` の pin を skill 更新後のコミットへ上げ、`apm install` で配布し直す
+- [x] ゲスト側のツール導入を冪等なスクリプトにする (`scripts/windows-vm/bootstrap.ps1`)
+- [x] VMware Fusion の VM (87G) と VMware Fusion.app を削除する
 
 ## 関連
 
 skill の実体は PUBLIC リポジトリ `agentic-coding-tools` の `skills/devops/windows-vm-verification/` にある (Issue #25 Phase 2 で移設済み)。dotfiles へは apm 経由で配布され、`home/apm.yml` の pin が参照するコミットを決める。dotfiles 側で必要なのは pin の更新だけである。
 
-skill 側の実装は `agentic-coding-tools` のブランチ `refactor/issue-19-parallels-migration` にある。
+skill 側の実装は `agentic-coding-tools` の main (`d039316`) に入っている。dotfiles 側の pin もこのコミットを指す。
+
+ゲスト側のツール導入は dotfiles の `scripts/windows-vm/bootstrap.ps1` が持つ。skill ではなく dotfiles に置いたのは、skill が公開リポジトリの汎用 CLI であるのに対し、VM のプロビジョニングは個人の環境構築だからである。skill 側の `references/windows-bootstrap.md` は手順と理由を持ち、こちらはその自動化にあたる。
 
 skill 新設当時の設計と実装計画は `docs/superpowers/archive/2026-06-26-windows-vm-verification-skill-design.md` と同 `-skill.md` にある。Issue 起票の運用より前の成果物なので Issue ディレクトリ配下には無く、archive に退避されている。
 
