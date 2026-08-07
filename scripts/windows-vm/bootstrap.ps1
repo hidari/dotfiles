@@ -6,8 +6,8 @@
     winvm 自身が要求するものだけを入れる。何度実行しても結果は同じで、
     既にあるものには触れない。
 
-    対象は OpenSSH Server の構成と pwsh と git に限る。この線は winvm の要求から
-    導いてあり、恣意的な選択ではない。winvm run は VM 側の git を使い、
+    対象は OpenSSH Server の構成と $TOOLS に挙げたものに限る。この線は winvm の
+    要求から導いてあり、恣意的な選択ではない。winvm run は VM 側の git を使い、
     winvm health は pwsh(7) を要求し、どちらも SSH を前提とする。
 
     ビルドに要るツールチェイン (Rust / MSVC / Node / pnpm 等) はここに入れない。
@@ -67,8 +67,7 @@ $ErrorActionPreference = 'Stop'
 # 導入対象。Command はパスではなく「解決できる名前」で、これで導入を判定する。
 # winget の台帳と実体は食い違い、MSIX 版 pwsh は Program Files に現れないので
 # パスの存在で判定してはいけない。
-# winvm run が VM 側の git を使い、winvm health が pwsh(7) を要求する。
-# ここを増やすときは「winvm が要求するか」を基準にする。
+# ここを増やすときは「winvm が要求するか」を基準にする (根拠は .DESCRIPTION)。
 $TOOLS = @(
     @{ Label = 'pwsh'; Id = 'Microsoft.PowerShell'; Command = 'pwsh' }
     @{ Label = 'git';  Id = 'Git.Git';              Command = 'git' }
@@ -128,7 +127,8 @@ function Get-ToolSource {
 #    %USERPROFILE%\.cargo\bin を User PATH へ足した直後の SSH セッションでは
 #    まだ載っておらず、導入済みなのに解決できず再導入が走った (実測)。
 #    後から張り直したセッションには載っていたので、構造的な欠落ではなく反映の
-#    遅れである。レジストリを直接読めばこの遅れに依存しない
+#    遅れである。レジストリを直接読めばこの遅れに依存しない。この観測は今は
+#    入れない rustup で得たものだが、User PATH を書き換える導入物すべてに効く
 #
 # セッション固有の項目を落とさないよう、置き換えではなく併合する。
 function Update-ProcessPath {
@@ -269,8 +269,6 @@ function Initialize-AuthorizedKey {
     Write-Result 'NEW' 'authorized key' $path
 }
 
-# --- 本体 ---
-
 function Invoke-Main {
     Assert-ProbeHealthy
 
@@ -278,8 +276,8 @@ function Invoke-Main {
     Update-ProcessPath
 
     Write-Host ''
-    Write-Host ('ホスト   : {0}' -f $env:COMPUTERNAME)
-    Write-Host ('ユーザー : {0}' -f ("{0}\{1}" -f $env:USERDOMAIN, $env:USERNAME))
+    Write-Host ('ホスト     : {0}' -f $env:COMPUTERNAME)
+    Write-Host ('ユーザー   : {0}' -f ("{0}\{1}" -f $env:USERDOMAIN, $env:USERNAME))
     Write-Host ('PowerShell : {0}' -f $PSVersionTable.PSVersion)
     Write-Host ''
 
