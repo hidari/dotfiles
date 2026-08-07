@@ -193,4 +193,22 @@ Describe 'TOOLS' {
         $ids = $TOOLS | ForEach-Object { $_.Id }
         ($ids | Select-Object -Unique).Count | Should -Be $ids.Count
     }
+
+    It 'winvm が要求するものを含む' {
+        # winvm run は VM 側の git を使い、winvm health は pwsh(7) を要求する。
+        $commands = @($TOOLS | ForEach-Object { $_.Command })
+        $commands | Should -Contain 'pwsh'
+        $commands | Should -Contain 'git'
+    }
+
+    It 'ビルド用ツールチェインを含まない' {
+        # 基盤の線は winvm の要求で決まる。ここに Rust や Node を足すと、
+        # 分割できない単位を分割して配ることになる。Windows の Rust は MSVC の
+        # link.exe が無いと何もビルドできず、rustup だけでは「導入済みだが
+        # 使えない」状態になる。ツールチェインは必要とするプロジェクトが持つ。
+        $commands = @($TOOLS | ForEach-Object { $_.Command })
+        foreach ($excluded in 'rustup', 'rustc', 'cargo', 'node', 'npm', 'pnpm') {
+            $commands | Should -Not -Contain $excluded
+        }
+    }
 }
