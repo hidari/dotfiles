@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: closed
 ---
 
 # Windows 検証の基盤を VMware Fusion から Parallels へ移す
@@ -117,6 +117,20 @@ rustup は `%USERPROFILE%\.cargo\bin` を User スコープの PATH へ足す。
 
 冪等性は 1 回目の実行では確かめられない。2 回目で初めて出た。
 
+### アンインストールの名前一致は他アプリのデータを巻き込む
+
+`*vmware*` で残骸を探すと `~/Library/Application Support/TourBox Console/icons/VMware Fusion.png` が一致する。これは TourBox Console が持つ「VMware Fusion 用プロファイル」のアイコンで、VMware のファイルではない。機械的に消すと無関係なアプリの UI を壊す。
+
+同様に一致する `com.vmware.fusion.sfl4` (最近使った項目) と `com.apple.helpd` 配下のヘルプキャッシュは macOS が生成・管理するもので、消しても再生成される。
+
+**「残存 0 件」を目標にすると害の方が大きい。** 名前で対象を選ぶ掃除では、一致したものを消す前に所有者を確認すること。
+
+### 削除スクリプトの最終確認が嘘をついた
+
+`find ... || echo "残存なし"` と書いたため、50 件以上を列挙した直後に「残存なし」と出力した。`find` は読めないディレクトリがあると、結果を出しつつ exit 1 を返す。
+
+列挙と判定を同じコマンドに載せると、こうして成功に見える形で壊れる。件数を別に数えて判定する形に直した。
+
 ## タスク
 
 - [x] Parallels 側の IP 解決方式を実機で確かめる (`prlctl list -f` で足りるか、leases のパースが要るか)
@@ -129,8 +143,7 @@ rustup は `%USERPROFILE%\.cargo\bin` を User スコープの PATH へ足す。
 - [x] full chain の live smoke を実機で 1 回通す (IP 解決 → scp 同期 → remote 実行 → health)
 - [x] `home/apm.yml` の pin を skill 更新後のコミットへ上げ、`apm install` で配布し直す
 - [x] ゲスト側のツール導入を冪等なスクリプトにする (`scripts/windows-vm/bootstrap.ps1`)
-- [ ] VMware Fusion の VM (87G) と VMware Fusion.app を削除する
-      (VM バンドル 87G は削除済み。app と root 所有の残骸は sudo が要るため未了)
+- [x] VMware Fusion の VM (87G) と VMware Fusion.app を削除する
 
 ## 関連
 
