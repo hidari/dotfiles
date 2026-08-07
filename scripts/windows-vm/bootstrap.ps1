@@ -1,10 +1,21 @@
 ﻿<#
 .SYNOPSIS
-    Windows 検証 VM に SSH 経路と開発ツールを用意する。冪等。
+    Windows 検証 VM に winvm の前提となる基盤を用意する。冪等。
 
 .DESCRIPTION
-    winvm が前提とするゲスト側の状態を作る。何度実行しても結果は同じで、
+    winvm 自身が要求するものだけを入れる。何度実行しても結果は同じで、
     既にあるものには触れない。
+
+    対象は OpenSSH Server の構成と $TOOLS に挙げたものに限る。この線は winvm の
+    要求から導いてあり、恣意的な選択ではない。winvm run は VM 側の git を使い、
+    winvm health は pwsh(7) を要求し、どちらも SSH を前提とする。
+
+    ビルドに要るツールチェイン (Rust / MSVC / Node / pnpm 等) はここに入れない。
+    プロジェクトごとに必要なものが違ううえ、分割できない単位でもあるため。
+    Windows の Rust は MSVC の link.exe が無いと何もビルドできないので、
+    rustup だけを基盤として配ると「導入済みだが使えない」状態を配ることになる
+    (実際に一度そうなり、rustc で hello world すら通らなかった)。
+    ツールチェインは必要とするプロジェクトが丸ごと持つ。
 
     Windows PowerShell 5.1 で動く構文だけを使う。pwsh(7) 自身がこの
     スクリプトの導入対象なので、pwsh を前提にすると起動できない。
@@ -56,11 +67,10 @@ $ErrorActionPreference = 'Stop'
 # 導入対象。Command はパスではなく「解決できる名前」で、これで導入を判定する。
 # winget の台帳と実体は食い違い、MSIX 版 pwsh は Program Files に現れないので
 # パスの存在で判定してはいけない。
+# ここを増やすときは「winvm が要求するか」を基準にする (根拠は .DESCRIPTION)。
 $TOOLS = @(
-    @{ Label = 'pwsh';  Id = 'Microsoft.PowerShell'; Command = 'pwsh' }
-    @{ Label = 'git';   Id = 'Git.Git';              Command = 'git' }
-    @{ Label = 'rustup'; Id = 'Rustlang.Rustup';     Command = 'rustup' }
-    @{ Label = 'node';  Id = 'OpenJS.NodeJS';        Command = 'node' }
+    @{ Label = 'pwsh'; Id = 'Microsoft.PowerShell'; Command = 'pwsh' }
+    @{ Label = 'git';  Id = 'Git.Git';              Command = 'git' }
 )
 
 # 出力は winvm doctor に合わせる。判定だけでなく観測値を必ず並べ、
@@ -117,7 +127,8 @@ function Get-ToolSource {
 #    %USERPROFILE%\.cargo\bin を User PATH へ足した直後の SSH セッションでは
 #    まだ載っておらず、導入済みなのに解決できず再導入が走った (実測)。
 #    後から張り直したセッションには載っていたので、構造的な欠落ではなく反映の
-#    遅れである。レジストリを直接読めばこの遅れに依存しない
+#    遅れである。レジストリを直接読めばこの遅れに依存しない。この観測は今は
+#    入れない rustup で得たものだが、User PATH を書き換える導入物すべてに効く
 #
 # セッション固有の項目を落とさないよう、置き換えではなく併合する。
 function Update-ProcessPath {
@@ -186,26 +197,6 @@ function Install-Tool {
     }
     else {
         Write-Result 'FAIL' $Tool.Label ("winget が exit {0} で失敗" -f $code)
-    }
-}
-
-function Initialize-RustToolchain {
-    if (-not (Test-Tool 'rustup')) { return }
-
-    # rustup があってもツールチェインが未導入なら rustc は解決できない。
-    if (Test-Tool 'rustc') {
-        Write-Result 'SKIP' 'rust toolchain' (& rustc --version)
-        return
-    }
-
-    rustup default stable | Out-Null
-    Update-ProcessPath
-
-    if (Test-Tool 'rustc') {
-        Write-Result 'NEW' 'rust toolchain' (& rustc --version)
-    }
-    else {
-        Write-Result '??' 'rust toolchain' 'rustup default stable の後も rustc を解決できない'
     }
 }
 
@@ -278,8 +269,6 @@ function Initialize-AuthorizedKey {
     Write-Result 'NEW' 'authorized key' $path
 }
 
-# --- 本体 ---
-
 function Invoke-Main {
     Assert-ProbeHealthy
 
@@ -287,8 +276,8 @@ function Invoke-Main {
     Update-ProcessPath
 
     Write-Host ''
-    Write-Host ('ホスト   : {0}' -f $env:COMPUTERNAME)
-    Write-Host ('ユーザー : {0}' -f ("{0}\{1}" -f $env:USERDOMAIN, $env:USERNAME))
+    Write-Host ('ホスト     : {0}' -f $env:COMPUTERNAME)
+    Write-Host ('ユーザー   : {0}' -f ("{0}\{1}" -f $env:USERDOMAIN, $env:USERNAME))
     Write-Host ('PowerShell : {0}' -f $PSVersionTable.PSVersion)
     Write-Host ''
 
@@ -318,7 +307,6 @@ function Invoke-Main {
         foreach ($tool in $TOOLS) {
             Install-Tool -Tool $tool
         }
-        Initialize-RustToolchain
     }
 
     Write-Host ''

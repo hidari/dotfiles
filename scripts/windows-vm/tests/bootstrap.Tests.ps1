@@ -5,13 +5,8 @@ scripts/windows-vm/bootstrap.ps1 の単体テスト (Pester)
 コマンドレットを叩く関数 (Initialize-SshServer など) はここでは検証しない。
 それらは実機の live smoke が担う。
 
-ここで pin するのは、環境に依存せず決まるはずの規則である。
-
-- ファイルの符号化 (BOM の有無)。Windows PowerShell 5.1 は BOM の無い .ps1 を
-  ANSI コードページとして読むため、欠けると ja-JP 環境でだけ構文エラーになる
-- PATH の併合規則 (順序保持・大小を区別しない重複除去・空要素の除去)
-- 導入判定がパスの存在ではなく名前の解決可否で行われること
-- dot-source ガードが効いていること (取り付けの検査)
+ここで pin するのは、環境に依存せず決まるはずの規則である。何を pin して
+いるかは Describe が示すので、ここには数え上げない。
 
 モックは使わない。macOS と Linux には winget も Windows 専用コマンドも無いので、
 その不在がそのまま負の対照になる。
@@ -136,9 +131,8 @@ Describe 'Assert-ProbeHealthy' {
     It '既定の対照は cmd.exe である' {
         # Windows で意味を持つ対照であることを pin する。既定が別の名前へ
         # すり替わると、Windows 上で常に真になる無意味な検査になりうる。
-        $default = (Get-Command Assert-ProbeHealthy).Parameters['ControlCommand']
+        # 既定値は ParameterMetadata に載らないので AST の本文を見る。
         $ast = (Get-Command Assert-ProbeHealthy).ScriptBlock.Ast
-        $default | Should -Not -BeNullOrEmpty
         $ast.Extent.Text | Should -Match "ControlCommand = 'cmd\.exe'"
     }
 }
@@ -192,5 +186,18 @@ Describe 'TOOLS' {
     It 'Id が重複しない' {
         $ids = $TOOLS | ForEach-Object { $_.Id }
         ($ids | Select-Object -Unique).Count | Should -Be $ids.Count
+    }
+
+    It 'winvm が要求する基盤だけを含む' {
+        # 完全一致で pin する。除外したい名前を並べる形にすると、並べていない
+        # ツールチェイン (go / uv 等) が足されても赤くならない。線を引いた理由は
+        # bootstrap.ps1 の .DESCRIPTION にある。
+        #
+        # 順序は導入順にすぎず不変条件ではないので順序を見ない形で比べる。
+        # Compare-Object は過剰と欠落を SideIndicator で区別して出す。
+        $expected = @('pwsh', 'git')
+        $commands = @($TOOLS | ForEach-Object { $_.Command })
+        @(Compare-Object -ReferenceObject $expected -DifferenceObject $commands) |
+            Should -BeNullOrEmpty
     }
 }
