@@ -268,16 +268,27 @@ function claude-hamiltonian() {
 }
 
 # 開発版 (agentic-coding-tools の作業ツリー) のパッケージを --plugin-dir の並びとして
-# 集める。既定の起動は apm が配置した安定版 (apm.yml の hash 時点のコピー) を読むので、
-# 直しながら試すときだけ使う。2 つのアカウントが同じ並びを使うため構築をここへ閉じる。
-# 結果を配列で返さずグローバルへ置くのは、コマンド置換が NUL を運べず、改行区切りだと
-# 空白や改行を含むパスで壊れるため。
+# 集める。既定の起動では skill は apm が配置したコピーを読むが、plugin は同名の
+# marketplace 版が優先されるため実際には別経路から載る。経路の canonical は
+# claude-plugins の CLAUDE.md にある供給経路の表。開発版は直しながら試すときだけ使う。
+# 2 つのアカウントが同じ並びを使うため構築をここへ閉じる。
+# 戻り値では配列を運べないので、呼び出し側が local で宣言した配列へ書き込む。
 function _claude_dev_plugin_args() {
   local repo="${AGENTIC_TOOLS_DIR:-$HOME/Develop/agentic-coding-tools}"
   if [ ! -d "$repo" ]; then
     echo "開発版のリポジトリが見つかりません: $repo" >&2
     return 1
   fi
+
+  # 片側だけ欠けても find は残る側を返すので 0 件ガードを素通りし、半分の
+  # パッケージで起動する。部分欠落は「短い正常な結果」として返るため、先に両方を検査する
+  local base
+  for base in "$repo/plugins" "$repo/skills"; do
+    if [ ! -d "$base" ]; then
+      echo "開発版のパッケージ置き場が見つかりません: $base" >&2
+      return 1
+    fi
+  done
 
   # パッケージ名を列挙して固定すると増減で drift するため実体から拾う。plugin は
   # 深さ 1、skill はカテゴリを挟んで深さ 2 にあり、plugin 内部の skills/<name>/ は
@@ -286,9 +297,9 @@ function _claude_dev_plugin_args() {
   local skill_md
   while IFS= read -r -d '' skill_md; do
     args+=(--plugin-dir "${skill_md%/SKILL.md}")
-  done < <(find "$repo/plugins" "$repo/skills" -maxdepth 3 -name SKILL.md -print0 2>/dev/null)
+  done < <(find "$repo/plugins" "$repo/skills" -maxdepth 3 -name SKILL.md -print0)
 
-  # 0 件のまま起動すると安定版で立ち上がる。開発版のつもりで古い挙動を観測する
+  # 0 件のまま起動すると既定の供給元で立ち上がる。開発版のつもりで古い挙動を観測する
   # ことになるため、静かに間違えるより止める
   if [ "${#args[@]}" -eq 0 ]; then
     echo "開発版のパッケージが見つかりません: $repo" >&2
@@ -301,12 +312,14 @@ function _claude_dev_plugin_args() {
 # 個人アカウントで開発版を読む。設定ディレクトリの検査とタスクリスト通知は
 # claude 関数へ委ねる (command claude を直に呼ぶと両方を迂回する)。
 function claude-dev() {
+  local -a _CLAUDE_DEV_PLUGIN_ARGS
   _claude_dev_plugin_args || return 1
   claude "${_CLAUDE_DEV_PLUGIN_ARGS[@]}" "$@"
 }
 
 # 仕事アカウントで開発版を読む。アカウントの固定は claude-hamiltonian が持つ。
 function claude-hamiltonian-dev() {
+  local -a _CLAUDE_DEV_PLUGIN_ARGS
   _claude_dev_plugin_args || return 1
   claude-hamiltonian "${_CLAUDE_DEV_PLUGIN_ARGS[@]}" "$@"
 }
