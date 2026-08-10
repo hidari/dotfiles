@@ -47,9 +47,6 @@ APM_LOCK_PATH = "home/apm.lock.yaml"
 # 記録するため、大文字を許すと突き合わせが文字列比較で外れる
 COMMIT_SHA_PATTERN = re.compile(r"[0-9a-f]{40}")
 
-# GitHub の owner / org 名にドットは使えないため、先頭要素のドットは host を意味する
-_HOST_SEGMENT = re.compile(r"[^/]*\.[^/]*")
-
 
 class Dependency(NamedTuple):
     """依存指定の分解結果。
@@ -58,8 +55,10 @@ class Dependency(NamedTuple):
     - "github": owner/repo[/path][#ref]。この guard が覆う唯一の形
     - "hosted": host 付き (gitlab.com/org/repo)。分類のみ
     - "local":  local path (./packages/x)。ref の概念が無い。分類のみ
-    - "object": git:/path:/ref: のマッピング形。分類のみ
     - "unknown": どの形にも当てはまらない。fail-closed で報告する
+
+    マッピング形 (git:/path:/ref:) はここへ来ない。check_apm_pins が
+    parse_dependency へ渡す前に除外する。
     """
 
     kind: str
@@ -79,9 +78,12 @@ def parse_dependency(spec: str) -> Dependency:
 
     location, _, ref = spec.partition("#")
     segments = location.split("/")
-    if len(segments) < 2 or not segments[0] or not segments[1]:
+    # 先頭要素が空になる形 ("/...") は上の local 判定で既に返っているため、
+    # ここで見るのは要素数と 2 番目の要素が空でないことだけでよい
+    if len(segments) < 2 or not segments[1]:
         return Dependency("unknown", None, None, None)
-    if _HOST_SEGMENT.fullmatch(segments[0]):
+    if "." in segments[0]:
+        # GitHub の owner / org 名にドットは使えないため、先頭要素のドットは host を意味する
         return Dependency("hosted", None, None, None)
 
     return Dependency(

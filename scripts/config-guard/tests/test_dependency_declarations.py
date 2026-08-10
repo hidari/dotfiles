@@ -22,6 +22,7 @@ import sys
 import tomllib
 from importlib.metadata import packages_distributions
 from pathlib import Path
+from typing import Any
 
 from tests.conftest import PACKAGE_ROOT
 
@@ -44,11 +45,22 @@ def _requirement_name(requirement: str) -> str:
     return _canonical(match.group())
 
 
+def _pyproject() -> dict[str, Any]:
+    """宣言の canonical。テストは値を再掲せずここから読む。"""
+    return tomllib.loads((PACKAGE_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+
 def _declared_distributions() -> set[str]:
     """[project] dependencies が宣言する distribution 名を正規化して返す。"""
-    pyproject = tomllib.loads((PACKAGE_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    requirements: list[str] = pyproject["project"]["dependencies"]
+    requirements: list[str] = _pyproject()["project"]["dependencies"]
     return {_requirement_name(requirement) for requirement in requirements}
+
+
+def _dev_only_distributions() -> set[str]:
+    """dev グループにしか無い distribution 名。許可集合の負の対照に使う。"""
+    requirements: list[str] = _pyproject()["dependency-groups"]["dev"]
+    declared = _declared_distributions()
+    return {_requirement_name(requirement) for requirement in requirements} - declared
 
 
 def _modules_of(distributions: set[str]) -> set[str]:
@@ -58,6 +70,11 @@ def _modules_of(distributions: set[str]) -> set[str]:
         for module, providers in packages_distributions().items()
         if any(_canonical(provider) in distributions for provider in providers)
     }
+
+
+def _allowed_modules() -> set[str]:
+    """src/ が import してよい top-level module 名。"""
+    return set(sys.stdlib_module_names) | {"config_guard"} | _modules_of(_declared_distributions())
 
 
 def _python_sources(root: Path) -> list[Path]:
@@ -83,9 +100,7 @@ def _imported_top_level_modules(source: Path) -> set[str]:
 
 def test_source_imports_nothing_beyond_stdlib_and_declared_dependencies() -> None:
     # 検出したい本体。dev 専用依存が src/ へ入った形
-    allowed = (
-        set(sys.stdlib_module_names) | {"config_guard"} | _modules_of(_declared_distributions())
-    )
+    allowed = _allowed_modules()
     sources = _python_sources(SOURCE_ROOT)
     # 走査が空振りしていたら「未宣言 0 件」は健全ではなく「1 件も見ていない」
     assert len(sources) >= 2, f"src/config_guard の走査が空振りしている: {SOURCE_ROOT}"
@@ -114,6 +129,17 @@ def test_the_scan_sees_at_least_one_third_party_import() -> None:
     third_party = imported - set(sys.stdlib_module_names) - {"config_guard"}
 
     assert third_party, "src/ に外部 import が無く、宣言との突き合わせが対象ゼロで緑になっている"
+
+
+def test_dev_only_distributions_never_enter_the_allowed_set() -> None:
+    # 許可集合の負の対照。上の 2 つの対照は「対象ゼロ」と「宣言が解決できない」を見るので、
+    # 集合が広すぎる方向の壊れ方は原理的に検出できない。実際 _modules_of の絞り込みを
+    # 外しても全テストが緑のままだった (許可集合が全 module になり検査が無効化される)
+    dev_only = _modules_of(_dev_only_distributions())
+    leaked = dev_only & _allowed_modules()
+
+    assert dev_only, "dev 専用 distribution の module を 1 件も解決できず対照が空回りしている"
+    assert not leaked, f"dev 専用依存の module が許可集合へ漏れている: {sorted(leaked)}"
 
 
 def test_every_declared_dependency_resolves_to_an_import_name() -> None:

@@ -16,26 +16,22 @@ from config_guard.apm_pins import (
     load_lock_refs,
     parse_dependency,
 )
-from tests.conftest import REPO_ROOT
+from tests.conftest import REPO_ROOT, write_file
 
 SHA = "d03931638f41a945e26e56407810d1adff872114"
 OTHER_SHA = "8abbca2fc400c2ff4866248ba1ec9309b948812f"
 
 
 def _write_manifest(repo_root: Path, deps: list[str]) -> None:
-    path = repo_root / APM_MANIFEST_PATH
-    path.parent.mkdir(parents=True, exist_ok=True)
     body = "name: t\ndependencies:\n  apm:\n"
     for dep in deps:
         body += f"  - {dep}\n"
     body += "  mcp: []\n"
-    path.write_text(body, encoding="utf-8")
+    write_file(repo_root, APM_MANIFEST_PATH, body)
 
 
 def _write_lock(repo_root: Path, entries: list[tuple[str, str, str]]) -> None:
     """lock を書く。resolved_commit も書き、比較先が resolved_ref であることを pin する。"""
-    path = repo_root / APM_LOCK_PATH
-    path.parent.mkdir(parents=True, exist_ok=True)
     body = "lockfile_version: '1'\ndependencies:\n"
     for repo, virtual_path, ref in entries:
         body += (
@@ -44,7 +40,7 @@ def _write_lock(repo_root: Path, entries: list[tuple[str, str, str]]) -> None:
             f"  resolved_ref: {ref}\n"
             f"  resolved_commit: {OTHER_SHA}\n"
         )
-    path.write_text(body, encoding="utf-8")
+    write_file(repo_root, APM_LOCK_PATH, body)
 
 
 # -----------------------------------------------------------------------------
@@ -108,7 +104,9 @@ def test_parse_dependency_classifies_a_local_path() -> None:
 
 def test_parse_dependency_rejects_specs_without_owner() -> None:
     # owner/repo の 2 要素に満たない形は分解できない。素通りさせず unknown にする
-    for spec in ("skills#abc123", "#abc123", "", "justaname"):
+    # 空セグメントの形 (owner/) も入れておかないと、条件を len(segments) < 2 だけへ
+    # 縮める変異が緑のまま通る
+    for spec in ("skills#abc123", "#abc123", "", "justaname", "owner/", f"owner/#{SHA}"):
         assert parse_dependency(spec).kind == "unknown", spec
 
 
@@ -149,6 +147,7 @@ def test_check_apm_pins_flags_dependency_without_ref(tmp_path: Path) -> None:
     findings = check_apm_pins(str(tmp_path))
 
     assert len(findings) == 1
+    assert findings[0].source == APM_MANIFEST_PATH
     assert findings[0].detail == "owner/other/b"
     assert "ref が指定されていません" in findings[0].message
 
@@ -202,13 +201,12 @@ def test_check_apm_pins_skips_forms_it_cannot_cover(tmp_path: Path) -> None:
 def test_check_apm_pins_skips_the_object_form(tmp_path: Path) -> None:
     # git:/path:/ref: のオブジェクト形も apm が受ける正規の形。dict を
     # 「文字列でない」として弾くと、正しい manifest に赤が出る
-    path = tmp_path / APM_MANIFEST_PATH
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
+    write_file(
+        tmp_path,
+        APM_MANIFEST_PATH,
         "name: t\ndependencies:\n  apm:\n"
         "  - git: git@gitlab.com:org/repo.git\n    path: skills/x\n    ref: main\n"
         "  mcp: []\n",
-        encoding="utf-8",
     )
 
     assert check_apm_pins(str(tmp_path)) == []
@@ -221,27 +219,25 @@ def test_check_apm_pins_reports_an_unparsable_spec(tmp_path: Path) -> None:
     findings = check_apm_pins(str(tmp_path))
 
     assert len(findings) == 1
+    assert findings[0].source == APM_MANIFEST_PATH
     assert findings[0].detail == f"justaname#{SHA}"
     assert "どの依存指定形にも当てはまらず" in findings[0].message
 
 
 def test_check_apm_pins_reports_a_non_string_non_mapping_entry(tmp_path: Path) -> None:
-    path = tmp_path / APM_MANIFEST_PATH
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("name: t\ndependencies:\n  apm:\n  - [1, 2]\n  mcp: []\n", encoding="utf-8")
+    write_file(tmp_path, APM_MANIFEST_PATH, "name: t\ndependencies:\n  apm:\n  - [1, 2]\n")
 
     findings = check_apm_pins(str(tmp_path))
 
     assert len(findings) == 1
+    assert findings[0].source == APM_MANIFEST_PATH
     assert findings[0].detail == "[1, 2]"
     assert "文字列でもマッピングでもなく" in findings[0].message
 
 
 def test_check_apm_pins_reports_non_list_dependencies(tmp_path: Path) -> None:
     # valid な YAML だが apm が list でない形。crash させず Finding にする
-    path = tmp_path / APM_MANIFEST_PATH
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("name: t\ndependencies:\n  apm: oops\n", encoding="utf-8")
+    write_file(tmp_path, APM_MANIFEST_PATH, "name: t\ndependencies:\n  apm: oops\n")
 
     findings = check_apm_pins(str(tmp_path))
 
@@ -252,12 +248,21 @@ def test_check_apm_pins_reports_non_list_dependencies(tmp_path: Path) -> None:
 
 
 def test_check_apm_pins_preserves_manifest_order(tmp_path: Path) -> None:
-    # findings を apm.yml の行順で読めるようにする (並べ替えない)
-    _write_manifest(tmp_path, ["owner/one/a", "owner/two/b"])
+    # findings を apm.yml の行順で読めるようにする (並べ替えない)。行を辞書順の逆に
+    # 並べておかないと、ソートする実装と行順を保つ実装を弁別できない。
+    # 群の不一致は行ごとの findings をすべて出した後ろへ連なる
+    _write_manifest(
+        tmp_path,
+        ["owner/two/b", "owner/one/a", f"owner/dup/x#{SHA}", f"owner/dup/y#{OTHER_SHA}"],
+    )
 
     findings = check_apm_pins(str(tmp_path))
 
-    assert [f.detail for f in findings] == ["owner/one/a", "owner/two/b"]
+    assert [f.detail for f in findings] == [
+        "owner/two/b",
+        "owner/one/a",
+        f"owner/dup: {SHA} (1), {OTHER_SHA} (1)",
+    ]
 
 
 def test_check_apm_pins_without_manifest(tmp_path: Path) -> None:
@@ -266,9 +271,7 @@ def test_check_apm_pins_without_manifest(tmp_path: Path) -> None:
 
 
 def test_check_apm_pins_without_apm_dependencies(tmp_path: Path) -> None:
-    path = tmp_path / APM_MANIFEST_PATH
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("name: t\ndependencies:\n  mcp: []\n", encoding="utf-8")
+    write_file(tmp_path, APM_MANIFEST_PATH, "name: t\ndependencies:\n  mcp: []\n")
 
     assert check_apm_pins(str(tmp_path)) == []
 
@@ -311,6 +314,7 @@ def test_check_apm_pins_flags_dependency_absent_from_lock(tmp_path: Path) -> Non
     findings = check_apm_pins(str(tmp_path))
 
     assert len(findings) == 1
+    assert findings[0].source == APM_LOCK_PATH
     assert findings[0].detail == "owner/repo/b"
     assert "lock に対応する項目がありません" in findings[0].message
 
@@ -335,9 +339,7 @@ def test_check_apm_pins_reports_an_unreadable_lock_instead_of_skipping(tmp_path:
     # lock が在るのに形を認識できない場合、黙って突き合わせを飛ばすと
     # 「1 件も見ていない緑」になる。apm の版更新でキー名が変わる経路が実在する
     _write_manifest(tmp_path, [f"owner/repo/a#{SHA}"])
-    path = tmp_path / APM_LOCK_PATH
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("lockfile_version: '1'\npackages: []\n", encoding="utf-8")
+    write_file(tmp_path, APM_LOCK_PATH, "lockfile_version: '1'\npackages: []\n")
 
     findings = check_apm_pins(str(tmp_path))
 
