@@ -109,7 +109,7 @@ plugin 認識が同時に成立する。marketplace の宣言も `settings.json`
 
 ## 関連
 
-- [Issue #8: refactor: settings.json の live 専用パスを変数化して skip-worktree を解消する](../8_settings.json%20の%20live%20専用パスを変数化して%20skip-worktree%20を解消する/issue.md)
+- [Issue #8: refactor: settings.json の live 専用パスを変数化して skip-worktree を解消する](../closed/8_settings.json%20の%20live%20専用パスを変数化して%20skip-worktree%20を解消する/issue.md)
   本 Issue の帰結として解ける。marketplace の絶対パスが消え、hook パスを `$HOME` 参照に変えれば
   skip-worktree の理由が両方なくなる
 - [Issue #21: PUBLIC リポジトリに露出している個人情報と private リポジトリ情報を棚卸しする](../21_PUBLIC%20リポジトリに露出している個人情報と%20private%20リポジトリ情報を棚卸しする/issue.md)

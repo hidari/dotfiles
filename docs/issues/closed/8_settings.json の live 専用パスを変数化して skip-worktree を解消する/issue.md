@@ -1,5 +1,5 @@
 ---
-status: open
+status: closed
 ---
 
 # refactor: settings.json の live 専用パスを変数化して skip-worktree を解消する
@@ -52,26 +52,23 @@ known_marketplaces.json の両方へ絶対パスに正規化して書き込む�
 
 ## タスク
 
-- [ ] marketplace の path でチルダまたは `$HOME` が展開されるかを対話セッションの起動で確かめる
-  - [ ] スクラッチの `CLAUDE_CONFIG_DIR` を用意し、手書きの settings.json で起動して
-        `plugins/known_marketplaces.json` に解決結果が落ちるかを見る
-  - [ ] 絶対パス版を対照として同じ手順を踏み、検査に判別力があることを先に確かめる
-- [ ] 展開される場合
-  - [ ] herdr hook と marketplace path の両方を変数化する
-  - [ ] skip-worktree を外し、live と committed を 1 本にする
-  - [ ] gitleaks が通ることを確認する
-  - [ ] 二重管理が復活していないことを検出するテストを追加する
-- [ ] 展開されない場合
-  - [ ] herdr hook だけ変数化してコミット済み版へ取り込む（他マシンへの配布漏れは解消できる）
-  - [ ] marketplace を settings.json で宣言しない運用（`plugin marketplace add` を bootstrap
-        から実行する等）が成立するかを検討する
-  - [ ] どちらも成立しない場合は skip-worktree を維持し、理由を記録して本 Issue を閉じる
+Issue #25 の apm 配布への移行で、marketplace を `settings.json` で宣言する必要そのものが
+無くなった。当初の分岐（チルダや `$HOME` が展開されるかを実測してから決める）には入らず、
+下で「展開されない場合」の候補に挙げていた「marketplace を settings.json で宣言しない運用」が
+別の理由で成立した形になった。残っていた絶対パス 2 箇所は、片方が消滅し片方が変数化された。
+
+- [x] marketplace の path の展開可否は実測不要になった（宣言そのものを無くしたため）
+- [x] herdr hook を `$HOME` 参照へ変数化してコミット済み版へ取り込む
+- [x] skip-worktree を外し、live と committed を 1 本にする
+- [x] gitleaks が通ることを確認する
+- [x] 二重管理が復活していないことを検出する検査を追加する
+      （config-guard の `index_flags`。skip-worktree と assume-unchanged の両方を見る）
 
 ## 関連
 
-- [Issue #7: feat: Claude Code の 2 アカウント運用で設定を共有する](../closed/7_Claude%20Code%20の%202%20アカウント運用で設定を共有する/issue.md)
+- [Issue #7: feat: Claude Code の 2 アカウント運用で設定を共有する](../7_Claude%20Code%20の%202%20アカウント運用で設定を共有する/issue.md)
   上記 Issue の作業中に判明した内容をこちらへ切り出した
-- [Issue #2: docs: settings.json の live・committed 二重管理を文書化し curation を機械化](../closed/2_settings.json%20の%20live・committed%20二重管理を文書化し%20curation%20を機械化/issue.md)
+- [Issue #2: docs: settings.json の live・committed 二重管理を文書化し curation を機械化](../2_settings.json%20の%20live・committed%20二重管理を文書化し%20curation%20を機械化/issue.md)
   補完関係にある。#2 は二重管理を前提として契約を文書化し curation を機械化した。
   本 Issue はその前提自体を外せるかを問う。二重管理が解消できれば #2 が用意した
   curation 機構の役割も変わるため、config-guard の期待値を合わせて見直す必要がある。
