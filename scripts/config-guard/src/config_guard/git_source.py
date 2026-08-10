@@ -1,8 +1,10 @@
 """committed な settings.json を git の index（staged）経由で読む。
 
-settings.json は skip-worktree のため working tree = live superset である。
-working file を読むと個人トグルや /Users パスを誤検出するため、必ず git の
-index から読む（clean commit 後は index = HEAD 内容、dance 後は staged 内容）。
+working tree のファイルは `~/.claude/settings.json` の symlink 実体、つまり live 設定
+そのものである。Claude Code は起動中にこれを書き換えることがあるため、working file を
+読むと「まだコミットされていない書き換え」まで検査対象になる。検査したいのはコミット
+されようとしている内容なので、必ず git の index から読む（clean commit 後は index =
+HEAD 内容、staged があればその内容）。
 """
 
 from __future__ import annotations
