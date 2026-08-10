@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 from config_guard.apm_gitignore import check_apm_deployed_files_ignored
+from config_guard.apm_pins import check_apm_pins
 from config_guard.extractors import extract_skill_tokens
 from config_guard.git_source import read_committed_settings
 from config_guard.herdr_keys import check_herdr_keys, read_default_config
@@ -48,6 +49,10 @@ def scan(repo_root: str) -> list[Finding]:
 
     # mise の global ツール pin が exact か（浮動 pin はマシン間で解決版がずれる）
     findings.extend(check_mise_pins(str(root)))
+
+    # apm.yml の依存 pin が浮動せず同一リポジトリで揃っているか（1 行の更新漏れは
+    # install が成功したまま、そのパッケージだけ古い版が配られる形で壊れる）
+    findings.extend(check_apm_pins(str(root)))
 
     # herdr の keybinding: previous/next の方向整合と chord 重複。
     # アクション名の照合は herdr がある環境でのみ行う (CI には herdr が無いので skip される)。

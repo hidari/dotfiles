@@ -86,6 +86,21 @@ def test_bad_herdr_keys_is_detected(tmp_path: Path) -> None:
     assert any(f.detail == "next_workspace = ctrl+alt+[" for f in findings)
 
 
+def test_apm_pin_mismatch_is_detected(tmp_path: Path) -> None:
+    # apm pin 検査が scan に配線されていること。実装だけ足して配線を忘れると
+    # 単体テストは緑のまま検査が一度も走らない
+    repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
+    write_file(
+        repo,
+        "home/apm.yml",
+        "name: t\ndependencies:\n  apm:\n  - owner/repo/a#aaaaaaa\n  - owner/repo/b#bbbbbbb\n",
+    )
+
+    findings = scan(str(repo))
+
+    assert any(f.detail == "owner/repo: aaaaaaa (1), bbbbbbb (1)" for f in findings)
+
+
 def test_broken_markdown_link_is_detected(tmp_path: Path) -> None:
     # リンク検査が scan に配線されていること
     repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
