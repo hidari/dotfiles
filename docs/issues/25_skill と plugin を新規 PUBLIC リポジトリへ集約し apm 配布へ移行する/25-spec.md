@@ -184,13 +184,30 @@ Phase 3a の live smoke で観測した。apm が配置した 3 plugin は `clau
 marketplace とは別系統で自動ロードされる設計に見える。
 
 root の `SKILL.md` が skill として読まれることは確認できている (セッション開始時の skill 一覧に
-3 パッケージが現れる)。確認できていないのは component 側で、`agents/` `commands/` 配下と
-`skills/<name>/` が `<plugin>:<component>` の修飾名で解決されるかどうかは、現在 marketplace 版が
-有効なため切り分けられない。
+3 パッケージが現れる)。component 側は当初 marketplace 版が同時に有効なため切り分けられなかった。
 
-これは Phase 4 の項目 18 (marketplace 宣言の削除) の前提を揺るがす。spec は当初「marketplace の
+これは Phase 4 の項目 19 (marketplace 宣言の削除) の前提を揺るがす。spec は当初「marketplace の
 宣言も settings.json の plugin エントリも不要になる」と書いたが、その根拠は「symlink 経由でも
 skills-dir plugin は検出される」という検出の実測であり、検出は有効化を意味しない。
+
+### 入口 gate の実測 (Phase 4 の項目 17、完了)
+
+上の切り分けは Phase 4 の入口 gate で決着した。marketplace を宣言しない隔離した設定ディレクトリへ
+apm が配置した skills だけを置き、対話セッションを起動して確かめた。
+
+- `<name>@skills-dir` の 3 パッケージはいずれも `enabled=true` になった。報告された version は
+  apm が配置した版で、marketplace 版と版が違うパッケージがあるためどちらを読んだか判別できる
+- component は `<plugin>:<component>` の修飾名で解決された (観測時点で 1 パッケージ 7 件)
+- 対照 1: 存在しない修飾名を引くと該当なしを返す
+- 対照 2: plugin を置かない設定ディレクトリでは同じ修飾名が該当なしを返す
+
+対照を 2 本並べたのは、検査に判別力があること (何を渡しても解決したように見える形になっていない
+こと) を先に確かめるためである。これが無いと「解決した」という観測が、検査が壊れて常に真を返して
+いるだけの状態と区別できない。
+
+Phase 3a で `enabled=False` に見えたのは、同名の marketplace 版が同時に有効だったためだと分かる。
+同名衝突が無い隔離環境では同じパッケージが `enabled=true` になった。したがって marketplace 宣言の
+削除は component を失わせない。
 
 ### 変数の展開範囲はファイルの位置で変わる
 
@@ -598,8 +615,9 @@ plugin の配布経路の選択は不要になった (単一経路で成立す�
 
 17. 隔離した設定ディレクトリで、apm が配置した skills-dir plugin の component
     (`agents/` `commands/` `skills/<name>/`) が `<plugin>:<component>` の修飾名で解決されることを
-    確認する。現在は marketplace 版が有効なため切り分けられない。解決しないなら marketplace 経路を
-    残す判断へ切り替える
+    確認する。解決しないなら marketplace 経路を残す判断へ切り替える
+    (完了。3 パッケージとも `enabled=true` になり component が修飾名で解決した。対照 2 本付き。
+    実測は上の「入口 gate の実測」節)
 
 その上で後始末する。
 
@@ -696,7 +714,7 @@ bootstrap か CI に組み込む。
 | plugin の品質 | 公開に耐えないという判断が移行の動機の一部 | Phase 2 の入口 gate で基準を決める。公開は不可逆なので後追いできない |
 | 履歴に残る露出 | 現ツリーを直しても履歴の 77 件は残る | 主張を「新規露出を足さない」に限定する。履歴書き換えの是非は Issue #21 で扱う |
 | 複数 hook の合成規則 | 同一イベントの hook が deny と allow を同時に返したときどちらが勝つかは未文書化 | 新 hook が allow を出さない設計で回避する。実測でも `tirith` は `apm install` を無音 allow するため衝突しない |
-| skills-dir plugin の有効化 | apm が配置した plugin は一覧に出るが `enabled=False` で、`enabledPlugins` に書いても変わらない。component が修飾名で解決されるかは marketplace 版が有効なため切り分けられていない | Phase 4 の入口 gate にする。marketplace を消す前に、隔離した設定ディレクトリで component の解決を確認する。解決しないなら marketplace 経路を残すか別の有効化手段を探す |
+| skills-dir plugin の有効化 (解決済み) | apm が配置した plugin は marketplace 版と同名で衝突している間だけ `enabled=False` になる | Phase 4 の入口 gate で対照 2 本付きに確認した。同名衝突が無い隔離環境では `enabled=true` になり component も修飾名で解決する。詳細は「入口 gate の実測」節 |
 | hook 登録を pin する検査の不在 | `settings.json` の hooks セクションを見る検査が 1 件も無く、既存の `tirith-check.py` ですら配線を外して全テストが緑になる | Phase 3a で config-guard に必須 hook の配線検査を足し、既存 hook も同時に pin する。配線は event だけでなく matcher まで見る (matcher を別ツールへ変えると本体が残ったまま起動しなくなるため) |
 | ターミナル直叩きが未カバー | 2 層は bootstrap 経由と Claude Code 経由を塞ぐが、シェルから直接 `apm` を叩く経路は hook を通らない | 現状は未対処。全経路を 1 箇所で覆う機構としては `~/.local/bin` に clean 検査付きの apm シムを置く案があるが、PATH 順序と `command -v apm` 判定へ干渉する別の脆さを持つため採らない。検討して採らなかったことをここに記録する |
 

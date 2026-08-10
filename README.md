@@ -68,7 +68,7 @@ Additionally, `home/.gitconfig.private.example` is copied to `~/.gitconfig.priva
 
 Claude Code は起動中に settings.json を書き換えることがある (承認した MCP サーバの記録など)。skip-worktree が無くなったのでその書き換えは `git status` に差分として現れる。意図しない差分はコミットせず `git checkout -- home/.claude/settings.json` で戻す。committed に置けないものの定義は config-guard の不変条件 (`scripts/config-guard/src/config_guard/settings_invariants.py`) が正本なので README には再掲しない。
 
-config-guard は working tree ではなく git の index を読む。検査したいのはコミットされようとしている内容であって、未 stage の書き換えではないためである。
+config-guard は settings.json だけ working tree ではなく git の index から読む (`git show :home/.claude/settings.json`)。検査したいのはコミットされようとしている内容であって、未 stage の書き換えではないためである。skill や apm.yml など他の検査対象は working tree を読む。
 
 committed 側は CI で 2 つの仕組みが守る。
 

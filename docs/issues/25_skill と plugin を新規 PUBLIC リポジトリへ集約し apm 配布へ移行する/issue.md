@@ -95,7 +95,8 @@ plugin 認識が同時に成立する。marketplace の宣言も `settings.json`
 
 ### Phase 4: 後始末
 
-- [x] skills-dir plugin の component が修飾名で解決されることを隔離環境で確認する (入口 gate)
+- [x] skills-dir plugin の component が修飾名で解決されることを隔離環境で確認する
+      (入口 gate。3 パッケージとも `enabled=true`。対照 2 本付き。実測は 25-spec.md)
 - [x] Issue ドキュメントの記述を伏字化する
 - [x] `settings.json` から marketplace 宣言と `enabledPlugins` を削除する
 - [x] hook の `herdr-agent-state.sh` パスを `$HOME` 参照へ変える
