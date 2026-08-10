@@ -448,6 +448,182 @@ teardown() {
 }
 
 # =============================================================================
+# claude-dev / claude-hamiltonian-dev (開発版の skill と plugin を読む)
+# =============================================================================
+#
+# 既定の claude は apm が配置した安定版 (apm.yml の hash 時点のコピー) を読む。
+# agentic-coding-tools を直しながら試すときだけ開発版 (作業ツリーの実体) を読む。
+# パッケージ一覧は列挙せず実体から拾うため、増減しても追随する。
+#
+# アカウント (個人 / 仕事) と版 (安定 / 開発) は直交する 2 軸で、4 通りを 4 つの
+# 関数で表す。収集とガードは共通ヘルパーに 1 つだけ置くが、テストは両ランチャで
+# 重複して pin する。片方だけを pin すると、もう片方はヘルパーの呼び出しを外しても
+# 緑のままになり、仕事アカウントだけが退行できてしまう。
+
+# 開発版リポジトリの最小構成。plugin (深さ 1) と skill (カテゴリを挟んで深さ 2) の
+# 両方を置き、拾ってはいけないディレクトリも混ぜる
+setup_dev_packages() {
+    local root="$TEST_HOME/agentic"
+    mkdir -p "$root/plugins/dev-workflow/skills/git-branch-switcher"
+    : > "$root/plugins/dev-workflow/SKILL.md"
+    : > "$root/plugins/dev-workflow/skills/git-branch-switcher/SKILL.md"
+    mkdir -p "$root/skills/tooling/herdr"
+    : > "$root/skills/tooling/herdr/SKILL.md"
+    mkdir -p "$root/plugins/no-skill-here"
+    mkdir -p "$root/.git"
+}
+
+@test "claude-dev: passes --plugin-dir for both plugin and skill packages" {
+    # plugin と skill は階層の深さが違う。片方だけ拾う実装だと、もう片方は
+    # 安定版のまま静かに残り、直したはずの変更が反映されない
+    setup_dev_packages
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-dev
+
+    [ "$status" -eq 0 ]
+    local recorded
+    recorded="$(cat "$RECORDED_LAUNCH")"
+    assert_contains "$recorded" "--plugin-dir $TEST_HOME/agentic/plugins/dev-workflow"
+    assert_contains "$recorded" "--plugin-dir $TEST_HOME/agentic/skills/tooling/herdr"
+}
+
+@test "claude-dev: excludes directories without SKILL.md" {
+    # SKILL.md の有無で判定しないと .git や作りかけのディレクトリまで渡してしまう
+    setup_dev_packages
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-dev
+
+    [ "$status" -eq 0 ]
+    refute_contains "$(cat "$RECORDED_LAUNCH")" "no-skill-here"
+}
+
+@test "claude-dev: excludes component skills nested inside a plugin" {
+    # plugin 内部の skills/<name>/ は plugin 経由で読まれる。個別にも渡すと
+    # 同じ skill が 2 経路で載る
+    setup_dev_packages
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-dev
+
+    [ "$status" -eq 0 ]
+    refute_contains "$(cat "$RECORDED_LAUNCH")" "git-branch-switcher"
+}
+
+@test "claude-dev: fails without launching when the repository is missing" {
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/nonexistent" run claude-dev
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "開発版のリポジトリが見つかりません"
+    refute_contains "$(cat "$RECORDED_LAUNCH")" "LAUNCHED"
+}
+
+@test "claude-dev: fails without launching when no package is found" {
+    # 0 件のまま起動すると安定版で立ち上がる。開発版を見ているつもりで古い挙動を
+    # 観測することになるので、静かに間違えるより止める
+    mkdir -p "$TEST_HOME/empty-repo"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/empty-repo" run claude-dev
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "開発版のパッケージが見つかりません"
+    refute_contains "$(cat "$RECORDED_LAUNCH")" "LAUNCHED"
+}
+
+@test "claude-dev: forwards its arguments to the binary" {
+    setup_dev_packages
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-dev --resume foo
+
+    [ "$status" -eq 0 ]
+    assert_contains "$(cat "$RECORDED_LAUNCH")" "--resume foo"
+}
+
+@test "claude-dev: goes through the claude function so the config dir is checked" {
+    # command claude を直に呼ぶと設定ディレクトリの検査とタスクリスト通知を迂回する。
+    # 存在しない前置で止まることで、claude 関数を経由していることを pin する
+    setup_dev_packages
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    CLAUDE_CONFIG_DIR="$TEST_HOME/.claude-typo" AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-dev
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "設定ディレクトリが見つかりません"
+    refute_contains "$(cat "$RECORDED_LAUNCH")" "LAUNCHED"
+}
+
+@test "claude-hamiltonian-dev: pins the work account and passes the dev plugin dirs" {
+    # アカウント (関数) と版 (安定 / 開発) が直交して合成できることを pin する。
+    # 開発版を仕事アカウントで使いたい場面があるため、個人側だけの機能にしない
+    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    setup_dev_packages
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-hamiltonian-dev
+
+    [ "$status" -eq 0 ]
+    local recorded
+    recorded="$(cat "$RECORDED_LAUNCH")"
+    assert_contains "$recorded" "CONFIG_DIR=$TEST_HOME/.claude-hamiltonian"
+    assert_contains "$recorded" "--plugin-dir $TEST_HOME/agentic/plugins/dev-workflow"
+    assert_contains "$recorded" "--plugin-dir $TEST_HOME/agentic/skills/tooling/herdr"
+}
+
+@test "claude-hamiltonian-dev: pins its own account over an externally given config dir" {
+    # 安定版のランチャと同じ規約。前置に引きずられて個人側で起動したら、
+    # 仕事用として呼んだ意味が消える
+    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    setup_dev_packages
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    CLAUDE_CONFIG_DIR="$TEST_HOME/.claude" AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-hamiltonian-dev
+
+    [ "$status" -eq 0 ]
+    assert_contains "$(cat "$RECORDED_LAUNCH")" "CONFIG_DIR=$TEST_HOME/.claude-hamiltonian"
+}
+
+@test "claude-hamiltonian-dev: fails without launching when the repository is missing" {
+    # ガードの実体は共通ヘルパーにあるが、片方のランチャからしか呼ばれていない
+    # 配線ミスは、もう片方を pin しないと検出できない
+    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/nonexistent" run claude-hamiltonian-dev
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "開発版のリポジトリが見つかりません"
+    refute_contains "$(cat "$RECORDED_LAUNCH")" "LAUNCHED"
+}
+
+@test "claude-hamiltonian-dev: fails without launching when no package is found" {
+    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    mkdir -p "$TEST_HOME/empty-repo"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/empty-repo" run claude-hamiltonian-dev
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "開発版のパッケージが見つかりません"
+    refute_contains "$(cat "$RECORDED_LAUNCH")" "LAUNCHED"
+}
+
+# =============================================================================
 # ローダー自身の健全性
 # =============================================================================
 

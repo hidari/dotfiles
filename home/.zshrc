@@ -267,6 +267,50 @@ function claude-hamiltonian() {
   fi
 }
 
+# 開発版 (agentic-coding-tools の作業ツリー) のパッケージを --plugin-dir の並びとして
+# 集める。既定の起動は apm が配置した安定版 (apm.yml の hash 時点のコピー) を読むので、
+# 直しながら試すときだけ使う。2 つのアカウントが同じ並びを使うため構築をここへ閉じる。
+# 結果を配列で返さずグローバルへ置くのは、コマンド置換が NUL を運べず、改行区切りだと
+# 空白や改行を含むパスで壊れるため。
+function _claude_dev_plugin_args() {
+  local repo="${AGENTIC_TOOLS_DIR:-$HOME/Develop/agentic-coding-tools}"
+  if [ ! -d "$repo" ]; then
+    echo "開発版のリポジトリが見つかりません: $repo" >&2
+    return 1
+  fi
+
+  # パッケージ名を列挙して固定すると増減で drift するため実体から拾う。plugin は
+  # 深さ 1、skill はカテゴリを挟んで深さ 2 にあり、plugin 内部の skills/<name>/ は
+  # plugin 経由で読まれる。-maxdepth 3 が内部 component を範囲外に落とす
+  local -a args
+  local skill_md
+  while IFS= read -r -d '' skill_md; do
+    args+=(--plugin-dir "${skill_md%/SKILL.md}")
+  done < <(find "$repo/plugins" "$repo/skills" -maxdepth 3 -name SKILL.md -print0 2>/dev/null)
+
+  # 0 件のまま起動すると安定版で立ち上がる。開発版のつもりで古い挙動を観測する
+  # ことになるため、静かに間違えるより止める
+  if [ "${#args[@]}" -eq 0 ]; then
+    echo "開発版のパッケージが見つかりません: $repo" >&2
+    return 1
+  fi
+
+  _CLAUDE_DEV_PLUGIN_ARGS=("${args[@]}")
+}
+
+# 個人アカウントで開発版を読む。設定ディレクトリの検査とタスクリスト通知は
+# claude 関数へ委ねる (command claude を直に呼ぶと両方を迂回する)。
+function claude-dev() {
+  _claude_dev_plugin_args || return 1
+  claude "${_CLAUDE_DEV_PLUGIN_ARGS[@]}" "$@"
+}
+
+# 仕事アカウントで開発版を読む。アカウントの固定は claude-hamiltonian が持つ。
+function claude-hamiltonian-dev() {
+  _claude_dev_plugin_args || return 1
+  claude-hamiltonian "${_CLAUDE_DEV_PLUGIN_ARGS[@]}" "$@"
+}
+
 ########################################
 # その他
 
