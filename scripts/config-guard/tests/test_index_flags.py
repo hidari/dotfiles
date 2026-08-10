@@ -102,6 +102,18 @@ def test_check_index_flags_keeps_paths_with_spaces_and_multibyte(tmp_path: Path)
     assert [finding.source for finding in findings] == ["b c.txt", "日本語.txt"]
 
 
+def test_check_index_flags_raises_on_git_error(tmp_path: Path) -> None:
+    # git repo でないディレクトリでは git ls-files が 128 を返す。空 index の repo も
+    # bare repo も exit 0 で出力 0 バイトを返すため、git エラーと「対象なし」は出力から
+    # 区別できない。黙って 0 件へ化けず明示的に失敗することを検証する (git init しない)
+    try:
+        check_index_flags(str(tmp_path))
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("git エラー時は RuntimeError が送出されるべき")
+
+
 def test_check_index_flags_scans_every_tracked_file(tmp_path: Path) -> None:
     # 走査が空振りしていないことの対照。列挙数が追跡ファイル数と一致する
     names = ["a.txt", "b c.txt", "日本語.txt"]
