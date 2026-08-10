@@ -448,6 +448,324 @@ teardown() {
 }
 
 # =============================================================================
+# claude-dev / claude-hamiltonian-dev (開発版の skill と plugin を読む)
+# =============================================================================
+#
+# 既定の claude は skill を apm が配置したコピーから読むが、plugin は同名の marketplace
+# 版が優先されるため別経路から載る (経路の canonical は claude-plugins の CLAUDE.md)。
+# agentic-coding-tools を直しながら試すときだけ開発版 (作業ツリーの実体) を読む。
+# パッケージ一覧は列挙せず実体から拾うため、増減しても追随する。
+#
+# アカウント (個人 / 仕事) と版 (安定 / 開発) は直交する 2 軸で、4 通りを 4 つの
+# 関数で表す。収集とガードは共通ヘルパーに 1 つだけ置くが、テストは両ランチャで
+# 重複して pin する。片方だけを pin すると、もう片方はヘルパーの呼び出しを外しても
+# 緑のままになり、仕事アカウントだけが退行できてしまう。
+
+# 開発版リポジトリの最小構成。plugin (深さ 1) と skill (カテゴリを挟んで深さ 2) の
+# 両方を置き、拾ってはいけないものを 3 種類混ぜる。3 種類あるのは選別条件が 3 つ
+# (探索根 / 深さ / ファイル名) 独立にあり、1 種類では 1 条件しか pin できないため
+setup_dev_packages() {
+    local root="$TEST_HOME/agentic"
+    mkdir -p "$root/plugins/dev-workflow/skills/git-branch-switcher"
+    : > "$root/plugins/dev-workflow/SKILL.md"
+    : > "$root/plugins/dev-workflow/skills/git-branch-switcher/SKILL.md"
+    mkdir -p "$root/skills/tooling/herdr"
+    : > "$root/skills/tooling/herdr/SKILL.md"
+    mkdir -p "$root/plugins/no-skill-here"
+    # ファイル名の条件。実体には README.md や agents/*.md が並ぶので、SKILL.md 以外を
+    # 拾う退行が入ると不正なパスが --plugin-dir へ混ざる
+    mkdir -p "$root/plugins/readme-only"
+    : > "$root/plugins/readme-only/README.md"
+    mkdir -p "$root/plugins/dev-workflow/agents"
+    : > "$root/plugins/dev-workflow/agents/reviewer.md"
+    # 探索根の条件。起点を repo 直下へ広げると .git まで渡してしまう
+    mkdir -p "$root/.git"
+    : > "$root/.git/SKILL.md"
+}
+
+@test "claude-dev: passes --plugin-dir for both plugin and skill packages" {
+    # plugin と skill は階層の深さが違う。片方だけ拾う実装だと、もう片方は
+    # 安定版のまま静かに残り、直したはずの変更が反映されない
+    setup_dev_packages
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-dev
+
+    [ "$status" -eq 0 ]
+    local recorded
+    recorded="$(cat "$RECORDED_LAUNCH")"
+    assert_contains "$recorded" "--plugin-dir $TEST_HOME/agentic/plugins/dev-workflow"
+    assert_contains "$recorded" "--plugin-dir $TEST_HOME/agentic/skills/tooling/herdr"
+    # 含む一致は「余計な尾ひれ」を原理的に検出できない。SKILL.md の除去を落とすと
+    # 渡るのはディレクトリではなくファイルになるが、上の 2 行はその prefix なので緑になる
+    refute_contains "$recorded" "/SKILL.md"
+    # 件数を数えないと、無関係な要素を足す退行が含む一致を素通りする
+    local plugin_dir_count
+    plugin_dir_count="$(grep -o -- '--plugin-dir' "$RECORDED_LAUNCH" | wc -l | tr -d ' ')"
+    [ "$plugin_dir_count" -eq 2 ]
+}
+
+@test "claude-dev: excludes directories without SKILL.md" {
+    # SKILL.md の有無で判定しないと作りかけのディレクトリまで渡してしまう。
+    # ファイル名の条件も併せて pin する。ディレクトリの空・非空だけを見ていると
+    # -name を緩める退行が緑のまま通り、README.md の側まで拾ってしまう
+    setup_dev_packages
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-dev
+
+    [ "$status" -eq 0 ]
+    local recorded
+    recorded="$(cat "$RECORDED_LAUNCH")"
+    refute_contains "$recorded" "no-skill-here"
+    refute_contains "$recorded" "readme-only"
+    refute_contains "$recorded" "dev-workflow/agents"
+}
+
+@test "claude-dev: searches only under plugins and skills" {
+    # 探索根を repo 直下へ広げると .git のような管理用ディレクトリまで渡す。
+    # SKILL.md を置いた .git は、深さとファイル名の条件では落とせない
+    setup_dev_packages
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-dev
+
+    [ "$status" -eq 0 ]
+    refute_contains "$(cat "$RECORDED_LAUNCH")" "/.git"
+}
+
+@test "claude-dev: excludes component skills nested inside a plugin" {
+    # plugin 内部の skills/<name>/ は plugin 経由で読まれる。個別にも渡すと
+    # 同じ skill が 2 経路で載る
+    setup_dev_packages
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-dev
+
+    [ "$status" -eq 0 ]
+    refute_contains "$(cat "$RECORDED_LAUNCH")" "git-branch-switcher"
+}
+
+@test "claude-dev: fails without launching when the repository is missing" {
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/nonexistent" run claude-dev
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "開発版のリポジトリが見つかりません"
+    refute_contains "$(cat "$RECORDED_LAUNCH")" "LAUNCHED"
+}
+
+@test "claude-dev: fails without launching when no package is found" {
+    # 0 件のまま起動すると安定版で立ち上がる。開発版を見ているつもりで古い挙動を
+    # 観測することになるので、静かに間違えるより止める
+    # 置き場は両方あるが中身が無い形にする。手前の探索根チェックで落ちると
+    # 0 件ガードを壊しても緑のままになり、狙った検査を pin できない
+    mkdir -p "$TEST_HOME/empty-repo/plugins" "$TEST_HOME/empty-repo/skills"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/empty-repo" run claude-dev
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "開発版のパッケージが見つかりません"
+    refute_contains "$(cat "$RECORDED_LAUNCH")" "LAUNCHED"
+}
+
+@test "claude-dev: fails without launching when one of the package roots is missing" {
+    # 0 件ガードは全滅しか見ない。片側が欠けると find は残る側だけを返し、
+    # 半分のパッケージを載せて rc=0 で起動する。部分欠落はエラーではなく
+    # 「短い正常な結果」として返るので、件数を見ているだけでは気づけない
+    mkdir -p "$TEST_HOME/half-repo/plugins/dev-workflow"
+    : > "$TEST_HOME/half-repo/plugins/dev-workflow/SKILL.md"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/half-repo" run claude-dev
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "開発版のパッケージ置き場が見つかりません: $TEST_HOME/half-repo/skills"
+    refute_contains "$(cat "$RECORDED_LAUNCH")" "LAUNCHED"
+}
+
+@test "claude-dev: falls back to the default repository path when none is handed in" {
+    # 他のテストは AGENTIC_TOOLS_DIR を明示するため、既定パスだけが無検証で残る。
+    # 実運用で踏むのは常に既定パスの側
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    run claude-dev
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "開発版のリポジトリが見つかりません: $HOME/Develop/agentic-coding-tools"
+    refute_contains "$(cat "$RECORDED_LAUNCH")" "LAUNCHED"
+}
+
+@test "claude-dev: does not leak the plugin dir array into the caller" {
+    # ヘルパーは呼び出し側が local で宣言した配列へ書き込む。ランチャ側の宣言が
+    # 落ちると対話シェルへ残り続ける。run はサブシェルなので観測できず、
+    # 直に呼んでから同じシェルで確かめる
+    setup_dev_packages
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" claude-dev
+
+    [ "${#_CLAUDE_DEV_PLUGIN_ARGS[@]}" -eq 0 ]
+}
+
+@test "claude-dev: derives the task list id through the claude function" {
+    # 設定ディレクトリの検査だけでは委譲を pin できない。検査を手元へ写して
+    # command claude を直に呼ぶ形にしても緑のままになり、タスクリスト通知だけが
+    # 静かに落ちる。claude 関数だけが持つ導出を観測して委譲そのものを pin する
+    setup_test_repo "$TEST_HOME/myrepo"
+    setup_dev_packages
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run_in_dir "$TEST_HOME/myrepo" claude-dev
+
+    [ "$status" -eq 0 ]
+    assert_contains "$(cat "$RECORDED_LAUNCH")" "TASK_LIST=myrepo"
+}
+
+@test "claude-dev: forwards its arguments to the binary" {
+    setup_dev_packages
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-dev --resume foo
+
+    [ "$status" -eq 0 ]
+    assert_contains "$(cat "$RECORDED_LAUNCH")" "--resume foo"
+}
+
+@test "claude-dev: goes through the claude function so the config dir is checked" {
+    # command claude を直に呼ぶと設定ディレクトリの検査とタスクリスト通知を迂回する。
+    # 存在しない前置で止まることで、claude 関数を経由していることを pin する
+    setup_dev_packages
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    CLAUDE_CONFIG_DIR="$TEST_HOME/.claude-typo" AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-dev
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "設定ディレクトリが見つかりません"
+    refute_contains "$(cat "$RECORDED_LAUNCH")" "LAUNCHED"
+}
+
+@test "claude-hamiltonian-dev: pins the work account and passes the dev plugin dirs" {
+    # アカウント (関数) と版 (安定 / 開発) が直交して合成できることを pin する。
+    # 開発版を仕事アカウントで使いたい場面があるため、個人側だけの機能にしない
+    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    setup_dev_packages
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-hamiltonian-dev
+
+    [ "$status" -eq 0 ]
+    local recorded
+    recorded="$(cat "$RECORDED_LAUNCH")"
+    assert_contains "$recorded" "CONFIG_DIR=$TEST_HOME/.claude-hamiltonian"
+    assert_contains "$recorded" "--plugin-dir $TEST_HOME/agentic/plugins/dev-workflow"
+    assert_contains "$recorded" "--plugin-dir $TEST_HOME/agentic/skills/tooling/herdr"
+}
+
+@test "claude-hamiltonian-dev: pins its own account over an externally given config dir" {
+    # 安定版のランチャと同じ規約。前置に引きずられて個人側で起動したら、
+    # 仕事用として呼んだ意味が消える
+    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    setup_dev_packages
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    CLAUDE_CONFIG_DIR="$TEST_HOME/.claude" AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-hamiltonian-dev
+
+    [ "$status" -eq 0 ]
+    assert_contains "$(cat "$RECORDED_LAUNCH")" "CONFIG_DIR=$TEST_HOME/.claude-hamiltonian"
+}
+
+@test "claude-hamiltonian-dev: fails without launching when the repository is missing" {
+    # ガードの実体は共通ヘルパーにあるが、片方のランチャからしか呼ばれていない
+    # 配線ミスは、もう片方を pin しないと検出できない
+    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/nonexistent" run claude-hamiltonian-dev
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "開発版のリポジトリが見つかりません"
+    refute_contains "$(cat "$RECORDED_LAUNCH")" "LAUNCHED"
+}
+
+@test "claude-hamiltonian-dev: fails without launching when no package is found" {
+    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    # 置き場は両方あるが中身が無い形にする。手前の探索根チェックで落ちると
+    # 0 件ガードを壊しても緑のままになり、狙った検査を pin できない
+    mkdir -p "$TEST_HOME/empty-repo/plugins" "$TEST_HOME/empty-repo/skills"
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/empty-repo" run claude-hamiltonian-dev
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "開発版のパッケージが見つかりません"
+    refute_contains "$(cat "$RECORDED_LAUNCH")" "LAUNCHED"
+}
+
+@test "claude-hamiltonian-dev: forwards its arguments to the binary" {
+    # 個人側にしか転送のテストが無いと、仕事側だけ "$@" を落とす退行が緑で通る
+    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    setup_dev_packages
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-hamiltonian-dev --resume foo
+
+    [ "$status" -eq 0 ]
+    assert_contains "$(cat "$RECORDED_LAUNCH")" "--resume foo"
+}
+
+@test "claude-hamiltonian-dev: fails without launching when its own config dir is missing" {
+    # claude-hamiltonian を経由せずアカウント固定だけを手元へ写すと、仕事側の
+    # 設定ディレクトリ検査が落ちる。不在のまま起動すると初期状態の設定が作られる
+    setup_dev_packages
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-hamiltonian-dev
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "設定ディレクトリが見つかりません"
+    refute_contains "$(cat "$RECORDED_LAUNCH")" "LAUNCHED"
+}
+
+@test "claude-hamiltonian-dev: derives the task list id through the claude-hamiltonian function" {
+    # 個人側と同じ理由で委譲そのものを pin する。ガードは共通ヘルパーにあるが、
+    # 委譲先は 2 つの関数で別々なので片方だけでは配線ミスを検出できない
+    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    setup_test_repo "$TEST_HOME/myrepo"
+    setup_dev_packages
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run_in_dir "$TEST_HOME/myrepo" claude-hamiltonian-dev
+
+    [ "$status" -eq 0 ]
+    local recorded
+    recorded="$(cat "$RECORDED_LAUNCH")"
+    assert_contains "$recorded" "TASK_LIST=myrepo"
+    assert_contains "$recorded" "CONFIG_DIR=$TEST_HOME/.claude-hamiltonian"
+}
+
+# =============================================================================
 # ローダー自身の健全性
 # =============================================================================
 

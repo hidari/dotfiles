@@ -115,7 +115,7 @@ committed 側は CI で 2 つの仕組みが守る。
 ## Testing
 
 ```bash
-# bootstrap (bats)
+# all suites (bats)
 bats scripts/tests/
 
 # backup-tool (Python / pytest)
