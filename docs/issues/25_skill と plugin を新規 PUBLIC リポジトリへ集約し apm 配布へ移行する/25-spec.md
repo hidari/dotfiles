@@ -176,7 +176,7 @@ deploy 先ディレクトリ名が末尾セグメントであることは、パ�
 
 Phase 3a の live smoke で観測した。apm が配置した 3 plugin は `claude plugin list --json` に
 `<name>@skills-dir` として現れるが、いずれも `enabled=False` である。marketplace 経由の
-`<name>@hidari-plugins` は `enabled=True` で、実際に動いているのはこちらである。
+`<name>@<private marketplace 名>` は `enabled=True` で、実際に動いているのはこちらである。
 
 `enabledPlugins` に `dev-workflow@skills-dir: true` を書いても `enabled=False` のままだった。
 `claude plugin details dev-workflow@skills-dir` は「not found」を返す。一方 `claude plugin init`

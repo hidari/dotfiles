@@ -95,13 +95,16 @@ plugin 認識が同時に成立する。marketplace の宣言も `settings.json`
 
 ### Phase 4: 後始末
 
-- [ ] skills-dir plugin の component が修飾名で解決されることを隔離環境で確認する (入口 gate)
-- [ ] Issue ドキュメントの記述を伏字化する
-- [ ] `settings.json` から marketplace 宣言と `enabledPlugins` を削除する
-- [ ] hook の `herdr-agent-state.sh` パスを `$HOME` 参照へ変える
-- [ ] skip-worktree を解除する
+- [x] skills-dir plugin の component が修飾名で解決されることを隔離環境で確認する (入口 gate)
+- [x] Issue ドキュメントの記述を伏字化する
+- [x] `settings.json` から marketplace 宣言と `enabledPlugins` を削除する
+- [x] hook の `herdr-agent-state.sh` パスを `$HOME` 参照へ変える
+- [x] skip-worktree を解除する
 - [ ] 現行 private plugin リポジトリをアーカイブする
 - [ ] `install.sh` が張った `~/.claude/plugins/<plugin 名>` の symlink 3 本を撤去する
+
+最後の 2 つは Claude Code を再起動して apm 版 plugin が実際に動くことを確認してから行う。
+確認前に撤去すると、切り戻しの経路まで同時に失われる。
 
 ## 関連
 

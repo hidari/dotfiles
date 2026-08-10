@@ -80,6 +80,16 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash \"$HOME/.claude/hooks/herdr-agent-state.sh\" session",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
             "command": "python3 \"$HOME/.claude/hooks/handoff-sentinel.py\" session",
             "timeout": 10
           }
@@ -115,29 +125,28 @@
     "command": "bash ~/.claude/statusline-command.sh"
   },
   "enabledPlugins": {
+    "chrome-devtools-mcp@chrome-devtools-plugins": true,
     "code-review@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true,
     "feature-dev@claude-plugins-official": true,
     "frontend-design@claude-plugins-official": true,
-    "playwright@claude-plugins-official": true,
-    "rust-analyzer-lsp@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true,
-    "superpowers@superpowers-marketplace": true,
-    "superpowers-developing-for-claude-code@superpowers-marketplace": true,
-    "pyright-lsp@claude-plugins-official": true,
-    "swift-lsp@claude-plugins-official": true,
     "kotlin-lsp@claude-plugins-official": true,
     "modern-web-guidance@googlechrome": true,
+    "playwright@claude-plugins-official": true,
+    "pyright-lsp@claude-plugins-official": true,
+    "rust-analyzer-lsp@claude-plugins-official": true,
     "superpowers-chrome@superpowers-marketplace": true,
-    "chrome-devtools-mcp@chrome-devtools-plugins": true
+    "superpowers-developing-for-claude-code@superpowers-marketplace": true,
+    "superpowers@superpowers-marketplace": true,
+    "swift-lsp@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
-    "superpowers-marketplace": {
+    "chrome-devtools-plugins": {
       "source": {
         "source": "github",
-        "repo": "obra/superpowers-marketplace"
-      },
-      "autoUpdate": true
+        "repo": "ChromeDevTools/chrome-devtools-mcp"
+      }
     },
     "googlechrome": {
       "source": {
@@ -145,11 +154,12 @@
         "url": "https://github.com/GoogleChrome/modern-web-guidance.git"
       }
     },
-    "chrome-devtools-plugins": {
+    "superpowers-marketplace": {
       "source": {
         "source": "github",
-        "repo": "ChromeDevTools/chrome-devtools-mcp"
-      }
+        "repo": "obra/superpowers-marketplace"
+      },
+      "autoUpdate": true
     }
   },
   "outputStyle": "Explanatory",
@@ -162,6 +172,5 @@
   "editorMode": "normal",
   "remoteControlAtStartup": true,
   "inputNeededNotifEnabled": true,
-  "agentPushNotifEnabled": true,
-  "skipAutoPermissionPrompt": true
+  "agentPushNotifEnabled": true
 }

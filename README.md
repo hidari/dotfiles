@@ -60,36 +60,15 @@ cd ~/Develop/dotfiles
 
 Additionally, `home/.gitconfig.private.example` is copied to `~/.gitconfig.private` (if it doesn't exist).
 
-## Claude Code 設定の管理 (skip-worktree 契約)
+## Claude Code 設定の管理
 
-`home/.claude/settings.json` は `git update-index --skip-worktree` で管理しており、二重の状態を持つ。
+`home/.claude/settings.json` は `~/.claude/settings.json` から symlink されており、リポジトリ内のファイルがそのまま live 設定である。committed と live は 1 本で、普通のファイルとして編集してコミットする。
 
-- committed (HEAD): 公開して安全な curated subset。
-- working tree (`~/.claude/settings.json` の symlink 実体): 個人環境の live superset。
+以前は `git update-index --skip-worktree` で両者を分けていた。分ける理由はローカル絶対パスを持つ directory source の marketplace 宣言と、そこから来る plugin エントリの 2 つだったが、skill と plugin の供給を apm へ移したことで両方消えたため廃止した。
 
-committed は live から「committed に置けないもの」を除いた subset にする。通知や UI の個人トグルも、新マシンで同じ環境が立ち上がるよう committed 側に持つ。置けないものの定義は config-guard の不変条件 (`scripts/config-guard/src/config_guard/settings_invariants.py`) が正本なので README には再掲しない。
+Claude Code は起動中に settings.json を書き換えることがある (承認した MCP サーバの記録など)。skip-worktree が無くなったのでその書き換えは `git status` に差分として現れる。意図しない差分はコミットせず `git checkout -- home/.claude/settings.json` で戻す。committed に置けないものの定義は config-guard の不変条件 (`scripts/config-guard/src/config_guard/settings_invariants.py`) が正本なので README には再掲しない。
 
-ローカル固有の設定を commit に混ぜないため、committed 側だけを編集するときは working file を触らず index の blob を差し替える。
-
-```bash
-shasum home/.claude/settings.json              # 差し替え前の live のハッシュを控える
-
-git show HEAD:home/.claude/settings.json > .cache/settings-new.json
-# .cache/settings-new.json を編集する
-SHA=$(git hash-object -w .cache/settings-new.json)
-git update-index --cacheinfo 100644,"$SHA",home/.claude/settings.json
-
-# cacheinfo は index エントリごと置き換えるので skip-worktree が外れる。commit の前に戻す。
-# 外れたまま commit すると、pre-commit が未 stage の live 側を stash して復元する窓ができる。
-git update-index --skip-worktree home/.claude/settings.json
-
-git ls-files -v home/.claude/settings.json     # 先頭が S なら skip-worktree が戻っている
-shasum home/.claude/settings.json              # 控えた値と一致すれば live は無変更
-git diff --cached home/.claude/settings.json   # 差分が意図通りか検証する
-
-# コミット本文を .cache/commit-settings.txt に書く
-git commit -F .cache/commit-settings.txt
-```
+config-guard は working tree ではなく git の index を読む。検査したいのはコミットされようとしている内容であって、未 stage の書き換えではないためである。
 
 committed 側は CI で 2 つの仕組みが守る。
 
