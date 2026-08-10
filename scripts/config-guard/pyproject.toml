@@ -6,7 +6,11 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [{ name = "Hidari" }]
-dependencies = []
+# src/config_guard/apm_pins.py が apm.yml / apm.lock.yaml を構造として読む。行パースは
+# YAML のパーサが無視する要素を誤読するので使わない (グローバル CLAUDE.md の MUST)。
+# ここへ足さずに src/ で import すると、dev グループを持つテスト環境だけが緑になり
+# 配布側で ModuleNotFoundError になる (tests/test_dependency_declarations.py が pin する)
+dependencies = ["pyyaml>=6.0"]
 
 [project.scripts]
 config-guard = "config_guard.cli:main"
@@ -23,9 +27,8 @@ dev = [
     "pytest>=8.3",
     "ruff>=0.8",
     "mypy>=1.13",
-    # tests/test_precommit_wiring.py が .pre-commit-config.yaml を構造として読むための
-    # テスト専用依存。shipped tool 本体 ([project] dependencies) は zero-dep を維持する
-    "pyyaml>=6.0",
+    # pyyaml 本体は [project] dependencies にある。ここは mypy 用の型スタブだけで、
+    # 実行時には要らない
     "types-pyyaml>=6.0",
 ]
 
