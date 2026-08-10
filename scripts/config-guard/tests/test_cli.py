@@ -86,6 +86,17 @@ def test_bad_herdr_keys_is_detected(tmp_path: Path) -> None:
     assert any(f.detail == "next_workspace = ctrl+alt+[" for f in findings)
 
 
+def test_hidden_index_flag_is_detected(tmp_path: Path) -> None:
+    # index bit 検査が scan に配線されていること。実装だけ足して配線を忘れると
+    # 単体テストは緑のまま検査が一度も走らない
+    repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
+    run_git(repo, "update-index", "--skip-worktree", "home/.claude/settings.json")
+
+    findings = scan(str(repo))
+
+    assert [(f.source, f.detail) for f in findings] == [("home/.claude/settings.json", "S")]
+
+
 def test_apm_pin_mismatch_is_detected(tmp_path: Path) -> None:
     # apm pin 検査が scan に配線されていること。実装だけ足して配線を忘れると
     # 単体テストは緑のまま検査が一度も走らない

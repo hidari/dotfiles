@@ -1,10 +1,10 @@
 """リポジトリをスキャンして構造逸脱を検出する。
 
-stale なツール名参照 / committed settings.json の不変条件 / apm.lock.yaml の
-deployed_files が gitignore されているか(新しい deploy root の検出) / mise の global ツール pin が
-exact か / apm.yml の依存 pin が commit SHA で固定され宣言どうしと実配置で揃っているか /
-herdr keybinding の方向整合と chord 重複 / 追跡下の Markdown の相対リンクが
-実在するかを検査する。
+stale なツール名参照 / committed settings.json の不変条件 / 追跡ファイルに変更を隠す index の
+bit が立っていないか / apm.lock.yaml の deployed_files が gitignore されているか(新しい deploy
+root の検出) / mise の global ツール pin が exact か / apm.yml の依存 pin が commit SHA で固定され
+宣言どうしと実配置で揃っているか / herdr keybinding の方向整合と chord 重複 / 追跡下の
+Markdown の相対リンクが実在するかを検査する。
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ from config_guard.apm_pins import check_apm_pins
 from config_guard.extractors import extract_skill_tokens
 from config_guard.git_source import read_committed_settings
 from config_guard.herdr_keys import check_herdr_keys, read_default_config
+from config_guard.index_flags import check_index_flags
 from config_guard.markdown_links import check_markdown_links
 from config_guard.mise_pins import check_mise_pins
 from config_guard.models import Finding
@@ -44,6 +45,10 @@ def scan(repo_root: str) -> list[Finding]:
     # committed settings.json の不変条件（permissions のツール名検証を含む）
     settings = read_committed_settings(str(root))
     findings.extend(check_settings_invariants(settings))
+
+    # 追跡ファイルに変更を隠す index の bit (skip-worktree / assume-unchanged) が
+    # 立っていないか。立つと live 側の変更が git から見えず、CI が捕捉できない drift へ戻る
+    findings.extend(check_index_flags(str(root)))
 
     # apm.lock.yaml の deployed_files が全て gitignore されているか（新しい deploy root の検出）
     findings.extend(check_apm_deployed_files_ignored(str(root)))
