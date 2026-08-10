@@ -6,6 +6,7 @@
 - committed `home/.claude/settings.json` の不変条件（含めてはならないキー、ローカル絶対パス、marketplace / plugin の非公開参照、permissions トークンの妥当性）
 - `home/apm.lock.yaml` の deployed_files が gitignore されているか（追記漏れ）
 - `home/.config/mise/config.toml` の global ツール pin が exact か
+- `home/apm.yml` の依存 pin が commit SHA で固定され、同一リポジトリを指す行どうしと `home/apm.lock.yaml` が記録する実配置で揃っているか
 - `home/.config/herdr/config.toml` の keybinding（`previous_*` と `next_*` の方向整合、chord 重複、アクション名の綴り）
 - 追跡下の Markdown（`git ls-files '*.md'`）の相対リンクが実在するか（Issue を `closed/` へ移すと両端のリンクが切れる）
 

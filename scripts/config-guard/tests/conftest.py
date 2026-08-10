@@ -20,6 +20,10 @@ from config_guard.git_run import isolated_git_env
 # 各ファイルに散らさずここだけに置く
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
+# config-guard パッケージのルート (pyproject.toml と src/ が在る)。REPO_ROOT と同じ理由で
+# 相対段数はここだけに置く
+PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+
 # 必須フックの起動コマンド。settings_invariants の定数から生成しないこと。生成すると
 # clean フィクスチャが常に検査を満たし、pin が自己参照で空虚になる。
 TIRITH_HOOK_COMMAND = 'python3 "$HOME/.claude/hooks/tirith-check.py"'

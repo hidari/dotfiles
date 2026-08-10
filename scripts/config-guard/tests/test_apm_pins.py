@@ -172,15 +172,22 @@ def test_check_apm_pins_flags_a_tag_ref(tmp_path: Path) -> None:
     findings = check_apm_pins(str(tmp_path))
 
     assert len(findings) == 1
+    assert findings[0].source == APM_MANIFEST_PATH
+    assert findings[0].detail == "owner/repo/a#v1.0.0"
     assert "commit SHA" in findings[0].message
 
 
 def test_check_apm_pins_rejects_a_short_or_uppercase_sha(tmp_path: Path) -> None:
-    # 短縮 SHA は将来衝突しうる。大文字は lock の表記と突き合わなくなる
+    # 短縮 SHA は将来衝突しうる。大文字は lock の表記と突き合わなくなる。
+    # 41 桁は fullmatch でなければ通ってしまう形 (先頭 40 桁が一致する)
     for ref in (SHA[:12], SHA.upper(), SHA + "0"):
         _write_manifest(tmp_path, [f"owner/repo/a#{ref}"])
+
         findings = check_apm_pins(str(tmp_path))
+
         assert len(findings) == 1, ref
+        assert findings[0].source == APM_MANIFEST_PATH, ref
+        assert findings[0].detail == f"owner/repo/a#{ref}", ref
         assert "commit SHA" in findings[0].message, ref
 
 
@@ -239,6 +246,8 @@ def test_check_apm_pins_reports_non_list_dependencies(tmp_path: Path) -> None:
     findings = check_apm_pins(str(tmp_path))
 
     assert len(findings) == 1
+    assert findings[0].source == APM_MANIFEST_PATH
+    assert findings[0].detail == "apm: 'oops'"
     assert "リストではない" in findings[0].message
 
 
@@ -333,6 +342,7 @@ def test_check_apm_pins_reports_an_unreadable_lock_instead_of_skipping(tmp_path:
     findings = check_apm_pins(str(tmp_path))
 
     assert [f.source for f in findings] == [APM_LOCK_PATH]
+    assert findings[0].detail == "dependencies"
     assert "突き合わせできません" in findings[0].message
 
 

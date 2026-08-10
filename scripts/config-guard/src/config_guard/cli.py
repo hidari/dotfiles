@@ -2,7 +2,8 @@
 
 stale なツール名参照 / committed settings.json の不変条件 / apm.lock.yaml の
 deployed_files が gitignore されているか(新しい deploy root の検出) / mise の global ツール pin が
-exact か / herdr keybinding の方向整合と chord 重複 / 追跡下の Markdown の相対リンクが
+exact か / apm.yml の依存 pin が commit SHA で固定され宣言どうしと実配置で揃っているか /
+herdr keybinding の方向整合と chord 重複 / 追跡下の Markdown の相対リンクが
 実在するかを検査する。
 """
 
