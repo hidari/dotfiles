@@ -251,7 +251,7 @@ cp .cache/t1-gitignore.bak home/.gitignore
 - [ ] **Step 9: live symlink の健全性を確認する**
 
 ```bash
-for p in ~/.claude/skills ~/.claude-hamiltonian/skills ~/.local/bin/winvm; do
+for p in ~/.claude/skills ~/<追加の設定ディレクトリ>/skills ~/.local/bin/winvm; do
   printf '%s -> %s [%s]\n' "$p" "$(readlink "$p" 2>/dev/null || echo '(not a symlink)')" "$([ -e "$p" ] && echo alive || echo DANGLING)"
 done
 ```
@@ -406,7 +406,7 @@ bats scripts/tests/bootstrap.bats > .cache/t2-red.log 2>&1
 
 ```
     "home/.claude/skills|.claude/skills"
-    "home/.claude/skills|.claude-hamiltonian/skills"
+    "home/.claude/skills|<追加の設定ディレクトリ>/skills"
     "home/.claude/skills/windows-vm-verification/winvm.py|.local/bin/winvm"
 ```
 
@@ -422,9 +422,9 @@ APM_SYMLINK_PAIRS=(
     "home/.claude/skills|.claude/skills"
     "home/.claude/agents|.claude/agents"
     "home/.claude/commands|.claude/commands"
-    "home/.claude/skills|.claude-hamiltonian/skills"
-    "home/.claude/agents|.claude-hamiltonian/agents"
-    "home/.claude/commands|.claude-hamiltonian/commands"
+    "home/.claude/skills|<追加の設定ディレクトリ>/skills"
+    "home/.claude/agents|<追加の設定ディレクトリ>/agents"
+    "home/.claude/commands|<追加の設定ディレクトリ>/commands"
     "home/.claude/skills/windows-vm-verification/winvm.py|.local/bin/winvm"
 )
 ```
@@ -1560,10 +1560,10 @@ Phase 3a のマージ後に着手する。以下は設計の確定分であり�
 
 ### Task 7: 設定ディレクトリ一覧を bootstrap.sh が読む
 
-追加の設定ディレクトリ名 (`.claude-hamiltonian`) を追跡外のローカル設定ファイルへ移す。
+追加の設定ディレクトリ名を追跡外のローカル設定ファイルへ移す。
 読み先は `${HOME}/.config/dotfiles/claude-config-dirs`、1 行 1 ディレクトリ名。
 
-行の形式はドット付き (`.claude-hamiltonian`) にする。`$HOME` 直下のディレクトリ名そのものが
+行の形式はドット付きにする。`$HOME` 直下のディレクトリ名そのものが
 単一の真実になり、symlink の target (`$HOME/${pair##*|}`) へ無変換で使えるため。ドット無しに
 すると bootstrap 側でドットを再付与する第 2 の規約が生まれて drift する。
 
@@ -1664,7 +1664,7 @@ allowlist (`settings.json` / `CLAUDE.md`) と `APM_SYMLINK_PAIRS` の 3 ディ�
 
 ### Task 8: ランチャ関数を .zshrc が生成する
 
-`home/.zshrc:257` の `function claude-hamiltonian()` は関数名そのものがディレクトリ名を持つ。
+`home/.zshrc:257` の追加アカウント用ランチャは関数名そのものがディレクトリ名を持つ。
 設定ファイル駆動にするには関数を動的に定義する必要がある。
 
 既定アカウントの `claude()` は `CLAUDE_CONFIG_DIR` を意図的に設定しない (Keychain の service 名
@@ -1849,7 +1849,7 @@ _claude_define_launchers
 
 ### Task 10: テストをパラメータ化し Issue を閉じる
 
-`.claude-hamiltonian` を含むテスト 52 箇所のうち、プロダクトコードと二重管理になっている
+追加の設定ディレクトリ名を含むテストのうち、プロダクトコードと二重管理になっている
 箇所をパラメータ化する。`statusline.bats` の 11 件はプロダクト側と結合していない任意の値なので
 ダミー名 (`.claude-alpha` 等) に置き換えるだけでよい。
 
