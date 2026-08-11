@@ -1563,6 +1563,43 @@ PR 本文は Write でファイルに書き `--body-file` で渡す。
 Phase 3a のマージ後に着手する。以下は設計の確定分であり、着手時に Phase 3a の結果
 (特に `SYMLINK_PAIRS` の最終形とテストの構造) を読み直してから細部を詰める。
 
+### 着手時の実測による補正
+
+上の但し書きどおり着手時に実体と突き合わせた。Phase 3a が `APM_SYMLINK_PAIRS` を分離した結果、
+本節が前提にしていた構造が動いている。以下は実測で確定した補正で、各 Task の本文はこれを
+反映済みである。
+
+生成先は 1 箇所ではなく 2 箇所に分ける。`SYMLINK_PAIRS` 由来 (`settings.json` / `CLAUDE.md`) は
+`setup_dotfiles`、`APM_SYMLINK_PAIRS` 由来の 3 ディレクトリは `setup_apm_symlinks` へ生成する。
+後者を `setup_dotfiles` に置くと `install_apm_packages` より前に走り、さらに `--dotfiles-only`
+経路でも走るため、source が無い状態で symlink を張る。`setup_apm_symlinks` はこの順序を前提に
+source 存在ガードを持っており、`setup_dotfiles` のループと `create_symlink` はどちらも持たない。
+この回帰は dry-run では `create_symlink` が早期 return するため既存の統合テストで検出できず、
+実機でだけ壊れる。
+
+`HOME_SYMLINK_PAIRS` は該当 1 行が配列の全要素なので、空配列リテラルにはしない。bootstrap.sh は
+`#!/bin/bash` + `set -euo pipefail` で /bin/bash 3.2 を踏み、空配列の `"${arr[@]}"` 展開が
+`unbound variable` で exit 127 になる (実測)。配列ごと廃止し、`setup_home_symlinks` は生成した
+pair を受け取る形にする。この pair は source が `$HOME` 相対で `ensure_directory` が実体を作る
+規約なので、他 2 配列とは別の生成規則が要る。
+
+mirror の allowlist は本節が書いていた向きと逆である。実在するのは
+`scripts/tests/bootstrap.bats` の `unmirrored` (`.claude/hooks` / `.claude/statusline-command.sh` /
+`.claude/.mcp.json`) で、これは「意図的に 2 本目を張らない target」の canonical である。生成対象は
+その補集合であって allowlist そのものではない。読み違えると、`settings.json` が絶対パスで解決
+させている hooks と statusline-command.sh に死んだ symlink を張る実装になる。
+
+設定ファイルが無いときの挙動を決めた。`$HOME` 直下に該当ディレクトリが存在するのに設定ファイルが
+無い場合は stderr へ警告し、ランチャは定義しない。現行の `.zshrc` は単体で自足しているため、
+無言で消えると新規マシンや設定ファイル削除時に command not found になる。警告だけを出して名前は
+リポジトリへ戻さない。
+
+配列から mirror 行を消すと現在 green の pin が赤になる。`bootstrap.bats` の
+`SYMLINK_PAIRS: shared Claude config is mirrored to the second account` と
+`APM_SYMLINK_PAIRS:` の同名テスト、および `HOME_SYMLINK_PAIRS` の要素と件数を見る 2 件が対象で、
+いずれも配列テキストを直接読む方式なので生成された mirror は原理的に見えない。生成後の形へ
+書き換えることを各 Task の Files に含めた。
+
 ### Task 7: 設定ディレクトリ一覧を bootstrap.sh が読む
 
 追加の設定ディレクトリ名を追跡外のローカル設定ファイルへ移す。
@@ -1578,8 +1615,20 @@ Phase 3a のマージ後に着手する。以下は設計の確定分であり�
 **Files:**
 
 - Modify: `bootstrap.sh` (`claude_config_dirs()` 追加 / `SYMLINK_PAIRS` と `APM_SYMLINK_PAIRS` から
-  追加の設定ディレクトリ向けエントリを削除 / mirror pair の生成 / `HOME_SYMLINK_PAIRS` の 1 行を生成へ)
-- Test: `scripts/tests/bootstrap.bats`
+  追加の設定ディレクトリ向けエントリを削除 / `HOME_SYMLINK_PAIRS` は配列ごと廃止 /
+  mirror pair を `setup_dotfiles` と `setup_apm_symlinks` の 2 箇所へ分けて生成)
+- Test: `scripts/tests/bootstrap.bats` (新規テストに加えて、配列テキストを直接読む既存の
+  mirror pin を生成後の形へ書き換える。対象は `SYMLINK_PAIRS` と `APM_SYMLINK_PAIRS` の
+  `mirrored to the second account` 2 件と、`HOME_SYMLINK_PAIRS` の要素と件数を見る 2 件)
+
+`CLAUDE_CONFIG_DIRS_FILE` の代入は `# ヘルパー関数` マーカーより下へ置く。`load_bootstrap_functions`
+はこのマーカーと `# メイン処理` の間だけを切り出して source するため、既存の設定変数と同じ位置
+(配列の近く) へ置くとテストからは未定義になり、設定ファイルを置くテストが「常に既定だけ返る」形で
+落ちる。
+
+`run --separate-stderr` を使うので `bootstrap.bats` の冒頭に `bats_require_minimum_version 1.5.0`
+が要る。無いと BW02 の警告が出る (実測)。`zshrc-claude.bats` が同じ宣言と同じフラグを既に使って
+いるので、作法はそちらに揃える。
 
 - [ ] **Step 1: 失敗するテストを書く**
 
@@ -1595,9 +1644,10 @@ Phase 3a のマージ後に着手する。以下は設計の確定分であり�
   printf '.claude-alpha\n.claude-beta\n' > "$TEST_HOME/.config/dotfiles/claude-config-dirs"
   run claude_config_dirs
   [ "$status" -eq 0 ]
-  [ "$output" = ".claude
-.claude-alpha
-.claude-beta" ]
+  [ "${#lines[@]}" -eq 3 ]
+  [ "${lines[0]}" = ".claude" ]
+  [ "${lines[1]}" = ".claude-alpha" ]
+  [ "${lines[2]}" = ".claude-beta" ]
 }
 
 @test "claude_config_dirs: an empty config file yields only the default" {
@@ -1611,11 +1661,16 @@ Phase 3a のマージ後に着手する。以下は設計の確定分であり�
 @test "claude_config_dirs: rejects entries that are not plain dot-prefixed names" {
   mkdir -p "$TEST_HOME/.config/dotfiles"
   printf '.claude-ok\n../escape\n.claude;rm -rf /\n' > "$TEST_HOME/.config/dotfiles/claude-config-dirs"
-  run claude_config_dirs
+  # 既定の run は stderr を $output へ併合する。warn が却下行を verbatim に出すため、
+  # 併合したままでは「却下行が返り値に混ざっていない」ことを検査できない
+  run --separate-stderr claude_config_dirs
   [ "$status" -eq 0 ]
-  assert_contains "$output" ".claude-ok"
-  refute_contains "$output" "escape"
-  refute_contains "$output" "rm -rf"
+  [ "${#lines[@]}" -eq 2 ]
+  [ "${lines[0]}" = ".claude" ]
+  [ "${lines[1]}" = ".claude-ok" ]
+  # 却下したことが利用者へ届くことも検査する。黙って捨てると設定の typo に気づけない
+  assert_contains "$stderr" "../escape"
+  assert_contains "$stderr" ".claude;rm -rf /"
 }
 
 @test "claude_config_dirs: skips the default if it is also listed (no duplicates)" {
@@ -1679,13 +1734,27 @@ allowlist (`settings.json` / `CLAUDE.md`) と `APM_SYMLINK_PAIRS` の 3 ディ�
 
 生成コードは `# Claude Code 起動` マーカーブロック内に置く。bats が bash で source するため
 bash 互換の構文で書く (eval による hyphen 名関数の動的定義は bash / zsh 双方で成立することを
-実測済み)。かつ source 時に即実行するのではなく関数に包み、テストが `TEST_HOME` を差し替えた後に
-再実行できる形にする。
+実測済み)。定義は関数 `_claude_define_launchers` に包み、マーカーブロックの末尾で 1 度呼ぶ。
+テストは `load_zshrc_claude_functions` が source した時点の定義を捨てて、`TEST_HOME` を
+差し替えてからこの関数を呼び直す。
+
+生成対象は設定ディレクトリ 1 件につき 2 関数である。素のランチャ (`<name>`) と、開発版
+パッケージを読む派生 (`<name>-dev`) の両方が名前を持つ。派生は素のランチャを名前で呼ぶため、
+片方だけ生成すると呼び先を失う。既定側の `claude` と `claude-dev` は現行の静的定義のまま残す。
+
+設定ファイルが無いときは定義しない。ただし `$HOME` 直下に該当しうるディレクトリが存在するのに
+設定ファイルだけが無い場合は stderr へ警告する。現行の `.zshrc` は単体で自足しているので、
+無言で消えると新規マシンや設定ファイル削除時に command not found になり、原因がシェル設定側に
+あることに気づけない。警告文には具体的なディレクトリ名を載せない (リポジトリへ名前を戻さない)。
 
 **Files:**
 
-- Modify: `home/.zshrc:193-268`
-- Test: `scripts/tests/zshrc-claude.bats`
+- Modify: `home/.zshrc` の `# Claude Code 起動` マーカーブロック全体 (現行 193-326 行)。
+  対象はランチャ 2 本 (`<name>` と `<name>-dev`) の静的定義の撤去と生成器の追加で、
+  範囲は素のランチャだけでは足りない
+- Test: `scripts/tests/zshrc-claude.bats` (新規テストに加えて、追加アカウントのランチャを
+  名指しする既存テスト群の更新。いずれも設定ファイルを作らずに当該関数を呼ぶため、
+  生成化すると一斉に赤くなる)
 
 - [ ] **Step 1: 失敗するテストを書く**
 
@@ -1700,29 +1769,39 @@ bash 互換の構文で書く (eval による hyphen 名関数の動的定義は
   [ "$status" -eq 0 ]
 }
 
+@test "launcher generation also defines the dev variant per configured dir" {
+  mkdir -p "$TEST_HOME/.config/dotfiles" "$TEST_HOME/.claude-alpha"
+  printf '.claude-alpha\n' > "$TEST_HOME/.config/dotfiles/claude-config-dirs"
+  load_zshrc_claude_functions
+  _claude_define_launchers
+
+  run type claude-alpha-dev
+  [ "$status" -eq 0 ]
+}
+
 @test "generated launcher pins CLAUDE_CONFIG_DIR to its own directory" {
   mkdir -p "$TEST_HOME/.config/dotfiles" "$TEST_HOME/.claude-alpha"
   printf '.claude-alpha\n' > "$TEST_HOME/.config/dotfiles/claude-config-dirs"
-  make_recording_claude
+  setup_recording_claude
   load_zshrc_claude_functions
   _claude_define_launchers
 
   run claude-alpha
   [ "$status" -eq 0 ]
   local recorded
-  recorded="$(cat "$TEST_HOME/fakebin/claude-args")"
+  recorded="$(cat "$RECORDED_LAUNCH")"
   assert_contains "$recorded" "CONFIG_DIR=$TEST_HOME/.claude-alpha"
 }
 
 @test "the default launcher still does not set CLAUDE_CONFIG_DIR" {
-  make_recording_claude
+  setup_recording_claude
   load_zshrc_claude_functions
   _claude_define_launchers
 
   run claude
   [ "$status" -eq 0 ]
   local recorded
-  recorded="$(cat "$TEST_HOME/fakebin/claude-args")"
+  recorded="$(cat "$RECORDED_LAUNCH")"
   refute_contains "$recorded" "CONFIG_DIR="
 }
 
@@ -1732,6 +1811,23 @@ bash 互換の構文で書く (eval による hyphen 名関数の動的定義は
 
   run type claude-alpha
   [ "$status" -ne 0 ]
+}
+
+@test "a warning is emitted when config dirs exist but the config file does not" {
+  mkdir -p "$TEST_HOME/.claude-alpha"
+  load_zshrc_claude_functions
+  run _claude_define_launchers
+
+  [ "$status" -eq 0 ]
+  assert_contains "$output" "claude-config-dirs"
+}
+
+@test "no warning is emitted when neither the config file nor any config dir exists" {
+  load_zshrc_claude_functions
+  run _claude_define_launchers
+
+  [ "$status" -eq 0 ]
+  [ "$output" = "" ]
 }
 
 @test "bootstrap and zshrc agree on where the config dir list lives" {
@@ -1763,9 +1859,24 @@ CLAUDE_CONFIG_DIRS_FILE="${CLAUDE_CONFIG_DIRS_FILE:-$HOME/.config/dotfiles/claud
 # 生成対象に含めない（上の理由を参照）。
 # 行の charset は bootstrap.sh と同じ規則で検証する。ここは eval に流れるため、検証を
 # 通らない行は定義しない。
+# 追加の設定ディレクトリが実在するかを調べる。グロブを裸で展開しないのは、zsh の nomatch が
+# 既定で有効で、不一致のときエラーになるため (bats は bash で source し実シェルは zsh なので
+# 両方で成立する必要がある)。find は不一致でも exit 0 を返すので出力の非空で判定する。
+_claude_extra_config_dir_exists() {
+  [ -n "$(find "$HOME" -maxdepth 1 -type d -name '.claude-*' -print -quit 2>/dev/null)" ]
+}
+
 _claude_define_launchers() {
   local file="$CLAUDE_CONFIG_DIRS_FILE"
-  [ -f "$file" ] || return 0
+  if [ ! -f "$file" ]; then
+    # 設定ファイルだけが無い状態は、新規マシンや誤削除で起きる。現行の .zshrc は単体で
+    # 自足していたので、無言で消えると command not found の原因がシェル設定側にあることに
+    # 気づけない。名前はリポジトリへ戻さないので、警告に具体名は載せない
+    if _claude_extra_config_dir_exists; then
+      echo "追加の設定ディレクトリがありますが claude-config-dirs が見つかりません: $file" >&2
+    fi
+    return 0
+  fi
 
   local line name
   while IFS= read -r line || [ -n "$line" ]; do
@@ -1774,6 +1885,8 @@ _claude_define_launchers() {
     esac
     printf '%s' "$line" | grep -Eq '^\.[A-Za-z0-9._-]+$' || continue
     name="${line#.}"
+    # 素のランチャと開発版の派生を対で作る。派生は素のランチャを名前で呼ぶので、
+    # 片方だけ生成すると呼び先を失う
     eval "
 function ${name}() {
   local config_dir task_list
@@ -1785,6 +1898,12 @@ function ${name}() {
   else
     CLAUDE_CONFIG_DIR=\"\$config_dir\" command claude \"\$@\"
   fi
+}
+
+function ${name}-dev() {
+  local -a _CLAUDE_DEV_PLUGIN_ARGS
+  _claude_dev_plugin_args || return 1
+  ${name} \"\${_CLAUDE_DEV_PLUGIN_ARGS[@]}\" \"\$@\"
 }
 "
   done < "$file"
@@ -1806,8 +1925,17 @@ _claude_define_launchers
 削除は `rm` ではなく既存の `backup_file` へ退避する。
 
 設定ファイルが未作成のまま撤去を走らせると、生きている 2 アカウント側の symlink を stale と
-誤認して撤去する経路がある。`$HOME` 直下に `.claude-*` が存在するのに設定ファイルが無い場合は
-警告し、撤去だけを skip する。
+誤認して撤去する経路がある。`$HOME` 直下に追加の設定ディレクトリが存在するのに設定ファイルが
+無い場合は警告し、撤去だけを skip する。
+
+存在検査はグロブを裸で展開せず `find` で行う。理由は Task 8 の同じ検査と同じで、zsh の nomatch が
+既定で有効なため不一致時にエラーになる。bootstrap.sh は bash だけで動くのでここでは実害が無いが、
+2 箇所で判定規則が割れると片方だけ直したときに挙動がずれるため揃える。
+
+stale の判定は `readlink` が返すリテラルで行い、`[ -e ]` のような実体解決に依存する検査を使わない。
+撤去対象は「参照先が `$DOTFILES_DIR` 配下で、かつ現在の target 集合に無い」リンクであり、
+参照先が既に消えている dangling こそが典型例だからである。実体解決で判定すると、まさに撤去
+すべきリンクが検査を素通りする。
 
 **Files:**
 
@@ -1826,6 +1954,10 @@ _claude_define_launchers
 }
 
 @test "prune_stale_symlinks keeps links that are still in the pair set" {
+  # setup は symlink を 1 本も張らないので、保持を検査するには自分で張る。
+  # 張らずに [ -L ] を見ると「保持された」ではなく「元から無い」で必ず落ち、
+  # 実装が何であっても赤になる (= 検査対象を見ていない)
+  ln -s "$DOTFILES_DIR/home/.zshrc" "$TEST_HOME/.zshrc"
   run prune_stale_symlinks
   [ "$status" -eq 0 ]
   [ -L "$TEST_HOME/.zshrc" ]
@@ -1864,16 +1996,28 @@ _claude_define_launchers
 
 **Files:**
 
-- Modify: `scripts/tests/zshrc-claude.bats`
-- Modify: `scripts/tests/statusline.bats`
-- Modify: `scripts/tests/bootstrap.bats`
-- Modify: `scripts/tests/test_helper.bash`
-- Modify: `docs/issues/25_*/issue.md`
+- Modify: `scripts/tests/zshrc-claude.bats` (追加アカウントのランチャを名指しする節。
+  Task 8 の生成器の形に従属するので、Task 8 の後に着手する)
+- Modify: `scripts/tests/statusline.bats` (任意値なのでダミー名への置換のみ)
+- Modify: `scripts/tests/bootstrap.bats` (テスト側が mirror の prefix をハードコードして
+  プロダクトと二重管理になっている箇所)
+- Modify: `docs/issues/11_*/issue.md` (open な Issue なので現行の規約に揃える)
 
-- [ ] **Step 1**: `git grep -c` で対象箇所を数え、役割別に分類し直す
+`scripts/tests/test_helper.bash` は現時点で識別語を 1 件も持たない。パラメータの置き場として
+新設する必要が出た場合にのみ触る。
+
+Task 7 と Task 8 が消すのは `bootstrap.sh` と `home/.zshrc` の分で、Task 10 の担当ではない。
+ただし Step 4 の残存確認は両者を含めた範囲で行う。
+
+closed 配下の Issue は対象外とする。過去の記録を後から書き換えないため。
+
+- [ ] **Step 1**: 識別語の出現を NUL 区切りで数え、役割別 (プロダクト / テスト / ドキュメント、
+      テストは更にプロダクト結合と任意値) に分類し直す
 - [ ] **Step 2**: プロダクト結合のある箇所をパラメータ化する
 - [ ] **Step 3**: 任意値の箇所をダミー名に置き換える
-- [ ] **Step 4**: `git grep -c` で具体名の残存が 0 になったことを確認する。対照として
-      ダミー名が非 0 件で出ることを並べる (0 件が「見ていない」でないことの確認)
+- [ ] **Step 4**: 対象パス集合 (`bootstrap.sh` / `home/.zshrc` / `scripts/` / open な Issue) に
+      スコープを絞って識別語の残存が 0 になったことを確認する。対照は同じスコープで作る。
+      リポジトリ全体を引くと closed Issue の記録が必ず残って 0 にならず、ダミー名も本計画書に
+      既に存在するため、スコープを揃えないと対照が「何も直さなくても通る」形になる
 - [ ] **Step 5**: 全テストを回し、変異注入で pin が生きていることを確認する
 - [ ] **Step 6**: issue.md の Phase 3b にチェックを付け、PR を作る
