@@ -484,9 +484,9 @@ setup_extra_account() {
 }
 
 @test "_claude_define_launchers: warns when extra config dirs exist but the config file is absent" {
-    # 設定ファイルだけが無い状態は新規マシンや誤削除で起きる。現行の .zshrc は単体で
-    # 自足していたので、無言で消えると command not found の原因がシェル設定側にある
-    # ことに気づけない
+    # 設定ファイルだけが無い状態は新規マシンや誤削除で起きる。ランチャの定義が追跡外の
+    # このファイルに依存するため、ファイルだけが無いと無言でランチャが消え、
+    # command not found の原因がシェル設定側にあることに気づけない
     mkdir -p "$TEST_HOME/.claude-alpha"
     load_zshrc_claude_functions
 
@@ -527,12 +527,79 @@ setup_extra_account() {
     [ "$from_bootstrap" = "$from_zshrc" ]
 }
 
+@test "_claude_define_launchers: does not define a function outside the claude- namespace" {
+    # .git のような行を許すと関数 git が生えて対話シェルの git を shadow する。
+    # 実害は「git のつもりで Claude が起動する」ではなく、それに気づけないこと
+    write_config_dirs_file '.git'
+    load_zshrc_claude_functions
+
+    # type ではなく declare -F で見る。type は外部コマンドの git にも一致するため
+    # 「関数が作られたか」を判別できず、常に成功する空の検査になる
+    run declare -F git
+
+    [ "$status" -ne 0 ]
+}
+
+@test "_claude_define_launchers: keeps the static dev launcher when a config line would collide" {
+    # 生成器は静的定義より後で走るので、生成側が常に後勝ちする。.claude-dev を
+    # 受理すると claude-dev が「開発版 plugin を読む」から「安定版をアカウント固定で
+    # 起動する」へ静かに化け、開発版のつもりで古い挙動を観測する
+    write_config_dirs_file '.claude-dev'
+    load_zshrc_claude_functions
+
+    run declare -f claude-dev
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "_claude_dev_plugin_args"
+    refute_contains "$output" "CLAUDE_CONFIG_DIR="
+}
+
+@test "_claude_define_launchers: agrees with bootstrap.sh on which config lines are accepted" {
+    # 行の文法 (skip 集合・charset・予約接尾) は 2 ファイルに literal で二重記述されて
+    # いる。上の drift テストが pin するのは読み先のパスだけなので、片側だけ文法を
+    # 変えると「mirror は張られるがランチャが無い」「ランチャはあるが設定が mirror
+    # されない」という部分状態が、両側の単体テスト緑のまま成立する。cross-process の
+    # 不一致はどちらのファイルのテストにも属さないため、ここで受理集合そのものを
+    # 突き合わせる。
+    #
+    # 派生名が静的定義と重なる行 (.claude / .claude-dev) はこの集合に入れない。
+    # declare -F が静的定義に一致してしまい、生成の有無を観測できないため
+    # (それぞれ専用のテストが pin する)。
+    local -a probe=(
+        '.claude-ok' '.claude-second' '.claude-_under'
+        '' '# comment'
+        '..' '../escape' 'noleadingdot' '.git' '.claudex' '.claude.dot'
+        '.claude;rm -rf /' '.claude-with space' '.claude-x-dev'
+    )
+    write_config_dirs_file "${probe[@]}"
+
+    local from_bootstrap
+    load_bootstrap_functions
+    from_bootstrap="$(claude_extra_config_dirs 2> /dev/null)"
+
+    load_zshrc_claude_functions
+    local line name from_zshrc=""
+    for line in "${probe[@]}"; do
+        name="${line#.}"
+        # probe に先頭ハイフンの名前を入れていないので declare のオプション解釈は起きない
+        if [ -n "$name" ] && declare -F "$name" > /dev/null 2>&1; then
+            from_zshrc="${from_zshrc}${line}"$'\n'
+        fi
+    done
+    from_zshrc="${from_zshrc%$'\n'}"
+
+    # 対照: 受理集合が期待どおり非空であること。両側が空でも一致はするので、
+    # 中身を固定しないと「どちらも何も受理しない」退行が緑で通る
+    [ "$from_bootstrap" = ".claude-ok"$'\n'".claude-second"$'\n'".claude-_under" ]
+    [ "$from_bootstrap" = "$from_zshrc" ]
+}
+
 # =============================================================================
 # claude-alpha (生成された追加アカウントのランチャ)
 # =============================================================================
 #
-# 生成に移っても、静的定義だった頃の呼び出し時の契約 (アカウント固定・存在検査・
-# タスクリスト導出) が保存されることを、ダミー名 .claude-alpha のランチャで pin する。
+# 呼び出し時の契約 (アカウント固定・存在検査・タスクリスト導出) を、ダミー名
+# .claude-alpha のランチャで pin する。
 
 @test "claude-alpha: sets CLAUDE_CONFIG_DIR to its own directory" {
     setup_extra_account

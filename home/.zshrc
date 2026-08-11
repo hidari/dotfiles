@@ -321,10 +321,14 @@ function _claude_extra_config_dir_exists() {
 # ため静的定義のまま残す (理由は claude() のコメントを参照)。
 # 1 ディレクトリにつき素のランチャ (<name>) と開発版の派生 (<name>-dev) の 2 関数を
 # 対で作る。派生は素のランチャを名前で呼ぶので、片方だけ生成すると呼び先を失う。
-# 行の検証は bootstrap.sh の claude_extra_config_dirs と同じ規約 (ドット始まりの
-# 英数字・ハイフン・ドット・アンダースコアのみ、$HOME を脱出する ".." は個別却下)。
+# 行の検証は bootstrap.sh の claude_extra_config_dirs と同じ規約 (.claude- で始まる
+# 英数字・ハイフン・ドット・アンダースコアのみ、末尾 -dev は派生名の予約として却下)。
+# 名前空間を .claude- に閉じるのは、この行から作られるのがパスだけでなく関数名でも
+# あるため。閉じないと .git のような行から関数 git が生えて外部コマンドを shadow する。
+# 生成器は静的定義より後で走るので、衝突した名前は常に生成側が後勝ちする。
 # ここでは行が eval に流れるため、検証を通らない行からは定義しない。黙って捨てると
 # 設定の typo に気づけないので、却下行は verbatim で stderr へ知らせる。
+# 両ファイルの文法が一致することは zshrc-claude.bats の parity テストが pin する。
 function _claude_define_launchers() {
   local file="$CLAUDE_CONFIG_DIRS_FILE"
   if [ ! -f "$file" ]; then
@@ -343,15 +347,16 @@ function _claude_define_launchers() {
     case "$line" in
       '' | '#'* | '.claude') continue ;;
     esac
-    if [ "$line" = ".." ] || ! printf '%s' "$line" | grep -Eq '^\.[A-Za-z0-9._-]+$'; then
+    if [ "$line" != "${line%-dev}" ] \
+      || ! printf '%s' "$line" | grep -Eq '^\.claude-[A-Za-z0-9._-]+$'; then
       echo "設定ディレクトリ名として受け付けられない行を無視します: $line" >&2
       continue
     fi
     name="${line#.}"
-    # 本体は静的定義だった頃の追加アカウント用ランチャと同型。アカウントを固定する
-    # のが存在理由なので、外から前置で CLAUDE_CONFIG_DIR が渡されていても自分の
-    # ディレクトリを引数で名指しする。空文字のタスクリストを渡したときの挙動は
-    # 未確認のため、導出できないときは変数ごと渡さず既定に任せる (claude() と同じ)
+    # アカウントを固定するのが存在理由なので、外から前置で CLAUDE_CONFIG_DIR が
+    # 渡されていても自分のディレクトリを引数で名指しする。空文字のタスクリストを
+    # 渡したときの挙動は未確認のため、導出できないときは変数ごと渡さず既定に任せる
+    # (claude() と同じ)
     eval "
 function ${name}() {
   local config_dir task_list

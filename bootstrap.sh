@@ -455,9 +455,18 @@ CLAUDE_CONFIG_DIRS_FILE="${CLAUDE_CONFIG_DIRS_FILE:-$HOME/.config/dotfiles/claud
 # 追加の Claude 設定ディレクトリ (既定の .claude を除く) を 1 行 1 件で出力する。
 # 各行は $HOME 直下のディレクトリ名そのものとして扱い、symlink の target へ無変換で使う
 # (ドット無し記法にするとドットを再付与する第 2 の規約が生まれて drift する)。
-# 行はパス組み立てに流れるため、ドット始まりの英数字・ハイフン・ドット・アンダースコア
-# だけを受け入れる。それ以外 (../ による脱出・コマンド区切り文字・素の名前) と、
-# 唯一 charset を通りながら $HOME を脱出する ".." は警告して無視する。
+#
+# 受け入れるのは .claude- で始まる名前だけ。charset に "/" が無く先頭が .claude- に
+# 固定されるので、行が $HOME の外や既存の意味を持つドットディレクトリ (.git 等) を
+# 指すことはない (".." もこの文法を通らないので個別の分岐は要らない)。この前提は
+# 「追加ディレクトリが実在するか」の検査が使う glob (.claude-*) が元から賭けていた
+# もので、文法側へ昇格させて 2 つあった「追加ディレクトリとは何か」の定義を揃えた。
+#
+# 末尾が -dev の名前も落とす。.zshrc が 1 行につき <name> と <name>-dev を対で作る
+# ため、-dev を許すと別の行の派生名と衝突して後勝ちで静かに上書きされる。bootstrap は
+# 関数を作らないので単独では困らないが、片側だけが受理すると「mirror はあるがランチャ
+# が無い」部分状態になるため同じ文法にする (一致は zshrc-claude.bats が pin する)。
+#
 # 黙って捨てると設定の typo に気づけないため、却下行は verbatim で stderr へ出す。
 claude_extra_config_dirs() {
     [ -f "$CLAUDE_CONFIG_DIRS_FILE" ] || return 0
@@ -467,20 +476,13 @@ claude_extra_config_dirs() {
         case "$line" in
             '' | '#'* | '.claude') continue ;;
         esac
-        if [ "$line" = ".." ] || ! printf '%s' "$line" | grep -Eq '^\.[A-Za-z0-9._-]+$'; then
+        if [ "$line" != "${line%-dev}" ] \
+            || ! printf '%s' "$line" | grep -Eq '^\.claude-[A-Za-z0-9._-]+$'; then
             warn "設定ディレクトリ名として受け付けられない行を無視します: $line"
             continue
         fi
         printf '%s\n' "$line"
     done < "$CLAUDE_CONFIG_DIRS_FILE"
-}
-
-# Claude 設定ディレクトリの全一覧を出力する。既定の .claude を必ず先頭に置き、
-# 設定ファイルが無くても既定だけは返す。既定が設定ファイルに重複して書かれていても
-# 二重には返さない (claude_extra_config_dirs が落とす)。
-claude_config_dirs() {
-    printf '%s\n' ".claude"
-    claude_extra_config_dirs
 }
 
 # 既定の .claude/ 向け target が追加の設定ディレクトリ側にも要るなら真。
@@ -498,7 +500,7 @@ claude_mirrored_target() {
 # 既定の .claude/ へ張る pair 列から、追加の設定ディレクトリ dir 向けの pair を導出して
 # 1 行 1 pair で出力する。第 1 引数が dir、残りが "source|target" 形式の pair 列。
 # source を元 pair から引き継ぐことで全ディレクトリが同じ実体を共有する
-# (実体が分かれた瞬間に 2 アカウントの設定が静かに別物になる)。
+# (実体が分かれた瞬間に全設定ディレクトリの設定が静かに別物になる)。
 # どの target を張るかの判定は claude_mirrored_target が持つ。
 claude_mirror_pairs() {
     local dir="$1"
@@ -631,7 +633,7 @@ setup_dotfiles() {
 # bootstrap が管理する symlink の target ($HOME 相対) を 1 行 1 件で出力する。
 # 配列 2 つに加えて、追加の設定ディレクトリ向けに生成される mirror pair と
 # ホーム内共有 pair も含める。集合を配列の直読みだけで組むと生成分が漏れ、
-# 生きている 2 アカウント側のリンクを stale と誤認する。
+# 生きている追加ディレクトリ側のリンクを stale と誤認する。
 current_symlink_targets() {
     local pair dir
     for pair in "${SYMLINK_PAIRS[@]}" "${APM_SYMLINK_PAIRS[@]}"; do
@@ -676,9 +678,11 @@ symlink_scan_dirs() {
 # 使わない。撤去対象は参照先が既に消えている dangling が典型で、実体解決だと
 # まさに撤去すべきリンクが検査を素通りする。
 prune_stale_symlinks() {
-    # 設定ファイルが未作成のまま走らせると、生きている 2 アカウント側のリンクが
-    # 集合に現れず stale と誤認される。$HOME 直下に追加の設定ディレクトリが実在する
-    # のに設定ファイルが無い場合は警告して撤去だけを skip する。
+    # 設定ファイルが未作成のまま走らせると、追加ディレクトリぶんの target が集合から
+    # 消える。ただし走査先も同じ集合から導出されるため配下のリンクは訪問すらされず、
+    # 生きたリンクの誤撤去は構造的に起きない (symlink_scan_dirs のテストが pin する)。
+    # それでも撤去そのものを止めるのは、設定を読めていない状態で「今の集合が正しい」
+    # 前提の掃除を続けないため。走査の導出が将来変わったときの第 2 層でもある。
     # 存在検査はグロブを裸で展開せず find で行う (.zshrc の同じ検査と規約を揃える。
     # zsh は nomatch が既定で有効なため不一致の裸グロブがエラーになる)
     if [ ! -f "$CLAUDE_CONFIG_DIRS_FILE" ] \

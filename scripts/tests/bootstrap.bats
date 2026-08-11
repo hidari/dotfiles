@@ -539,7 +539,7 @@ init_committed_repo() {
 }
 
 # =============================================================================
-# claude_config_dirs / claude_extra_config_dirs tests (設定ディレクトリ一覧の読み込み)
+# claude_extra_config_dirs tests (設定ディレクトリ一覧の読み込み)
 # =============================================================================
 #
 # 一覧は追跡外の $HOME/.config/dotfiles/claude-config-dirs から読む。追加の
@@ -553,90 +553,99 @@ write_config_dirs_file() {
     printf '%s\n' "$@" > "$TEST_HOME/.config/dotfiles/claude-config-dirs"
 }
 
-@test "claude_config_dirs: returns only the default when the config file is absent" {
-    run claude_config_dirs
-
-    [ "$status" -eq 0 ]
-    [ "$output" = ".claude" ]
-}
-
-@test "claude_config_dirs: returns the default plus each configured dir in file order" {
+@test "claude_extra_config_dirs: yields each configured dir in file order" {
     write_config_dirs_file '.claude-alpha' '.claude-beta'
 
-    run claude_config_dirs
+    run claude_extra_config_dirs
 
     [ "$status" -eq 0 ]
-    [ "${#lines[@]}" -eq 3 ]
-    [ "${lines[0]}" = ".claude" ]
-    [ "${lines[1]}" = ".claude-alpha" ]
-    [ "${lines[2]}" = ".claude-beta" ]
+    [ "${#lines[@]}" -eq 2 ]
+    [ "${lines[0]}" = ".claude-alpha" ]
+    [ "${lines[1]}" = ".claude-beta" ]
 }
 
-@test "claude_config_dirs: an empty config file yields only the default" {
+@test "claude_extra_config_dirs: an empty config file yields nothing" {
     mkdir -p "$TEST_HOME/.config/dotfiles"
     : > "$TEST_HOME/.config/dotfiles/claude-config-dirs"
 
-    run claude_config_dirs
+    run claude_extra_config_dirs
 
     [ "$status" -eq 0 ]
-    [ "$output" = ".claude" ]
+    [ -z "$output" ]
 }
 
-@test "claude_config_dirs: reads a final line that lacks a trailing newline" {
+@test "claude_extra_config_dirs: reads a final line that lacks a trailing newline" {
     # 手で編集した設定ファイルは末尾改行を欠きやすい。read だけで回すと最終行が
     # 静かに落ち、そのディレクトリだけ配線されない
     mkdir -p "$TEST_HOME/.config/dotfiles"
     printf '.claude-alpha' > "$TEST_HOME/.config/dotfiles/claude-config-dirs"
 
-    run claude_config_dirs
+    run claude_extra_config_dirs
 
     [ "$status" -eq 0 ]
-    [ "${#lines[@]}" -eq 2 ]
-    [ "${lines[1]}" = ".claude-alpha" ]
+    [ "$output" = ".claude-alpha" ]
 }
 
-@test "claude_config_dirs: skips comments and blank lines" {
+@test "claude_extra_config_dirs: skips comments and blank lines" {
     write_config_dirs_file '# comment line' '' '.claude-alpha'
 
-    run claude_config_dirs
+    run claude_extra_config_dirs
 
     [ "$status" -eq 0 ]
-    [ "${#lines[@]}" -eq 2 ]
-    [ "${lines[1]}" = ".claude-alpha" ]
+    [ "$output" = ".claude-alpha" ]
 }
 
-@test "claude_config_dirs: rejects entries that are not plain dot-prefixed names" {
-    # 行の内容はパス組み立てに流れるため、charset を通らない行は受け入れない
-    # (../ による脱出やコマンド区切り文字の混入を防ぐ)。".." だけは charset を
-    # 通りながら $HOME を脱出するため個別に落とす
-    write_config_dirs_file '.claude-ok' '../escape' '.claude;rm -rf /' 'noleadingdot' '..'
+@test "claude_extra_config_dirs: rejects entries outside the .claude- namespace" {
+    # 行の内容は 2 つの経路に流れる。bootstrap では $HOME 直下のパス組み立てに、
+    # .zshrc では同じ行からシェル関数名の生成に使われる。名前空間を .claude- に
+    # 閉じないと、$HOME の既存のドットディレクトリ (.git 等) へ mirror を植え、
+    # シェル側では同名の外部コマンドを shadow する関数が生える。
+    # 実在検査の glob (.claude-*) が既に賭けている前提を受理文法へ昇格させた形
+    write_config_dirs_file '.claude-ok' '../escape' '.claude;rm -rf /' 'noleadingdot' '..' \
+        '.git' '.config' '.claudex' '.claude.dot'
 
     # 既定の run は stderr を $output へ併合する。warn が却下行を verbatim に出すため、
     # 併合したままでは「却下行が返り値に混ざっていない」ことを検査できない
-    run --separate-stderr claude_config_dirs
+    run --separate-stderr claude_extra_config_dirs
 
     [ "$status" -eq 0 ]
-    [ "${#lines[@]}" -eq 2 ]
-    [ "${lines[0]}" = ".claude" ]
-    [ "${lines[1]}" = ".claude-ok" ]
+    [ "$output" = ".claude-ok" ]
     # 却下したことが利用者へ届くことも検査する。黙って捨てると設定の typo に気づけない
     assert_contains "$stderr" "../escape"
     assert_contains "$stderr" ".claude;rm -rf /"
     assert_contains "$stderr" "noleadingdot"
+    assert_contains "$stderr" ".git"
+    assert_contains "$stderr" ".claudex"
+    assert_contains "$stderr" ".claude.dot"
 }
 
-@test "claude_config_dirs: skips the default if it is also listed (no duplicates)" {
+@test "claude_extra_config_dirs: rejects names that would collide with the dev launcher" {
+    # .zshrc は 1 行につき <name> と <name>-dev を対で作る。末尾が -dev の行を許すと
+    # 派生名と衝突し、後勝ちで静かに上書きされる (.claude-dev は静的定義の claude-dev を
+    # 潰し、開発版 plugin を読むはずの起動が安定版アカウント起動へ化ける)。
+    # bootstrap は関数を作らないが、片側だけが受理すると「mirror はあるがランチャが
+    # 無い」部分状態になるため同じ文法で落とす
+    write_config_dirs_file '.claude-ok' '.claude-dev' '.claude-alpha-dev'
+
+    run --separate-stderr claude_extra_config_dirs
+
+    [ "$status" -eq 0 ]
+    [ "$output" = ".claude-ok" ]
+    assert_contains "$stderr" ".claude-dev"
+    assert_contains "$stderr" ".claude-alpha-dev"
+}
+
+@test "claude_extra_config_dirs: skips the default if it is also listed" {
     # 重複を返すと pair の生成は冪等でも、一覧の件数を数える利用側が静かに狂う
     write_config_dirs_file '.claude' '.claude-alpha'
 
-    run claude_config_dirs
+    run claude_extra_config_dirs
 
     [ "$status" -eq 0 ]
-    [ "${#lines[@]}" -eq 2 ]
-    [ "$(printf '%s\n' "$output" | grep -c '^\.claude$')" -eq 1 ]
+    [ "$output" = ".claude-alpha" ]
 }
 
-@test "claude_extra_config_dirs: omits the default and yields nothing when unconfigured" {
+@test "claude_extra_config_dirs: yields nothing when unconfigured" {
     run claude_extra_config_dirs
 
     [ "$status" -eq 0 ]
@@ -1162,6 +1171,42 @@ load_prune_arrays() {
     load_pairs_array APM_SYMLINK_PAIRS
 }
 
+@test "symlink_scan_dirs: derives the scan set from the given targets only" {
+    printf '%s\n' '.claude/settings.json' '.zshrc' '.local/bin/backup' \
+        > "$TEST_HOME/targets.txt"
+
+    run symlink_scan_dirs < "$TEST_HOME/targets.txt"
+
+    [ "$status" -eq 0 ]
+    [ "${#lines[@]}" -eq 3 ]
+    assert_array_contains "$TEST_HOME" "${lines[@]}"
+    assert_array_contains "$TEST_HOME/.claude" "${lines[@]}"
+    assert_array_contains "$TEST_HOME/.local/bin" "${lines[@]}"
+}
+
+@test "symlink_scan_dirs: omits an extra config dir whose targets are absent" {
+    # 走査先は target 集合からしか導出されない。設定ファイルが読めず追加ディレクトリの
+    # target が集合から消えると、そのディレクトリは走査候補にも現れず、配下の生きた
+    # リンクは訪問すらされない ($HOME 直下の走査は -maxdepth 1 かつ -type l なので、
+    # ディレクトリである追加設定ディレクトリ自身も拾わない)。
+    # つまり「設定ファイル不在で生きたリンクが stale と誤認される」経路は構造的に
+    # 存在せず、prune_stale_symlinks の skip ガードはこの帰結の上に載る第 2 層になる
+    printf '%s\n' '.claude/settings.json' '.zshrc' > "$TEST_HOME/targets.txt"
+
+    run symlink_scan_dirs < "$TEST_HOME/targets.txt"
+
+    [ "$status" -eq 0 ]
+    refute_contains "$output" ".claude-alpha"
+
+    # 対照: target 集合に入れば走査候補に現れる。上の不在が「そもそも何も出して
+    # いない」ではないことの確認
+    printf '%s\n' '.claude-alpha/settings.json' > "$TEST_HOME/targets.txt"
+
+    run symlink_scan_dirs < "$TEST_HOME/targets.txt"
+
+    [ "$output" = "$TEST_HOME/.claude-alpha" ]
+}
+
 @test "prune_stale_symlinks: moves a dotfiles-owned link that left the pair set into the backup" {
     load_prune_arrays
     mkdir -p "$TEST_HOME/.config"
@@ -1217,7 +1262,7 @@ load_prune_arrays() {
     load_prune_arrays
     # 集合は配列の直読みでは決まらない。設定された追加ディレクトリ向けに生成される
     # mirror pair (SYMLINK_PAIRS 由来 + APM_SYMLINK_PAIRS 由来) も含むこと。
-    # 生成分が漏れる実装は、生きている 2 アカウント側のリンクを stale と誤認する
+    # 生成分が漏れる実装は、生きている追加ディレクトリ側のリンクを stale と誤認する
     write_config_dirs_file '.claude-alpha'
     mkdir -p "$TEST_HOME/.claude-alpha"
     ln -s "$DOTFILES_DIR/home/.claude/settings.json" "$TEST_HOME/.claude-alpha/settings.json"
@@ -1250,9 +1295,10 @@ load_prune_arrays() {
 
 @test "prune_stale_symlinks: is skipped with a warning when extra dirs exist but the config file does not" {
     load_prune_arrays
-    # 設定ファイルが未作成のまま走らせると、生きている 2 アカウント側のリンクが
-    # 集合に現れず stale と誤認される。ディレクトリの実在だけが分かるこの状態では
-    # 警告して撤去そのものを skip する
+    # 設定を読めていない状態で「今の集合が正しい」前提の掃除を続けないため、
+    # ディレクトリの実在だけが分かるこの状態では警告して撤去そのものを skip する。
+    # 誤撤去自体は走査先の導出によって構造的に防がれている (symlink_scan_dirs の
+    # テストが pin する) ので、このガードはその上に載る第 2 層にあたる
     mkdir -p "$TEST_HOME/.claude-alpha" "$TEST_HOME/.config"
     ln -s "$DOTFILES_DIR/home/.config/gone" "$TEST_HOME/.config/gone"
 
