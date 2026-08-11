@@ -40,6 +40,9 @@ windows-vm-verification。
 
 ### 追加の設定ディレクトリ名の露出
 
+以下は起票時点の値で、現在値とは一致しない。Phase 3a 以降にテストが増え、Phase 4 で
+本 Issue のドキュメントを伏字化したため。現在値は同じコマンドで数える。
+
 | 場所 | 件数 |
 |---|---|
 | `scripts/tests/zshrc-claude.bats` | 35 |
@@ -59,7 +62,7 @@ closed 配下の Issue 2 件はディレクトリ名自体に運用形態が現�
 
 ## 実測した事実
 
-apm 0.27.0 / Claude Code 2.1.223 で確認した。すべて使い捨てディレクトリと隔離した
+apm 0.27.0 / Claude Code 2.1.223 で確認した。断りのない限り使い捨てディレクトリと隔離した
 `CLAUDE_CONFIG_DIR` で実行し、前後で `~/.apm/apm.yml` のハッシュ一致と `git status` の空、
 および `~/.claude/settings.json` のハッシュ一致を確認している。
 
@@ -172,7 +175,9 @@ deploy 先ディレクトリ名が末尾セグメントであることは、パ�
 一致させる規約が配布先でも保たれることを意味する。3 階層のパス (`skills/tooling/herdr`) でも
 規則は変わらない。
 
-### skills-dir plugin は一覧に出るが enabled にはならない
+### 同名の marketplace 版があると skills-dir plugin は enabled にならない
+
+衝突が無い場合は下の「入口 gate の実測」節を見る。
 
 Phase 3a の live smoke で観測した。apm が配置した 3 plugin は `claude plugin list --json` に
 `<name>@skills-dir` として現れるが、いずれも `enabled=False` である。marketplace 経由の
@@ -197,6 +202,9 @@ apm が配置した skills だけを置き、対話セッションを起動し�
 
 - `<name>@skills-dir` の 3 パッケージはいずれも `enabled=true` になった。報告された version は
   apm が配置した版で、marketplace 版と版が違うパッケージがあるためどちらを読んだか判別できる
+  (当初この version を判別材料に挙げたが、版が違うのは 3 パッケージ中 1 つである。この節の
+  結論は marketplace を宣言しない構成自体で立っており version には依存しない。
+  下の「実環境での供給切り替えの実測」節)
 - component は `<plugin>:<component>` の修飾名で解決された (観測時点で 1 パッケージ 7 件)
 - 対照 1: 存在しない修飾名を引くと該当なしを返す
 - 対照 2: plugin を置かない設定ディレクトリでは同じ修飾名が該当なしを返す
@@ -208,6 +216,55 @@ apm が配置した skills だけを置き、対話セッションを起動し�
 Phase 3a で `enabled=False` に見えたのは、同名の marketplace 版が同時に有効だったためだと分かる。
 同名衝突が無い隔離環境では同じパッケージが `enabled=true` になった。したがって marketplace 宣言の
 削除は component を失わせない。
+
+### 実環境での供給切り替えの実測 (Phase 4 の項目 22-23)
+
+この節だけは実環境での観測で、上の前置きが宣言する隔離環境の保証は及ばない。観測したのは
+追加の設定ディレクトリ側のセッション 1 本である。
+
+決め手になったのは skill 起動時に表示される base directory である。これは Claude Code が
+どの実体を読んだかを自ら申告する値で、読み込み経路そのものを指す。バンドル入口 3 件と
+component 2 件 (`dev-workflow` の `git-branch-switcher` と `in-repo-issue`) の計 5 件を引き、
+いずれも apm が配置した `<追加の設定ディレクトリ>/skills/<パッケージ名>` 配下を指した。
+component は `<plugin>:<component>` の修飾名で解決した。
+
+自己申告だけに頼らないよう実体との突き合わせを添える。`in-repo-issue` の本文は apm 版が
+`${CLAUDE_SKILL_DIR}/templates/issue.md`、移設前の版が `~/.claude/plugins/<plugin 名>/...` の
+絶対パスを持ち、両者は逐語で異なる。読み込まれた本文は前者を展開した形で出たので、
+base directory の申告と本文の実体が一致する。変数が展開されること自体は下の節で確認済みだが、
+実環境で apm 版の実体に届くことは別の事実である。
+
+当初の判別材料に想定していた version では決められなかった。3 パッケージのうち marketplace の
+cache と apm 版で version が違うのは 1 つだけで、残る 2 つは同じ版が両方にある。version で
+判別できるのは 3 分の 1 の経路にすぎず、それを全体の結論に広げると残り 2 つは未検証のまま
+「確認済み」に数えられる。base directory はこの区別を必要としない。
+
+上の「入口 gate の実測」節は version を判別材料に挙げているが、あれは marketplace を宣言
+しない隔離環境での観測で、同名の marketplace 版がそもそも存在しない。あの節の結論は隔離構成
+自体で立っており version には依存していない。同じ証拠でも環境によって判別力が変わる。
+
+追加の設定ディレクトリ側で不在だったのは plugin cache の実体だけである。registry の 2 ファイル
+(`installed_plugins.json` と `known_marketplaces.json`) にはエントリが残り、前者が記録する
+installPath は cache の下を指していて、そのパスだけが実在しなかった。それでも apm 版が
+読まれたので、registry のエントリ単独では供給元にならない。
+
+この 0 件には対照を並べる。同じ設定ディレクトリの他の 4 marketplace は cache の実体を持ち、
+registry の記録どおりのパスに解決する。したがって cache の不在は「そもそも見ていない」ではなく
+「実体が無い」を意味する。
+
+一方で `plugins/marketplaces/<名前>` と symlink の不在は根拠に数えられない。前者へ clone を
+作るのは git source の marketplace だけで、directory source では元から作られない。後者は
+`install.sh` が張り先を既定の設定ディレクトリへ固定しており、追加の設定ディレクトリには
+元から張られない。不在が情報を持つのは cache だけである。
+
+既定の設定ディレクトリ側は apm 版と cache と symlink の 3 経路が同居しており、この消去法が
+使えない。symlink 3 本と marketplace cache と registry のエントリを落とした。symlink は削除
+ではなく退避で行った。参照先が生きているため戻せる。
+
+ただしこれで到達した構成は、上で観測した側と同一ではない。観測した側は registry のエントリを
+保持したままで、既定側はそれも落としている。registry が供給元にならないことは観測済みなので
+挙動は変わらない見込みだが、この構成そのものはまだどのセッションでも観測していない。既定の
+設定ディレクトリでセッションを起動したときに確かめる。
 
 ### 変数の展開範囲はファイルの位置で変わる
 
@@ -629,6 +686,10 @@ plugin の配布経路の選択は不要になった (単一経路で成立す�
 23. `install.sh` が張った `~/.claude/plugins/<plugin 名>` の symlink 3 本を撤去する。
     アーカイブしただけでは残り、参照先が消えれば dangling になる
 
+この一覧は手順と採否の理由を持ち、進捗は issue.md のタスク一覧が canonical とする。
+22-23 の実施範囲は marketplace cache と registry のエントリまで広げた
+(実測は上の「実環境での供給切り替えの実測」節)。
+
 修飾名の一括更新は不要 (パッケージ名と `plugin.json` の `name` を一致させる限り現行の
 修飾名が維持されるため)。
 
@@ -717,6 +778,7 @@ bootstrap か CI に組み込む。
 | skills-dir plugin の有効化 (解決済み) | apm が配置した plugin は marketplace 版と同名で衝突している間だけ `enabled=False` になる | Phase 4 の入口 gate で対照 2 本付きに確認した。同名衝突が無い隔離環境では `enabled=true` になり component も修飾名で解決する。詳細は「入口 gate の実測」節 |
 | hook 登録を pin する検査の不在 | `settings.json` の hooks セクションを見る検査が 1 件も無く、既存の `tirith-check.py` ですら配線を外して全テストが緑になる | Phase 3a で config-guard に必須 hook の配線検査を足し、既存 hook も同時に pin する。配線は event だけでなく matcher まで見る (matcher を別ツールへ変えると本体が残ったまま起動しなくなるため) |
 | ターミナル直叩きが未カバー | 2 層は bootstrap 経由と Claude Code 経由を塞ぐが、シェルから直接 `apm` を叩く経路は hook を通らない | 現状は未対処。全経路を 1 箇所で覆う機構としては `~/.local/bin` に clean 検査付きの apm シムを置く案があるが、PATH 順序と `command -v apm` 判定へ干渉する別の脆さを持つため採らない。検討して採らなかったことをここに記録する |
+| 既定の設定ディレクトリ側が未観測 | 供給切り替えを観測したのは追加の設定ディレクトリ側で、既定側は symlink と cache に加えて registry のエントリも落としており、この構成はどのセッションでも観測していない | 次に既定の設定ディレクトリでセッションを起動したとき、skill の base directory が apm の配置先を指すことを確認する |
 
 ## 却下した案
 

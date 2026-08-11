@@ -1,5 +1,5 @@
 ---
-status: open
+status: in_progress
 ---
 
 # refactor: skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する
@@ -35,7 +35,8 @@ dotfiles の 12 skill のうち 7 個は他者由来。うち 6 個は apm 管�
 
 ### 4. 追加の設定ディレクトリ名がテストに露出している
 
-追跡ファイル 8 件に計 77 件 (`git grep -c` の一致行数)。うち 52 件はテストコード。
+起票時点で追跡ファイル 8 件に計 77 件 (`git grep -c` の一致行数)。うち 52 件はテストコード。
+現在値は同じコマンドで数える (Phase 3a 以降にテストが増えており起票時点とは一致しない)。
 テストが具体的な名前をハードコードしているため、その名前でしか動かないことを固定してもいる。
 Issue #21 の露出一覧はこの分類を持っていない。
 
@@ -101,11 +102,16 @@ plugin 認識が同時に成立する。marketplace の宣言も `settings.json`
 - [x] `settings.json` から marketplace 宣言と `enabledPlugins` を削除する
 - [x] hook の `herdr-agent-state.sh` パスを `$HOME` 参照へ変える
 - [x] skip-worktree を解除する
-- [ ] 現行 private plugin リポジトリをアーカイブする
-- [ ] `install.sh` が張った `~/.claude/plugins/<plugin 名>` の symlink 3 本を撤去する
+- [x] 現行 private plugin リポジトリをアーカイブする
+- [x] `install.sh` が張った symlink 3 本と、旧経路の marketplace cache と registry のエントリを撤去する
 
-最後の 2 つは Claude Code を再起動して apm 版 plugin が実際に動くことを確認してから行う。
-確認前に撤去すると、切り戻しの経路まで同時に失われる。
+アーカイブと symlink 撤去は、Claude Code を再起動して apm 版が実際に読まれることを追加の
+設定ディレクトリ側で確認してから行った。確認前に撤去すると切り戻しの経路まで同時に失われる
+ためこの順序にした。既定の設定ディレクトリ側は未観測のまま残っており、次にそちらで
+セッションを起動したときに確かめる。
+
+実測と、撤去範囲を計画より広げた理由は [25-spec.md](25-spec.md) の
+「実環境での供給切り替えの実測 (Phase 4 の項目 22-23)」節にある。
 
 ## 関連
 
@@ -114,6 +120,14 @@ plugin 認識が同時に成立する。marketplace の宣言も `settings.json`
   skip-worktree の理由が両方なくなる
 - [Issue #21: PUBLIC リポジトリに露出している個人情報と private リポジトリ情報を棚卸しする](../21_PUBLIC%20リポジトリに露出している個人情報と%20private%20リポジトリ情報を棚卸しする/issue.md)
   露出の除去は #21、構造の変更は本 Issue という分担。ただし #21 の露出一覧に
-  「追加の設定ディレクトリ名 77 件」が漏れているため、#21 側への追記が必要
+  「追加の設定ディレクトリ名の露出」が漏れているため、#21 側への追記が必要
 - [Issue #26: refactor: Claude Code フックの共通基盤を集約する](../26_Claude%20Code%20フックの共通基盤を集約する/issue.md)
   Phase 3a のレビューで検出したフック周りの重複。本 Issue のスコープを超えるため分けた
+- [Issue #29: refactor: PUBLIC リポジトリに残る private リポジトリ名の露出を棚卸しする](../29_PUBLIC%20リポジトリに残る%20private%20リポジトリ名の露出を棚卸しする/issue.md)
+  Phase 4 のゲートが検出。本 Issue の露出の棚卸しは追加の設定ディレクトリ名しか数えておらず、
+  private リポジトリ名の現ツリー露出が抜けていた
+- [Issue #30: feat: Markdown 内のシェルスニペットを構文検査する](../30_Markdown%20内のシェルスニペットを構文検査する/issue.md)
+  Phase 4 の伏字化で実際にスニペットを壊した。既存の検査はどれも Markdown 内のコードブロックを
+  見ておらず、検出はゲートの目視に依存していた
+- [Issue #31: docs: spec が参照する bootstrap.sh の関数名と行番号を実体に合わせる](../31_spec%20が参照する%20bootstrap.sh%20の関数名と行番号を実体に合わせる/issue.md)
+  Phase 4 のゲートが検出。25-spec.md 自身が持つ rot
