@@ -252,26 +252,11 @@ function claude() {
   fi
 }
 
-# 仕事アカウント。アカウントを固定するのが存在理由なので、外から前置で
-# CLAUDE_CONFIG_DIR が渡されていても自分のディレクトリを引数で名指しする。
-function claude-hamiltonian() {
-  local config_dir task_list
-  config_dir="$(_claude_config_dir "$HOME/.claude-hamiltonian")" || return 1
-  task_list="${CLAUDE_CODE_TASK_LIST_ID:-$(_claude_task_list_id)}"
-  _claude_task_list_notice "$config_dir" "$task_list"
-  # 空文字を渡したときの挙動は未確認。導出できないときは変数ごと渡さず既定に任せる
-  if [ -n "$task_list" ]; then
-    CLAUDE_CONFIG_DIR="$config_dir" CLAUDE_CODE_TASK_LIST_ID="$task_list" command claude "$@"
-  else
-    CLAUDE_CONFIG_DIR="$config_dir" command claude "$@"
-  fi
-}
-
 # 開発版 (agentic-coding-tools の作業ツリー) のパッケージを --plugin-dir の並びとして
 # 集める。既定の起動では skill は apm が配置したコピーを読むが、plugin は同名の
 # marketplace 版が優先されるため実際には別経路から載る。経路の canonical は
 # claude-plugins の CLAUDE.md にある供給経路の表。開発版は直しながら試すときだけ使う。
-# 2 つのアカウントが同じ並びを使うため構築をここへ閉じる。
+# 全アカウントのランチャが同じ並びを使うため構築をここへ閉じる。
 # 戻り値では配列を運べないので、呼び出し側が local で宣言した配列へ書き込む。
 function _claude_dev_plugin_args() {
   local repo="${AGENTIC_TOOLS_DIR:-$HOME/Develop/agentic-coding-tools}"
@@ -317,12 +302,79 @@ function claude-dev() {
   claude "${_CLAUDE_DEV_PLUGIN_ARGS[@]}" "$@"
 }
 
-# 仕事アカウントで開発版を読む。アカウントの固定は claude-hamiltonian が持つ。
-function claude-hamiltonian-dev() {
+# 追加の Claude 設定ディレクトリ一覧の置き場。1 行 1 ディレクトリ名 (ドット付き)。
+# 追加アカウントのディレクトリ名をこの PUBLIC リポジトリへ書かないための外部化。
+# bootstrap.sh の同名変数と同じ値でなければならないが、プロセスが別なので共有
+# できない。両者が一致することはテスト (zshrc-claude.bats) が pin する。
+CLAUDE_CONFIG_DIRS_FILE="${CLAUDE_CONFIG_DIRS_FILE:-$HOME/.config/dotfiles/claude-config-dirs}"
+
+# 追加の設定ディレクトリが $HOME 直下に実在するかを調べる。グロブを裸で展開しない
+# のは、zsh の nomatch が既定で有効で不一致のときエラーになるため (bats は bash で
+# source し実シェルは zsh なので両方で成立する必要がある)。find は不一致でも exit 0
+# を返すので出力の非空で判定する。既定の .claude はパターンに一致しない。
+function _claude_extra_config_dir_exists() {
+  [ -n "$(find "$HOME" -maxdepth 1 -type d -name '.claude-*' -print -quit 2>/dev/null)" ]
+}
+
+# 追加アカウントのランチャを設定ファイルから生成する。生成するのは「既定以外」
+# だけで、既定の claude / claude-dev は CLAUDE_CONFIG_DIR を設定しない非対称を保つ
+# ため静的定義のまま残す (理由は claude() のコメントを参照)。
+# 1 ディレクトリにつき素のランチャ (<name>) と開発版の派生 (<name>-dev) の 2 関数を
+# 対で作る。派生は素のランチャを名前で呼ぶので、片方だけ生成すると呼び先を失う。
+# 行の検証は bootstrap.sh の claude_extra_config_dirs と同じ規約 (ドット始まりの
+# 英数字・ハイフン・ドット・アンダースコアのみ、$HOME を脱出する ".." は個別却下)。
+# ここでは行が eval に流れるため、検証を通らない行からは定義しない。黙って捨てると
+# 設定の typo に気づけないので、却下行は verbatim で stderr へ知らせる。
+function _claude_define_launchers() {
+  local file="$CLAUDE_CONFIG_DIRS_FILE"
+  if [ ! -f "$file" ]; then
+    # 設定ファイルだけが無い状態は新規マシンや誤削除で起きる。無言でランチャが
+    # 消えると command not found の原因がシェル設定側にあることに気づけないため
+    # 知らせる。名前はリポジトリへ戻さないので、警告に具体的なディレクトリ名は
+    # 載せない (テストが警告の期待値を持つため、載せると実名が追跡ファイルへ戻る)
+    if _claude_extra_config_dir_exists; then
+      echo "追加の設定ディレクトリがありますが claude-config-dirs が見つかりません: $file" >&2
+    fi
+    return 0
+  fi
+
+  local line name
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      '' | '#'* | '.claude') continue ;;
+    esac
+    if [ "$line" = ".." ] || ! printf '%s' "$line" | grep -Eq '^\.[A-Za-z0-9._-]+$'; then
+      echo "設定ディレクトリ名として受け付けられない行を無視します: $line" >&2
+      continue
+    fi
+    name="${line#.}"
+    # 本体は静的定義だった頃の追加アカウント用ランチャと同型。アカウントを固定する
+    # のが存在理由なので、外から前置で CLAUDE_CONFIG_DIR が渡されていても自分の
+    # ディレクトリを引数で名指しする。空文字のタスクリストを渡したときの挙動は
+    # 未確認のため、導出できないときは変数ごと渡さず既定に任せる (claude() と同じ)
+    eval "
+function ${name}() {
+  local config_dir task_list
+  config_dir=\"\$(_claude_config_dir \"\$HOME/${line}\")\" || return 1
+  task_list=\"\${CLAUDE_CODE_TASK_LIST_ID:-\$(_claude_task_list_id)}\"
+  _claude_task_list_notice \"\$config_dir\" \"\$task_list\"
+  if [ -n \"\$task_list\" ]; then
+    CLAUDE_CONFIG_DIR=\"\$config_dir\" CLAUDE_CODE_TASK_LIST_ID=\"\$task_list\" command claude \"\$@\"
+  else
+    CLAUDE_CONFIG_DIR=\"\$config_dir\" command claude \"\$@\"
+  fi
+}
+
+function ${name}-dev() {
   local -a _CLAUDE_DEV_PLUGIN_ARGS
   _claude_dev_plugin_args || return 1
-  claude-hamiltonian "${_CLAUDE_DEV_PLUGIN_ARGS[@]}" "$@"
+  ${name} \"\${_CLAUDE_DEV_PLUGIN_ARGS[@]}\" \"\$@\"
 }
+"
+  done < "$file"
+}
+
+_claude_define_launchers
 
 ########################################
 # その他

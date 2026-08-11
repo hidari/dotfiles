@@ -7,12 +7,15 @@
 #   1. 個人アカウントは CLAUDE_CONFIG_DIR を設定しない (Keychain の service 名の
 #      導出条件が未確認のため、既定パスの明示指定という賭けをしない)。
 #      外から渡された値は読んで尊重する
-#   2. 仕事アカウントは config dir の存在を確認してから渡す (存在しない値は
-#      Claude Code が黙って受け入れ、初期状態で起動してしまう)
-#   3. タスクリスト ID は作業ディレクトリから導出する (git リポジトリならルート、
+#   2. 追加アカウントのランチャは追跡外の設定ファイル (claude-config-dirs) から
+#      生成する。ディレクトリ名をこの PUBLIC リポジトリへ書かないための外部化で、
+#      テストはダミー名 (.claude-alpha 等) だけを使う
+#   3. 追加アカウントのランチャは config dir の存在を確認してから渡す (存在しない
+#      値は Claude Code が黙って受け入れ、初期状態で起動してしまう)
+#   4. タスクリスト ID は作業ディレクトリから導出する (git リポジトリならルート、
 #      無ければ cwd の名前)。前置の明示指定はこの導出に優先し、何も導出できない
 #      ときは変数ごと渡さず既定のセッション ID リストに任せる
-#   4. 未知のタスクリスト ID は新規作成として通し、知らせるだけでブロックはしない
+#   5. 未知のタスクリスト ID は新規作成として通し、知らせるだけでブロックはしない
 #      (_claude_task_list_notice() が導出済みの ID を引数で受け取る専用関数であり、
 #      ランチャと通知が別々に ID を判定して食い違うことを防ぐ)
 
@@ -27,10 +30,28 @@ setup() {
     # 呼び出し元シェルの環境が漏れるとアサーションが偽陽性/偽陰性になるため落とす
     unset CLAUDE_CONFIG_DIR
     unset CLAUDE_CODE_TASK_LIST_ID
+    unset CLAUDE_CONFIG_DIRS_FILE
 }
 
 teardown() {
     teardown_test_home
+}
+
+# 追加アカウントの設定ファイルを書く。引数 1 つが 1 行になる。
+# パスの規約 (追跡外・$HOME/.config/dotfiles/claude-config-dirs) は
+# bootstrap.sh / .zshrc の CLAUDE_CONFIG_DIRS_FILE と同じで、一致は
+# 下の drift テストが pin する。
+write_config_dirs_file() {
+    mkdir -p "$TEST_HOME/.config/dotfiles"
+    printf '%s\n' "$@" > "$TEST_HOME/.config/dotfiles/claude-config-dirs"
+}
+
+# 追加アカウントを丸ごと用意する (設定ファイル + 実ディレクトリ)。
+# 名前はダミーの .claude-alpha。実名は追跡外の設定ファイルにのみ存在し、
+# この PUBLIC リポジトリの追跡ファイルへは書かない。
+setup_extra_account() {
+    write_config_dirs_file '.claude-alpha'
+    mkdir -p "$TEST_HOME/.claude-alpha"
 }
 
 # =============================================================================
@@ -69,12 +90,12 @@ teardown() {
 
 @test "_claude_task_list_notice: distinguishes the config dir it inspects" {
     # タスクリストはアカウントごとに別なので、探索先が config dir 依存であることを pin する。
-    # 個人側にだけ存在する ID を仕事側の config dir で問い合わせたら未知として扱う。
+    # 既定側にだけ存在する ID を追加アカウント側の config dir で問い合わせたら未知として扱う。
     mkdir -p "$TEST_HOME/.claude/tasks/dotfiles"
-    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    mkdir -p "$TEST_HOME/.claude-alpha"
     load_zshrc_claude_functions
 
-    run _claude_task_list_notice "$TEST_HOME/.claude-hamiltonian" dotfiles
+    run _claude_task_list_notice "$TEST_HOME/.claude-alpha" dotfiles
 
     [ "$status" -eq 0 ]
     assert_contains "$output" "新しいタスクリストを作成します: dotfiles"
@@ -109,24 +130,24 @@ teardown() {
 }
 
 @test "_claude_config_dir: resolves to the environment value when set" {
-    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    mkdir -p "$TEST_HOME/.claude-alpha"
     load_zshrc_claude_functions
 
-    CLAUDE_CONFIG_DIR="$TEST_HOME/.claude-hamiltonian" run _claude_config_dir
+    CLAUDE_CONFIG_DIR="$TEST_HOME/.claude-alpha" run _claude_config_dir
 
     [ "$status" -eq 0 ]
-    [ "$output" = "$TEST_HOME/.claude-hamiltonian" ]
+    [ "$output" = "$TEST_HOME/.claude-alpha" ]
 }
 
 @test "_claude_config_dir: prefers the explicit argument over the environment" {
     # アカウントを固定するランチャは、外から渡された値ではなく自分の値を使う
-    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    mkdir -p "$TEST_HOME/.claude-alpha"
     load_zshrc_claude_functions
 
-    CLAUDE_CONFIG_DIR="$TEST_HOME/.claude" run _claude_config_dir "$TEST_HOME/.claude-hamiltonian"
+    CLAUDE_CONFIG_DIR="$TEST_HOME/.claude" run _claude_config_dir "$TEST_HOME/.claude-alpha"
 
     [ "$status" -eq 0 ]
-    [ "$output" = "$TEST_HOME/.claude-hamiltonian" ]
+    [ "$output" = "$TEST_HOME/.claude-alpha" ]
 }
 
 @test "_claude_config_dir: fails when the resolved directory does not exist" {
@@ -243,11 +264,11 @@ teardown() {
     # 個人側に固定されていると存在しない ID を既知と誤判定して黙る。
     # 「起動するアカウント」と「確認するアカウント」は一致していなければならない
     mkdir -p "$TEST_HOME/.claude/tasks/dotfiles"
-    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    mkdir -p "$TEST_HOME/.claude-alpha"
     setup_recording_claude
     load_zshrc_claude_functions
 
-    CLAUDE_CONFIG_DIR="$TEST_HOME/.claude-hamiltonian" CLAUDE_CODE_TASK_LIST_ID=dotfiles run claude
+    CLAUDE_CONFIG_DIR="$TEST_HOME/.claude-alpha" CLAUDE_CODE_TASK_LIST_ID=dotfiles run claude
 
     [ "$status" -eq 0 ]
     assert_contains "$output" "新しいタスクリストを作成します: dotfiles"
@@ -343,40 +364,209 @@ teardown() {
 }
 
 # =============================================================================
-# claude-hamiltonian (仕事アカウント)
+# _claude_define_launchers (追加アカウントのランチャ生成)
 # =============================================================================
+#
+# 追加アカウントのランチャは静的定義ではなく、追跡外の設定ファイル (1 行 1 ディレク
+# トリ名・ドット付き) から生成する。ディレクトリ名をこの PUBLIC リポジトリへ書かない
+# ための外部化。生成器はマーカーブロックの source 時に 1 度呼ばれるため、テストは
+# load_zshrc_claude_functions の後に明示の呼び直しをしない (呼び直すと、ブロック末尾
+# の取り付けを外す退行が全テスト緑のまま通る)。警告の観測だけは出力を分離するため
+# run で呼び直す。
 
-@test "claude-hamiltonian: sets CLAUDE_CONFIG_DIR to the hamiltonian directory" {
-    mkdir -p "$TEST_HOME/.claude-hamiltonian"
-    setup_recording_claude
+@test "_claude_define_launchers: defines a launcher for each configured dir at source time" {
+    setup_extra_account
     load_zshrc_claude_functions
 
-    run claude-hamiltonian
+    run type claude-alpha
 
     [ "$status" -eq 0 ]
-    assert_contains "$(cat "$RECORDED_LAUNCH")" "CONFIG_DIR=$TEST_HOME/.claude-hamiltonian"
 }
 
-@test "claude-hamiltonian: pins its own account over an externally given config dir" {
-    # アカウントを固定するのがこの関数の存在理由。前置に引きずられて個人側で
-    # 起動したら、仕事用として呼んだ意味が消える
-    mkdir -p "$TEST_HOME/.claude-hamiltonian"
-    setup_recording_claude
+@test "_claude_define_launchers: defines the dev variant alongside the base launcher" {
+    # 派生は素のランチャを名前で呼ぶため、片方だけ生成すると呼び先を失う
+    setup_extra_account
     load_zshrc_claude_functions
 
-    CLAUDE_CONFIG_DIR="$TEST_HOME/.claude" run claude-hamiltonian
+    run type claude-alpha-dev
 
     [ "$status" -eq 0 ]
-    assert_contains "$(cat "$RECORDED_LAUNCH")" "CONFIG_DIR=$TEST_HOME/.claude-hamiltonian"
 }
 
-@test "claude-hamiltonian: fails without launching when the config dir is missing" {
-    # ディレクトリを作らない。Claude Code は存在しない値でも黙って初期状態で起動するため、
-    # ここで止めないと未ログイン状態に落ちたことに /login を求められるまで気づけない
+@test "_claude_define_launchers: defines launchers for every configured dir, not just the first" {
+    write_config_dirs_file '.claude-alpha' '.claude-beta'
+    load_zshrc_claude_functions
+
+    run type claude-beta
+    [ "$status" -eq 0 ]
+    run type claude-beta-dev
+    [ "$status" -eq 0 ]
+    # 2 件目の処理が 1 件目を消していないことも確かめる
+    run type claude-alpha
+    [ "$status" -eq 0 ]
+}
+
+@test "_claude_define_launchers: defines nothing when the config file is absent" {
+    load_zshrc_claude_functions
+
+    run type claude-alpha
+
+    [ "$status" -ne 0 ]
+}
+
+@test "_claude_define_launchers: rejects lines that are not plain dot-prefixed names" {
+    # 行は eval に流れて関数定義になるため、charset を通らない行からは定義しない。
+    # 黙って捨てると設定の typo に気づけないので、却下行は verbatim の警告で知らせる。
+    # 却下対象は 3 種 (パス脱出・コマンド区切りの混入・ドット無しの素の名前) で、
+    # 選別条件が独立にあるため 1 種類では 1 条件しか pin できない
+    write_config_dirs_file '.claude-ok' '../escape' '.claude;echo injected' 'alpha'
+    load_zshrc_claude_functions
+
+    run --separate-stderr _claude_define_launchers
+
+    [ "$status" -eq 0 ]
+    assert_contains "$stderr" "無視します: ../escape"
+    assert_contains "$stderr" "無視します: .claude;echo injected"
+    assert_contains "$stderr" "無視します: alpha"
+    # 検証を全部通った行だけが関数になる
+    run type claude-ok
+    [ "$status" -eq 0 ]
+    run type escape
+    [ "$status" -ne 0 ]
+    run type alpha
+    [ "$status" -ne 0 ]
+}
+
+@test "_claude_define_launchers: rejects the bare parent-directory line" {
+    # ".." は唯一 charset を通りながら $HOME を脱出する値なので個別に却下する。
+    # 規約は bootstrap.sh の claude_extra_config_dirs と同じ
+    write_config_dirs_file '..' '.claude-ok'
+    load_zshrc_claude_functions
+
+    run --separate-stderr _claude_define_launchers
+
+    [ "$status" -eq 0 ]
+    assert_contains "$stderr" "無視します: .."
+    # 却下が後続の行を巻き込んでいないこと
+    run type claude-ok
+    [ "$status" -eq 0 ]
+}
+
+@test "_claude_define_launchers: skips comments and blank lines silently" {
+    # コメントと空行は整理用の正当な行なので、却下の警告を出さない。
+    # 警告が出ると常時ノイズになり、本物の却下を見落とす
+    write_config_dirs_file '# comment' '' '.claude-alpha'
+    load_zshrc_claude_functions
+
+    run --separate-stderr _claude_define_launchers
+
+    [ "$status" -eq 0 ]
+    [ -z "$stderr" ]
+    run type claude-alpha
+    [ "$status" -eq 0 ]
+}
+
+@test "_claude_define_launchers: does not replace the static default launcher" {
+    # 設定ファイルに既定の .claude が書かれていても claude を生成し直さない。
+    # 生成版は CLAUDE_CONFIG_DIR を設定するため、置き換わると既定アカウントの
+    # 非対称 (変数を渡さない) が静かに消える
+    setup_recording_claude
+    write_config_dirs_file '.claude' '.claude-alpha'
+    load_zshrc_claude_functions
+
+    run claude
+
+    [ "$status" -eq 0 ]
+    local recorded
+    recorded="$(cat "$RECORDED_LAUNCH")"
+    assert_contains "$recorded" "LAUNCHED"
+    refute_contains "$recorded" "CONFIG_DIR="
+}
+
+@test "_claude_define_launchers: warns when extra config dirs exist but the config file is absent" {
+    # 設定ファイルだけが無い状態は新規マシンや誤削除で起きる。現行の .zshrc は単体で
+    # 自足していたので、無言で消えると command not found の原因がシェル設定側にある
+    # ことに気づけない
+    mkdir -p "$TEST_HOME/.claude-alpha"
+    load_zshrc_claude_functions
+
+    run --separate-stderr _claude_define_launchers
+
+    [ "$status" -eq 0 ]
+    assert_contains "$stderr" "claude-config-dirs"
+    # 警告文が名前を含むと、テストの期待値経由で実名がリポジトリへ戻る。
+    # 警告はファイルパスだけを載せ、見つけたディレクトリ名は載せない
+    refute_contains "$stderr" ".claude-alpha"
+}
+
+@test "_claude_define_launchers: stays silent when neither the config file nor extra dirs exist" {
+    # 追加アカウントを使わないマシンで毎シェル警告が出るとノイズになり、
+    # 本物の警告を見落とす。上の警告テストの対照 (正常なら空になる側)
+    load_zshrc_claude_functions
+
+    run --separate-stderr _claude_define_launchers
+
+    [ "$status" -eq 0 ]
+    [ -z "$stderr" ]
+    [ -z "$output" ]
+}
+
+@test "_claude_define_launchers: agrees with bootstrap.sh on where the config dir list lives" {
+    # 同じパスを 2 ファイルに書かざるを得ない (プロセスが別で共有できない) ため、
+    # 値そのものを突き合わせて drift を検出する。片方だけ変えると赤くなる
+    local from_bootstrap from_zshrc
+    unset CLAUDE_CONFIG_DIRS_FILE
+    load_bootstrap_functions
+    from_bootstrap="$CLAUDE_CONFIG_DIRS_FILE"
+
+    unset CLAUDE_CONFIG_DIRS_FILE
+    load_zshrc_claude_functions
+    from_zshrc="$CLAUDE_CONFIG_DIRS_FILE"
+
+    [ -n "$from_bootstrap" ]
+    [ "$from_bootstrap" = "$from_zshrc" ]
+}
+
+# =============================================================================
+# claude-alpha (生成された追加アカウントのランチャ)
+# =============================================================================
+#
+# 生成に移っても、静的定義だった頃の呼び出し時の契約 (アカウント固定・存在検査・
+# タスクリスト導出) が保存されることを、ダミー名 .claude-alpha のランチャで pin する。
+
+@test "claude-alpha: sets CLAUDE_CONFIG_DIR to its own directory" {
+    setup_extra_account
     setup_recording_claude
     load_zshrc_claude_functions
 
-    run claude-hamiltonian
+    run claude-alpha
+
+    [ "$status" -eq 0 ]
+    assert_contains "$(cat "$RECORDED_LAUNCH")" "CONFIG_DIR=$TEST_HOME/.claude-alpha"
+}
+
+@test "claude-alpha: pins its own account over an externally given config dir" {
+    # アカウントを固定するのがこのランチャの存在理由。前置に引きずられて既定側で
+    # 起動したら、追加アカウント用として呼んだ意味が消える
+    setup_extra_account
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    CLAUDE_CONFIG_DIR="$TEST_HOME/.claude" run claude-alpha
+
+    [ "$status" -eq 0 ]
+    assert_contains "$(cat "$RECORDED_LAUNCH")" "CONFIG_DIR=$TEST_HOME/.claude-alpha"
+}
+
+@test "claude-alpha: fails without launching when the config dir is missing" {
+    # 設定ファイルに行があってもディレクトリが無ければ起動を止める。生成は
+    # ディレクトリの実在を条件にしない (後から作られうる) ので、検査は呼び出し時に
+    # 行う。不在のまま起動すると初期状態の設定が作られる
+    write_config_dirs_file '.claude-alpha'
+    setup_recording_claude
+    load_zshrc_claude_functions
+
+    run claude-alpha
 
     [ "$status" -ne 0 ]
     assert_contains "$output" "設定ディレクトリが見つかりません"
@@ -384,47 +574,48 @@ teardown() {
     refute_contains "$(cat "$RECORDED_LAUNCH")" "LAUNCHED"
 }
 
-@test "claude-hamiltonian: passes the task list id through to the binary" {
-    mkdir -p "$TEST_HOME/.claude-hamiltonian/tasks/explicit"
+@test "claude-alpha: passes the task list id through to the binary" {
+    setup_extra_account
+    mkdir -p "$TEST_HOME/.claude-alpha/tasks/explicit"
     setup_test_repo "$TEST_HOME/myrepo"
     setup_recording_claude
     load_zshrc_claude_functions
 
     # アカウント (関数) とタスクリスト (前置) が直交して合成できることを pin する。
     # 前置値は導出値と衝突しない名前にする
-    CLAUDE_CODE_TASK_LIST_ID=explicit run_in_dir "$TEST_HOME/myrepo" claude-hamiltonian
+    CLAUDE_CODE_TASK_LIST_ID=explicit run_in_dir "$TEST_HOME/myrepo" claude-alpha
 
     [ "$status" -eq 0 ]
     local recorded
     recorded="$(cat "$RECORDED_LAUNCH")"
-    assert_contains "$recorded" "CONFIG_DIR=$TEST_HOME/.claude-hamiltonian"
+    assert_contains "$recorded" "CONFIG_DIR=$TEST_HOME/.claude-alpha"
     assert_contains "$recorded" "TASK_LIST=explicit"
     refute_contains "$recorded" "TASK_LIST=myrepo"
 }
 
-@test "claude-hamiltonian: passes the derived task list id to the binary" {
-    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+@test "claude-alpha: passes the derived task list id to the binary" {
+    setup_extra_account
     setup_test_repo "$TEST_HOME/myrepo"
     setup_recording_claude
     load_zshrc_claude_functions
 
-    run_in_dir "$TEST_HOME/myrepo" claude-hamiltonian
+    run_in_dir "$TEST_HOME/myrepo" claude-alpha
 
     [ "$status" -eq 0 ]
     local recorded
     recorded="$(cat "$RECORDED_LAUNCH")"
-    assert_contains "$recorded" "CONFIG_DIR=$TEST_HOME/.claude-hamiltonian"
+    assert_contains "$recorded" "CONFIG_DIR=$TEST_HOME/.claude-alpha"
     assert_contains "$recorded" "TASK_LIST=myrepo"
 }
 
-@test "claude-hamiltonian: leaves the variable unset when nothing can be derived" {
-    # 空ガードは 2 つのランチャに重複して存在する。片方だけを pin すると
-    # もう片方は変異させても緑のままになり、仕事アカウントだけが退行できてしまう
-    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+@test "claude-alpha: leaves the variable unset when nothing can be derived" {
+    # 空ガードはランチャごとに複製される。生成側を pin しないと、生成テンプレート
+    # だけが空ガードを落とす退行が緑で通る
+    setup_extra_account
     setup_recording_claude
     load_zshrc_claude_functions
 
-    run_in_dir / claude-hamiltonian
+    run_in_dir / claude-alpha
 
     [ "$status" -eq 0 ]
     local recorded
@@ -435,12 +626,12 @@ teardown() {
     refute_contains "$recorded" "TASK_LIST="
 }
 
-@test "claude-hamiltonian: warns about an unknown task list but still launches" {
-    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+@test "claude-alpha: warns about an unknown task list but still launches" {
+    setup_extra_account
     setup_recording_claude
     load_zshrc_claude_functions
 
-    CLAUDE_CODE_TASK_LIST_ID=typo run claude-hamiltonian
+    CLAUDE_CODE_TASK_LIST_ID=typo run claude-alpha
 
     [ "$status" -eq 0 ]
     assert_contains "$output" "新しいタスクリストを作成します: typo"
@@ -448,7 +639,7 @@ teardown() {
 }
 
 # =============================================================================
-# claude-dev / claude-hamiltonian-dev (開発版の skill と plugin を読む)
+# claude-dev / claude-alpha-dev (開発版の skill と plugin を読む)
 # =============================================================================
 #
 # 既定の claude は skill を apm が配置したコピーから読むが、plugin は同名の marketplace
@@ -456,10 +647,11 @@ teardown() {
 # agentic-coding-tools を直しながら試すときだけ開発版 (作業ツリーの実体) を読む。
 # パッケージ一覧は列挙せず実体から拾うため、増減しても追随する。
 #
-# アカウント (個人 / 仕事) と版 (安定 / 開発) は直交する 2 軸で、4 通りを 4 つの
-# 関数で表す。収集とガードは共通ヘルパーに 1 つだけ置くが、テストは両ランチャで
-# 重複して pin する。片方だけを pin すると、もう片方はヘルパーの呼び出しを外しても
-# 緑のままになり、仕事アカウントだけが退行できてしまう。
+# アカウント (既定 / 追加) と版 (安定 / 開発) は直交する 2 軸。既定側の 2 つは静的
+# 定義、追加側の 2 つは設定ファイルから生成される。収集とガードは共通ヘルパーに
+# 1 つだけ置くが、テストは両ランチャで重複して pin する。片方だけを pin すると、
+# もう片方はヘルパーの呼び出しを外しても緑のままになり、追加アカウント側だけが
+# 退行できてしまう。
 
 # 開発版リポジトリの最小構成。plugin (深さ 1) と skill (カテゴリを挟んで深さ 2) の
 # 両方を置き、拾ってはいけないものを 3 種類混ぜる。3 種類あるのは選別条件が 3 つ
@@ -659,110 +851,111 @@ setup_dev_packages() {
     refute_contains "$(cat "$RECORDED_LAUNCH")" "LAUNCHED"
 }
 
-@test "claude-hamiltonian-dev: pins the work account and passes the dev plugin dirs" {
+@test "claude-alpha-dev: pins the extra account and passes the dev plugin dirs" {
     # アカウント (関数) と版 (安定 / 開発) が直交して合成できることを pin する。
-    # 開発版を仕事アカウントで使いたい場面があるため、個人側だけの機能にしない
-    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+    # 開発版を追加アカウントで使いたい場面があるため、既定側だけの機能にしない
+    setup_extra_account
     setup_dev_packages
     setup_recording_claude
     load_zshrc_claude_functions
 
-    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-hamiltonian-dev
+    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-alpha-dev
 
     [ "$status" -eq 0 ]
     local recorded
     recorded="$(cat "$RECORDED_LAUNCH")"
-    assert_contains "$recorded" "CONFIG_DIR=$TEST_HOME/.claude-hamiltonian"
+    assert_contains "$recorded" "CONFIG_DIR=$TEST_HOME/.claude-alpha"
     assert_contains "$recorded" "--plugin-dir $TEST_HOME/agentic/plugins/dev-workflow"
     assert_contains "$recorded" "--plugin-dir $TEST_HOME/agentic/skills/tooling/herdr"
 }
 
-@test "claude-hamiltonian-dev: pins its own account over an externally given config dir" {
-    # 安定版のランチャと同じ規約。前置に引きずられて個人側で起動したら、
-    # 仕事用として呼んだ意味が消える
-    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+@test "claude-alpha-dev: pins its own account over an externally given config dir" {
+    # 素のランチャと同じ規約。前置に引きずられて既定側で起動したら、
+    # 追加アカウント用として呼んだ意味が消える
+    setup_extra_account
     setup_dev_packages
     setup_recording_claude
     load_zshrc_claude_functions
 
-    CLAUDE_CONFIG_DIR="$TEST_HOME/.claude" AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-hamiltonian-dev
+    CLAUDE_CONFIG_DIR="$TEST_HOME/.claude" AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-alpha-dev
 
     [ "$status" -eq 0 ]
-    assert_contains "$(cat "$RECORDED_LAUNCH")" "CONFIG_DIR=$TEST_HOME/.claude-hamiltonian"
+    assert_contains "$(cat "$RECORDED_LAUNCH")" "CONFIG_DIR=$TEST_HOME/.claude-alpha"
 }
 
-@test "claude-hamiltonian-dev: fails without launching when the repository is missing" {
-    # ガードの実体は共通ヘルパーにあるが、片方のランチャからしか呼ばれていない
-    # 配線ミスは、もう片方を pin しないと検出できない
-    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+@test "claude-alpha-dev: fails without launching when the repository is missing" {
+    # ガードの実体は共通ヘルパーにあるが、生成テンプレート側が呼び出しを落とす
+    # 配線ミスは、生成されたランチャを pin しないと検出できない
+    setup_extra_account
     setup_recording_claude
     load_zshrc_claude_functions
 
-    AGENTIC_TOOLS_DIR="$TEST_HOME/nonexistent" run claude-hamiltonian-dev
+    AGENTIC_TOOLS_DIR="$TEST_HOME/nonexistent" run claude-alpha-dev
 
     [ "$status" -ne 0 ]
     assert_contains "$output" "開発版のリポジトリが見つかりません"
     refute_contains "$(cat "$RECORDED_LAUNCH")" "LAUNCHED"
 }
 
-@test "claude-hamiltonian-dev: fails without launching when no package is found" {
-    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+@test "claude-alpha-dev: fails without launching when no package is found" {
+    setup_extra_account
     # 置き場は両方あるが中身が無い形にする。手前の探索根チェックで落ちると
     # 0 件ガードを壊しても緑のままになり、狙った検査を pin できない
     mkdir -p "$TEST_HOME/empty-repo/plugins" "$TEST_HOME/empty-repo/skills"
     setup_recording_claude
     load_zshrc_claude_functions
 
-    AGENTIC_TOOLS_DIR="$TEST_HOME/empty-repo" run claude-hamiltonian-dev
+    AGENTIC_TOOLS_DIR="$TEST_HOME/empty-repo" run claude-alpha-dev
 
     [ "$status" -ne 0 ]
     assert_contains "$output" "開発版のパッケージが見つかりません"
     refute_contains "$(cat "$RECORDED_LAUNCH")" "LAUNCHED"
 }
 
-@test "claude-hamiltonian-dev: forwards its arguments to the binary" {
-    # 個人側にしか転送のテストが無いと、仕事側だけ "$@" を落とす退行が緑で通る
-    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+@test "claude-alpha-dev: forwards its arguments to the binary" {
+    # 既定側にしか転送のテストが無いと、生成テンプレートだけ "$@" を落とす退行が緑で通る
+    setup_extra_account
     setup_dev_packages
     setup_recording_claude
     load_zshrc_claude_functions
 
-    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-hamiltonian-dev --resume foo
+    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-alpha-dev --resume foo
 
     [ "$status" -eq 0 ]
     assert_contains "$(cat "$RECORDED_LAUNCH")" "--resume foo"
 }
 
-@test "claude-hamiltonian-dev: fails without launching when its own config dir is missing" {
-    # claude-hamiltonian を経由せずアカウント固定だけを手元へ写すと、仕事側の
+@test "claude-alpha-dev: fails without launching when its own config dir is missing" {
+    # 素のランチャを経由せずアカウント固定だけを手元へ写すと、追加アカウント側の
     # 設定ディレクトリ検査が落ちる。不在のまま起動すると初期状態の設定が作られる
+    write_config_dirs_file '.claude-alpha'
     setup_dev_packages
     setup_recording_claude
     load_zshrc_claude_functions
 
-    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-hamiltonian-dev
+    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run claude-alpha-dev
 
     [ "$status" -ne 0 ]
     assert_contains "$output" "設定ディレクトリが見つかりません"
     refute_contains "$(cat "$RECORDED_LAUNCH")" "LAUNCHED"
 }
 
-@test "claude-hamiltonian-dev: derives the task list id through the claude-hamiltonian function" {
-    # 個人側と同じ理由で委譲そのものを pin する。ガードは共通ヘルパーにあるが、
-    # 委譲先は 2 つの関数で別々なので片方だけでは配線ミスを検出できない
-    mkdir -p "$TEST_HOME/.claude-hamiltonian"
+@test "claude-alpha-dev: derives the task list id through the generated base launcher" {
+    # 既定側と同じ理由で委譲そのものを pin する。ガードは共通ヘルパーにあるが、
+    # 委譲先は関数ごとに別々なので片方だけでは配線ミスを検出できない
+    setup_extra_account
     setup_test_repo "$TEST_HOME/myrepo"
     setup_dev_packages
     setup_recording_claude
     load_zshrc_claude_functions
 
-    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run_in_dir "$TEST_HOME/myrepo" claude-hamiltonian-dev
+    AGENTIC_TOOLS_DIR="$TEST_HOME/agentic" run_in_dir "$TEST_HOME/myrepo" claude-alpha-dev
 
     [ "$status" -eq 0 ]
     local recorded
     recorded="$(cat "$RECORDED_LAUNCH")"
     assert_contains "$recorded" "TASK_LIST=myrepo"
-    assert_contains "$recorded" "CONFIG_DIR=$TEST_HOME/.claude-hamiltonian"
+    assert_contains "$recorded" "CONFIG_DIR=$TEST_HOME/.claude-alpha"
 }
 
 # =============================================================================
