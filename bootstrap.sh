@@ -628,6 +628,87 @@ setup_dotfiles() {
     log "Dotfiles setup complete!"
 }
 
+# bootstrap が管理する symlink の target ($HOME 相対) を 1 行 1 件で出力する。
+# 配列 2 つに加えて、追加の設定ディレクトリ向けに生成される mirror pair と
+# ホーム内共有 pair も含める。集合を配列の直読みだけで組むと生成分が漏れ、
+# 生きている 2 アカウント側のリンクを stale と誤認する。
+current_symlink_targets() {
+    local pair dir
+    for pair in "${SYMLINK_PAIRS[@]}" "${APM_SYMLINK_PAIRS[@]}"; do
+        printf '%s\n' "${pair##*|}"
+    done
+
+    # mirror の導出は claude_mirror_pairs が canonical (どの target を張るかの判定を含む)。
+    # 張る側と違い source の由来で分ける必要は無いので、両配列をまとめて渡す
+    while IFS= read -r dir; do
+        while IFS= read -r pair; do
+            printf '%s\n' "${pair##*|}"
+        done < <(claude_mirror_pairs "$dir" "${SYMLINK_PAIRS[@]}" "${APM_SYMLINK_PAIRS[@]}")
+    done < <(claude_extra_config_dirs)
+
+    while IFS= read -r pair; do
+        printf '%s\n' "${pair##*|}"
+    done < <(claude_home_symlink_pairs)
+}
+
+# stdin の target ($HOME 相対) 列から、stale 検出で走査する親ディレクトリを
+# 絶対パス・重複無しで出力する。target 自身ではなく親を返すのは、配列から消えた
+# pair の残骸はもう集合に無く、位置は「今の target と同じディレクトリ」としか
+# 推定できないため。$HOME 全体の再帰走査は巨大なツリー (Library 等) を歩くうえ
+# 管理と無縁の場所まで候補に入れてしまうので採らない。
+symlink_scan_dirs() {
+    local target
+    while IFS= read -r target; do
+        case "$target" in
+            # "$HOME/." のような "." 成分を作らない。走査結果のパスに "." が挟まると
+            # $HOME 相対へ戻したとき target 集合と照合できず、生きたリンクを撤去する
+            */*) printf '%s\n' "$HOME/${target%/*}" ;;
+            *) printf '%s\n' "$HOME" ;;
+        esac
+    done | sort -u
+}
+
+# 配列から消えた pair の残骸 (stale symlink) を backup へ退避する（冪等）。
+# bootstrap は過去に張った symlink の記録を持たないため、検出は「リンク先が
+# $DOTFILES_DIR 配下 かつ 現在の target 集合に無い」に限定する (ユーザーが
+# 手で張った無関係な symlink を殺さないため)。
+# 判定は readlink が返すリテラルで行い、[ -e ] のような実体解決に依存する検査を
+# 使わない。撤去対象は参照先が既に消えている dangling が典型で、実体解決だと
+# まさに撤去すべきリンクが検査を素通りする。
+prune_stale_symlinks() {
+    # 設定ファイルが未作成のまま走らせると、生きている 2 アカウント側のリンクが
+    # 集合に現れず stale と誤認される。$HOME 直下に追加の設定ディレクトリが実在する
+    # のに設定ファイルが無い場合は警告して撤去だけを skip する。
+    # 存在検査はグロブを裸で展開せず find で行う (.zshrc の同じ検査と規約を揃える。
+    # zsh は nomatch が既定で有効なため不一致の裸グロブがエラーになる)
+    if [ ! -f "$CLAUDE_CONFIG_DIRS_FILE" ] \
+        && [ -n "$(find "$HOME" -maxdepth 1 -type d -name '.claude-*' -print -quit 2> /dev/null)" ]; then
+        warn "追加の設定ディレクトリがありますが設定ファイルが無いため stale symlink の撤去を skip します: $CLAUDE_CONFIG_DIRS_FILE"
+        return 0
+    fi
+
+    local targets
+    targets="$(current_symlink_targets)"
+
+    local scan_dir link dest rel
+    while IFS= read -r scan_dir; do
+        [ -d "$scan_dir" ] || continue
+        # パスは NUL 区切りで受け取る (空白や日本語を含むパスの分断を防ぐ)
+        while IFS= read -r -d '' link; do
+            dest="$(readlink "$link")" || continue
+            case "$dest" in
+                "$DOTFILES_DIR"/*) ;;
+                *) continue ;;
+            esac
+            rel="${link#"$HOME"/}"
+            if printf '%s\n' "$targets" | grep -qxF "$rel"; then
+                continue
+            fi
+            backup_file "$link"
+        done < <(find "$scan_dir" -maxdepth 1 -type l -print0 2> /dev/null)
+    done < <(printf '%s\n' "$targets" | symlink_scan_dirs)
+}
+
 # LaunchAgent plist をプレースホルダ置換してレンダリング（冪等）
 render_launch_agent_plist() {
     local template="$1"
@@ -856,6 +937,11 @@ main() {
 
     # dotfiles セットアップ
     setup_dotfiles
+
+    # 配列から消えた pair の残骸を退避する。集合は pair の定義 (配列 + 生成) から
+    # 組むので setup との順序に依存しないが、張り終えた状態を最後に整える意図で後置。
+    # symlink 管理の一部なので --dotfiles-only でも走る
+    prune_stale_symlinks
 
     # mise の pin ツールと apm スキルを実体化する。
     # mise install は config.toml の symlink 後でなければならない（setup_dotfiles が張る）。

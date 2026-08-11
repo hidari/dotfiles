@@ -1147,6 +1147,136 @@ uncovered_symlink_targets() {
 }
 
 # =============================================================================
+# prune_stale_symlinks tests (配列から消えた pair の残骸の撤去)
+# =============================================================================
+#
+# bootstrap は過去に張った symlink の記録を持たないため、撤去は「リンク先が
+# $DOTFILES_DIR 配下 かつ 現在の target 集合に無い」リンクに限る。集合は配列
+# 2 つだけでなく、追加の設定ディレクトリ向けに生成される mirror pair も含む。
+# 関数は実配列 (SYMLINK_PAIRS / APM_SYMLINK_PAIRS) をグローバル参照するので、
+# 各テストは load_pairs_array で実物を読み込んでから呼ぶ。
+
+# prune 系テスト共通のセットアップ。実配列 2 つを読み込む。
+load_prune_arrays() {
+    load_pairs_array SYMLINK_PAIRS
+    load_pairs_array APM_SYMLINK_PAIRS
+}
+
+@test "prune_stale_symlinks: moves a dotfiles-owned link that left the pair set into the backup" {
+    load_prune_arrays
+    mkdir -p "$TEST_HOME/.config"
+    # fixture に home/.config/gone は無いので dangling になる (意図的)。
+    # 撤去対象の典型は参照先が既に消えた dangling で、実体解決 ([ -e ] 等) で
+    # 判定する実装はこのリンクを素通りするため、ここが readlink リテラル判定の pin
+    ln -s "$DOTFILES_DIR/home/.config/gone" "$TEST_HOME/.config/gone"
+
+    run prune_stale_symlinks
+
+    [ "$status" -eq 0 ]
+    [ ! -L "$TEST_HOME/.config/gone" ]
+    # rm ではなく backup へ退避される。リンク自体が (実体解決されずに) 移動され、
+    # 指し先のリテラルも保たれること
+    [ -L "$BACKUP_DIR/.config/gone" ]
+    [ "$(readlink "$BACKUP_DIR/.config/gone")" = "$DOTFILES_DIR/home/.config/gone" ]
+    # 設定ファイルが無くても追加の設定ディレクトリが無ければ警告せず撤去は走る
+    # (「設定ファイル不在 = 常に skip」の実装だとここで赤くなる)
+    refute_contains "$output" "claude-config-dirs"
+}
+
+@test "prune_stale_symlinks: prunes a live stale link too (membership, not resolvability, decides)" {
+    load_prune_arrays
+    # fixture に home/.gitconfig は実在する。参照先が生きていても target 集合に
+    # 無ければ残骸なので撤去する (dangling だけを対象にする実装だとここで赤くなる)
+    ln -s "$DOTFILES_DIR/home/.gitconfig" "$TEST_HOME/.gitconfig-old"
+
+    run prune_stale_symlinks
+
+    [ "$status" -eq 0 ]
+    [ ! -L "$TEST_HOME/.gitconfig-old" ]
+    [ -L "$BACKUP_DIR/.gitconfig-old" ]
+}
+
+@test "prune_stale_symlinks: keeps links that are still in the pair set" {
+    load_prune_arrays
+    # setup_test_home は symlink を 1 本も張らないので、保持を検査するには自分で張る。
+    # 張らずに [ -L ] を見ると「保持された」ではなく「元から無い」で必ず落ち、
+    # 実装が何であっても赤になる (= 検査対象を見ていない)
+    ln -s "$DOTFILES_DIR/home/.zshrc" "$TEST_HOME/.zshrc"
+    # APM_SYMLINK_PAIRS 側の target も集合に入ること (fixture に source が無く
+    # dangling だが、集合にある限り生死を問わず保持される)
+    ln -s "$DOTFILES_DIR/home/.claude/agents" "$TEST_HOME/.claude/agents"
+
+    run prune_stale_symlinks
+
+    [ "$status" -eq 0 ]
+    [ -L "$TEST_HOME/.zshrc" ]
+    [ -L "$TEST_HOME/.claude/agents" ]
+}
+
+@test "prune_stale_symlinks: keeps generated mirror targets for configured extra dirs" {
+    load_prune_arrays
+    # 集合は配列の直読みでは決まらない。設定された追加ディレクトリ向けに生成される
+    # mirror pair (SYMLINK_PAIRS 由来 + APM_SYMLINK_PAIRS 由来) も含むこと。
+    # 生成分が漏れる実装は、生きている 2 アカウント側のリンクを stale と誤認する
+    write_config_dirs_file '.claude-alpha'
+    mkdir -p "$TEST_HOME/.claude-alpha"
+    ln -s "$DOTFILES_DIR/home/.claude/settings.json" "$TEST_HOME/.claude-alpha/settings.json"
+    ln -s "$DOTFILES_DIR/home/.claude/agents" "$TEST_HOME/.claude-alpha/agents"
+    # 意図的に mirror しない target (claude_mirrored_target の除外集合) は生成されない
+    # ので、残骸があれば撤去される側 (旧配列時代の残骸の典型)
+    ln -s "$DOTFILES_DIR/home/.claude/hooks" "$TEST_HOME/.claude-alpha/hooks"
+
+    run prune_stale_symlinks
+
+    [ "$status" -eq 0 ]
+    [ -L "$TEST_HOME/.claude-alpha/settings.json" ]
+    [ -L "$TEST_HOME/.claude-alpha/agents" ]
+    [ ! -L "$TEST_HOME/.claude-alpha/hooks" ]
+    [ -L "$BACKUP_DIR/.claude-alpha/hooks" ]
+}
+
+@test "prune_stale_symlinks: keeps links that point outside DOTFILES_DIR" {
+    load_prune_arrays
+    # ユーザーが手で張った無関係なリンクを殺さない。判定はリンク先が
+    # $DOTFILES_DIR 配下かどうかで行う
+    mkdir -p "$TEST_HOME/elsewhere" "$TEST_HOME/.config"
+    ln -s "$TEST_HOME/elsewhere" "$TEST_HOME/.config/user-owned"
+
+    run prune_stale_symlinks
+
+    [ "$status" -eq 0 ]
+    [ -L "$TEST_HOME/.config/user-owned" ]
+}
+
+@test "prune_stale_symlinks: is skipped with a warning when extra dirs exist but the config file does not" {
+    load_prune_arrays
+    # 設定ファイルが未作成のまま走らせると、生きている 2 アカウント側のリンクが
+    # 集合に現れず stale と誤認される。ディレクトリの実在だけが分かるこの状態では
+    # 警告して撤去そのものを skip する
+    mkdir -p "$TEST_HOME/.claude-alpha" "$TEST_HOME/.config"
+    ln -s "$DOTFILES_DIR/home/.config/gone" "$TEST_HOME/.config/gone"
+
+    run prune_stale_symlinks
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "claude-config-dirs"
+    [ -L "$TEST_HOME/.config/gone" ]
+}
+
+@test "prune_stale_symlinks: dry-run previews the backup without removing" {
+    load_prune_arrays
+    mkdir -p "$TEST_HOME/.config"
+    ln -s "$DOTFILES_DIR/home/.config/gone" "$TEST_HOME/.config/gone"
+    DRY_RUN=true
+
+    run prune_stale_symlinks
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "[DRY-RUN] backup $TEST_HOME/.config/gone"
+    [ -L "$TEST_HOME/.config/gone" ]
+}
+
+# =============================================================================
 # install_brew_packages tests (Brewfile ツールの brew bundle)
 # =============================================================================
 
@@ -1338,6 +1468,21 @@ STUB
     refute_contains "$output" "apm source not found"
     # gate の positive 対照 (vacuous な全 skip でないことを担保)
     assert_contains "$output" "[DRY-RUN] ln -sf"
+}
+
+@test "main: dry-run wires stale symlink pruning into the flow" {
+    # 関数が揃っていてもフローから呼ばれなければ残骸は消えない。
+    # 個々の関数テストは緑のまま dead code になるため、結線そのものを pin する。
+    # --dotfiles-only でも撤去は走る (symlink 管理の一部であってツール導入ではない)
+    mkdir -p "$TEST_HOME/.config"
+    ln -s "$DOTFILES_DIR/home/.config/gone" "$TEST_HOME/.config/gone"
+
+    run bash "$BOOTSTRAP_SCRIPT" --dry-run --dotfiles-only
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "[DRY-RUN] backup $TEST_HOME/.config/gone"
+    # dry-run は preview のみで実際には撤去しない
+    [ -L "$TEST_HOME/.config/gone" ]
 }
 
 @test "main: confirm prompt discloses the LaunchAgent before install" {

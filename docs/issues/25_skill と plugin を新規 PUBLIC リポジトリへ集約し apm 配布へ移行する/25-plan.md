@@ -323,7 +323,8 @@ git 管理下でなくなったため、この配列に置いたままにする�
 
 - Consumes: Task 1 が作った `home/.claude/{skills,agents,commands}` の実体
 - Produces: `APM_SYMLINK_PAIRS` 配列と `setup_apm_symlinks()` 関数。Phase 3b の Task 9
-  (stale 撤去) は両配列と `HOME_SYMLINK_PAIRS` を合わせた「現在の target 集合」を使う
+  (stale 撤去) は「現在の target 集合」を使う。この集合は Task 7 以降、両配列の target に
+  加えて生成される mirror pair も含む (`HOME_SYMLINK_PAIRS` は Task 7 で配列ごと廃止した)
 
 - [ ] **Step 1: 失敗するテストを書く**
 
