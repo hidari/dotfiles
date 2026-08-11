@@ -42,7 +42,7 @@ Phase 3b 自身が「配列 2 + 生成 0」から「配列 2 + 生成 2」へカ
 
 ## 関連
 
-- [Issue #25: skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する](../25_skill%20と%20plugin%20を新規%20PUBLIC%20リポジトリへ集約し%20apm%20配布へ移行する/issue.md)
+- [Issue #25: skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する](../closed/25_skill%20と%20plugin%20を新規%20PUBLIC%20リポジトリへ集約し%20apm%20配布へ移行する/issue.md)
   この構造を持ち込んだ Phase 3b の Issue。マージ前ゲートが検出したが、重要な設計判断を
   要するため別タスクとした
 - [Issue #33: 設定から外した Claude 設定ディレクトリの symlink が撤去されない](../33_設定から外した%20Claude%20設定ディレクトリの%20symlink%20が撤去されない/issue.md)
