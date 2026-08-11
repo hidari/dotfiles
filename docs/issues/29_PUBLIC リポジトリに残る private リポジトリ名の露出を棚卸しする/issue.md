@@ -67,6 +67,6 @@ private リポジトリ名の denylist は PUBLIC リポジトリでは自己矛
 - [Issue #21: PUBLIC リポジトリに露出している個人情報と private リポジトリ情報を棚卸しする](../21_PUBLIC%20リポジトリに露出している個人情報と%20private%20リポジトリ情報を棚卸しする/issue.md)
   露出の除去は #21 の管轄。本 Issue は #21 の一覧から抜けている項目を埋めるためのもので、
   #21 へ統合してもよい
-- [Issue #25: skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する](../25_skill%20と%20plugin%20を新規%20PUBLIC%20リポジトリへ集約し%20apm%20配布へ移行する/issue.md)
+- [Issue #25: skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する](../closed/25_skill%20と%20plugin%20を新規%20PUBLIC%20リポジトリへ集約し%20apm%20配布へ移行する/issue.md)
   検出元。#25 の Phase 4 のゲートがこの露出を見つけた。追加の設定ディレクトリ名の
   露出は #25 の Phase 3b が扱う

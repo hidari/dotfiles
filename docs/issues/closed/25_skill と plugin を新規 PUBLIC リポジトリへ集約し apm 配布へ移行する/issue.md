@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: closed
 ---
 
 # refactor: skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する
@@ -90,9 +90,14 @@ plugin 認識が同時に成立する。marketplace の宣言も `settings.json`
 
 ### Phase 3b: 設定ディレクトリの外部化
 
-- [ ] 設定ディレクトリ一覧の読み込みを `bootstrap.sh` と `home/.zshrc` へ入れる
-- [ ] stale symlink の撤去を `bootstrap.sh` に実装する
-- [ ] テストをパラメータ化し、任意の名前で動くことを検証する形にする
+- [x] 設定ディレクトリ一覧の読み込みを `bootstrap.sh` と `home/.zshrc` へ入れる
+- [x] stale symlink の撤去を `bootstrap.sh` に実装する
+- [x] テストをパラメータ化し、任意の名前で動くことを検証する形にする
+
+背景の 4 で予告した現在値を、同じ検索式のまま revision だけ変えて数え直した結果:
+main の追跡ツリーは 8 ファイル 107 行、closed 配下を除くと 6 ファイル 90 行。Phase 3b 完了後は
+closed 配下の 2 ファイル 17 行だけが残り、それを除くと 0 件になった。closed を対象外にするのは
+過去の記録を後から書き換えないためで、履歴に残る分は消えないという当初の想定は変わらない。
 
 ### Phase 4: 後始末
 
@@ -115,19 +120,25 @@ plugin 認識が同時に成立する。marketplace の宣言も `settings.json`
 
 ## 関連
 
-- [Issue #8: refactor: settings.json の live 専用パスを変数化して skip-worktree を解消する](../closed/8_settings.json%20の%20live%20専用パスを変数化して%20skip-worktree%20を解消する/issue.md)
+- [Issue #8: refactor: settings.json の live 専用パスを変数化して skip-worktree を解消する](../8_settings.json%20の%20live%20専用パスを変数化して%20skip-worktree%20を解消する/issue.md)
   本 Issue の帰結として解ける。marketplace の絶対パスが消え、hook パスを `$HOME` 参照に変えれば
   skip-worktree の理由が両方なくなる
-- [Issue #21: PUBLIC リポジトリに露出している個人情報と private リポジトリ情報を棚卸しする](../21_PUBLIC%20リポジトリに露出している個人情報と%20private%20リポジトリ情報を棚卸しする/issue.md)
+- [Issue #21: PUBLIC リポジトリに露出している個人情報と private リポジトリ情報を棚卸しする](../../21_PUBLIC%20リポジトリに露出している個人情報と%20private%20リポジトリ情報を棚卸しする/issue.md)
   露出の除去は #21、構造の変更は本 Issue という分担。ただし #21 の露出一覧に
   「追加の設定ディレクトリ名の露出」が漏れているため、#21 側への追記が必要
-- [Issue #26: refactor: Claude Code フックの共通基盤を集約する](../26_Claude%20Code%20フックの共通基盤を集約する/issue.md)
+- [Issue #26: refactor: Claude Code フックの共通基盤を集約する](../../26_Claude%20Code%20フックの共通基盤を集約する/issue.md)
   Phase 3a のレビューで検出したフック周りの重複。本 Issue のスコープを超えるため分けた
-- [Issue #29: refactor: PUBLIC リポジトリに残る private リポジトリ名の露出を棚卸しする](../29_PUBLIC%20リポジトリに残る%20private%20リポジトリ名の露出を棚卸しする/issue.md)
+- [Issue #29: refactor: PUBLIC リポジトリに残る private リポジトリ名の露出を棚卸しする](../../29_PUBLIC%20リポジトリに残る%20private%20リポジトリ名の露出を棚卸しする/issue.md)
   Phase 4 のゲートが検出。本 Issue の露出の棚卸しは追加の設定ディレクトリ名しか数えておらず、
   private リポジトリ名の現ツリー露出が抜けていた
-- [Issue #30: feat: Markdown 内のシェルスニペットを構文検査する](../30_Markdown%20内のシェルスニペットを構文検査する/issue.md)
+- [Issue #30: feat: Markdown 内のシェルスニペットを構文検査する](../../30_Markdown%20内のシェルスニペットを構文検査する/issue.md)
   Phase 4 の伏字化で実際にスニペットを壊した。既存の検査はどれも Markdown 内のコードブロックを
   見ておらず、検出はゲートの目視に依存していた
-- [Issue #31: docs: spec が参照する bootstrap.sh の関数名と行番号を実体に合わせる](../31_spec%20が参照する%20bootstrap.sh%20の関数名と行番号を実体に合わせる/issue.md)
+- [Issue #31: docs: spec が参照する bootstrap.sh の関数名と行番号を実体に合わせる](../../31_spec%20が参照する%20bootstrap.sh%20の関数名と行番号を実体に合わせる/issue.md)
   Phase 4 のゲートが検出。25-spec.md 自身が持つ rot
+- [Issue #32: refactor: symlink pair の列挙を張る側と数える側で共有する](../../32_symlink%20pair%20の列挙を張る側と数える側で共有する/issue.md)
+  Phase 3b のゲートが検出。本 Issue が「配列 2 + 生成 0」から「配列 2 + 生成 2」へ
+  カテゴリを増やしたことで、張る側と数える側の二重知識が実害を持つようになった
+- [Issue #33: fix: 設定から外した Claude 設定ディレクトリの symlink が撤去されない](../../33_設定から外した%20Claude%20設定ディレクトリの%20symlink%20が撤去されない/issue.md)
+  Phase 3b のゲートが検出。Task 9 で実装した stale 撤去が、削除イベントを原理的に
+  見られないという盲点を持つ

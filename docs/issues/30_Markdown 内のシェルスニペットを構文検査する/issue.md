@@ -36,6 +36,6 @@ CLAUDE.md は「静的検査可能なルールはプロンプトではなく、�
 
 ## 関連
 
-- [Issue #25: skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する](../25_skill%20と%20plugin%20を新規%20PUBLIC%20リポジトリへ集約し%20apm%20配布へ移行する/issue.md)
+- [Issue #25: skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する](../closed/25_skill%20と%20plugin%20を新規%20PUBLIC%20リポジトリへ集約し%20apm%20配布へ移行する/issue.md)
   検出元。25-plan.md の Step 9 で実際に踏んだ。同 plan の冒頭には、再発を防ぐための
   散文の注意書きを入れてあるが、これは静的検査の代わりにはならない
