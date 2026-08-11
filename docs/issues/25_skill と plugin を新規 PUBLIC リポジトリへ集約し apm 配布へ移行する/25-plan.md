@@ -1520,7 +1520,7 @@ inventory) だけで判定しない。
 claude plugin list --json > .cache/t6-plugins.json 2>&1
 ```
 
-二重ロードで修飾名の解決が壊れている場合は、Phase 4 の項目 18 (marketplace 宣言の削除) を
+二重ロードで修飾名の解決が壊れている場合は、Phase 4 の項目 19 (marketplace 宣言の削除) を
 Phase 3a へ前倒す。壊れていなければ spec の順序どおり Phase 4 に残す。
 
 - [ ] **Step 6: issue.md のチェックを更新する**
@@ -1577,8 +1577,8 @@ Phase 3a のマージ後に着手する。以下は設計の確定分であり�
 
 **Files:**
 
-- Modify: `bootstrap.sh` (`claude_config_dirs()` 追加 / `SYMLINK_PAIRS` から hamiltonian 3 行を削除 /
-  mirror pair の生成 / `HOME_SYMLINK_PAIRS` の 1 行を生成へ)
+- Modify: `bootstrap.sh` (`claude_config_dirs()` 追加 / `SYMLINK_PAIRS` と `APM_SYMLINK_PAIRS` から
+  追加の設定ディレクトリ向けエントリを削除 / mirror pair の生成 / `HOME_SYMLINK_PAIRS` の 1 行を生成へ)
 - Test: `scripts/tests/bootstrap.bats`
 
 - [ ] **Step 1: 失敗するテストを書く**
@@ -1658,7 +1658,8 @@ claude_config_dirs() {
 }
 ```
 
-`SYMLINK_PAIRS` から hamiltonian の 3 行を削除し、`setup_dotfiles` で mirror pair を生成する。
+`SYMLINK_PAIRS` と `APM_SYMLINK_PAIRS` から追加の設定ディレクトリ向けのエントリを削除し、
+`setup_dotfiles` で mirror pair を生成する。
 生成対象は「既定の `.claude` へ張る pair のうち、2 アカウント側にも要るもの」。現行の
 allowlist (`settings.json` / `CLAUDE.md`) と `APM_SYMLINK_PAIRS` の 3 ディレクトリが対象になる。
 
