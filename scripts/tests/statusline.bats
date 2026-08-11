@@ -45,10 +45,10 @@ expected_tag_for() {
 @test "account_config_dir: returns CLAUDE_CONFIG_DIR when it is set" {
     load_statusline_functions
 
-    CLAUDE_CONFIG_DIR="$TEST_HOME/.claude-hamiltonian" run account_config_dir
+    CLAUDE_CONFIG_DIR="$TEST_HOME/.claude-alpha" run account_config_dir
 
     [ "$status" -eq 0 ]
-    [ "$output" = "$TEST_HOME/.claude-hamiltonian" ]
+    [ "$output" = "$TEST_HOME/.claude-alpha" ]
 }
 
 # =============================================================================
@@ -66,7 +66,7 @@ expected_tag_for() {
 
 @test "account_tag: returns the sha256 prefix for a custom config directory" {
     load_statusline_functions
-    local custom="$TEST_HOME/.claude-hamiltonian"
+    local custom="$TEST_HOME/.claude-alpha"
     local expected
     expected="$(expected_tag_for "$custom")"
 
@@ -82,7 +82,7 @@ expected_tag_for() {
     # キャッシュ分離の土台。ここが同じ値を返すと 2 アカウントが同じキャッシュを共有する
     load_statusline_functions
 
-    run account_tag "$TEST_HOME/.claude-hamiltonian"
+    run account_tag "$TEST_HOME/.claude-alpha"
     local first="$output"
     run account_tag "$TEST_HOME/.claude-other"
     local second="$output"
@@ -131,10 +131,10 @@ expected_tag_for() {
 @test "account_json_path: points inside the config dir for a custom account" {
     load_statusline_functions
 
-    run account_json_path "$TEST_HOME/.claude-hamiltonian"
+    run account_json_path "$TEST_HOME/.claude-alpha"
 
     [ "$status" -eq 0 ]
-    [ "$output" = "$TEST_HOME/.claude-hamiltonian/.claude.json" ]
+    [ "$output" = "$TEST_HOME/.claude-alpha/.claude.json" ]
 }
 
 # =============================================================================
@@ -195,7 +195,7 @@ expected_tag_for() {
 # =============================================================================
 
 @test "statusline: asks the keychain for the derived service name of a custom account" {
-    local custom="$TEST_HOME/.claude-hamiltonian"
+    local custom="$TEST_HOME/.claude-alpha"
     mkdir -p "$custom"
     echo '{"oauthAccount":{"emailAddress":"work@example.com"}}' > "$custom/.claude.json"
     local tag
@@ -213,7 +213,7 @@ expected_tag_for() {
 @test "statusline: never falls back to another account's keychain item" {
     # 導出した item が無い状況を作る。ここで無印を試しに行くと個人アカウントの
     # トークンで引いてしまい、仕事アカウントの statusLine に個人側の値が出る
-    local custom="$TEST_HOME/.claude-hamiltonian"
+    local custom="$TEST_HOME/.claude-alpha"
     mkdir -p "$custom"
     setup_fake_keychain
     export FAKE_KEYCHAIN_SERVICE="no-such-service"
@@ -232,7 +232,7 @@ expected_tag_for() {
 }
 
 @test "statusline: writes the usage cache under an account specific name" {
-    local custom="$TEST_HOME/.claude-hamiltonian"
+    local custom="$TEST_HOME/.claude-alpha"
     mkdir -p "$custom"
     local tag
     tag="$(expected_tag_for "$custom")"
@@ -248,7 +248,7 @@ expected_tag_for() {
 
 @test "statusline: keeps the two accounts usage caches in separate files" {
     # 相互汚染バグの pin。共有ファイルへ戻すとここが落ちる
-    local custom="$TEST_HOME/.claude-hamiltonian"
+    local custom="$TEST_HOME/.claude-alpha"
     mkdir -p "$custom"
     local tag
     tag="$(expected_tag_for "$custom")"
@@ -271,7 +271,7 @@ expected_tag_for() {
 }
 
 @test "statusline: shows the account address on the first line" {
-    local custom="$TEST_HOME/.claude-hamiltonian"
+    local custom="$TEST_HOME/.claude-alpha"
     mkdir -p "$custom"
     echo '{"oauthAccount":{"emailAddress":"work@example.com"}}' > "$custom/.claude.json"
     setup_fake_keychain
