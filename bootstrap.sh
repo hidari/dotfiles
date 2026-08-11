@@ -39,28 +39,10 @@ SYMLINK_PAIRS=(
     "home/.claude/CLAUDE.md|.claude/CLAUDE.md"
     "home/.claude/.mcp.json|.claude/.mcp.json"
     "home/.claude/hooks|.claude/hooks"
-    # 2 アカウント運用 (CLAUDE_CONFIG_DIR=~/.claude-hamiltonian) 側へ同じ実体を張る。
-    # hooks / statusline-command.sh / .mcp.json は張らない。前 2 つは settings.json が
-    # $HOME/.claude/ 配下を絶対パスで参照して symlink 経由で解決されるため、
-    # .mcp.json は Claude Code が読まないため (どちらも 2 本目は死んだ symlink になる)。
-    "home/.claude/settings.json|.claude-hamiltonian/settings.json"
-    "home/.claude/CLAUDE.md|.claude-hamiltonian/CLAUDE.md"
+    # 追加の Claude 設定ディレクトリ (2 アカウント運用) への mirror はここへ書かず、
+    # claude_mirror_pairs が claude-config-dirs から生成する (名前をリポジトリへ書かないため)。
     "scripts/backup-tool/backup|.local/bin/backup"
     "scripts/util-tools/small-id-gen/small-id-gen.sh|.local/bin/small-id-gen"
-)
-
-# ホーム内で完結するシンボリックリンク定義（ソース|ターゲット、どちらも $HOME 相対）。
-# SYMLINK_PAIRS と分けているのはパスの解決規則が違うからだけではない。あちらの source は
-# git 管理下で必ず実在する（欠けていればバグ）のに対し、こちらの source は未追跡の
-# ローカル状態で、無ければ作る。この差は共有ループへ per-entry の分岐を入れない限り
-# 1 本の配列では表現できないため、記法だけを揃えても統合はできない。
-HOME_SYMLINK_PAIRS=(
-    # タスクリストはアカウントではなくプロジェクトに紐づく作業成果物なので、
-    # どちらのアカウントから起動しても同じ実体を読み書きさせる。
-    # 同時アクセスは tasks/<id>/.lock があることから処理系が扱う前提と判断した。
-    # 実体を個人側に置くのは意図的な非対称。中立な置き場へ移す余地はあるが、
-    # 既存タスクの移行を bootstrap が担わないため今は採らない。
-    ".claude/tasks|.claude-hamiltonian/tasks"
 )
 
 # apm が deploy した成果物を source とするシンボリックリンク定義（ソース|ターゲット）。
@@ -68,13 +50,11 @@ HOME_SYMLINK_PAIRS=(
 # 必ず実在する（欠けていればバグ）が、こちらは apm install が配置するまで存在しない。
 # fresh clone や --dotfiles-only では実体が無いので、存在するときだけ張る。
 # 3 ディレクトリそれぞれの由来は home/.gitignore のコメントが持つ。
+# 追加の Claude 設定ディレクトリへの mirror はここへ書かず、claude_mirror_pairs が生成する。
 APM_SYMLINK_PAIRS=(
     "home/.claude/skills|.claude/skills"
     "home/.claude/agents|.claude/agents"
     "home/.claude/commands|.claude/commands"
-    "home/.claude/skills|.claude-hamiltonian/skills"
-    "home/.claude/agents|.claude-hamiltonian/agents"
-    "home/.claude/commands|.claude-hamiltonian/commands"
     "home/.claude/skills/windows-vm-verification/winvm.py|.local/bin/winvm"
 )
 
@@ -462,15 +442,108 @@ install_apm_packages() {
 }
 
 # =============================================================================
+# 追加の Claude 設定ディレクトリ
+# =============================================================================
+
+# 追加の Claude 設定ディレクトリ一覧の読み先。1 行 1 ディレクトリ名 (ドット付き)。
+# ディレクトリ名をこの PUBLIC リポジトリへ書かないための外部化で、増えたら行を
+# 足すだけでリポジトリ側の変更は要らない。
+# この代入を設定変数の並び (冒頭) ではなくヘルパー関数マーカーより下へ置くのは、
+# テストの load_bootstrap_functions がマーカー間だけを切り出して source するため。
+CLAUDE_CONFIG_DIRS_FILE="${CLAUDE_CONFIG_DIRS_FILE:-$HOME/.config/dotfiles/claude-config-dirs}"
+
+# 追加の Claude 設定ディレクトリ (既定の .claude を除く) を 1 行 1 件で出力する。
+# 各行は $HOME 直下のディレクトリ名そのものとして扱い、symlink の target へ無変換で使う
+# (ドット無し記法にするとドットを再付与する第 2 の規約が生まれて drift する)。
+# 行はパス組み立てに流れるため、ドット始まりの英数字・ハイフン・ドット・アンダースコア
+# だけを受け入れる。それ以外 (../ による脱出・コマンド区切り文字・素の名前) と、
+# 唯一 charset を通りながら $HOME を脱出する ".." は警告して無視する。
+# 黙って捨てると設定の typo に気づけないため、却下行は verbatim で stderr へ出す。
+claude_extra_config_dirs() {
+    [ -f "$CLAUDE_CONFIG_DIRS_FILE" ] || return 0
+
+    local line
+    while IFS= read -r line || [ -n "$line" ]; do
+        case "$line" in
+            '' | '#'* | '.claude') continue ;;
+        esac
+        if [ "$line" = ".." ] || ! printf '%s' "$line" | grep -Eq '^\.[A-Za-z0-9._-]+$'; then
+            warn "設定ディレクトリ名として受け付けられない行を無視します: $line"
+            continue
+        fi
+        printf '%s\n' "$line"
+    done < "$CLAUDE_CONFIG_DIRS_FILE"
+}
+
+# Claude 設定ディレクトリの全一覧を出力する。既定の .claude を必ず先頭に置き、
+# 設定ファイルが無くても既定だけは返す。既定が設定ファイルに重複して書かれていても
+# 二重には返さない (claude_extra_config_dirs が落とす)。
+claude_config_dirs() {
+    printf '%s\n' ".claude"
+    claude_extra_config_dirs
+}
+
+# 既定の .claude/ 向け target が追加の設定ディレクトリ側にも要るなら真。
+# hooks / statusline-command.sh は settings.json が $HOME/.claude/ 配下を絶対パスで
+# 参照して symlink 経由で解決されるため、.mcp.json は Claude Code が読まないため
+# 張らない (いずれも 2 本目は死んだ symlink になる)。.claude/ 配下でない target は対象外。
+claude_mirrored_target() {
+    case "$1" in
+        .claude/hooks | .claude/statusline-command.sh | .claude/.mcp.json) return 1 ;;
+        .claude/*) return 0 ;;
+    esac
+    return 1
+}
+
+# 既定の .claude/ へ張る pair 列から、追加の設定ディレクトリ dir 向けの pair を導出して
+# 1 行 1 pair で出力する。第 1 引数が dir、残りが "source|target" 形式の pair 列。
+# source を元 pair から引き継ぐことで全ディレクトリが同じ実体を共有する
+# (実体が分かれた瞬間に 2 アカウントの設定が静かに別物になる)。
+# どの target を張るかの判定は claude_mirrored_target が持つ。
+claude_mirror_pairs() {
+    local dir="$1"
+    shift
+
+    local pair source target
+    for pair in "$@"; do
+        source="${pair%%|*}"
+        target="${pair##*|}"
+        if claude_mirrored_target "$target"; then
+            printf '%s|%s/%s\n' "$source" "$dir" "${target#.claude/}"
+        fi
+    done
+}
+
+# ホーム内で完結する共有 pair (source|target、どちらも $HOME 相対) を追加の設定
+# ディレクトリぶん生成して出力する。SYMLINK_PAIRS 由来の pair とはパスの解決規則が
+# 違うだけでなく source の性質が違う。あちらの source は git 管理下で必ず実在する
+# （欠けていればバグ）のに対し、こちらの source は未追跡のローカル状態で、無ければ
+# setup_home_symlinks が作る。
+# タスクリストはアカウントではなくプロジェクトに紐づく作業成果物なので、
+# どの設定ディレクトリから起動しても同じ実体を読み書きさせる。
+# 同時アクセスは tasks/<id>/.lock があることから処理系が扱う前提と判断した。
+# 実体を既定側 (.claude/tasks) に置くのは意図的な非対称。中立な置き場へ移す余地は
+# あるが、既存タスクの移行を bootstrap が担わないため今は採らない。
+claude_home_symlink_pairs() {
+    local dir
+    while IFS= read -r dir; do
+        printf '%s\n' ".claude/tasks|$dir/tasks"
+    done < <(claude_extra_config_dirs)
+}
+
+# =============================================================================
 # dotfiles セットアップ関数
 # =============================================================================
 
-# ホーム内で完結するシンボリックリンクを作成する（冪等）。
+# ホーム内で完結するシンボリックリンクを作成する（冪等）。pair は引数で受け取る。
+# 配列を経由しないのは、追加の設定ディレクトリが 1 件も無いとき空になり、
+# /bin/bash 3.2 + set -u では空配列の "${arr[@]}" 展開が unbound variable で落ちる
+# ため ("$@" は空でも安全に展開できる)。
 # source 側が無いまま張るとリンク先の無い symlink が残り、参照した側が黙って失敗するため
 # 先に実体を用意する。SYMLINK_PAIRS の source はリポジトリに実在する前提なのでこの手当ては要らない。
 setup_home_symlinks() {
     local pair source target
-    for pair in "${HOME_SYMLINK_PAIRS[@]}"; do
+    for pair in "$@"; do
         source="$HOME/${pair%%|*}"
         target="$HOME/${pair##*|}"
         ensure_directory "$source"
@@ -478,22 +551,41 @@ setup_home_symlinks() {
     done
 }
 
-# apm が deploy した成果物へのシンボリックリンクを作成する（冪等）。
-# source が無いときは張らずに警告する。create_symlink の ln -sf は source の存在を見ないため
-# リンク先の無い symlink を作れてしまい、参照した側が黙って失敗する。
+# apm pair 1 件ぶんの symlink を張る。source が無いときは張らずに警告する。
+# create_symlink の ln -sf は source の存在を見ないためリンク先の無い symlink を
+# 作れてしまい、参照した側が黙って失敗する。
 # setup_home_symlinks と違って source を作らないのは、実体を用意できるのが apm だけだから。
 # 空ディレクトリを先に作ると apm 未実行と実行済みが見分けられなくなる。
+create_apm_symlink() {
+    local pair="$1"
+    local source target
+    source="$DOTFILES_DIR/${pair%%|*}"
+    target="$HOME/${pair##*|}"
+
+    if [ ! -e "$source" ]; then
+        warn "apm source not found; skipping symlink: $source"
+        return 0
+    fi
+    create_symlink "$source" "$target"
+}
+
+# apm が deploy した成果物へのシンボリックリンクを作成する（冪等）。
+# 追加の Claude 設定ディレクトリ向けの pair は配列へ書かず、既定の .claude/ 向け pair
+# から導出する (名前をリポジトリへ書かないため。読み先は claude-config-dirs)。
+# この生成を setup_dotfiles 側へ置かないのは、あちらが install_apm_packages より前かつ
+# --dotfiles-only でも走るため。source 存在ガードを持つのはこの関数だけで、
+# 先に張ると source が無い状態で symlink を張ってしまう。
 setup_apm_symlinks() {
-    local pair source target
+    local pair dir
     for pair in "${APM_SYMLINK_PAIRS[@]}"; do
-        source="$DOTFILES_DIR/${pair%%|*}"
-        target="$HOME/${pair##*|}"
-        if [ ! -e "$source" ]; then
-            warn "apm source not found; skipping symlink: $source"
-            continue
-        fi
-        create_symlink "$source" "$target"
+        create_apm_symlink "$pair"
     done
+
+    while IFS= read -r dir; do
+        while IFS= read -r pair; do
+            create_apm_symlink "$pair"
+        done < <(claude_mirror_pairs "$dir" "${APM_SYMLINK_PAIRS[@]}")
+    done < <(claude_extra_config_dirs)
 }
 
 setup_dotfiles() {
@@ -512,8 +604,21 @@ setup_dotfiles() {
         create_symlink "$source" "$target"
     done
 
-    # ホーム内で完結するリンクを作成
-    setup_home_symlinks
+    # 追加の Claude 設定ディレクトリへ共有設定の symlink を張る。pair は配列へ書かず
+    # 既定の .claude/ 向け pair から導出する (名前をリポジトリへ書かないため)
+    local dir
+    while IFS= read -r dir; do
+        while IFS= read -r pair; do
+            source="$DOTFILES_DIR/${pair%%|*}"
+            target="$HOME/${pair##*|}"
+            create_symlink "$source" "$target"
+        done < <(claude_mirror_pairs "$dir" "${SYMLINK_PAIRS[@]}")
+    done < <(claude_extra_config_dirs)
+
+    # ホーム内で完結する共有リンクを作成 (pair は設定ディレクトリごとに生成する)
+    while IFS= read -r pair; do
+        setup_home_symlinks "$pair"
+    done < <(claude_home_symlink_pairs)
 
     # .gitconfig.private をコピー（既存の場合はスキップ）
     if [ -f "$DOTFILES_DIR/home/.gitconfig.private.example" ]; then

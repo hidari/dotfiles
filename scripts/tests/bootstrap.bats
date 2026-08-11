@@ -5,6 +5,10 @@
 
 load test_helper
 
+# run --separate-stderr (stdout と stderr を分けて観測する) に必要。
+# 宣言しないと bats が BW02 警告を出す。CI は v1.13.0 を pin している。
+bats_require_minimum_version 1.5.0
+
 # =============================================================================
 # セットアップ / ティアダウン
 # =============================================================================
@@ -535,6 +539,150 @@ init_committed_repo() {
 }
 
 # =============================================================================
+# claude_config_dirs / claude_extra_config_dirs tests (設定ディレクトリ一覧の読み込み)
+# =============================================================================
+#
+# 一覧は追跡外の $HOME/.config/dotfiles/claude-config-dirs から読む。追加の
+# ディレクトリ名を PUBLIC リポジトリへ書かないための外部化なので、テストは
+# ダミー名 (.claude-alpha 等) だけを使う。実名をここへ書いてはならない。
+
+# 設定ファイルをテスト用ホームへ書く (1 引数 1 行)。既定の読み先が $HOME 配下を
+# 指すことも暗黙に検証される (TEST_HOME 以外を指すと読まれずテストが赤くなる)。
+write_config_dirs_file() {
+    mkdir -p "$TEST_HOME/.config/dotfiles"
+    printf '%s\n' "$@" > "$TEST_HOME/.config/dotfiles/claude-config-dirs"
+}
+
+@test "claude_config_dirs: returns only the default when the config file is absent" {
+    run claude_config_dirs
+
+    [ "$status" -eq 0 ]
+    [ "$output" = ".claude" ]
+}
+
+@test "claude_config_dirs: returns the default plus each configured dir in file order" {
+    write_config_dirs_file '.claude-alpha' '.claude-beta'
+
+    run claude_config_dirs
+
+    [ "$status" -eq 0 ]
+    [ "${#lines[@]}" -eq 3 ]
+    [ "${lines[0]}" = ".claude" ]
+    [ "${lines[1]}" = ".claude-alpha" ]
+    [ "${lines[2]}" = ".claude-beta" ]
+}
+
+@test "claude_config_dirs: an empty config file yields only the default" {
+    mkdir -p "$TEST_HOME/.config/dotfiles"
+    : > "$TEST_HOME/.config/dotfiles/claude-config-dirs"
+
+    run claude_config_dirs
+
+    [ "$status" -eq 0 ]
+    [ "$output" = ".claude" ]
+}
+
+@test "claude_config_dirs: reads a final line that lacks a trailing newline" {
+    # 手で編集した設定ファイルは末尾改行を欠きやすい。read だけで回すと最終行が
+    # 静かに落ち、そのディレクトリだけ配線されない
+    mkdir -p "$TEST_HOME/.config/dotfiles"
+    printf '.claude-alpha' > "$TEST_HOME/.config/dotfiles/claude-config-dirs"
+
+    run claude_config_dirs
+
+    [ "$status" -eq 0 ]
+    [ "${#lines[@]}" -eq 2 ]
+    [ "${lines[1]}" = ".claude-alpha" ]
+}
+
+@test "claude_config_dirs: skips comments and blank lines" {
+    write_config_dirs_file '# comment line' '' '.claude-alpha'
+
+    run claude_config_dirs
+
+    [ "$status" -eq 0 ]
+    [ "${#lines[@]}" -eq 2 ]
+    [ "${lines[1]}" = ".claude-alpha" ]
+}
+
+@test "claude_config_dirs: rejects entries that are not plain dot-prefixed names" {
+    # 行の内容はパス組み立てに流れるため、charset を通らない行は受け入れない
+    # (../ による脱出やコマンド区切り文字の混入を防ぐ)。".." だけは charset を
+    # 通りながら $HOME を脱出するため個別に落とす
+    write_config_dirs_file '.claude-ok' '../escape' '.claude;rm -rf /' 'noleadingdot' '..'
+
+    # 既定の run は stderr を $output へ併合する。warn が却下行を verbatim に出すため、
+    # 併合したままでは「却下行が返り値に混ざっていない」ことを検査できない
+    run --separate-stderr claude_config_dirs
+
+    [ "$status" -eq 0 ]
+    [ "${#lines[@]}" -eq 2 ]
+    [ "${lines[0]}" = ".claude" ]
+    [ "${lines[1]}" = ".claude-ok" ]
+    # 却下したことが利用者へ届くことも検査する。黙って捨てると設定の typo に気づけない
+    assert_contains "$stderr" "../escape"
+    assert_contains "$stderr" ".claude;rm -rf /"
+    assert_contains "$stderr" "noleadingdot"
+}
+
+@test "claude_config_dirs: skips the default if it is also listed (no duplicates)" {
+    # 重複を返すと pair の生成は冪等でも、一覧の件数を数える利用側が静かに狂う
+    write_config_dirs_file '.claude' '.claude-alpha'
+
+    run claude_config_dirs
+
+    [ "$status" -eq 0 ]
+    [ "${#lines[@]}" -eq 2 ]
+    [ "$(printf '%s\n' "$output" | grep -c '^\.claude$')" -eq 1 ]
+}
+
+@test "claude_extra_config_dirs: omits the default and yields nothing when unconfigured" {
+    run claude_extra_config_dirs
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+
+    # 対照: 設定があれば追加分だけを返す (上の空が「読んでいない」ではないことの確認)
+    write_config_dirs_file '.claude-alpha'
+    run claude_extra_config_dirs
+    [ "$status" -eq 0 ]
+    [ "$output" = ".claude-alpha" ]
+}
+
+# =============================================================================
+# claude_mirrored_target / claude_mirror_pairs tests (追加ディレクトリ向け pair の導出)
+# =============================================================================
+
+@test "claude_mirrored_target: mirrors .claude/ targets except the intentionally unmirrored set" {
+    # 両方向を検証する (常に真/常に偽の実装を通さない)
+    claude_mirrored_target ".claude/settings.json"
+    claude_mirrored_target ".claude/some-new-shared-file"
+
+    run claude_mirrored_target ".claude/hooks"
+    [ "$status" -ne 0 ]
+    run claude_mirrored_target ".claude/statusline-command.sh"
+    [ "$status" -ne 0 ]
+    run claude_mirrored_target ".claude/.mcp.json"
+    [ "$status" -ne 0 ]
+    # .claude/ 配下でない target は対象外
+    run claude_mirrored_target ".local/bin/winvm"
+    [ "$status" -ne 0 ]
+}
+
+@test "claude_mirror_pairs: rewrites the target prefix and preserves the source" {
+    # source を元 pair から引き継ぐことが共有の規約 (実体が分かれた瞬間に
+    # 2 つの設定ディレクトリの設定が静かに別物になる)。
+    # 除外 target と .claude/ 配下でない target は出力に現れない
+    run claude_mirror_pairs ".claude-alpha" \
+        'home/.claude/a|.claude/a' \
+        'home/.claude/hooks|.claude/hooks' \
+        'scripts/x|.local/bin/x'
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "home/.claude/a|.claude-alpha/a" ]
+}
+
+# =============================================================================
 # SYMLINK_PAIRS 整合性テスト
 # =============================================================================
 
@@ -646,57 +794,11 @@ uncovered_symlink_targets() {
     fi
 }
 
-# .claude/ を target に持つ pair のうち、2 アカウント目 (.claude-hamiltonian/) への
-# 対応する pair が無いものを列挙する純粋関数。
-# 対応とは「同じ source を持ち、target の先頭だけが置き換わった pair が存在すること」。
-# source まで一致を要求するのは、実体が分かれた瞬間に 2 アカウントの設定が
-# 静かに別物になるため (共有が目的なので source の一致こそが仕様)。
-unmirrored_claude_targets() {
-    local -a pairs=("$@")
-    local pair source target rest mirror_target found other o_source o_target
-    for pair in "${pairs[@]}"; do
-        source="${pair%%|*}"
-        target="${pair##*|}"
-        case "$target" in
-            .claude/*) rest="${target#.claude/}" ;;
-            *) continue ;;
-        esac
-        mirror_target=".claude-hamiltonian/$rest"
-        found=0
-        for other in "${pairs[@]}"; do
-            o_source="${other%%|*}"
-            o_target="${other##*|}"
-            if [ "$o_target" = "$mirror_target" ] && [ "$o_source" = "$source" ]; then
-                found=1
-                break
-            fi
-        done
-        [ "$found" -eq 1 ] || echo "$target"
-    done
-}
-
-@test "unmirrored_claude_targets: flags missing mirrors and accepts matching ones" {
-    # 実装が gaming していないことを担保するため両方向を検証する。
-    local out
-    out="$(unmirrored_claude_targets \
-        'home/.claude/a|.claude/a' \
-        'home/.claude/a|.claude-hamiltonian/a' \
-        'home/.claude/b|.claude/b')"
-    # mirror がある target は挙げない（false positive を防ぐ）
-    refute_contains "$out" ".claude/a"
-    # mirror が無い target は検出する（false negative を防ぐ）
-    assert_contains "$out" ".claude/b"
-
-    # target 名だけ揃っていても source が違えば共有になっていないので検出する
-    out="$(unmirrored_claude_targets \
-        'home/.claude/c|.claude/c' \
-        'home/elsewhere/c|.claude-hamiltonian/c')"
-    assert_contains "$out" ".claude/c"
-}
-
-@test "SYMLINK_PAIRS: shared Claude config is mirrored to the second account" {
-    # 共有ファイルを増やしたとき 2 アカウント目の配線を忘れる drift を捕捉する。
+@test "SYMLINK_PAIRS: shared Claude config is mirrored into a configured extra dir" {
+    # 共有ファイルを増やしたとき追加の設定ディレクトリ側の配線を忘れる drift を捕捉する。
     # 散文の注意書きではなくテストで縛る (CLAUDE.md の linter 委譲原則)。
+    # mirror は配列に書かず claude_mirror_pairs が生成する (ディレクトリ名をリポジトリへ
+    # 書かないため) ので、生成結果を allowlist の補集合と突き合わせる。
     load_pairs_array SYMLINK_PAIRS
     # 空配列 (slice 破綻) での vacuous pass を防ぐ negative guard
     [ "${#SYMLINK_PAIRS[@]}" -gt 0 ]
@@ -708,13 +810,34 @@ unmirrored_claude_targets() {
         ".claude/.mcp.json"              # Claude Code が ~/.claude/.mcp.json を読まない
     )
 
-    local actual expected
-    actual="$(unmirrored_claude_targets "${SYMLINK_PAIRS[@]}" | sort)"
-    expected="$(printf '%s\n' "${unmirrored[@]}" | sort)"
+    # 期待値: .claude/ 配下の全 target から allowlist を除いた補集合が、同じ source の
+    # まま .claude-alpha/ へ張り替えられる
+    local pair source target allow skip expected=""
+    for pair in "${SYMLINK_PAIRS[@]}"; do
+        source="${pair%%|*}"
+        target="${pair##*|}"
+        case "$target" in
+            .claude/*) ;;
+            *) continue ;;
+        esac
+        skip=0
+        for allow in "${unmirrored[@]}"; do
+            if [ "$target" = "$allow" ]; then
+                skip=1
+                break
+            fi
+        done
+        if [ "$skip" -eq 1 ]; then continue; fi
+        expected="$expected$source|.claude-alpha/${target#.claude/}"$'\n'
+    done
+    # 補集合が空なら 1 件も検査していない (vacuous pass の防止)
+    [ -n "$expected" ]
+
     # diff の exit status を verdict と診断の両方に使う。
-    # < は allowlist のみ (stale allowlist), > は未 mirror (配線し忘れ)。どちらの方向も FAIL する。
-    if ! diff <(echo "$expected") <(echo "$actual") >&2; then
-        echo "2 アカウント配線の drift 検出 (上記 diff: expected=allowlist vs actual=未 mirror)" >&2
+    # < は生成漏れ (allowlist に無いのに張られない), > は phantom 生成 (allowlist の
+    # target まで張る、または source の取り違え)。どちらの方向も FAIL する。
+    if ! diff <(printf '%s' "$expected" | sort) <(claude_mirror_pairs ".claude-alpha" "${SYMLINK_PAIRS[@]}" | sort) >&2; then
+        echo "追加ディレクトリ配線の drift 検出 (上記 diff: expected=allowlist の補集合 vs actual=生成された mirror)" >&2
         return 1
     fi
 }
@@ -793,15 +916,31 @@ unmirrored_claude_targets() {
     done
 }
 
-@test "APM_SYMLINK_PAIRS: shared Claude config is mirrored to the second account" {
-    # apm 生成物も 2 アカウントで共有する。SYMLINK_PAIRS 側と同じ規約なので
-    # 判定関数を共有し、allowlist は持たない (全ての .claude/ target に mirror が要る)
+@test "APM_SYMLINK_PAIRS: shared Claude config is mirrored into a configured extra dir" {
+    # apm 生成物も追加の設定ディレクトリで共有する。SYMLINK_PAIRS 側と同じ導出を使い、
+    # allowlist は持たない (.claude/ 配下の全 target に mirror が要る)
     load_pairs_array APM_SYMLINK_PAIRS
     [ "${#APM_SYMLINK_PAIRS[@]}" -gt 0 ]
 
-    local actual
-    actual="$(unmirrored_claude_targets "${APM_SYMLINK_PAIRS[@]}")"
-    [ -z "$actual" ] || { echo "2 アカウント配線の drift 検出:"; echo "$actual"; false; }
+    local pair source target expected=""
+    for pair in "${APM_SYMLINK_PAIRS[@]}"; do
+        source="${pair%%|*}"
+        target="${pair##*|}"
+        case "$target" in
+            .claude/*) ;;
+            *) continue ;;
+        esac
+        expected="$expected$source|.claude-alpha/${target#.claude/}"$'\n'
+    done
+    # .claude/ 配下の target が 1 件も無ければ検査になっていない (vacuous pass の防止)
+    [ -n "$expected" ]
+
+    # 全 .claude/ target が同じ source のまま張り替えられること。winvm のような
+    # .claude/ 配下でない target が紛れて張られないことも同じ diff が守る
+    if ! diff <(printf '%s' "$expected" | sort) <(claude_mirror_pairs ".claude-alpha" "${APM_SYMLINK_PAIRS[@]}" | sort) >&2; then
+        echo "追加ディレクトリ配線の drift 検出 (上記 diff: expected=.claude/ 配下の全 target vs actual=生成された mirror)" >&2
+        return 1
+    fi
 }
 
 @test "setup_apm_symlinks: skips pairs whose source does not exist" {
@@ -858,18 +997,49 @@ unmirrored_claude_targets() {
     [ ! -e "$TEST_HOME/.claude/agents" ]
 }
 
+@test "setup_apm_symlinks: links apm sources into each configured extra dir" {
+    # 追加ディレクトリ向けの mirror は配列に書かず、この関数が生成して張る。
+    # setup_dotfiles 側に置くと apm install より前・--dotfiles-only でも走り、
+    # source が無い状態で張ってしまう (source 存在ガードはこの関数だけが持つ)
+    DOTFILES_DIR="$TEST_HOME/repo"
+    APM_SYMLINK_PAIRS=("home/.claude/agents|.claude/agents")
+    mkdir -p "$DOTFILES_DIR/home/.claude/agents"
+    write_config_dirs_file '.claude-alpha'
+
+    run setup_apm_symlinks
+
+    [ "$status" -eq 0 ]
+    [ -L "$TEST_HOME/.claude-alpha/agents" ]
+    [ "$(readlink "$TEST_HOME/.claude-alpha/agents")" = "$DOTFILES_DIR/home/.claude/agents" ]
+    # 既定側も従来どおり張られる (mirror 生成が既定側の処理を置き換えていないこと)
+    [ -L "$TEST_HOME/.claude/agents" ]
+}
+
+@test "setup_apm_symlinks: skips extra-dir mirrors whose source does not exist" {
+    # apm 未実行では source が無い。既定側と同じ存在ガードが mirror にも効くこと
+    DOTFILES_DIR="$TEST_HOME/repo"
+    APM_SYMLINK_PAIRS=("home/.claude/agents|.claude/agents")
+    write_config_dirs_file '.claude-alpha'
+
+    run setup_apm_symlinks
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "apm source not found"
+    [ ! -L "$TEST_HOME/.claude-alpha/agents" ]
+    [ ! -e "$TEST_HOME/.claude-alpha/agents" ]
+}
+
 # =============================================================================
-# HOME_SYMLINK_PAIRS / setup_home_symlinks tests
+# claude_home_symlink_pairs / setup_home_symlinks tests
 # =============================================================================
 #
-# SYMLINK_PAIRS とは配列も処理も別なので、独立に pin する。
-# 配列を分けている理由は bootstrap.sh 側のコメントが持つ。
+# SYMLINK_PAIRS とは pair の出どころも処理も別なので、独立に pin する。
+# 分かれている理由は bootstrap.sh 側のコメントが持つ。
 
 @test "setup_home_symlinks: links the target to the source inside home" {
-    HOME_SYMLINK_PAIRS=(".src/dir|.dst/dir")
     mkdir -p "$TEST_HOME/.src/dir"
 
-    run setup_home_symlinks
+    run setup_home_symlinks ".src/dir|.dst/dir"
 
     [ "$status" -eq 0 ]
     [ -L "$TEST_HOME/.dst/dir" ]
@@ -879,10 +1049,9 @@ unmirrored_claude_targets() {
 @test "setup_home_symlinks: creates the source instead of leaving a dangling link" {
     # source が無い状態で張ると、リンク先の無い symlink が残り
     # 参照した側が黙って失敗する。source を先に用意することで防ぐ
-    HOME_SYMLINK_PAIRS=(".src/dir|.dst/dir")
     [ ! -d "$TEST_HOME/.src/dir" ]
 
-    run setup_home_symlinks
+    run setup_home_symlinks ".src/dir|.dst/dir"
 
     [ "$status" -eq 0 ]
     [ -d "$TEST_HOME/.src/dir" ]
@@ -891,11 +1060,10 @@ unmirrored_claude_targets() {
 }
 
 @test "setup_home_symlinks: stays idempotent on a second run" {
-    HOME_SYMLINK_PAIRS=(".src/dir|.dst/dir")
     mkdir -p "$TEST_HOME/.src/dir"
-    setup_home_symlinks
+    setup_home_symlinks ".src/dir|.dst/dir"
 
-    run setup_home_symlinks
+    run setup_home_symlinks ".src/dir|.dst/dir"
 
     [ "$status" -eq 0 ]
     [ -L "$TEST_HOME/.dst/dir" ]
@@ -905,10 +1073,9 @@ unmirrored_claude_targets() {
 }
 
 @test "setup_home_symlinks: dry-run mode does not create anything" {
-    HOME_SYMLINK_PAIRS=(".src/dir|.dst/dir")
     DRY_RUN=true
 
-    run setup_home_symlinks
+    run setup_home_symlinks ".src/dir|.dst/dir"
 
     [ "$status" -eq 0 ]
     [ ! -e "$TEST_HOME/.dst/dir" ]
@@ -916,32 +1083,47 @@ unmirrored_claude_targets() {
     [ ! -e "$TEST_HOME/.src/dir" ]
 }
 
-@test "HOME_SYMLINK_PAIRS: shares the claude task list with the second account" {
-    # 両アカウントが同じタスクリストを読み書きするための配線。
-    # 参照先が分かれると同じ ID を指定しても進捗が 2 つに割れる
-    load_pairs_array HOME_SYMLINK_PAIRS
-    [ "${#HOME_SYMLINK_PAIRS[@]}" -gt 0 ]
+@test "setup_home_symlinks: does nothing when no pair is passed" {
+    # 追加の設定ディレクトリが 1 件も無い経路。/bin/bash 3.2 + set -u では空配列の
+    # "${arr[@]}" 展開が unbound variable で落ちるため、配列ではなく引数 ("$@" は
+    # 空でも安全) で受ける形が仕様
+    run setup_home_symlinks
 
-    local found=0 pair
-    for pair in "${HOME_SYMLINK_PAIRS[@]}"; do
-        if [ "$pair" = ".claude/tasks|.claude-hamiltonian/tasks" ]; then
-            found=1
-        fi
-    done
-    [ "$found" -eq 1 ]
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
 }
 
-@test "HOME_SYMLINK_PAIRS: entries are home relative, not repo relative" {
+@test "claude_home_symlink_pairs: shares the claude task list with each configured extra dir" {
+    # 全ての設定ディレクトリが同じタスクリストを読み書きするための配線。
+    # 参照先が分かれると同じ ID を指定しても進捗が 2 つに割れる
+    write_config_dirs_file '.claude-alpha' '.claude-beta'
+
+    run claude_home_symlink_pairs
+
+    [ "$status" -eq 0 ]
+    [ "${#lines[@]}" -eq 2 ]
+    [ "${lines[0]}" = ".claude/tasks|.claude-alpha/tasks" ]
+    [ "${lines[1]}" = ".claude/tasks|.claude-beta/tasks" ]
+}
+
+@test "claude_home_symlink_pairs: yields nothing when no extra dir is configured" {
+    # 既定の .claude 単体では共有リンクは張らない (自分自身への共有になる)
+    run claude_home_symlink_pairs
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "claude_home_symlink_pairs: entries are home relative, not repo relative" {
     # リポジトリ相対の記法が混ざると $HOME/home/... のような実在しない場所を指す。
     # しかも source 側は ensure_directory が無条件に作るため、壊れたリンクという
     # 症状すら出ずに bogus なディレクトリが生えて終わる。
     # 取り違えたエントリは必ずリポジトリに実在するパスを名乗るので、それを直接見る
     # (SYMLINK_PAIRS の source が実在することは上のテストが pin している)
-    load_pairs_array HOME_SYMLINK_PAIRS
-    [ "${#HOME_SYMLINK_PAIRS[@]}" -gt 0 ]
+    write_config_dirs_file '.claude-alpha'
 
-    local pair source target
-    for pair in "${HOME_SYMLINK_PAIRS[@]}"; do
+    local pair source target count=0
+    while IFS= read -r pair; do
         source="${pair%%|*}"
         target="${pair##*|}"
         [ -n "$source" ]
@@ -949,7 +1131,10 @@ unmirrored_claude_targets() {
         [ "$source" != "$target" ]
         [ ! -e "$REPO_ROOT/$source" ]
         [ ! -e "$REPO_ROOT/$target" ]
-    done
+        count=$((count + 1))
+    done < <(claude_home_symlink_pairs)
+    # 生成が空なら 1 件も検査していない (vacuous pass の防止)
+    [ "$count" -gt 0 ]
 }
 
 @test "load_pairs_array: fails loudly when the array is missing" {
@@ -1097,10 +1282,39 @@ STUB
 @test "main: dry-run wires the home-internal symlinks into the flow" {
     # 配列と関数が揃っていてもフローから呼ばれなければ何も起きない。
     # 個々の関数テストは緑のまま dead code になるため、結線そのものを pin する
+    write_config_dirs_file '.claude-alpha'
+
     run bash "$BOOTSTRAP_SCRIPT" --dry-run --dotfiles-only
 
     [ "$status" -eq 0 ]
-    assert_contains "$output" "[DRY-RUN] ln -sf $TEST_HOME/.claude/tasks $TEST_HOME/.claude-hamiltonian/tasks"
+    assert_contains "$output" "[DRY-RUN] ln -sf $TEST_HOME/.claude/tasks $TEST_HOME/.claude-alpha/tasks"
+}
+
+@test "main: dry-run mirrors shared claude config into a configured extra dir" {
+    # 設定ディレクトリ名は追跡外の claude-config-dirs から読む。mirror の生成が
+    # setup_dotfiles に結線されていることを subprocess の full chain で pin する
+    write_config_dirs_file '.claude-alpha'
+
+    run bash "$BOOTSTRAP_SCRIPT" --dry-run --dotfiles-only
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "[DRY-RUN] ln -sf $DOTFILES_DIR/home/.claude/settings.json $TEST_HOME/.claude-alpha/settings.json"
+    assert_contains "$output" "[DRY-RUN] ln -sf $DOTFILES_DIR/home/.claude/CLAUDE.md $TEST_HOME/.claude-alpha/CLAUDE.md"
+    # 意図的に 2 本目を張らない target (死んだ symlink になる) が生成されないこと
+    refute_contains "$output" ".claude-alpha/hooks"
+    refute_contains "$output" ".claude-alpha/statusline-command.sh"
+    refute_contains "$output" ".claude-alpha/.mcp.json"
+}
+
+@test "main: dry-run creates no extra-dir links when the config file is absent" {
+    # 設定ファイルが無い新規マシンでは既定の .claude だけが対象になる。
+    # 追加ディレクトリが空でも exit 0 で完走することも同時に見る
+    run bash "$BOOTSTRAP_SCRIPT" --dry-run --dotfiles-only
+
+    [ "$status" -eq 0 ]
+    refute_contains "$output" ".claude-alpha"
+    # ホーム内共有リンク (tasks) も生成されない
+    refute_contains "$output" "$TEST_HOME/.claude/tasks"
 }
 
 @test "main: dry-run wires the apm symlinks after the apm install step" {
