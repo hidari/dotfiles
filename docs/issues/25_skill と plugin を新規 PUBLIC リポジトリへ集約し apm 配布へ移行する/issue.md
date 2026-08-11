@@ -123,3 +123,11 @@ plugin 認識が同時に成立する。marketplace の宣言も `settings.json`
   「追加の設定ディレクトリ名の露出」が漏れているため、#21 側への追記が必要
 - [Issue #26: refactor: Claude Code フックの共通基盤を集約する](../26_Claude%20Code%20フックの共通基盤を集約する/issue.md)
   Phase 3a のレビューで検出したフック周りの重複。本 Issue のスコープを超えるため分けた
+- [Issue #29: refactor: PUBLIC リポジトリに残る private リポジトリ名の露出を棚卸しする](../29_PUBLIC%20リポジトリに残る%20private%20リポジトリ名の露出を棚卸しする/issue.md)
+  Phase 4 のゲートが検出。本 Issue の露出の棚卸しは追加の設定ディレクトリ名しか数えておらず、
+  private リポジトリ名の現ツリー露出が抜けていた
+- [Issue #30: feat: Markdown 内のシェルスニペットを構文検査する](../30_Markdown%20内のシェルスニペットを構文検査する/issue.md)
+  Phase 4 の伏字化で実際にスニペットを壊した。既存の検査はどれも Markdown 内のコードブロックを
+  見ておらず、検出はゲートの目視に依存していた
+- [Issue #31: docs: spec が参照する bootstrap.sh の関数名と行番号を実体に合わせる](../31_spec%20が参照する%20bootstrap.sh%20の関数名と行番号を実体に合わせる/issue.md)
+  Phase 4 のゲートが検出。25-spec.md 自身が持つ rot
