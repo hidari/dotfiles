@@ -209,6 +209,34 @@ Phase 3a で `enabled=False` に見えたのは、同名の marketplace 版が�
 同名衝突が無い隔離環境では同じパッケージが `enabled=true` になった。したがって marketplace 宣言の
 削除は component を失わせない。
 
+### 実環境での供給切り替えの実測 (Phase 4 の項目 22-23)
+
+入口 gate は隔離した設定ディレクトリでの確認だった。実環境での切り替えは Claude Code を
+再起動した後のセッションで確かめた。
+
+決め手になったのは skill 起動時に表示される base directory である。これは Claude Code が
+どの実体を読んだかを自ら申告する値で、読み込み経路そのものを指す。3 パッケージとも apm が
+配置した `<設定ディレクトリ>/skills/<パッケージ名>` を指した。component も同じで、
+`<plugin>:<component>` の修飾名で引いたものが apm 版のパスを返した。
+
+当初の判別材料に想定していた version では決められなかった。3 パッケージのうち marketplace の
+cache と apm 版で version が違うのは 1 つだけで、残る 2 つは同じ版が両方にある。version で
+判別できるのは 3 分の 1 の経路にすぎず、それを全体の結論に広げると残り 2 つは未検証のまま
+「確認済み」に数えられる。base directory はこの区別を必要としない。
+
+`${CLAUDE_SKILL_DIR}` が実環境でも展開されることも同時に確認できた。展開後の値は apm が
+配置した側の絶対パスで、移設前が名指ししていた `~/.claude/plugins/<plugin 名>/...` ではない。
+変数が展開されることは上の節で確認済みだが、実環境で apm 版の実体に届くことは別の事実である。
+
+追加の設定ディレクトリ側には private marketplace の実体 (cache / marketplaces / symlink) が
+いずれも無く、registry の 2 ファイル (`installed_plugins.json` と `known_marketplaces.json`) には
+エントリが残っていた。それでも apm 版が読まれたので、registry のエントリ単独では供給元にならない。
+実体の有無が決める。
+
+既定の設定ディレクトリ側は 3 経路が同居しており、この消去法が使えない。symlink 3 本と
+marketplace cache と registry のエントリを落として、確認済みの構成と同じ形に揃えた。
+symlink は削除ではなく退避で行った。参照先が生きているため戻せる。
+
 ### 変数の展開範囲はファイルの位置で変わる
 
 root の `SKILL.md` は plugin の component として数えられないため、扱いが分かれる。

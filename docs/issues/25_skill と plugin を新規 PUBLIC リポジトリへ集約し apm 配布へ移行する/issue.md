@@ -1,5 +1,5 @@
 ---
-status: open
+status: in_progress
 ---
 
 # refactor: skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する
@@ -101,11 +101,16 @@ plugin 認識が同時に成立する。marketplace の宣言も `settings.json`
 - [x] `settings.json` から marketplace 宣言と `enabledPlugins` を削除する
 - [x] hook の `herdr-agent-state.sh` パスを `$HOME` 参照へ変える
 - [x] skip-worktree を解除する
-- [ ] 現行 private plugin リポジトリをアーカイブする
-- [ ] `install.sh` が張った `~/.claude/plugins/<plugin 名>` の symlink 3 本を撤去する
+- [x] 現行 private plugin リポジトリをアーカイブする
+- [x] `install.sh` が張った `~/.claude/plugins/<plugin 名>` の symlink 3 本を撤去する
 
-最後の 2 つは Claude Code を再起動して apm 版 plugin が実際に動くことを確認してから行う。
-確認前に撤去すると、切り戻しの経路まで同時に失われる。
+最後の 2 つは Claude Code を再起動して apm 版 plugin が実際に動くことを確認してから行った。
+確認前に撤去すると、切り戻しの経路まで同時に失われるためこの順序にした。
+実測は [25-spec.md](25-spec.md) の「実環境での供給切り替えの実測」節にある。
+
+撤去の範囲は symlink 3 本に留めず、marketplace cache と registry の 2 ファイルのエントリも
+同時に落とした。既定の設定ディレクトリ側は apm 版と cache と symlink の 3 経路が同居しており、
+実体を 1 本に揃えないとどれが読まれるか確定できないため。
 
 ## 関連
 
