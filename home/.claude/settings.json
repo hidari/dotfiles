@@ -36,7 +36,6 @@
     "deny": [
       "Bash(npx:*)",
       "Bash(npm:*)",
-      "Read(.hidari/**)",
       "Bash(pkill:*)"
     ],
     "ask": [
