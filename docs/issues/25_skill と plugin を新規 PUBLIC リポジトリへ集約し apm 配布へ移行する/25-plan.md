@@ -2,6 +2,10 @@
 
 > エージェント作業者へ: 本計画の実行には `superpowers:subagent-driven-development` を使う。
 > 手順はチェックボックス (`- [ ]`) で追跡する。
+> 本 Issue のドキュメントでは private リポジトリ名と追加の設定ディレクトリ名を伏字にする
+> (issue.md 冒頭の方針)。実測を追記するときも literal を書かず `<追加の設定ディレクトリ>` の
+> 形を使う。シェルのスニペットに置く場合はクォート内へ入れる (裸で置くと `<` がリダイレクトと
+> 解釈されて構文エラーになる)。
 
 目的: dotfiles が持つ skill と plugin の実体を追跡対象から外し、供給を apm 経由の単一経路へ移す。
 併せて apm install の破壊性に対するガードを 2 層で機構化する。
@@ -251,7 +255,8 @@ cp .cache/t1-gitignore.bak home/.gitignore
 - [ ] **Step 9: live symlink の健全性を確認する**
 
 ```bash
-for p in ~/.claude/skills ~/<追加の設定ディレクトリ>/skills ~/.local/bin/winvm; do
+extra_dir="$HOME/<追加の設定ディレクトリ>"
+for p in ~/.claude/skills "$extra_dir/skills" ~/.local/bin/winvm; do
   printf '%s -> %s [%s]\n' "$p" "$(readlink "$p" 2>/dev/null || echo '(not a symlink)')" "$([ -e "$p" ] && echo alive || echo DANGLING)"
 done
 ```
