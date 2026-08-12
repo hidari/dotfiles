@@ -561,6 +561,24 @@ claude_home_symlink_pairs() {
     done < <(claude_extra_config_dirs)
 }
 
+# 受け取った pair 列と、その mirror (追加の設定ディレクトリぶん、claude_mirror_pairs が
+# 導出) を 1 行 1 件で出力する。repo / apm 両カテゴリの供給規則はここが単一の持ち場で、
+# 片方だけ更新されて drift する型 (この refactor が塞ぐ対象そのもの) を生成器の中に
+# 残さない。pair は配列ではなく "$@" で受ける。空配列の "${arr[@]}" 展開は
+# bash 3.2 + set -u で unbound variable になるが、"$@" は空でも安全なため。
+emit_pairs_with_mirrors() {
+    # printf は引数が無くても format を 1 回評価して空行を出すため、空の pair 列は
+    # ここで打ち切る (「0 件」を空行 1 件と取り違えない)
+    [ "$#" -gt 0 ] || return 0
+
+    printf '%s\n' "$@"
+
+    local dir
+    while IFS= read -r dir; do
+        claude_mirror_pairs "$dir" "$@"
+    done < <(claude_extra_config_dirs)
+}
+
 # カテゴリ別に symlink pair (source|target) を 1 行 1 件で出力する単一の生成器。
 # 張る側 (setup_dotfiles / setup_apm_symlinks) と数える側 (current_symlink_targets) が
 # ここから取ることで、供給カテゴリを足したときの編集箇所が 1 関数へ閉じる。
@@ -570,20 +588,13 @@ claude_home_symlink_pairs() {
 # 未知のカテゴリで空を返さないのは、呼び出し側から「対象が 0 件」と区別が付かないため。
 symlink_pairs_for() {
     local category="$1"
-    local dir
 
     case "$category" in
         repo)
-            printf '%s\n' "${SYMLINK_PAIRS[@]}"
-            while IFS= read -r dir; do
-                claude_mirror_pairs "$dir" "${SYMLINK_PAIRS[@]}"
-            done < <(claude_extra_config_dirs)
+            emit_pairs_with_mirrors "${SYMLINK_PAIRS[@]}"
             ;;
         apm)
-            printf '%s\n' "${APM_SYMLINK_PAIRS[@]}"
-            while IFS= read -r dir; do
-                claude_mirror_pairs "$dir" "${APM_SYMLINK_PAIRS[@]}"
-            done < <(claude_extra_config_dirs)
+            emit_pairs_with_mirrors "${APM_SYMLINK_PAIRS[@]}"
             ;;
         home)
             claude_home_symlink_pairs
