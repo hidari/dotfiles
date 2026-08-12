@@ -561,6 +561,45 @@ claude_home_symlink_pairs() {
     done < <(claude_extra_config_dirs)
 }
 
+# カテゴリ別に symlink pair (source|target) を 1 行 1 件で出力する単一の生成器。
+# 張る側 (setup_dotfiles / setup_apm_symlinks) と数える側 (current_symlink_targets) が
+# ここから取ることで、供給カテゴリを足したときの編集箇所が 1 関数へ閉じる。
+# カテゴリの分け方の基準は source の性質。repo の source は git 管理下で必ず実在し、
+# apm の source は apm install が配置するまで存在せず、home の source は未追跡の
+# ローカル状態で無ければ張る側が作る。張る側がこの違いで分岐するため境界をここに合わせた。
+# 未知のカテゴリで空を返さないのは、呼び出し側から「対象が 0 件」と区別が付かないため。
+symlink_pairs_for() {
+    local category="$1"
+    local dir
+
+    case "$category" in
+        repo)
+            printf '%s\n' "${SYMLINK_PAIRS[@]}"
+            while IFS= read -r dir; do
+                claude_mirror_pairs "$dir" "${SYMLINK_PAIRS[@]}"
+            done < <(claude_extra_config_dirs)
+            ;;
+        apm)
+            printf '%s\n' "${APM_SYMLINK_PAIRS[@]}"
+            while IFS= read -r dir; do
+                claude_mirror_pairs "$dir" "${APM_SYMLINK_PAIRS[@]}"
+            done < <(claude_extra_config_dirs)
+            ;;
+        home)
+            claude_home_symlink_pairs
+            ;;
+        all)
+            symlink_pairs_for repo
+            symlink_pairs_for apm
+            symlink_pairs_for home
+            ;;
+        *)
+            error "Unknown symlink pair category: $category"
+            return 1
+            ;;
+    esac
+}
+
 # =============================================================================
 # dotfiles セットアップ関数
 # =============================================================================
@@ -600,22 +639,15 @@ create_apm_symlink() {
 }
 
 # apm が deploy した成果物へのシンボリックリンクを作成する（冪等）。
-# 追加の Claude 設定ディレクトリ向けの pair は配列へ書かず、既定の .claude/ 向け pair
-# から導出する (名前をリポジトリへ書かないため。読み先は claude-config-dirs)。
-# この生成を setup_dotfiles 側へ置かないのは、あちらが install_apm_packages より前かつ
+# pair は symlink_pairs_for apm から取る (追加の設定ディレクトリ向けの mirror を含む)。
+# この張り付けを setup_dotfiles 側へ置かないのは、あちらが install_apm_packages より前かつ
 # --dotfiles-only でも走るため。source 存在ガードを持つのはこの関数だけで、
 # 先に張ると source が無い状態で symlink を張ってしまう。
 setup_apm_symlinks() {
-    local pair dir
-    for pair in "${APM_SYMLINK_PAIRS[@]}"; do
+    local pair
+    while IFS= read -r pair; do
         create_apm_symlink "$pair"
-    done
-
-    while IFS= read -r dir; do
-        while IFS= read -r pair; do
-            create_apm_symlink "$pair"
-        done < <(claude_mirror_pairs "$dir" "${APM_SYMLINK_PAIRS[@]}")
-    done < <(claude_extra_config_dirs)
+    done < <(symlink_pairs_for apm)
 }
 
 setup_dotfiles() {
@@ -626,29 +658,18 @@ setup_dotfiles() {
     ensure_directory "$HOME/.config/mise"
     ensure_directory "$HOME/.local/bin"
 
-    # シンボリックリンクを作成
+    # リポジトリを source とする symlink (追加設定ディレクトリ向けの mirror を含む)
     local pair source target
-    for pair in "${SYMLINK_PAIRS[@]}"; do
+    while IFS= read -r pair; do
         source="$DOTFILES_DIR/${pair%%|*}"
         target="$HOME/${pair##*|}"
         create_symlink "$source" "$target"
-    done
+    done < <(symlink_pairs_for repo)
 
-    # 追加の Claude 設定ディレクトリへ共有設定の symlink を張る。pair は配列へ書かず
-    # 既定の .claude/ 向け pair から導出する (名前をリポジトリへ書かないため)
-    local dir
-    while IFS= read -r dir; do
-        while IFS= read -r pair; do
-            source="$DOTFILES_DIR/${pair%%|*}"
-            target="$HOME/${pair##*|}"
-            create_symlink "$source" "$target"
-        done < <(claude_mirror_pairs "$dir" "${SYMLINK_PAIRS[@]}")
-    done < <(claude_extra_config_dirs)
-
-    # ホーム内で完結する共有リンクを作成 (pair は設定ディレクトリごとに生成する)
+    # ホーム内で完結する共有リンク。source が無ければ setup_home_symlinks が作る
     while IFS= read -r pair; do
         setup_home_symlinks "$pair"
-    done < <(claude_home_symlink_pairs)
+    done < <(symlink_pairs_for home)
 
     # .gitconfig.private をコピー（既存の場合はスキップ）
     if [ -f "$DOTFILES_DIR/home/.gitconfig.private.example" ]; then
@@ -659,26 +680,14 @@ setup_dotfiles() {
 }
 
 # bootstrap が管理する symlink の target ($HOME 相対) を 1 行 1 件で出力する。
-# 配列 2 つに加えて、追加の設定ディレクトリ向けに生成される mirror pair と
-# ホーム内共有 pair も含める。集合を配列の直読みだけで組むと生成分が漏れ、
+# 供給は symlink_pairs_for all が持つ。集合を配列の直読みだけで組むと、追加の
+# 設定ディレクトリ向けに生成される mirror pair とホーム内共有 pair が漏れ、
 # 生きている追加ディレクトリ側のリンクを stale と誤認する。
 current_symlink_targets() {
-    local pair dir
-    for pair in "${SYMLINK_PAIRS[@]}" "${APM_SYMLINK_PAIRS[@]}"; do
-        printf '%s\n' "${pair##*|}"
-    done
-
-    # mirror の導出は claude_mirror_pairs が canonical (どの target を張るかの判定を含む)。
-    # 張る側と違い source の由来で分ける必要は無いので、両配列をまとめて渡す
-    while IFS= read -r dir; do
-        while IFS= read -r pair; do
-            printf '%s\n' "${pair##*|}"
-        done < <(claude_mirror_pairs "$dir" "${SYMLINK_PAIRS[@]}" "${APM_SYMLINK_PAIRS[@]}")
-    done < <(claude_extra_config_dirs)
-
+    local pair
     while IFS= read -r pair; do
         printf '%s\n' "${pair##*|}"
-    done < <(claude_home_symlink_pairs)
+    done < <(symlink_pairs_for all)
 }
 
 # stdin の target ($HOME 相対) 列から、stale 検出で走査する親ディレクトリを

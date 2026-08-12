@@ -1193,6 +1193,55 @@ uncovered_symlink_targets() {
 }
 
 # =============================================================================
+# symlink_pairs_for tests (pair 列挙の単一生成器)
+# =============================================================================
+#
+# 張る側 (setup_dotfiles / setup_apm_symlinks) と数える側 (current_symlink_targets) が
+# この生成器から取る。列挙が片側だけ更新されると、張った直後のリンクを同じ実行内で
+# backup へ退避する壊れ方をするため、供給を 1 関数へ閉じる。
+
+@test "symlink_pairs_for: yields each category and rejects an unknown one" {
+    load_pairs_array SYMLINK_PAIRS
+    load_pairs_array APM_SYMLINK_PAIRS
+    write_config_dirs_file '.claude-alpha'
+
+    # repo: 配列本体と、そこから導出した mirror の両方
+    run symlink_pairs_for repo
+    [ "$status" -eq 0 ]
+    assert_array_contains 'home/.zshrc|.zshrc' "${lines[@]}"
+    assert_array_contains 'home/.claude/settings.json|.claude-alpha/settings.json' "${lines[@]}"
+    # apm 由来は repo に混ざらない
+    refute_contains "$output" 'home/.claude/skills|'
+
+    # apm: 配列本体と mirror
+    run symlink_pairs_for apm
+    [ "$status" -eq 0 ]
+    assert_array_contains 'home/.claude/skills|.claude/skills' "${lines[@]}"
+    assert_array_contains 'home/.claude/skills|.claude-alpha/skills' "${lines[@]}"
+    refute_contains "$output" '|.zshrc'
+
+    # home: ホーム内で完結する pair だけ
+    run symlink_pairs_for home
+    [ "$status" -eq 0 ]
+    [ "$output" = '.claude/tasks|.claude-alpha/tasks' ]
+
+    # all: 3 カテゴリの合併。件数で部分集合ではなく合併であることを見る
+    run symlink_pairs_for all
+    [ "$status" -eq 0 ]
+    local repo_n apm_n home_n all_n
+    repo_n="$(symlink_pairs_for repo | wc -l | tr -d ' ')"
+    apm_n="$(symlink_pairs_for apm | wc -l | tr -d ' ')"
+    home_n="$(symlink_pairs_for home | wc -l | tr -d ' ')"
+    all_n="$(symlink_pairs_for all | wc -l | tr -d ' ')"
+    [ "$all_n" -eq "$((repo_n + apm_n + home_n))" ]
+
+    # 未知のカテゴリは黙って空を返さない。空だと「対象 0 件」と区別が付かない
+    run symlink_pairs_for bogus
+    [ "$status" -ne 0 ]
+    assert_contains "$output" 'bogus'
+}
+
+# =============================================================================
 # prune_stale_symlinks tests (配列から消えた pair の残骸の撤去)
 # =============================================================================
 #
