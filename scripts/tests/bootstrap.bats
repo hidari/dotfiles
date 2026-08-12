@@ -1568,6 +1568,52 @@ STUB
     refute_contains "$output" ".claude-alpha/.mcp.json"
 }
 
+@test "main: every target it links is inside the counted target set" {
+    # 張る側と数える側が独立に列挙していると、供給カテゴリを片側だけ更新したときに
+    # 新カテゴリの target が集合から漏れる。親ディレクトリは既存 target と共有される
+    # ため走査対象には入るので、main が setup_dotfiles の直後に呼ぶ prune が
+    # 張った直後のリンクを backup へ退避する。exit 0 で完走し、ログに Linked と
+    # Backed up が並ぶだけで終状態が壊れるため、集合の包含をここで pin する。
+    #
+    # 方向は「張った ⊆ 数えた」だけを見る。逆向きは成立しない。フィクスチャには apm が
+    # 配置する source が無く apm 分は張られないが、数える側は持つためである。
+    # 破壊的なのは「張ったのに数えていない」側だけなので、守る向きはこれで足りる。
+    #
+    # この機構が覆うのは main --dry-run が通る経路で張られる target に限る。
+    # dry-run で分岐して張られない経路 (apm source 不在時の skip) は範囲外。
+    write_config_dirs_file '.claude-alpha'
+
+    run bash "$BOOTSTRAP_SCRIPT" --dry-run --dotfiles-only
+    [ "$status" -eq 0 ]
+
+    # dry-run の行から target ($HOME 相対) を取り出す。行数と抽出数の一致を見るのは、
+    # パスに空白が入ったときに一部が静かに落ちる経路を塞ぐため。落ちた分はエラーでは
+    # なく「短い正常な結果」として返るので件数でしか捉えられない
+    local link_lines linked_targets link_n target_n
+    link_lines="$(printf '%s\n' "$output" | grep -c '^\[DRY-RUN\] ln -sf ')"
+    linked_targets="$(printf '%s\n' "$output" \
+        | sed -n "s|^\[DRY-RUN\] ln -sf [^ ]* $TEST_HOME/||p")"
+    link_n="$link_lines"
+    target_n="$(printf '%s\n' "$linked_targets" | grep -c .)"
+    [ "$link_n" -gt 0 ]
+    [ "$target_n" -eq "$link_n" ]
+
+    # 数える側の集合を同じ条件 (同じ設定ファイル) で作る。関数は setup が読み済みだが
+    # 配列はその範囲外にあるのでここで読む
+    load_pairs_array SYMLINK_PAIRS
+    load_pairs_array APM_SYMLINK_PAIRS
+    local counted uncovered
+    counted="$(current_symlink_targets)"
+
+    # 張ったのに数えていない target を列挙する。0 件であること
+    uncovered="$(printf '%s\n' "$linked_targets" \
+        | while IFS= read -r t; do
+              [ -n "$t" ] || continue
+              printf '%s\n' "$counted" | grep -qxF "$t" || printf '%s\n' "$t"
+          done)"
+    [ -z "$uncovered" ]
+}
+
 @test "main: reports a rejected config dir line exactly once" {
     # 却下行の警告は claude_extra_config_dirs が 1 回の実行で複数回呼ばれるぶんだけ
     # 並んでいた。設計意図 (却下行を verbatim で知らせる) がノイズに沈むため、
