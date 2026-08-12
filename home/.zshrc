@@ -189,13 +189,10 @@ function kill-port() {
   fi
 }
 
+# print -D はホームディレクトリをチルダへ畳む組み込みフラグで、プロンプトの %~ と同じ規則で動く。
+# :a は :A と違いシンボリックリンクを解決しない。引数を省略するとカレントディレクトリが対象。
 function cppath() {
-  local abs="${1:a}"        # zshの:aで絶対パス化（シンボリックリンクは解決しない）
-  case "$abs" in
-    "$HOME"/*) print -rn -- "~${abs#$HOME}" | pbcopy ;;
-    "$HOME")   print -rn -- "~" | pbcopy ;;
-    *)         print -rn -- "$abs" | pbcopy ;;   # ホーム外はそのまま絶対パス
-  esac
+  print -rnD -- "${${1:-.}:a}" | pbcopy
 }
 
 ########################################
