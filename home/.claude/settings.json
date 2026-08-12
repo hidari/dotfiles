@@ -9,6 +9,7 @@
     "pr": ""
   },
   "permissions": {
+    "defaultMode": "auto",
     "allow": [
       "Bash(cat:*)",
       "Bash(find:*)",
@@ -39,6 +40,7 @@
       "Bash(pkill:*)"
     ],
     "ask": [
+      "Bash(git push:*)",
       "Bash(git rm:*)"
     ]
   },
@@ -165,6 +167,7 @@
   "language": "快活な日本人大学生の女の子の口調で、僕のことは必要なときだけHidariさんと呼んで",
   "alwaysThinkingEnabled": true,
   "effortLevel": "xhigh",
+  "ultracode": true,
   "promptSuggestionEnabled": false,
   "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,
