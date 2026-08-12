@@ -189,6 +189,15 @@ function kill-port() {
   fi
 }
 
+function cppath() {
+  local abs="${1:a}"        # zshの:aで絶対パス化（シンボリックリンクは解決しない）
+  case "$abs" in
+    "$HOME"/*) print -rn -- "~${abs#$HOME}" | pbcopy ;;
+    "$HOME")   print -rn -- "~" | pbcopy ;;
+    *)         print -rn -- "$abs" | pbcopy ;;   # ホーム外はそのまま絶対パス
+  esac
+}
+
 ########################################
 # Claude Code 起動
 
