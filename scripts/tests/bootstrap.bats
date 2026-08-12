@@ -553,6 +553,31 @@ write_config_dirs_file() {
     printf '%s\n' "$@" > "$TEST_HOME/.config/dotfiles/claude-config-dirs"
 }
 
+@test "claude_config_dir_line_kind: separates valid, ignorable, and rejected lines" {
+    # 有効
+    run claude_config_dir_line_kind '.claude-alpha'
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+
+    # 無視 (空行・コメント・既定ディレクトリ)。却下ではないので警告の対象にしない
+    run claude_config_dir_line_kind ''
+    [ "$status" -eq 1 ]
+    run claude_config_dir_line_kind '# comment'
+    [ "$status" -eq 1 ]
+    run claude_config_dir_line_kind '.claude'
+    [ "$status" -eq 1 ]
+
+    # 却下 (文法違反)。-dev 接尾辞は派生名の予約、接頭辞違いは名前空間の外
+    run claude_config_dir_line_kind '.claude-alpha-dev'
+    [ "$status" -eq 2 ]
+    run claude_config_dir_line_kind '.git'
+    [ "$status" -eq 2 ]
+    run claude_config_dir_line_kind 'alpha'
+    [ "$status" -eq 2 ]
+    run claude_config_dir_line_kind '.claude-'
+    [ "$status" -eq 2 ]
+}
+
 @test "claude_extra_config_dirs: yields each configured dir in file order" {
     write_config_dirs_file '.claude-alpha' '.claude-beta'
 
@@ -604,13 +629,20 @@ write_config_dirs_file() {
     write_config_dirs_file '.claude-ok' '../escape' '.claude;rm -rf /' 'noleadingdot' '..' \
         '.git' '.config' '.claudex' '.claude.dot'
 
-    # 既定の run は stderr を $output へ併合する。warn が却下行を verbatim に出すため、
-    # 併合したままでは「却下行が返り値に混ざっていない」ことを検査できない
+    # stdout と stderr を分け、「却下行が返り値に混ざっていない」ことと「行を吐く側は
+    # 警告を出さない」ことを別々に検査する (警告は warn_invalid_claude_config_dir_lines の責務)
     run --separate-stderr claude_extra_config_dirs
 
     [ "$status" -eq 0 ]
     [ "$output" = ".claude-ok" ]
-    # 却下したことが利用者へ届くことも検査する。黙って捨てると設定の typo に気づけない
+    [ -z "$stderr" ]
+
+    # 却下したことが利用者へ届くことも検査する。黙って捨てると設定の typo に気づけない。
+    # 両関数は同じ述語で判定するので、落とす集合と警告する集合は一致する
+    run --separate-stderr warn_invalid_claude_config_dir_lines
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
     assert_contains "$stderr" "../escape"
     assert_contains "$stderr" ".claude;rm -rf /"
     assert_contains "$stderr" "noleadingdot"
@@ -627,10 +659,15 @@ write_config_dirs_file() {
     # 無い」部分状態になるため同じ文法で落とす
     write_config_dirs_file '.claude-ok' '.claude-dev' '.claude-alpha-dev'
 
-    run --separate-stderr claude_extra_config_dirs
+    run claude_extra_config_dirs
 
     [ "$status" -eq 0 ]
     [ "$output" = ".claude-ok" ]
+
+    # 警告側も同じ述語で判定するため、同じ集合が verbatim で届く
+    run --separate-stderr warn_invalid_claude_config_dir_lines
+
+    [ "$status" -eq 0 ]
     assert_contains "$stderr" ".claude-dev"
     assert_contains "$stderr" ".claude-alpha-dev"
 }
@@ -1480,6 +1517,25 @@ STUB
     refute_contains "$output" ".claude-alpha/hooks"
     refute_contains "$output" ".claude-alpha/statusline-command.sh"
     refute_contains "$output" ".claude-alpha/.mcp.json"
+}
+
+@test "main: reports a rejected config dir line exactly once" {
+    # 却下行の警告は claude_extra_config_dirs が 1 回の実行で複数回呼ばれるぶんだけ
+    # 並んでいた。設計意図 (却下行を verbatim で知らせる) がノイズに沈むため、
+    # 警告を main の 1 回へ集約する。件数で pin するのは「出ている」だけでは
+    # 回数の退行を捕まえられないため
+    write_config_dirs_file '.claude-alpha' '.git'
+
+    run bash "$BOOTSTRAP_SCRIPT" --dry-run --dotfiles-only
+
+    [ "$status" -eq 0 ]
+    local count
+    count="$(printf '%s\n' "$output" | grep -c '受け付けられない行を無視します: \.git')"
+    [ "$count" -eq 1 ]
+
+    # 対照: 有効な行は警告されず、mirror は張られる (警告 0 件が「そもそも読んで
+    # いない」ではないことの確認)
+    assert_contains "$output" "$TEST_HOME/.claude-alpha/settings.json"
 }
 
 @test "main: dry-run creates no extra-dir links when the config file is absent" {
