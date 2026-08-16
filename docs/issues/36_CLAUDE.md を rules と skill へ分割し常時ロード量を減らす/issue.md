@@ -61,15 +61,33 @@ rules を 1 枚足しても再起動するまで効かない。しかも「効�
 書いて動かして反応が無いと `paths` の書き方の誤りと誤診する形をしている。
 動作確認は subagent を 1 本投げるのが最短。
 
-## 未確認
+## 測定結果 (2026-08-17)
 
-`paths` を持たない rules が session_start で常時ロードされるかは未測定。ログに出ていないが、
-対照である `~/.claude/CLAUDE.md` 自身のレコードも出ていないため、これは subagent が
-session_start のメモリロード経路を通っていないことを示している。未観測であって陰性ではない。
+セッションを再起動し `~/.cache/claude/instructions-loaded.jsonl` を読んだ。対照は成立している。
 
-セッションを 1 回再起動し `~/.cache/claude/instructions-loaded.jsonl` を読めば確定する。
-`CLAUDE.md` が `session_start` で出ていれば対照成立、そこに `probe-user-always.md` が
-並んでいれば「paths 無しの rules は常時ロード」が確定する。
+| file_path | memory_type | load_reason |
+|---|---|---|
+| `~/.claude/CLAUDE.md` | User | session_start |
+| リポジトリ直下の `CLAUDE.md` | Project | session_start |
+| `~/.claude/rules/probe-user-always.md` (`paths` 無し) | User | session_start |
+
+`paths` を持つ `probe-user-scoped.md` はこの 3 件に並んでいない。同一ディレクトリの同一形式で
+片方だけが出るため、分岐点が `paths` frontmatter の有無であることを単独レコードより強く言える。
+
+フックの申告とは独立に、再起動後のコンテキストへ `probe-user-always.md` の本文が実際に
+注入されていること、`probe-user-scoped.md` の本文は入っていないことも確認した。
+「フックは鳴ったが中身は入っていない」形の乖離は無い。
+
+確定: `paths` を持たない `~/.claude/rules/*.md` は session_start で常時ロードされる。
+
+### このログで測れないこと
+
+auto-memory の `MEMORY.md` と SessionStart フックの `additionalContext` は、コンテキストへ
+実際に入っているのにレコードが 1 件も出ない。このログは注入経路の一部しか見ていない。
+
+したがってレコードの非存在を「ロードされていない」と読んではならない。今回
+`probe-user-scoped.md` を陰性と判定できたのは、同じ経路 (rules ディレクトリの走査) の対照が
+出ているからであって、経路が違うものには同じ推論を使えない。
 
 ## 分割案の下書き
 
@@ -92,6 +110,18 @@ session_start のメモリロード経路を通っていないことを示して
 | git-github-practices | push 後の確認、長時間コマンドの結論、ruleset 判定、コミット prefix | git 操作はファイル編集と無関係に起きる |
 | subagent-practices | SubAgents の節 + 検証セクションの subagent 運用項 | 同上 |
 
+測定の結果、常時ロード組も rules へ置けることが確定した。ただし置いても session_start で
+払うトークンは変わらない。減るのは CLAUDE.md 本体の行数と族ごとの独立性であって、
+セッション開始時のコストではない。
+
+したがって本 Issue の目的である常時ロード量の削減を達成する経路は 2 つに限られる。
+
+1. `paths` で絞れる族を条件付きロードへ移す
+2. 常時ロード組そのものを skill へ逃がすか削る
+
+置き場所を rules へ移すだけでは達成されない。1 で移せる量が上の 3 つ分しかないため、
+削減幅の主たる決定要因は 2 の側になる。
+
 skill 側への切り分けの軸を 1 本立てる。rules に置くのは「こう振る舞え」という規範、
 skill に置くのは「こういう事実がある」という知識。現行ファイルは 1 項目の中でこの 2 つが
 混ざっており、行数が膨らんでいる主因になっている。Node の `--test-name-pattern` の挙動、
@@ -103,7 +133,8 @@ zsh の `pipestatus`、BSD sed の `\b`、tirith の除外集合といった一�
 
 ## タスク
 
-- [ ] セッション再起動後に `~/.cache/claude/instructions-loaded.jsonl` を読み、未確認の 1 点を確定する
+- [x] セッション再起動後に `~/.cache/claude/instructions-loaded.jsonl` を読み、未確認の 1 点を確定する
+      (2026-08-17 に実測。`paths` 無しの rules は session_start で常時ロードされる)
 - [ ] 確定結果を踏まえて、常時ロード組と条件付きロード組の置き場所を決める
 - [ ] 観測フック `home/.claude/hooks/instructions-loaded-log.py` を常設するか決め、常設するなら
       Issue #26 の集約方針に合わせてテストと lint の対象へ入れる
