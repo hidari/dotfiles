@@ -1,0 +1,784 @@
+{
+  "summary": "94 項目中 paths で絞れるのは 18 件 (19%) のみ。内訳は H5 プロダクションコード 7/8 (markup/CSS に張り付く a11y・セマンティクス・aspect-ratio と、依存追加が manifest に閉じる H5-02)、H6 テストコード 4/8、H2 検証 5/26 (prose/lint 設定に閉じる H2-01、test/CI に書く H2-09、Node 生態系固有の H2-17/H2-18、shell script 固有の H2-23)、H1 2/19 (Markdown 記法の H1-12/H1-13) で、H0・H4・H8・H9・H10・H12 は 0 件。常時ロード量の主因である H2 セクション (8773 字 / 全体の 45%) はほぼ全部が全作業に効く検証方法論で、切り出しても払うトークンは変わらない。判定の基準として「全ソースに掛かる glob」(コードコメント・ログ文言・セキュリティ原則・TDD の順序) は絞れていないとみなし false にした (H1-14/H1-15/H1-16, H4-*, H6-01/H6-02/H6-04 が該当。全ソース glob でよいなら +7 件動かせる)。nature は norm 38 / fact 17 / mixed 39。mixed は H2 に 23 件と突出し、行数の膨張はほぼ全て mixed 項目の「実測事例・機構の説明」部分に由来する。fact 17 件は H10 の commit prefix 表 13 件と H0 の RFC 2119 語彙定義 4 件で、どちらも参照表であり paths では切れないが常時ロードから外せる性質の知識。",
+  "counts": {
+    "total": 94,
+    "scopable": 18,
+    "norm": 38,
+    "fact": 17,
+    "mixed": 39
+  },
+  "items": [
+    {
+      "id": "H0-01",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "fact",
+      "rationale": "文書自身の語彙定義。[MUST GLOBAL] という語が何を意味し project CLAUDE.md より優先されるという序列の宣言で、行為の指示ではない。他の全項目の解釈に必要なのでファイル型では絞れない"
+    },
+    {
+      "id": "H0-02",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "fact",
+      "rationale": "RFC 2119 の [MUST] の語義定義。振る舞いの指示ではなく他項目のラベルを読むための知識"
+    },
+    {
+      "id": "H0-03",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "fact",
+      "rationale": "[SHOULD] の語義定義。同上"
+    },
+    {
+      "id": "H0-04",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "fact",
+      "rationale": "[MAY] の語義定義。同上"
+    },
+    {
+      "id": "H1-01",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "協働の姿勢 (ペアプロの役割設定)。触るファイルと無関係に全ターンで効く"
+    },
+    {
+      "id": "H1-02",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "作業順序の方針 (主目的優先・入れ子回避・ボーイスカウトは可)。3 子項目とも指示で実測事例は無い。作業手順なのでファイル型に紐付かない"
+    },
+    {
+      "id": "H1-03",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "応答言語の指示。出力全般に効く"
+    },
+    {
+      "id": "H1-04",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "個人情報を出力しない禁止。コミット・コミットメッセージ・コード全てが対象で、しかも git 操作時にも発火するため glob 化不可"
+    },
+    {
+      "id": "H1-05",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「ローカル VM/コンテナ/Mac で検証し CI は main マージとリリース時のみ」。知識部分は「ユーザーは個人開発者で CI コストが負担」という前提事実。検証をどこで走らせるかの話でファイル編集とは無関係"
+    },
+    {
+      "id": "H1-06",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「未読ファイルを追跡下へ入れる前に全文を読み gitleaks の緑を根拠にしない」。知識部分は 2 子項目 (検出集合の canonical は .gitleaks.toml でプロジェクト名・ボリューム名は素通り、closed PR の diff は branch 削除後も公開のまま残った事例)。発火するのは git add / mv 時でファイル型では特定できない"
+    },
+    {
+      "id": "H1-07",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "不確かなことを断定しない姿勢。全応答に効く"
+    },
+    {
+      "id": "H1-08",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "反論の作法。協働の姿勢で対象ファイル無し"
+    },
+    {
+      "id": "H1-09",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "変更前に既存コードを読む。全ファイル型に等しく掛かるので絞れない"
+    },
+    {
+      "id": "H1-10",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "不明点は AskUserQuestion で解消する。対話の作法"
+    },
+    {
+      "id": "H1-11",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は反復的な計画/実装と Fable Subagent の適用条件 4 つ + 適用範囲を絞れ。知識部分は末尾の「10 も 20 も同時に走らせるとトークンがリミットに達する」というコスト事実。委譲の方法論で全作業に効く"
+    },
+    {
+      "id": "H1-12",
+      "scopable": true,
+      "paths_hint": [
+        "**/*.md",
+        "**/*.mdx"
+      ],
+      "nature": "norm",
+      "rationale": "Markdown の記法禁止 (強調・区切り線・過剰な絵文字)。触るファイルが Markdown のときにしか意味を持たない典型的な scopable 項目"
+    },
+    {
+      "id": "H1-13",
+      "scopable": true,
+      "paths_hint": [
+        "**/*.md",
+        "**/*.mdx"
+      ],
+      "nature": "mixed",
+      "rationale": "規範部分は「ドキュメントにディレクトリツリーを載せない」「rot したツリーは更新せずセクションごと削除」。知識部分は「経験上必ず drift する」「orientation はトップレベルの説明で足りる」という理由付け。README/docs = Markdown 編集時にのみ発火する"
+    },
+    {
+      "id": "H1-14",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "ログ文言の書き方 (シンプル・絵文字を控える)。ログ追加はあらゆる言語のソースで起きるため glob は全ソースになり絞ったことにならない。全ソース glob を許容するなら移動可能"
+    },
+    {
+      "id": "H1-15",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "ログの言語 (内部は日本語・外部向けは英語)。H1-14 と同じくソース全般が対象で、しかも内部/外部の判別は glob では表現できない"
+    },
+    {
+      "id": "H1-16",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "コードコメントは日本語。対象は全ソースファイルで、md/json/yml を除くだけの glob は実質的な絞り込みにならない"
+    },
+    {
+      "id": "H1-17",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "push の粒度と 3 つの目安。git 操作の作法でファイル編集と無関係"
+    },
+    {
+      "id": "H1-18",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「ホスト上で巨大/不明バイナリを無防備に解析しない」「入力サイズ確認・lazy API・コンテナ隔離の 3 手順」「無音時は ps -o rss= で常駐メモリを見て増え続けたら kill」。知識部分は fontTools TTCollection で 52GB まで暴走し macOS を OOM で落とした事例、ホストに cgroup 境界が無い、macOS の ulimit -v は当てにならない。発火はコマンド実行時でファイル編集ではない"
+    },
+    {
+      "id": "H1-19",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "知識部分は「op signin/whoami なしでもユーザーダイアログで承認できる」という機構の事実。規範部分は「そのまま op read を実行する」。CLI 実行時の話"
+    },
+    {
+      "id": "H2-01",
+      "scopable": true,
+      "paths_hint": [
+        "**/*.md",
+        "**/sgconfig.yml",
+        "rules/**/*.yml",
+        "**/.pre-commit-config.yaml",
+        "**/biome.json",
+        "**/ruff.toml"
+      ],
+      "nature": "norm",
+      "rationale": "静的検査可能なルールは prose ではなく linter/ast-grep に書く、正規化は formatter 前提で prose に書かない。発火するのは指示文 (Markdown) か lint 設定を書く瞬間で、この 2 つは glob で表現できる。ただしコード中コメントに規則を書く経路は取りこぼす"
+    },
+    {
+      "id": "H2-02",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "警告 0 個を維持する。全作業に等しく掛かる"
+    },
+    {
+      "id": "H2-03",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「機械検証可能な制約を schema と散文の両方に literal で書かない」「canonical を単一の真実としファイル名で参照する」。知識部分は「二重記述は CI が捕捉できない形で drift する」と seed_id charset {1,128} vs +$ の実例。対象の散文は指示文・README・コメントの 3 種で、コメントを含む以上どのファイル型を触るか特定できない"
+    },
+    {
+      "id": "H2-04",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は参照へ書き換えたあとの 4 点検算。知識部分は「二重管理を消す作業が同型の欠陥を作り、散文の真偽はどの検査も見ないので 4 つとも緑で通る」という機構の説明。H2-03 と同じ散文集合が対象で file class にならない。加えて『上のルール』という位置参照で H2-03 に依存しており単独では切り出せない"
+    },
+    {
+      "id": "H2-05",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「他者由来の報告を検証済みの網羅的事実として扱わない」「壊れやすい配置を列挙し掛け合わせも見る」「未確認の前提は fan-out 前に自分で再現」。知識部分は実機 OK がグリッド端カード未踏だった事例と『狭い signal ≠ 広い主張』族という分類。検証の方法論で全作業に効く"
+    },
+    {
+      "id": "H2-06",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「表を着手根拠にするなら件数を数え直す」。知識部分は「表は見つけた分しか載らず必ず過小評価に外れる」と再掲 3 箇所 vs 実測 5 箇所の事例。方法論で対象ファイル無し"
+    },
+    {
+      "id": "H2-07",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「検索キーを推測で作らず定義元から実際の名前を読む」「名前ではなく本体・定義で確かめる」。知識部分は偽陰性が確信を強める性質と migration 0060 の create or replace 事例。全作業に効く探索方法論"
+    },
+    {
+      "id": "H2-08",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「0 件/空/緑の前に何を何件見たか確認し正常なら非空になる対照を並べる」。知識部分は healthcheck 8 日連続 success が全 env skip だった事例と dig が SERVFAIL/NXDOMAIN でも exit 0 を返す挙動。方法論で対象ファイル無し"
+    },
+    {
+      "id": "H2-09",
+      "scopable": true,
+      "paths_hint": [
+        "**/*.test.*",
+        "**/*.spec.*",
+        "**/test/**",
+        "**/tests/**",
+        "**/test_*.py",
+        "**/*.bats",
+        ".github/workflows/*.yml"
+      ],
+      "nature": "mixed",
+      "rationale": "規範部分は「件数ではなく実行された ID 集合を pin する」。知識部分は unittest の Ran N が skip/xfail を含み OK/exit 0 を返す実測、件数 pin が同数入れ替えと改名を検出できない性質、H2-08 や node --test ルールとの守備範囲の違い。pin を書く先は test/CI ファイルなので glob で絞れるが、テスト出力を読むだけの場面はファイル touch を伴わず取りこぼす"
+    },
+    {
+      "id": "H2-10",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "対照は検証対象と同じ規約で作る、という 1 行の指示のみ。実測記述を含まない純 norm。ただし内容的には H2-11 の見出し行で、棚卸しが別項目に割った関係にある。方法論で対象ファイル無し"
+    },
+    {
+      "id": "H2-11",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「NUL 区切り・revision range・検索式が対象側と一致しているか対照を信じる前に確認」。知識部分は壊れた対照がもっともらしい不一致を返す性質と 1 ターンで踏んだ 3 事例 (git ls-files -z 無し / git diff main..HEAD が作業ツリーを見ない / grep パターンの余分な空白)。全作業に効く"
+    },
+    {
+      "id": "H2-12",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「手順書の確認コマンドでも実記法と突き合わせてからパターンを使う」。知識部分は in-repo-issue skill の grep が山括弧形式リンクに一致せず 0 件を返し、直すと 11 件出た事例。方法論で対象ファイル無し"
+    },
+    {
+      "id": "H2-13",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「プローブは検証対象と同じ構造上の位置に置く」「整備済みの実ファイルが使えるならそれを対照に」。知識部分は ruff isort の src 設定プローブが同一パッケージ内で別経路解決され、実ファイルでは import 7 件が発火した事例。方法論で対象ファイル無し"
+    },
+    {
+      "id": "H2-14",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「記録メタデータを信じず適用前に実体を数え、適用後に対象外ファイルのハッシュ不変を確認」。知識部分は .highwatermark がセッション中の採番を含まず実 ID より小さかった事例と 11 本全部で不整合・生きたタスク 6 件を上書きしかけた実測。一括操作全般に効く"
+    },
+    {
+      "id": "H2-15",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「独立プロセス・順序を変えた複数の並び・実ワークロードで再測してから採否」。知識部分は BFS 2 倍が先行方式のキャッシュ温めだった事例と、38% の改善が実ワークロードで片フェーズ 18% のみだった実測。性能作業全般に効き対象ファイル型は無い"
+    },
+    {
+      "id": "H2-16",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "最大級の mixed。規範部分は「scratch は .cache/ を使う」「除外を tirith explain の文面で判定しない」「除外に頼る操作ではコマンド文字列にパスを省略しない」。知識部分は tirith の除外集合がハードコードで拡張不可、explain は node_modules/target/dist しか挙げない、0.3.3 の対照付き実測 (.cache 配下は深さ 1/2 とも rm 通過・外は CRITICAL)、cd .cache 後の相対パスは Block、誤読で書き換えコミットが作られた経緯。発火は Bash 実行時でファイル型では絞れない"
+    },
+    {
+      "id": "H2-17",
+      "scopable": true,
+      "paths_hint": [
+        "**/package.json",
+        "**/*.test.{js,mjs,cjs,ts}",
+        "**/test/**/*.{js,mjs,cjs,ts}"
+      ],
+      "nature": "mixed",
+      "rationale": "知識部分は「Node 26 等はディレクトリをエントリモジュールとして解決し MODULE_NOT_FOUND で失敗する」。規範部分は「node --test にはテストファイルか glob を渡す」。Node 生態系限定の知識なので JS/TS 側の glob で絞れる (Python/シェルのみのセッションでは完全に不要)。ただし発火はコマンド実行時なので、テストファイルを触らず走らせる経路は取りこぼす"
+    },
+    {
+      "id": "H2-18",
+      "scopable": true,
+      "paths_hint": [
+        "**/package.json",
+        "**/*.test.{js,mjs,cjs,ts}",
+        "**/test/**/*.{js,mjs,cjs,ts}"
+      ],
+      "nature": "mixed",
+      "rationale": "知識部分が主体で、非マッチ時に tests 1/pass 1/exit 0 になる挙動、非マッチが tests にも skipped にも計上されない、skip 済みだと tests - skipped = 0 で誤判定、Node 24.18 実測という実測記述。規範部分は「期待するテスト名が出力に現れたことで判定する」「--experimental-test-isolation=none を付ける」。H2-17 と同じ Node 限定で同じ glob"
+    },
+    {
+      "id": "H2-19",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「git push をパイプに繋がず、後で ls-remote と status -sb で確認」。知識部分は「パイプ先の exit code が push の失敗を隠し、pre-push hook 完走と ref transfer 完了を取り違える」という機構。git 操作の作法でファイル編集と無関係"
+    },
+    {
+      "id": "H2-20",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「長時間コマンドの結論は専用クエリで確認」「$? を上書きする後続コマンドを連結しない」。知識部分は末尾コマンドの exit が本体の結論を隠す機構と、これが H2-19 の一般形であるという関係。gh/git 操作時に発火"
+    },
+    {
+      "id": "H2-21",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「単独実行し、出力を絞るならファイルへリダイレクトして次の呼び出しで読む」。知識部分は zsh に PIPESTATUS が無く空文字が 0 と評価される挙動と、eslint を tail して 105 problems を見落とした事例。Bash 実行全般に効く"
+    },
+    {
+      "id": "H2-22",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「展開結果を echo で確認」「真偽値コマンドは && でなく ; で分ける」「置換確認は置換前の語が残っていないことを見る」。知識部分は 4 つの実測事例 (zsh の単語分割、check-ignore の exit 1、grep の $@ 展開、BSD sed の \\b 不在)。Bash ツール利用時の話でファイル型に紐付かない"
+    },
+    {
+      "id": "H2-23",
+      "scopable": true,
+      "paths_hint": [
+        "**/*.sh",
+        "**/*.bash",
+        "**/*.zsh",
+        "**/.zshrc",
+        "**/.zprofile",
+        "home/**/bootstrap*"
+      ],
+      "nature": "mixed",
+      "rationale": "規範部分は「関数に状態を持たせる前に呼び出し側がサブシェルを作らないか確かめる」。知識部分は < <(f) 形でキャッシュが毎回破棄された事例、失敗が例外にならない性質、bash 3.2.57 / zsh 5.9 での右辺挙動の実測。シェル関数を書く=シェルスクリプト編集なので glob で絞れる"
+    },
+    {
+      "id": "H2-24",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「ファイル一覧を空白で分割せず NUL 区切りで受け取り件数一致を確認」。知識部分は git diff --name-only を .split() で切って 3 件中 2 件が静かに消えた事例と、H2-08 では部分欠落を捉えられないという関係。パース側は Python/シェル/Bash 呼び出しのいずれでも起きるためファイル型を特定できない"
+    },
+    {
+      "id": "H2-25",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「repo 内では .cache/ に置く」「使う前に check-ignore で確認し効かないリポは .gitignore に足す」「リポ外では scratchpad」。知識部分は scratchpad が session 隔離で辿りにくい・global excludesfile に登録済みという事実。scratch を作る前に必要な判断なので、.cache/** を glob にしても手遅れで絞れない"
+    },
+    {
+      "id": "H2-26",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「classic API の 404 だけで保護なしと結論せず rulesets も確認」。知識部分は ruleset が別系統で classic に出ない機構、bypass 特権で required checks を欠落させる帰結、実際に該当リポジトリが存在するという実測。git/gh 操作時に発火"
+    },
+    {
+      "id": "H4-01",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "多層防御の徹底という設計原則。言語・レイヤ横断でプロダクトコード全体に掛かる"
+    },
+    {
+      "id": "H4-02",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "入力バリデーション/サニタイズ。入力受け口はフロント・API・CLI・設定読み込みのいずれにもあり、ファイル型では特定できない"
+    },
+    {
+      "id": "H4-03",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「charset 検証を名前空間検証と兼用しない」「接頭辞の内側の静的定義・派生名との衝突まで検査する」。知識部分は ^\\.[A-Za-z0-9._-]+$ を通った .git が関数 git を生やして外部コマンドを shadow し .claude-dev がランチャを潰した事例と、警告が出ないので使うまで気づけない性質。動的識別子生成はシェル・JS・SQL いずれでも起き file class にならない"
+    },
+    {
+      "id": "H4-04",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "パラメータ化クエリの使用。危険が生じるのは .sql ではなく任意言語の DB アクセス層なので glob では捉えられない"
+    },
+    {
+      "id": "H4-05",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "XSS 対策のエスケープ。テンプレート/コンポーネント (html/tsx/vue) が主戦場だがサーバ側のレスポンス組み立てでも同じく必要で、markup glob に閉じると穴が開く。H5 の a11y/セマンティクス群と違い出力先が markup に限定されない"
+    },
+    {
+      "id": "H4-06",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "認証・認可チェック。ミドルウェア・ルータ・RLS など配置が実装依存でファイル型に紐付かない"
+    },
+    {
+      "id": "H4-07",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "シークレットのハードコード禁止と .env 利用。あらゆるファイル型 (コード・設定・ドキュメント) が対象"
+    },
+    {
+      "id": "H4-08",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "HTTPS とセキュリティヘッダー。設定先はサーバ設定・フレームワーク設定・エッジ設定と多様でファイル型を特定できない"
+    },
+    {
+      "id": "H4-09",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "攻撃面の最小化という設計方針。全体設計に効くので絞れない"
+    },
+    {
+      "id": "H5-01",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "DRY/KISS/SRP のテスタブル設計。全ソースに等しく掛かり、絞ると全ソース glob になる"
+    },
+    {
+      "id": "H5-02",
+      "scopable": true,
+      "paths_hint": [
+        "**/package.json",
+        "**/pyproject.toml",
+        "**/Cargo.toml",
+        "**/go.mod",
+        "**/apm.yml",
+        "**/Brewfile"
+      ],
+      "nature": "norm",
+      "rationale": "依存を最小に保つ。依存の追加は必ず manifest ファイルの編集として現れるので、その glob で発火させられる"
+    },
+    {
+      "id": "H5-03",
+      "scopable": true,
+      "paths_hint": [
+        "**/*.html",
+        "**/*.tsx",
+        "**/*.jsx",
+        "**/*.vue",
+        "**/*.svelte",
+        "**/*.astro",
+        "**/*.ejs"
+      ],
+      "nature": "norm",
+      "rationale": "セマンティック HTML 要素の使用。markup を書くファイルでしか成立しない規約で、prompt が挙げた scopable の典型例そのもの"
+    },
+    {
+      "id": "H5-04",
+      "scopable": true,
+      "paths_hint": [
+        "**/*.html",
+        "**/*.css",
+        "**/*.scss",
+        "**/*.tsx",
+        "**/*.jsx",
+        "**/*.vue",
+        "**/*.svelte"
+      ],
+      "nature": "norm",
+      "rationale": "Web 開発時に modern-web-guidance plugin を使う。条件が「Web 開発では」と明記されており markup/CSS の glob に対応する"
+    },
+    {
+      "id": "H5-05",
+      "scopable": true,
+      "paths_hint": [
+        "**/*.html",
+        "**/*.tsx",
+        "**/*.jsx",
+        "**/*.vue",
+        "**/*.svelte",
+        "**/*.css"
+      ],
+      "nature": "norm",
+      "rationale": "フォーカス可能要素へのキーボード操作確保。UI markup を触るときだけ必要"
+    },
+    {
+      "id": "H5-06",
+      "scopable": true,
+      "paths_hint": [
+        "**/*.html",
+        "**/*.tsx",
+        "**/*.jsx",
+        "**/*.vue",
+        "**/*.svelte"
+      ],
+      "nature": "norm",
+      "rationale": "i18n 時の ARIA 属性対応。aria-label/aria-describedby は markup にしか書けない"
+    },
+    {
+      "id": "H5-07",
+      "scopable": true,
+      "paths_hint": [
+        "**/*.css",
+        "**/*.scss",
+        "**/*.html",
+        "**/*.tsx",
+        "**/*.jsx",
+        "**/*.vue",
+        "**/*.svelte"
+      ],
+      "nature": "norm",
+      "rationale": "色だけに依存しない情報伝達。デザイン指定は CSS/markup に現れる"
+    },
+    {
+      "id": "H5-08",
+      "scopable": true,
+      "paths_hint": [
+        "**/*.css",
+        "**/*.scss",
+        "**/*.module.css",
+        "**/*.html",
+        "**/*.tsx",
+        "**/*.jsx"
+      ],
+      "nature": "mixed",
+      "rationale": "規範部分は「width/height 属性と aspect-ratio 併用時は CSS に height: auto を入れる」。知識部分は括弧内の理由 (両方確定すると aspect-ratio が無視され height 属性値で縦伸び・クロップする) という CSS の機構説明。CSS と img を書くファイルに閉じる"
+    },
+    {
+      "id": "H6-01",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "TDD の順序 (先に仕様を表すテストを書く)。発火すべき瞬間はプロダクトコードを書き始める前で、テストファイルを触った時点では手遅れになる。プロダクト側 glob は全ソースと同義なので絞れない"
+    },
+    {
+      "id": "H6-02",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "必要なら後からテストを追加する。H6-01 の続きで、判断はプロダクトコード側で起きるため同じ理由で絞れない"
+    },
+    {
+      "id": "H6-03",
+      "scopable": true,
+      "paths_hint": [
+        "**/*.test.*",
+        "**/*.spec.*",
+        "**/test/**",
+        "**/tests/**",
+        "**/test_*.py",
+        "**/*.bats"
+      ],
+      "nature": "norm",
+      "rationale": "ユニットテストでモックを使わない (使うならシンプルに)。テストファイルを書いている最中にしか適用されない作法"
+    },
+    {
+      "id": "H6-04",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "プロダクトコード変更時は先にテストで表現する。H6-01 と同じく発火点がプロダクトコード側なので glob で切ると効かない"
+    },
+    {
+      "id": "H6-05",
+      "scopable": true,
+      "paths_hint": [
+        "**/*.test.*",
+        "**/*.spec.*",
+        "**/test/**",
+        "**/tests/**",
+        "**/test_*.py",
+        "**/*_test.go",
+        "**/*.bats"
+      ],
+      "nature": "mixed",
+      "rationale": "全 94 項目中最大 (32 行/2487 字) で mixed の密度も最大。規範部分は弱い assertion の強化・gaming の確認・変異注入で赤を見る・変異は 1 箇所ずつ・検査機構では 3 種の変異と範囲の計数・免除には緩めすぎ方向の変異・多段検査では手前を通過するデータを使う。知識部分は mockito expect_at_least / React key remount / as キャストが緑のままだった事例、git checkout -- が HEAD へ戻す挙動、isClickEvent の到達不能分岐、process.exitCode = 1 を消しても全緑、Pester で 6 関数しか覆えず 15 関数が緑、compose の rw/ro,z 免除実験、env 対応検査が手前の重複検査に捕まっていた事例。いずれもテスト/ガードを書く場面に閉じるので glob で絞れる"
+    },
+    {
+      "id": "H6-06",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「ユニットテストが緑でも完了とせず full chain を live smoke する」「subagent 委譲時も各境界に live smoke を含める」。知識部分は cmd.exe の & 連鎖が最初の if 偽で全体 no-op になる性質と winvm の mkdir→scp→remote-exec で踏んだ事例。対象は subprocess を起動するあらゆる言語のコードで、テストファイルにも実装ファイルにも跨るため file class にならない"
+    },
+    {
+      "id": "H6-07",
+      "scopable": true,
+      "paths_hint": [
+        "**/*.test.*",
+        "**/*.spec.*",
+        "**/test/**",
+        "**/tests/**",
+        "**/*.bats",
+        "**/test_*.py"
+      ],
+      "nature": "mixed",
+      "rationale": "規範部分は「テストから他スクリプトのデータ構造を検証するときは regex parse せず source/import して言語自身に解釈させる」。知識部分は regex parse が phantom entry を生む性質と bootstrap の SYMLINK_PAIRS を sed で parse して配列内コメントを誤読しかけた事例。テストコードを書く場面に閉じる"
+    },
+    {
+      "id": "H6-08",
+      "scopable": true,
+      "paths_hint": [
+        "**/e2e/**",
+        "**/*.spec.{ts,js,tsx}",
+        "**/playwright.config.*",
+        "**/package.json"
+      ],
+      "nature": "mixed",
+      "rationale": "知識部分は「npx は settings.json で deny にしてある」という環境事実。規範部分は「E2E は公式 Playwright Test Agents で作る」「playwright を devDependency に持たないなら pnpm dlx」。JS 生態系の E2E ファイルに閉じる"
+    },
+    {
+      "id": "H8-01",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "着手前に事前状態を確認する。セッション開始時のプロトコルでファイル touch より前に起きる"
+    },
+    {
+      "id": "H8-02",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "git-branch-switcher でブランチを選ぶ。git 操作かつ着手前なので paths では発火させられない"
+    },
+    {
+      "id": "H9-01",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "norm",
+      "rationale": "終了時に Lint/ビルド/テスト全緑を確認してからマージ。セッション終了プロトコルで対象ファイル無し"
+    },
+    {
+      "id": "H9-02",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「状態を変えたら保存済みメモリを実測と突き合わせて訂正する」。知識部分は「メモリは書かれた時点では正しく正しさを保ったまま古びる」「放置すると将来のセッションが存在しない機構の手順を踏む」という理由。メモリは repo 外にありファイル編集では絞れない"
+    },
+    {
+      "id": "H10-01",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "fact",
+      "rationale": "feat: の語義定義。プレフィックス対応表の 1 エントリで参照知識。コミット時にしか要らないが git 操作なので paths では絞れない"
+    },
+    {
+      "id": "H10-02",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "fact",
+      "rationale": "fix: の語義定義。同じ参照表のエントリ"
+    },
+    {
+      "id": "H10-03",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "fact",
+      "rationale": "improve: の語義定義。同上"
+    },
+    {
+      "id": "H10-04",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "fact",
+      "rationale": "refactor: の語義定義。同上"
+    },
+    {
+      "id": "H10-05",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "fact",
+      "rationale": "test: の語義定義。同上"
+    },
+    {
+      "id": "H10-06",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "fact",
+      "rationale": "style: の語義定義。同上"
+    },
+    {
+      "id": "H10-07",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "fact",
+      "rationale": "docs: の語義定義。同上"
+    },
+    {
+      "id": "H10-08",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "fact",
+      "rationale": "ci: の語義定義。同上"
+    },
+    {
+      "id": "H10-09",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "fact",
+      "rationale": "perf: の語義定義。同上"
+    },
+    {
+      "id": "H10-10",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "fact",
+      "rationale": "depends: の語義定義。同上"
+    },
+    {
+      "id": "H10-11",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "fact",
+      "rationale": "build: の語義定義。同上"
+    },
+    {
+      "id": "H10-12",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "fact",
+      "rationale": "config: の語義定義。同上"
+    },
+    {
+      "id": "H10-13",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "fact",
+      "rationale": "chore: の語義定義。同上"
+    },
+    {
+      "id": "H10-14",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "この項目だけ 284-288 行を含み表の外の散文を抱き込んでいる。知識部分は agent: の語義定義と、括弧内の理由 (文字種を覚えて避ける方式は繰り返し失敗した / heredoc は command 文字列を通るので回避にならない / canonical は dev-workflow:commit-and-pr-message skill)。規範部分は「作業中は (wip) を付ける」「日本語散文は Write でファイルに書き -F/--body-file/--notes-file で渡す」。git/gh 実行時に効く"
+    },
+    {
+      "id": "H12-01",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "規範部分は「SubAgents を積極利用してよい (恒久許可)」「派生は 1 段まで、subagent は subagent を spawn しない」。知識部分は Claude Code 2.1.229 のバイナリに定数として埋まった 2 行が settings.json でも消せないという 2026-08-13 の実測、条件が unless the user requested it である点、fork と Workflow は仕組み側で 1 段に制限されているという事実。委譲の方法論で対象ファイル無し"
+    },
+    {
+      "id": "H12-02",
+      "scopable": false,
+      "paths_hint": [],
+      "nature": "mixed",
+      "rationale": "10 行 1997 字の複合項目。規範部分は Subagent-Driven を既定とする・長時間ゲートはコントローラが回す・相関キーに採番 ID を使う・迷ったときの既定値を指示しない・brief で探索を抑制しない・制約には回避禁止を併記・実験は隔離コピー・設計案の 1 つには前提を疑う出発点を渡す。知識部分は implementer が 5 回連続で Monitor を仕掛けた実証、title 一致で 17 件全部が未検証に落ちた事例、妥当な指摘 4 件が 2 名一致で refuted に落ちた事例、CLAUDE_CONFIG_DIR の説明が Keychain 読み出し試行を誘発した事例、6 並列で本体を変異され exit 2 を退行と誤診しかけた事例、4 案中 3 案が件数 exact 一致へ収束した事例。全て委譲時の運用で file class に紐付かない"
+    }
+  ]
+}

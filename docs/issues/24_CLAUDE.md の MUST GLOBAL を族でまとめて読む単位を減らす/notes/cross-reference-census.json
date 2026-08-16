@@ -1,0 +1,491 @@
+{
+  "total_found": 47,
+  "references": [
+    {
+      "from_id": "H1-11",
+      "to_ids": [
+        "H1-11"
+      ],
+      "expression": "指揮役が対象タスクを以下のいずれかと判断した場合",
+      "kind": "intra_item",
+      "breaks_on_split": false,
+      "note": "L30。直下の子項目 (L31-35) を指す前方参照。項目が丸ごと動く限り壊れない"
+    },
+    {
+      "from_id": "H1-11",
+      "to_ids": [
+        "H12-02"
+      ],
+      "expression": "特にSubagent-Drivenで作業を行う際",
+      "kind": "cross_item",
+      "breaks_on_split": true,
+      "note": "L30。参照語を伴わない用語依存。「Subagent-Driven」は H12-02 (L305) の `superpowers:subagent-driven-development`（Subagent-Driven）でのみ定義される。posref 列は H1-11 にヒットしているが、それは「以下のいずれか」に対してで、この参照は別"
+    },
+    {
+      "from_id": "H1-17",
+      "to_ids": [
+        "H1-17"
+      ],
+      "expression": "例えば以下のような基準：",
+      "kind": "intra_item",
+      "breaks_on_split": false,
+      "note": "L44。子項目 L45-47 への前方参照"
+    },
+    {
+      "from_id": "H2-04",
+      "to_ids": [
+        "H2-03"
+      ],
+      "expression": "上のルールで散文を参照へ書き換えたら",
+      "kind": "cross_item",
+      "breaks_on_split": true,
+      "note": "L66。「上のルール」= H2-03 (L62-65、制約を schema と散文の両方に literal で書かない)。H2-04 は単独では何のルールの後処理か分からなくなる"
+    },
+    {
+      "from_id": "H2-04",
+      "to_ids": [
+        "H2-04"
+      ],
+      "expression": "書き換えた側を以下の4点で検算すること",
+      "kind": "intra_item",
+      "breaks_on_split": false,
+      "note": "L66。同文中の「4 つとも緑で通る可能性があるため」も同じ 4 点 (L67-70) を指す"
+    },
+    {
+      "from_id": "H2-05",
+      "to_ids": [
+        "H6-06"
+      ],
+      "expression": "live-smoke ルールと同じ「狭い signal ≠ 広い主張」族で some-path pass ≠ all-path healthy）",
+      "kind": "derivation_naming",
+      "breaks_on_split": true,
+      "note": "L74。「live-smoke ルール」= H6-06 (L245-248、shell-out の live smoke)。セクション [MUST] 検証 → [MUST] テストコード へのセクション跨ぎ参照で、明示的に族名 (狭い signal ≠ 広い主張) を与えている。棚卸しの posref 列では H2-05 は未フラグ"
+    },
+    {
+      "from_id": "H2-07",
+      "to_ids": [
+        "H2-05"
+      ],
+      "expression": "先述の「他者由来の報告を検証済み事実として扱わない」の自己版で、疑うべき前提が自分の作った検索キーになっている",
+      "kind": "derivation_naming",
+      "breaks_on_split": true,
+      "note": "L83。引用文字列が H2-05 (L71) の見出し文とほぼ一致するので特定は確実"
+    },
+    {
+      "from_id": "H2-09",
+      "to_ids": [
+        "H2-08"
+      ],
+      "expression": "先述の「0 件を健全の根拠にしない」は空と非空の境界しか守らず、非 0 件が「実行された」を意味しない経路を塞げない",
+      "kind": "cross_item",
+      "breaks_on_split": true,
+      "note": "L94。H2-08 (L84) の要約引用。H2-08 は本文書で最も多く参照されるハブ (H2-09 / H2-11 / H2-24 が明示参照、H2-16 / H6-05 が暗黙依存)"
+    },
+    {
+      "from_id": "H2-09",
+      "to_ids": [
+        "H2-18"
+      ],
+      "expression": "後述の `node --test` ルールが Node の pattern 指定に固有なのに対し、こちらは件数という指標そのものの問題",
+      "kind": "cross_item",
+      "breaks_on_split": true,
+      "note": "L95。数少ない後方 (下向き) 参照。`node --test` ルールは H2-17 (L137、ディレクトリ指定) と H2-18 (L138-142、--test-name-pattern) の 2 つあるが、「pattern 指定に固有」なので H2-18 で確定"
+    },
+    {
+      "from_id": "H2-09",
+      "to_ids": [
+        "H2-03"
+      ],
+      "expression": "副産物として件数の literal がコードから消えるので二重管理も同時に解ける",
+      "kind": "cross_item",
+      "breaks_on_split": true,
+      "note": "L93。参照語なしの用語依存。「二重管理」は H2-03 (L62-64) が定義する概念で、そこを読んでいないと「同時に解ける」の含意 (drift 防止) が失われる"
+    },
+    {
+      "from_id": "H2-11",
+      "to_ids": [
+        "H2-10"
+      ],
+      "expression": "NUL 区切り・revision range・検索式が対象側と一致していることを、対照を信じる前に確認する",
+      "kind": "cross_item",
+      "breaks_on_split": true,
+      "note": "L97。参照語ゼロだが H2-11 は H2-10 (L96) の実質的な本体 (本来は子項目であるべきものが `- ` 始まりでトップレベル化している)。H2-10 は 1 行のみ・子項目 0 で、H2-11 の事例群 (L98-100) が H2-10 のルートを説明している。分割時にこの 2 項目を離すと両方が意味を失う"
+    },
+    {
+      "from_id": "H2-11",
+      "to_ids": [
+        "H2-08"
+      ],
+      "expression": "上の「0 件を健全の根拠にしない」の裏面で、あちらは対象側、こちらは対照側",
+      "kind": "derivation_naming",
+      "breaks_on_split": true,
+      "note": "L100。「裏面」という派生関係の命名 + 「あちら/こちら」の対比"
+    },
+    {
+      "from_id": "H2-12",
+      "to_ids": [
+        "H2-10"
+      ],
+      "expression": "上の「対照は同じ規約で作ること」の手順書版で、あちらは自分が組んだ対照、こちらは他人が書いた確認コマンド",
+      "kind": "derivation_naming",
+      "breaks_on_split": true,
+      "note": "L105。引用文字列は H2-10 (L96) の本文と一致。ただし H2-11 が同ルールの本体なので、分割時は H2-10+H2-11 を 1 単位として同伴させる必要がある"
+    },
+    {
+      "from_id": "H2-12",
+      "to_ids": [],
+      "expression": "in-repo-issue skill が Issue 移動時のリンク補正手順で示す `grep -n '](\\.\\./'` を実行して 0 件を得たが",
+      "kind": "section_pointer",
+      "breaks_on_split": false,
+      "note": "L103。外部 skill (dev-workflow:in-repo-issue) への言及。本文書内の項目ではないため to_ids は空"
+    },
+    {
+      "from_id": "H2-13",
+      "to_ids": [
+        "H2-10"
+      ],
+      "expression": "先述の「対照は同じ規約で作ること」の位置版）",
+      "kind": "derivation_naming",
+      "breaks_on_split": true,
+      "note": "L111。H2-12 と同じ親 (H2-10) からの別派生。閉じ括弧が対応しない編集痕あり"
+    },
+    {
+      "from_id": "H2-14",
+      "to_ids": [
+        "H2-05"
+      ],
+      "expression": "先述の「他者由来の報告を検証済み事実として扱わない」のメタデータ版",
+      "kind": "derivation_naming",
+      "breaks_on_split": true,
+      "note": "L117。H2-05 を親とする派生は他に H2-07 (自己版)・H2-16・H12-02 (Subagent-Driven 版) があり、H2-05 も参照ハブ"
+    },
+    {
+      "from_id": "H2-16",
+      "to_ids": [
+        "H2-25"
+      ],
+      "expression": "スクラッチ置き場に `tmp/` ではなく `.cache/` を使うのは、Tirith の `mass_file_deletion` が `.cache` を削除検知の除外集合（ビルド成果物扱い）に含むため",
+      "kind": "cross_item",
+      "breaks_on_split": true,
+      "note": "L123。参照語なし。H2-16 は文法上「〜のは〜ため」で理由だけを述べており、規範そのもの (書き捨てファイルを `<repo>/.cache/` へ置く) は H2-25 (L169-172) にある。2 項目で 1 つのルールを構成しているので離すと H2-16 が宙に浮く"
+    },
+    {
+      "from_id": "H2-16",
+      "to_ids": [
+        "H2-05"
+      ],
+      "expression": "先述の「他者由来の報告を検証済み事実として扱わない」と同じで、canonical を名乗る出力でも網羅とは限らない）",
+      "kind": "cross_item",
+      "breaks_on_split": true,
+      "note": "L136。深さ 3 の子項目からの参照"
+    },
+    {
+      "from_id": "H2-16",
+      "to_ids": [
+        "H2-16"
+      ],
+      "expression": "この除外を `tirith explain` の文面で判定しないこと",
+      "kind": "intra_item",
+      "breaks_on_split": false,
+      "note": "L128。L123-127 で述べた除外集合を受ける。同項目内には他に L131「ただし通るのは」・L134「実際にこの誤読が起き」も同種の内部参照がある"
+    },
+    {
+      "from_id": "H2-16",
+      "to_ids": [
+        "H2-08"
+      ],
+      "expression": "対照を取らずに片側だけを見ると、ブロックされなかったことを「まだ発火していないだけ」と読むことも、ブロックを別ルールの発火と取り違えることもできてしまう",
+      "kind": "cross_item",
+      "breaks_on_split": true,
+      "note": "L135 (関連して L130「0.3.3 で対照付きに実測すると」)。参照語なしの用語依存で、「対照」の方法論は H2-08 (L84) / H2-10 (L96) が定義する。用語レベルの結合なので破断は静かだが、読み手は根拠を辿れなくなる"
+    },
+    {
+      "from_id": "H2-18",
+      "to_ids": [
+        "H6-05"
+      ],
+      "expression": "変異注入で「壊しても赤くならない」と読んで生きた pin を dead pin と誤報告する可能性がある",
+      "kind": "cross_item",
+      "breaks_on_split": true,
+      "note": "L140。参照語なしの用語依存。「変異注入」の定義 (L221) と「dead pin」(L218) はいずれも H6-05 にある。H2-18 は posref 未フラグ"
+    },
+    {
+      "from_id": "H2-20",
+      "to_ids": [
+        "H2-19"
+      ],
+      "expression": "末尾コマンドの exit が本体の結論を隠し、failure を success と誤認する（先述の `git push` ルールの一般形）",
+      "kind": "derivation_naming",
+      "breaks_on_split": true,
+      "note": "L147。H2-19 (L143-144) を特殊例として一般化する宣言"
+    },
+    {
+      "from_id": "H2-21",
+      "to_ids": [
+        "H2-19",
+        "H2-20"
+      ],
+      "expression": "先述の `git push` / 長時間コマンド 問題の一般形",
+      "kind": "derivation_naming",
+      "breaks_on_split": true,
+      "note": "L153。2 項目を同時に指す。H2-19 → H2-20 → H2-21 の三段の一般化チェーンになっており、分割では 3 項目が同一ファイルに残る必要がある"
+    },
+    {
+      "from_id": "H2-22",
+      "to_ids": [
+        "H2-21"
+      ],
+      "expression": "先述の exit code ルールの裏面で、あちらは成否が隠れる側、こちらは後続が飛ぶ側",
+      "kind": "derivation_naming",
+      "breaks_on_split": true,
+      "note": "L161。「exit code ルール」は H2-21 (L148「exit code で成否を判定するコマンドは…」) の見出し文と一致。H2-20 も exit code を扱うが「成否が隠れる側」の記述は H2-21 の本体 (L150-151) に対応する"
+    },
+    {
+      "from_id": "H2-22",
+      "to_ids": [
+        "H2-22"
+      ],
+      "expression": "これらは例外ではなく「0 件」「何も起きない」「無関係な件数」という成功に見える形で返るので結果を見ても気づけない",
+      "kind": "intra_item",
+      "breaks_on_split": false,
+      "note": "L159。同項目の番号付き 4 事例 (L155-158) を受ける"
+    },
+    {
+      "from_id": "H2-23",
+      "to_ids": [
+        "H2-22"
+      ],
+      "expression": "先述のシェル展開ルールと同族で、あちらは展開結果、こちらはプロセス境界",
+      "kind": "derivation_naming",
+      "breaks_on_split": true,
+      "note": "L166。「同族」という族の宣言"
+    },
+    {
+      "from_id": "H2-24",
+      "to_ids": [
+        "H2-08"
+      ],
+      "expression": "下の「0 件を健全の根拠にしない」は空と非空の境界しか守らないため、部分的な欠落は件数の一致でしか捉えられない",
+      "kind": "cross_item",
+      "breaks_on_split": true,
+      "note": "L168。方向語が誤り: H2-08 は L84 で、参照元 L168 より上にある (同じ項目を H2-09 は「先述の」、H2-11 は「上の」と呼んでいる)。引用文字列が一致するので指す先は確定できるが、位置参照が既に 1 件壊れている実例"
+    },
+    {
+      "from_id": "H2-24",
+      "to_ids": [
+        "H2-22"
+      ],
+      "expression": "上のシェル展開ルールの、自分のパースコード側の類型）",
+      "kind": "derivation_naming",
+      "breaks_on_split": true,
+      "note": "L168。H2-23 と同じ親 (H2-22) からの別派生。1 行に 2 つの位置参照が同居している"
+    },
+    {
+      "from_id": "H5-04",
+      "to_ids": [],
+      "expression": "Web開発では modern-web-guidance plugin を活用し常に最新で安全なWeb実装を行うこと",
+      "kind": "section_pointer",
+      "breaks_on_split": false,
+      "note": "L201。外部 plugin 名。posref 未フラグ"
+    },
+    {
+      "from_id": "H6-05",
+      "to_ids": [
+        "H6-05"
+      ],
+      "expression": "上の「緑 = dead pin」の逆側の落とし穴）",
+      "kind": "intra_item",
+      "breaks_on_split": false,
+      "note": "L227 → L218「緑のままなら dead pin である」。同一項目内だが H6-05 は 32 行 2487 字と本文書最大で、テストコード章を内部分割する場合はこの 1 件を含む 5 件の内部参照が壊れる"
+    },
+    {
+      "from_id": "H6-05",
+      "to_ids": [
+        "H6-05"
+      ],
+      "expression": "先述の「緑 = dead pin」を検査機構自身へ適用した形",
+      "kind": "intra_item",
+      "breaks_on_split": false,
+      "note": "L234 → L218。派生関係の命名でもあるが指す先が同一項目内なので intra_item に分類"
+    },
+    {
+      "from_id": "H6-05",
+      "to_ids": [
+        "H6-05"
+      ],
+      "expression": "先述の 3 種はどれも「検査が効く」方向の検証なので、免除が広がりすぎる方向は全部緑で通る",
+      "kind": "intra_item",
+      "breaks_on_split": false,
+      "note": "L236 → L228 の「変異は 3 種いる」"
+    },
+    {
+      "from_id": "H6-05",
+      "to_ids": [
+        "H6-05"
+      ],
+      "expression": "先述の「3 種 + 範囲」の範囲が『機構が届かない対象がある』話なのに対し、こちらは『免除が届きすぎる』側",
+      "kind": "intra_item",
+      "breaks_on_split": false,
+      "note": "L239 → L228-233"
+    },
+    {
+      "from_id": "H6-05",
+      "to_ids": [
+        "H6-05"
+      ],
+      "expression": "先述の「緑 = dead pin」の原因側の類型",
+      "kind": "intra_item",
+      "breaks_on_split": false,
+      "note": "L244 → L218。H6-05 内では「緑 = dead pin」(L218) が 3 回参照されるローカルハブ"
+    },
+    {
+      "from_id": "H6-05",
+      "to_ids": [
+        "H2-03"
+      ],
+      "expression": "統合テストが自前で argv を組んでいて取り付けの literal が二重管理になっていたのも同じ穴。",
+      "kind": "cross_item",
+      "breaks_on_split": true,
+      "note": "L230。参照語なしの用語依存 (「二重管理」= H2-03)。文中の「同じ穴」自体は同項目 L228 の (3) を指す intra"
+    },
+    {
+      "from_id": "H6-05",
+      "to_ids": [
+        "H2-08"
+      ],
+      "expression": "免除の集合へ本来報告すべき値を混ぜ、既存の対照テストが赤くなるところまで見る",
+      "kind": "cross_item",
+      "breaks_on_split": true,
+      "note": "L235 (関連して L237-238)。参照語なしの用語依存で「対照」は H2-08 / H2-10 の語彙。結合は弱いが、族設計では同じ「対照」族に属する"
+    },
+    {
+      "from_id": "H6-06",
+      "to_ids": [
+        "H12-02"
+      ],
+      "expression": "subagent-driven で委譲する場合も各境界の検証に live smoke を含めること",
+      "kind": "cross_item",
+      "breaks_on_split": true,
+      "note": "L248。参照語なしの用語依存。「subagent-driven」の定義は H12-02 (L305)。H6-06 は posref 未フラグ。なお H6-06 は H2-05 (L74) から「live-smoke ルール」として参照される側でもあり、双方向にセクションを跨ぐ"
+    },
+    {
+      "from_id": "H6-07",
+      "to_ids": [
+        "H2-03"
+      ],
+      "expression": "先述の「二重管理 → drift」の一種",
+      "kind": "derivation_naming",
+      "breaks_on_split": true,
+      "note": "L252。H2-03 (L62-64「同一制約の二重記述は CI が捕捉できない形で drift する」) を親とする族宣言。テストコード章 → 検証章のセクション跨ぎ"
+    },
+    {
+      "from_id": "H8-02",
+      "to_ids": [],
+      "expression": "これから行うタスクに `dev-workflow:git-branch-switcher` を使用して適切なブランチで作業を開始すること",
+      "kind": "section_pointer",
+      "breaks_on_split": false,
+      "note": "L259。外部 skill 名"
+    },
+    {
+      "from_id": "H10-14",
+      "to_ids": [
+        "H10-01",
+        "H10-02",
+        "H10-03",
+        "H10-04",
+        "H10-05",
+        "H10-06",
+        "H10-07",
+        "H10-08",
+        "H10-09",
+        "H10-10",
+        "H10-11",
+        "H10-12",
+        "H10-13"
+      ],
+      "expression": "それぞれのプレフィックスの後ろに `(wip)` を付ける",
+      "kind": "cross_item",
+      "breaks_on_split": true,
+      "note": "L286。棚卸しは L284-288 をまとめて H10-14 に割り当てているため、この段落は H10-14 の一部として扱われる。実際にはプレフィックス一覧全体 (H10-01〜H10-14) を受ける。posref 未フラグ"
+    },
+    {
+      "from_id": "H10-14",
+      "to_ids": [],
+      "expression": "対象コマンドの一覧・機構・発火条件の実測は skill `dev-workflow:commit-and-pr-message` が持つ",
+      "kind": "section_pointer",
+      "breaks_on_split": false,
+      "note": "L288。canonical を外部 skill へ委譲する明示ポインタ"
+    },
+    {
+      "from_id": "H12-01",
+      "to_ids": [
+        "H12-01"
+      ],
+      "expression": "Agent / Task tool と Workflow の使用はこの記述をもって恒久的に許可済みとし、都度の確認は要らない",
+      "kind": "intra_item",
+      "breaks_on_split": false,
+      "note": "L301。「この記述」= 自己言及。ただし自己言及であるがゆえに、この項目が別ファイルへ移ってもテキストが残れば成立する"
+    },
+    {
+      "from_id": "H12-01",
+      "to_ids": [
+        "H12-01"
+      ],
+      "expression": "消せない側ではなく条件を満たす側をここで明示する",
+      "kind": "intra_item",
+      "breaks_on_split": false,
+      "note": "L303。「ここ」= L301 の許可宣言。posref 未フラグ"
+    },
+    {
+      "from_id": "H12-02",
+      "to_ids": [],
+      "expression": "実装プランを実行する際は `superpowers:subagent-driven-development`（Subagent-Driven）を既定とする",
+      "kind": "section_pointer",
+      "breaks_on_split": false,
+      "note": "L305。外部 skill 名。同時に本文書内での「Subagent-Driven」の唯一の定義箇所で、H1-11 と H6-06 がこれに依存する"
+    },
+    {
+      "from_id": "H12-02",
+      "to_ids": [
+        "H6-05"
+      ],
+      "expression": "implementer には実装と変異注入までを任せる",
+      "kind": "cross_item",
+      "breaks_on_split": true,
+      "note": "L306 (L307「implementer に長時間コマンドを委譲しないこと」も同じ前提)。「変異注入」の定義は H6-05 (L221)"
+    },
+    {
+      "from_id": "H12-02",
+      "to_ids": [
+        "H2-05"
+      ],
+      "expression": "上の「他者由来の報告を検証済み事実として扱わない」の Subagent-Driven 版）",
+      "kind": "derivation_naming",
+      "breaks_on_split": true,
+      "note": "L311。文書末尾から先頭寄りの章への最長距離の派生宣言 (L311 → L71)"
+    },
+    {
+      "from_id": "H12-02",
+      "to_ids": [
+        "H2-09"
+      ],
+      "expression": "件数という指標そのものを捨てて同数入れ替えと skip 化の検出に到達した",
+      "kind": "cross_item",
+      "breaks_on_split": true,
+      "note": "L314。参照語なし。H2-09 (L88-95、特に L91-92 の「全テストを skip 化しても」「同数入れ替え」) がこの事例の結論を規範化したものなので、事例と規範が別ファイルへ分かれる"
+    }
+  ],
+  "unresolved": [
+    {
+      "from_id": "H1-02",
+      "expression": "影響範囲が限定的であることが予想される場合はボーイスカウトルールに則って対応することは可",
+      "why": "L18。「ボーイスカウトルール」を定義する項目が本文書 (home/.claude/CLAUDE.md) 内に存在しない。定義はプロジェクト側 CLAUDE.md と dev-workflow:pre-merge-quality-gate skill にあるため、指す先を本棚卸しの ID では表せない。推測で ID を割り当てなかった"
+    },
+    {
+      "from_id": "H1-17",
+      "expression": "Simplify、レビュー、ボーイスカウトルール全てを適用後のPush",
+      "why": "L46。Simplify (/simplify)・レビュー (feature-dev:code-reviewer)・ボーイスカウトルールのいずれも本文書内に定義項目が無く、プロジェクト CLAUDE.md 側の規約を前提にしている。文書内 ID へは解決できない"
+    }
+  ],
+  "coverage_note": "原文 home/.claude/CLAUDE.md を L1 から L314 まで全行通読した (棚卸しの宣言 314 行と一致)。参照表現の一次スクリーニング (先述/後述/上の/下の/同じ/同族/一般形/裏面/自己版/類型/一種/あちら/こちら/ルール/族/版/以下 等の広めの grep) は読解の裏取りとしてのみ使い、判定は通読で行った。棚卸しの posref 列で y が付いていたのは 18 項目だが、参照を持つ項目は 25 項目あり、posref 未フラグの 7 項目 (H2-05, H2-18, H5-04, H6-06, H8-02, H10-14, H12-01) から計 9 件の参照を追加検出した。うち分割で壊れる cross_item / derivation_naming は 5 件 (H2-05→H6-06 の live-smoke 族、H2-18→H6-05 の変異注入/dead pin、H6-06→H12-02 の subagent-driven、H10-14→プレフィックス一覧、および H12-01 は intra のみ)。さらに posref が y の項目内でも、パターンが拾わない参照語なしの用語依存を 7 件検出した (H2-09→H2-03, H2-11→H2-10, H2-16→H2-25, H2-16→H2-08, H6-05→H2-03, H6-05→H2-08, H12-02→H2-09)。references に載せられなかったが分割で壊れる依存が 3 系統ある: (1) 全セクション見出しの [MUST GLOBAL]/[MUST]/[SHOULD] マーカーは L5-10 の H0-01〜H0-04 が定義しており、分割後の各ファイルは定義を失う。from_id が見出しで項目 ID を持たないため references には入れていない。(2) L269「以下のプレフィックスを使用する。」はセクション本文であって `^- ` 項目ではないため ID が無いが、H10-01〜H10-14 の一覧への前方参照である。(3) 明示的な参照語も用語共有も無いまま同じ族に属する項目対がある (H1-06 の「gitleaksなどの緑を安全の根拠にしない」と H2-08 の「緑を健全の根拠にしない」、H1-13 の「必ず drift する」と H2-03/H6-07 の drift 族、H2-06 の「棚卸しの表を着手の根拠にしない」と H2-05 の他者由来報告族、H9-02 の「保存済みメモリを実測と突き合わせて訂正」と drift 族)。これらは分割しても文が壊れないので references には含めていないが、族の階層設計では同一ファイルに寄せる候補になる。既存の破断も 1 件実測した: L168 の「下の「0 件を健全の根拠にしない」」は実際には上 (L84) にあり、位置参照が既に誤っている。参照ハブは H2-05 (被参照 4)、H2-08 (被参照 4)、H2-10 (被参照 3)、H6-05 内の「緑 = dead pin」(被参照 3、項目内)、H2-03 (被参照 3)。ファイルは一切変更していない。"
+}
