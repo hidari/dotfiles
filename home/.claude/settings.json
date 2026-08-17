@@ -9,7 +9,6 @@
     "pr": ""
   },
   "permissions": {
-    "defaultMode": "auto",
     "allow": [
       "Bash(cat:*)",
       "Bash(find:*)",
@@ -173,6 +172,7 @@
   "skipWorkflowUsageWarning": true,
   "editorMode": "normal",
   "remoteControlAtStartup": true,
+  "crossSessionInbound": "accept",
   "inputNeededNotifEnabled": true,
   "agentPushNotifEnabled": true
 }
