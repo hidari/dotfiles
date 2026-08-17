@@ -136,7 +136,7 @@ closed 配下の 2 ファイル 17 行だけが残り、それを除くと 0 件
   見ておらず、検出はゲートの目視に依存していた
 - [Issue #31: docs: spec が参照する bootstrap.sh の関数名と行番号を実体に合わせる](../../31_spec%20が参照する%20bootstrap.sh%20の関数名と行番号を実体に合わせる/issue.md)
   Phase 4 のゲートが検出。25-spec.md 自身が持つ rot
-- [Issue #32: refactor: symlink pair の列挙を張る側と数える側で共有する](../../32_symlink%20pair%20の列挙を張る側と数える側で共有する/issue.md)
+- [Issue #32: refactor: symlink pair の列挙を張る側と数える側で共有する](../32_symlink%20pair%20の列挙を張る側と数える側で共有する/issue.md)
   Phase 3b のゲートが検出。本 Issue が「配列 2 + 生成 0」から「配列 2 + 生成 2」へ
   カテゴリを増やしたことで、張る側と数える側の二重知識が実害を持つようになった
 - [Issue #33: fix: 設定から外した Claude 設定ディレクトリの symlink が撤去されない](../../33_設定から外した%20Claude%20設定ディレクトリの%20symlink%20が撤去されない/issue.md)
