@@ -54,5 +54,5 @@ Issue #25 Phase 3b のマージ前ゲートで検出した。`prune_stale_symlin
 
 - [Issue #25: skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する](../closed/25_skill%20と%20plugin%20を新規%20PUBLIC%20リポジトリへ集約し%20apm%20配布へ移行する/issue.md)
   `prune_stale_symlinks` を実装した Phase 3b の Issue
-- [Issue #32: symlink pair の列挙を張る側と数える側で共有する](../32_symlink%20pair%20の列挙を張る側と数える側で共有する/issue.md)
+- [Issue #32: symlink pair の列挙を張る側と数える側で共有する](../closed/32_symlink%20pair%20の列挙を張る側と数える側で共有する/issue.md)
   同じ関数の別の盲点。あちらは集合の作り方の話で、こちらは走査範囲の話
