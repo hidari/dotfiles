@@ -452,6 +452,22 @@ install_apm_packages() {
 # テストの load_bootstrap_functions がマーカー間だけを切り出して source するため。
 CLAUDE_CONFIG_DIRS_FILE="${CLAUDE_CONFIG_DIRS_FILE:-$HOME/.config/dotfiles/claude-config-dirs}"
 
+# 設定ファイルの 1 行を分類する。0 = 有効、1 = 無視 (空行・コメント・既定ディレクトリ)、
+# 2 = 却下 (文法違反)。行を吐く側と警告する側が同じ述語を使うことで、文法が二重管理に
+# ならない。文法の canonical はここ 1 箇所で、home/.zshrc 側との一致は
+# zshrc-claude.bats が pin する。
+# 戻り値を読む側は set -e に注意すること。単独で呼ぶと 1 や 2 でスクリプトごと終了する。
+claude_config_dir_line_kind() {
+    case "$1" in
+        '' | '#'* | '.claude') return 1 ;;
+    esac
+    if [ "$1" != "${1%-dev}" ] \
+        || ! printf '%s' "$1" | grep -Eq '^\.claude-[A-Za-z0-9._-]+$'; then
+        return 2
+    fi
+    return 0
+}
+
 # 追加の Claude 設定ディレクトリ (既定の .claude を除く) を 1 行 1 件で出力する。
 # 各行は $HOME 直下のディレクトリ名そのものとして扱い、symlink の target へ無変換で使う
 # (ドット無し記法にするとドットを再付与する第 2 の規約が生まれて drift する)。
@@ -466,23 +482,36 @@ CLAUDE_CONFIG_DIRS_FILE="${CLAUDE_CONFIG_DIRS_FILE:-$HOME/.config/dotfiles/claud
 # ため、-dev を許すと別の行の派生名と衝突して後勝ちで静かに上書きされる。bootstrap は
 # 関数を作らないので単独では困らないが、片側だけが受理すると「mirror はあるがランチャ
 # が無い」部分状態になるため同じ文法にする (一致は zshrc-claude.bats が pin する)。
-#
-# 黙って捨てると設定の typo に気づけないため、却下行は verbatim で stderr へ出す。
 claude_extra_config_dirs() {
     [ -f "$CLAUDE_CONFIG_DIRS_FILE" ] || return 0
 
+    # 無視も却下もここでは黙って落とす。却下行の通知は
+    # warn_invalid_claude_config_dir_lines が持ち main が 1 回だけ呼ぶ。
+    # この関数はプロセス置換から何度も呼ばれるので、ここで警告すると同じ内容が並ぶ
     local line
     while IFS= read -r line || [ -n "$line" ]; do
-        case "$line" in
-            '' | '#'* | '.claude') continue ;;
-        esac
-        if [ "$line" != "${line%-dev}" ] \
-            || ! printf '%s' "$line" | grep -Eq '^\.claude-[A-Za-z0-9._-]+$'; then
-            warn "設定ディレクトリ名として受け付けられない行を無視します: $line"
-            continue
-        fi
+        claude_config_dir_line_kind "$line" || continue
         printf '%s\n' "$line"
     done < "$CLAUDE_CONFIG_DIRS_FILE"
+}
+
+# 却下行を verbatim で stderr へ出す。黙って捨てると設定の typo に気づけない。
+# main が 1 回だけ呼ぶ。判定は claude_config_dir_line_kind が canonical で、
+# ここは通知だけを持つ。
+# 戻り値の受け方に注意。set -e 下では述語を単独で呼ぶと 1 や 2 で即終了するため、
+# || で受けて $? を読む
+warn_invalid_claude_config_dir_lines() {
+    [ -f "$CLAUDE_CONFIG_DIRS_FILE" ] || return 0
+
+    local line kind
+    while IFS= read -r line || [ -n "$line" ]; do
+        kind=0
+        claude_config_dir_line_kind "$line" || kind=$?
+        if [ "$kind" -eq 2 ]; then
+            warn "設定ディレクトリ名として受け付けられない行を無視します: $line"
+        fi
+    done < "$CLAUDE_CONFIG_DIRS_FILE"
+    return 0
 }
 
 # 既定の .claude/ 向け target が追加の設定ディレクトリ側にも要るなら真。
@@ -533,6 +562,58 @@ claude_home_symlink_pairs() {
     done < <(claude_extra_config_dirs)
 }
 
+# 受け取った pair 列と、その mirror (追加の設定ディレクトリぶん、claude_mirror_pairs が
+# 導出) を 1 行 1 件で出力する。repo / apm 両カテゴリの供給規則はここが単一の持ち場で、
+# 片方だけ更新されて drift する型を生成器の中に残さない。
+# pair は配列ではなく "$@" で受けるが、これで空配列のクラッシュを防げるわけではない。
+# "${arr[@]}" の展開は呼び出し側で起きるため、配列が空なら symlink_pairs_for の側が
+# bash 3.2 + set -u で unbound variable になり、ここへは到達しない。両配列とも静的で
+# 常に非空なので実害は無い。
+emit_pairs_with_mirrors() {
+    # printf は引数が無くても format を 1 回評価して空行を出すため、空の pair 列は
+    # ここで打ち切る (「0 件」を空行 1 件と取り違えない)
+    [ "$#" -gt 0 ] || return 0
+
+    printf '%s\n' "$@"
+
+    local dir
+    while IFS= read -r dir; do
+        claude_mirror_pairs "$dir" "$@"
+    done < <(claude_extra_config_dirs)
+}
+
+# カテゴリ別に symlink pair (source|target) を 1 行 1 件で出力する単一の生成器。
+# 張る側 (setup_dotfiles / setup_apm_symlinks) と数える側 (current_symlink_targets) が
+# ここから取ることで、供給カテゴリを足したときの編集箇所が 1 関数へ閉じる。
+# カテゴリの分け方の基準は source の性質。repo の source は git 管理下で必ず実在し、
+# apm の source は apm install が配置するまで存在せず、home の source は未追跡の
+# ローカル状態で無ければ張る側が作る。張る側がこの違いで分岐するため境界をここに合わせた。
+# 未知のカテゴリで空を返さないのは、呼び出し側から「対象が 0 件」と区別が付かないため。
+symlink_pairs_for() {
+    local category="$1"
+
+    case "$category" in
+        repo)
+            emit_pairs_with_mirrors "${SYMLINK_PAIRS[@]}"
+            ;;
+        apm)
+            emit_pairs_with_mirrors "${APM_SYMLINK_PAIRS[@]}"
+            ;;
+        home)
+            claude_home_symlink_pairs
+            ;;
+        all)
+            symlink_pairs_for repo
+            symlink_pairs_for apm
+            symlink_pairs_for home
+            ;;
+        *)
+            error "Unknown symlink pair category: $category"
+            return 1
+            ;;
+    esac
+}
+
 # =============================================================================
 # dotfiles セットアップ関数
 # =============================================================================
@@ -572,22 +653,15 @@ create_apm_symlink() {
 }
 
 # apm が deploy した成果物へのシンボリックリンクを作成する（冪等）。
-# 追加の Claude 設定ディレクトリ向けの pair は配列へ書かず、既定の .claude/ 向け pair
-# から導出する (名前をリポジトリへ書かないため。読み先は claude-config-dirs)。
-# この生成を setup_dotfiles 側へ置かないのは、あちらが install_apm_packages より前かつ
+# pair は symlink_pairs_for apm から取る (追加の設定ディレクトリ向けの mirror を含む)。
+# この張り付けを setup_dotfiles 側へ置かないのは、あちらが install_apm_packages より前かつ
 # --dotfiles-only でも走るため。source 存在ガードを持つのはこの関数だけで、
 # 先に張ると source が無い状態で symlink を張ってしまう。
 setup_apm_symlinks() {
-    local pair dir
-    for pair in "${APM_SYMLINK_PAIRS[@]}"; do
+    local pair
+    while IFS= read -r pair; do
         create_apm_symlink "$pair"
-    done
-
-    while IFS= read -r dir; do
-        while IFS= read -r pair; do
-            create_apm_symlink "$pair"
-        done < <(claude_mirror_pairs "$dir" "${APM_SYMLINK_PAIRS[@]}")
-    done < <(claude_extra_config_dirs)
+    done < <(symlink_pairs_for apm)
 }
 
 setup_dotfiles() {
@@ -598,29 +672,18 @@ setup_dotfiles() {
     ensure_directory "$HOME/.config/mise"
     ensure_directory "$HOME/.local/bin"
 
-    # シンボリックリンクを作成
+    # リポジトリを source とする symlink (追加設定ディレクトリ向けの mirror を含む)
     local pair source target
-    for pair in "${SYMLINK_PAIRS[@]}"; do
+    while IFS= read -r pair; do
         source="$DOTFILES_DIR/${pair%%|*}"
         target="$HOME/${pair##*|}"
         create_symlink "$source" "$target"
-    done
+    done < <(symlink_pairs_for repo)
 
-    # 追加の Claude 設定ディレクトリへ共有設定の symlink を張る。pair は配列へ書かず
-    # 既定の .claude/ 向け pair から導出する (名前をリポジトリへ書かないため)
-    local dir
-    while IFS= read -r dir; do
-        while IFS= read -r pair; do
-            source="$DOTFILES_DIR/${pair%%|*}"
-            target="$HOME/${pair##*|}"
-            create_symlink "$source" "$target"
-        done < <(claude_mirror_pairs "$dir" "${SYMLINK_PAIRS[@]}")
-    done < <(claude_extra_config_dirs)
-
-    # ホーム内で完結する共有リンクを作成 (pair は設定ディレクトリごとに生成する)
+    # ホーム内で完結する共有リンク。source が無ければ setup_home_symlinks が作る
     while IFS= read -r pair; do
         setup_home_symlinks "$pair"
-    done < <(claude_home_symlink_pairs)
+    done < <(symlink_pairs_for home)
 
     # .gitconfig.private をコピー（既存の場合はスキップ）
     if [ -f "$DOTFILES_DIR/home/.gitconfig.private.example" ]; then
@@ -631,26 +694,14 @@ setup_dotfiles() {
 }
 
 # bootstrap が管理する symlink の target ($HOME 相対) を 1 行 1 件で出力する。
-# 配列 2 つに加えて、追加の設定ディレクトリ向けに生成される mirror pair と
-# ホーム内共有 pair も含める。集合を配列の直読みだけで組むと生成分が漏れ、
+# 供給は symlink_pairs_for all が持つ。集合を配列の直読みだけで組むと、追加の
+# 設定ディレクトリ向けに生成される mirror pair とホーム内共有 pair が漏れ、
 # 生きている追加ディレクトリ側のリンクを stale と誤認する。
 current_symlink_targets() {
-    local pair dir
-    for pair in "${SYMLINK_PAIRS[@]}" "${APM_SYMLINK_PAIRS[@]}"; do
-        printf '%s\n' "${pair##*|}"
-    done
-
-    # mirror の導出は claude_mirror_pairs が canonical (どの target を張るかの判定を含む)。
-    # 張る側と違い source の由来で分ける必要は無いので、両配列をまとめて渡す
-    while IFS= read -r dir; do
-        while IFS= read -r pair; do
-            printf '%s\n' "${pair##*|}"
-        done < <(claude_mirror_pairs "$dir" "${SYMLINK_PAIRS[@]}" "${APM_SYMLINK_PAIRS[@]}")
-    done < <(claude_extra_config_dirs)
-
+    local pair
     while IFS= read -r pair; do
         printf '%s\n' "${pair##*|}"
-    done < <(claude_home_symlink_pairs)
+    done < <(symlink_pairs_for all)
 }
 
 # stdin の target ($HOME 相対) 列から、stale 検出で走査する親ディレクトリを
@@ -938,6 +989,9 @@ main() {
         install_claude_code
         install_apm
     fi
+
+    # 設定ファイルの却下行をここで 1 回だけ知らせる。以降の読み取りは黙ってフィルタする
+    warn_invalid_claude_config_dir_lines
 
     # dotfiles セットアップ
     setup_dotfiles

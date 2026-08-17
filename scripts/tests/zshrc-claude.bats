@@ -575,7 +575,7 @@ setup_extra_account() {
 
     local from_bootstrap
     load_bootstrap_functions
-    from_bootstrap="$(claude_extra_config_dirs 2> /dev/null)"
+    from_bootstrap="$(claude_extra_config_dirs)"
 
     load_zshrc_claude_functions
     local line name from_zshrc=""

@@ -553,6 +553,31 @@ write_config_dirs_file() {
     printf '%s\n' "$@" > "$TEST_HOME/.config/dotfiles/claude-config-dirs"
 }
 
+@test "claude_config_dir_line_kind: separates valid, ignorable, and rejected lines" {
+    # 有効
+    run claude_config_dir_line_kind '.claude-alpha'
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+
+    # 無視 (空行・コメント・既定ディレクトリ)。却下ではないので警告の対象にしない
+    run claude_config_dir_line_kind ''
+    [ "$status" -eq 1 ]
+    run claude_config_dir_line_kind '# comment'
+    [ "$status" -eq 1 ]
+    run claude_config_dir_line_kind '.claude'
+    [ "$status" -eq 1 ]
+
+    # 却下 (文法違反)。-dev 接尾辞は派生名の予約、接頭辞違いは名前空間の外
+    run claude_config_dir_line_kind '.claude-alpha-dev'
+    [ "$status" -eq 2 ]
+    run claude_config_dir_line_kind '.git'
+    [ "$status" -eq 2 ]
+    run claude_config_dir_line_kind 'alpha'
+    [ "$status" -eq 2 ]
+    run claude_config_dir_line_kind '.claude-'
+    [ "$status" -eq 2 ]
+}
+
 @test "claude_extra_config_dirs: yields each configured dir in file order" {
     write_config_dirs_file '.claude-alpha' '.claude-beta'
 
@@ -595,7 +620,7 @@ write_config_dirs_file() {
     [ "$output" = ".claude-alpha" ]
 }
 
-@test "claude_extra_config_dirs: rejects entries outside the .claude- namespace" {
+@test "claude_extra_config_dirs and warn_invalid_claude_config_dir_lines: reject entries outside the .claude- namespace" {
     # 行の内容は 2 つの経路に流れる。bootstrap では $HOME 直下のパス組み立てに、
     # .zshrc では同じ行からシェル関数名の生成に使われる。名前空間を .claude- に
     # 閉じないと、$HOME の既存のドットディレクトリ (.git 等) へ mirror を植え、
@@ -604,13 +629,20 @@ write_config_dirs_file() {
     write_config_dirs_file '.claude-ok' '../escape' '.claude;rm -rf /' 'noleadingdot' '..' \
         '.git' '.config' '.claudex' '.claude.dot'
 
-    # 既定の run は stderr を $output へ併合する。warn が却下行を verbatim に出すため、
-    # 併合したままでは「却下行が返り値に混ざっていない」ことを検査できない
+    # stdout と stderr を分け、「却下行が返り値に混ざっていない」ことと「行を吐く側は
+    # 警告を出さない」ことを別々に検査する (警告は warn_invalid_claude_config_dir_lines の責務)
     run --separate-stderr claude_extra_config_dirs
 
     [ "$status" -eq 0 ]
     [ "$output" = ".claude-ok" ]
-    # 却下したことが利用者へ届くことも検査する。黙って捨てると設定の typo に気づけない
+    [ -z "$stderr" ]
+
+    # 却下したことが利用者へ届くことも検査する。黙って捨てると設定の typo に気づけない。
+    # 両関数は同じ述語で判定するので、落とす集合と警告する集合は一致する
+    run --separate-stderr warn_invalid_claude_config_dir_lines
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
     assert_contains "$stderr" "../escape"
     assert_contains "$stderr" ".claude;rm -rf /"
     assert_contains "$stderr" "noleadingdot"
@@ -619,7 +651,7 @@ write_config_dirs_file() {
     assert_contains "$stderr" ".claude.dot"
 }
 
-@test "claude_extra_config_dirs: rejects names that would collide with the dev launcher" {
+@test "claude_extra_config_dirs and warn_invalid_claude_config_dir_lines: reject names that would collide with the dev launcher" {
     # .zshrc は 1 行につき <name> と <name>-dev を対で作る。末尾が -dev の行を許すと
     # 派生名と衝突し、後勝ちで静かに上書きされる (.claude-dev は静的定義の claude-dev を
     # 潰し、開発版 plugin を読むはずの起動が安定版アカウント起動へ化ける)。
@@ -627,10 +659,15 @@ write_config_dirs_file() {
     # 無い」部分状態になるため同じ文法で落とす
     write_config_dirs_file '.claude-ok' '.claude-dev' '.claude-alpha-dev'
 
-    run --separate-stderr claude_extra_config_dirs
+    run claude_extra_config_dirs
 
     [ "$status" -eq 0 ]
     [ "$output" = ".claude-ok" ]
+
+    # 警告側も同じ述語で判定するため、同じ集合が verbatim で届く
+    run --separate-stderr warn_invalid_claude_config_dir_lines
+
+    [ "$status" -eq 0 ]
     assert_contains "$stderr" ".claude-dev"
     assert_contains "$stderr" ".claude-alpha-dev"
 }
@@ -1156,6 +1193,55 @@ uncovered_symlink_targets() {
 }
 
 # =============================================================================
+# symlink_pairs_for tests (pair 列挙の単一生成器)
+# =============================================================================
+#
+# 張る側 (setup_dotfiles / setup_apm_symlinks) と数える側 (current_symlink_targets) が
+# この生成器から取る。列挙が片側だけ更新されると、張った直後のリンクを同じ実行内で
+# backup へ退避する壊れ方をするため、供給を 1 関数へ閉じる。
+
+@test "symlink_pairs_for: yields each category and rejects an unknown one" {
+    load_pairs_array SYMLINK_PAIRS
+    load_pairs_array APM_SYMLINK_PAIRS
+    write_config_dirs_file '.claude-alpha'
+
+    # repo: 配列本体と、そこから導出した mirror の両方
+    run symlink_pairs_for repo
+    [ "$status" -eq 0 ]
+    assert_array_contains 'home/.zshrc|.zshrc' "${lines[@]}"
+    assert_array_contains 'home/.claude/settings.json|.claude-alpha/settings.json' "${lines[@]}"
+    # apm 由来は repo に混ざらない
+    refute_contains "$output" 'home/.claude/skills|'
+
+    # apm: 配列本体と mirror
+    run symlink_pairs_for apm
+    [ "$status" -eq 0 ]
+    assert_array_contains 'home/.claude/skills|.claude/skills' "${lines[@]}"
+    assert_array_contains 'home/.claude/skills|.claude-alpha/skills' "${lines[@]}"
+    refute_contains "$output" '|.zshrc'
+
+    # home: ホーム内で完結する pair だけ
+    run symlink_pairs_for home
+    [ "$status" -eq 0 ]
+    [ "$output" = '.claude/tasks|.claude-alpha/tasks' ]
+
+    # all: 3 カテゴリの合併。件数で部分集合ではなく合併であることを見る
+    run symlink_pairs_for all
+    [ "$status" -eq 0 ]
+    local repo_n apm_n home_n all_n
+    repo_n="$(symlink_pairs_for repo | wc -l | tr -d ' ')"
+    apm_n="$(symlink_pairs_for apm | wc -l | tr -d ' ')"
+    home_n="$(symlink_pairs_for home | wc -l | tr -d ' ')"
+    all_n="$(symlink_pairs_for all | wc -l | tr -d ' ')"
+    [ "$all_n" -eq "$((repo_n + apm_n + home_n))" ]
+
+    # 未知のカテゴリは黙って空を返さない。空だと「対象 0 件」と区別が付かない
+    run symlink_pairs_for bogus
+    [ "$status" -ne 0 ]
+    assert_contains "$output" 'bogus'
+}
+
+# =============================================================================
 # prune_stale_symlinks tests (配列から消えた pair の残骸の撤去)
 # =============================================================================
 #
@@ -1480,6 +1566,71 @@ STUB
     refute_contains "$output" ".claude-alpha/hooks"
     refute_contains "$output" ".claude-alpha/statusline-command.sh"
     refute_contains "$output" ".claude-alpha/.mcp.json"
+}
+
+@test "main: every target it links is inside the counted target set" {
+    # 張る側と数える側が独立に列挙していると、供給カテゴリを片側だけ更新したときに
+    # 新カテゴリの target が集合から漏れる。親ディレクトリは既存 target と共有される
+    # ため走査対象には入るので、main が setup_dotfiles の直後に呼ぶ prune が
+    # 張った直後のリンクを backup へ退避する。exit 0 で完走し、ログに Linked と
+    # Backed up が並ぶだけで終状態が壊れるため、集合の包含をここで pin する。
+    #
+    # 方向は「張った ⊆ 数えた」だけを見る。逆向きは成立しない。フィクスチャには apm が
+    # 配置する source が無く apm 分は張られないが、数える側は持つためである。
+    # 破壊的なのは「張ったのに数えていない」側だけなので、守る向きはこれで足りる。
+    #
+    # この機構が覆うのは main --dry-run が通る経路で張られる target に限る。
+    # dry-run で分岐して張られない経路 (apm source 不在時の skip) は範囲外。
+    write_config_dirs_file '.claude-alpha'
+
+    run bash "$BOOTSTRAP_SCRIPT" --dry-run --dotfiles-only
+    [ "$status" -eq 0 ]
+
+    # dry-run の行から target ($HOME 相対) を取り出す。行数と抽出数の一致を見るのは、
+    # パスに空白が入ったときに一部が静かに落ちる経路を塞ぐため。落ちた分はエラーでは
+    # なく「短い正常な結果」として返るので件数でしか捉えられない
+    local link_lines linked_targets link_n target_n
+    link_lines="$(printf '%s\n' "$output" | grep -c '^\[DRY-RUN\] ln -sf ')"
+    linked_targets="$(printf '%s\n' "$output" \
+        | sed -n "s|^\[DRY-RUN\] ln -sf [^ ]* $TEST_HOME/||p")"
+    link_n="$link_lines"
+    target_n="$(printf '%s\n' "$linked_targets" | grep -c .)"
+    [ "$link_n" -gt 0 ]
+    [ "$target_n" -eq "$link_n" ]
+
+    # 数える側の集合を同じ条件 (同じ設定ファイル) で作る。関数は setup が読み済みだが
+    # 配列はその範囲外にあるのでここで読む
+    load_pairs_array SYMLINK_PAIRS
+    load_pairs_array APM_SYMLINK_PAIRS
+    local counted uncovered
+    counted="$(current_symlink_targets)"
+
+    # 張ったのに数えていない target を列挙する。0 件であること
+    uncovered="$(printf '%s\n' "$linked_targets" \
+        | while IFS= read -r t; do
+              [ -n "$t" ] || continue
+              printf '%s\n' "$counted" | grep -qxF -- "$t" || printf '%s\n' "$t"
+          done)"
+    [ -z "$uncovered" ]
+}
+
+@test "main: reports a rejected config dir line exactly once" {
+    # 却下行の警告は読み取り経路の呼び出し回数ぶん重複しやすい
+    # (claude_extra_config_dirs はプロセス置換から何度も呼ばれる)。設計意図
+    # (却下行を verbatim で知らせる) がノイズに沈むため、警告は main の 1 回へ集約する。
+    # 件数で pin するのは「出ている」だけでは回数の退行を捕まえられないため
+    write_config_dirs_file '.claude-alpha' '.git'
+
+    run bash "$BOOTSTRAP_SCRIPT" --dry-run --dotfiles-only
+
+    [ "$status" -eq 0 ]
+    local count
+    count="$(printf '%s\n' "$output" | grep -c '受け付けられない行を無視します: \.git')"
+    [ "$count" -eq 1 ]
+
+    # 対照: 有効な行は警告されず、mirror は張られる (警告 0 件が「そもそも読んで
+    # いない」ではないことの確認)
+    assert_contains "$output" "$TEST_HOME/.claude-alpha/settings.json"
 }
 
 @test "main: dry-run creates no extra-dir links when the config file is absent" {
