@@ -620,7 +620,7 @@ write_config_dirs_file() {
     [ "$output" = ".claude-alpha" ]
 }
 
-@test "claude_extra_config_dirs: rejects entries outside the .claude- namespace" {
+@test "claude_extra_config_dirs and warn_invalid_claude_config_dir_lines: reject entries outside the .claude- namespace" {
     # 行の内容は 2 つの経路に流れる。bootstrap では $HOME 直下のパス組み立てに、
     # .zshrc では同じ行からシェル関数名の生成に使われる。名前空間を .claude- に
     # 閉じないと、$HOME の既存のドットディレクトリ (.git 等) へ mirror を植え、
@@ -651,7 +651,7 @@ write_config_dirs_file() {
     assert_contains "$stderr" ".claude.dot"
 }
 
-@test "claude_extra_config_dirs: rejects names that would collide with the dev launcher" {
+@test "claude_extra_config_dirs and warn_invalid_claude_config_dir_lines: reject names that would collide with the dev launcher" {
     # .zshrc は 1 行につき <name> と <name>-dev を対で作る。末尾が -dev の行を許すと
     # 派生名と衝突し、後勝ちで静かに上書きされる (.claude-dev は静的定義の claude-dev を
     # 潰し、開発版 plugin を読むはずの起動が安定版アカウント起動へ化ける)。
@@ -1609,16 +1609,16 @@ STUB
     uncovered="$(printf '%s\n' "$linked_targets" \
         | while IFS= read -r t; do
               [ -n "$t" ] || continue
-              printf '%s\n' "$counted" | grep -qxF "$t" || printf '%s\n' "$t"
+              printf '%s\n' "$counted" | grep -qxF -- "$t" || printf '%s\n' "$t"
           done)"
     [ -z "$uncovered" ]
 }
 
 @test "main: reports a rejected config dir line exactly once" {
-    # 却下行の警告は claude_extra_config_dirs が 1 回の実行で複数回呼ばれるぶんだけ
-    # 並んでいた。設計意図 (却下行を verbatim で知らせる) がノイズに沈むため、
-    # 警告を main の 1 回へ集約する。件数で pin するのは「出ている」だけでは
-    # 回数の退行を捕まえられないため
+    # 却下行の警告は読み取り経路の呼び出し回数ぶん重複しやすい
+    # (claude_extra_config_dirs はプロセス置換から何度も呼ばれる)。設計意図
+    # (却下行を verbatim で知らせる) がノイズに沈むため、警告は main の 1 回へ集約する。
+    # 件数で pin するのは「出ている」だけでは回数の退行を捕まえられないため
     write_config_dirs_file '.claude-alpha' '.git'
 
     run bash "$BOOTSTRAP_SCRIPT" --dry-run --dotfiles-only

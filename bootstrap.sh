@@ -454,7 +454,8 @@ CLAUDE_CONFIG_DIRS_FILE="${CLAUDE_CONFIG_DIRS_FILE:-$HOME/.config/dotfiles/claud
 
 # 設定ファイルの 1 行を分類する。0 = 有効、1 = 無視 (空行・コメント・既定ディレクトリ)、
 # 2 = 却下 (文法違反)。行を吐く側と警告する側が同じ述語を使うことで、文法が二重管理に
-# ならない。文法の canonical はここ 1 箇所で、home/.zshrc 側との一致は parity テストが守る。
+# ならない。文法の canonical はここ 1 箇所で、home/.zshrc 側との一致は
+# zshrc-claude.bats が pin する。
 # 戻り値を読む側は set -e に注意すること。単独で呼ぶと 1 や 2 でスクリプトごと終了する。
 claude_config_dir_line_kind() {
     case "$1" in
@@ -563,9 +564,11 @@ claude_home_symlink_pairs() {
 
 # 受け取った pair 列と、その mirror (追加の設定ディレクトリぶん、claude_mirror_pairs が
 # 導出) を 1 行 1 件で出力する。repo / apm 両カテゴリの供給規則はここが単一の持ち場で、
-# 片方だけ更新されて drift する型 (この refactor が塞ぐ対象そのもの) を生成器の中に
-# 残さない。pair は配列ではなく "$@" で受ける。空配列の "${arr[@]}" 展開は
-# bash 3.2 + set -u で unbound variable になるが、"$@" は空でも安全なため。
+# 片方だけ更新されて drift する型を生成器の中に残さない。
+# pair は配列ではなく "$@" で受けるが、これで空配列のクラッシュを防げるわけではない。
+# "${arr[@]}" の展開は呼び出し側で起きるため、配列が空なら symlink_pairs_for の側が
+# bash 3.2 + set -u で unbound variable になり、ここへは到達しない。両配列とも静的で
+# 常に非空なので実害は無い。
 emit_pairs_with_mirrors() {
     # printf は引数が無くても format を 1 回評価して空行を出すため、空の pair 列は
     # ここで打ち切る (「0 件」を空行 1 件と取り違えない)
