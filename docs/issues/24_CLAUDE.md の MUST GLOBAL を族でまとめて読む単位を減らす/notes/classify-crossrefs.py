@@ -52,15 +52,17 @@ def load_family_map(draft):
 
 
 def short(sec):
-    """「1. verification-signal (16 項目 / 最大の族)」を「族 1 verification-signal」へ。"""
+    """「verification-signal (21 項目 / 最大の族)」を「verification-signal」へ。
+
+    族に番号は振らない。番号は繰り下がるたびに参照が壊れるので、見出しの飾りとしても
+    持たせていない。
+    """
     if sec is None:
         return "未割り当て"
-    m = re.match(r"^(\d+)\.\s*([\w-]+)", sec)
-    if m:
-        return f"族 {m.group(1)} {m.group(2)}"
     if sec.startswith("核"):
         return "核"
-    return sec
+    m = re.match(r"^([\w-]+)", sec)
+    return m.group(1) if m else sec
 
 
 family = load_family_map(DRAFT)
