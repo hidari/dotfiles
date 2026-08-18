@@ -96,7 +96,8 @@ CI コストを抑える / ホストで重い処理を走らせない
 ## 2026-08-17 の草案 (レビュー待ち)
 
 分類を引き直した草案を [族分類の草案](notes/family-classification.md) に置いた。
-材料は同じ `notes/` 配下の実測 2 件で、いずれも subagent が原文を通読して作ったもの。
+材料は同じ `notes/` 配下に置いてある。相互参照センサスとロード機構の仕分けは subagent が
+原文を通読して作った実測で、族またぎの振り分けはセンサスから生成する道具になる。
 
 - [相互参照センサス](notes/cross-reference-census.json): 項目間の参照 47 件
 - [ロード機構の仕分け](notes/load-mechanism-triage.json): 94 項目の scopable / nature 判定

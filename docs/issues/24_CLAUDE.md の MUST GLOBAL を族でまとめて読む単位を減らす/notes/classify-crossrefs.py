@@ -59,8 +59,6 @@ def short(sec):
     """
     if sec is None:
         return "未割り当て"
-    if sec.startswith("核"):
-        return "核"
     m = re.match(r"^([\w-]+)", sec)
     return m.group(1) if m else sec
 
@@ -69,7 +67,7 @@ family = load_family_map(DRAFT)
 census = json.loads(CENSUS.read_text(encoding="utf-8"))
 refs = census["references"]
 
-inside, across, unknown_target = [], [], []
+inside, across, unknown_target, unassigned = [], [], [], []
 for rec in refs:
     if not rec["breaks_on_split"]:
         continue
@@ -79,6 +77,11 @@ for rec in refs:
             unknown_target.append((src, dst, rec["kind"]))
             continue
         fs, fd = family.get(src), family.get(dst)
+        # 片方でも族マップに無いと fs == fd が None == None で真になり、族の内側へ
+        # 紛れ込む。ID 集合の入れ替わりは実際に起きるので別枠へ落とす
+        if fs is None or fd is None:
+            unassigned.append((src, dst, short(fs), short(fd), rec["kind"]))
+            continue
         row = (src, dst, short(fs), short(fd), rec["kind"])
         (inside if fs == fd else across).append(row)
 
@@ -89,6 +92,9 @@ print(f"  ID へのエッジに展開: {len(inside) + len(across)}")
 print(f"  ID ではない参照先: {len(unknown_target)}")
 for src, dst, kind in unknown_target:
     print(f"    {src} -> {dst!r} ({kind})")
+print(f"  族マップで解決できない ID: {len(unassigned)}")
+for src, dst, fs, fd, kind in unassigned:
+    print(f"    {src} [{fs}] -> {dst} [{fd}]  ({kind})")
 print()
 
 print(f"族の内側に収まるエッジ: {len(inside)}")
