@@ -570,7 +570,7 @@ def test_unusable_input_denies() -> None:
         assert expected in reason(proc), payload
 
 
-def test_repo_scope_env_does_not_redirect_the_check(tmp_path: Path) -> None:
+def test_repo_location_env_does_not_redirect_the_check(tmp_path: Path) -> None:
     """リポジトリの所在を指す環境変数が混入しても、cwd のリポジトリを検査する。
 
     git はこれらを `-C` で渡したパスより優先するため、落とさないと別のリポジトリを見る。
@@ -589,6 +589,27 @@ def test_repo_scope_env_does_not_redirect_the_check(tmp_path: Path) -> None:
         proc = run_hook(body("apm install", str(dirty)), {name: value})
 
         assert decision(proc) == "deny", name
+
+
+def test_search_boundary_env_does_not_hide_the_repository(tmp_path: Path) -> None:
+    """探索の境界を動かす環境変数が混入しても、cwd が属するリポジトリを見つける。
+
+    GIT_CEILING_DIRECTORIES は `.git` の上方探索を途中で止める。cwd がサブディレクトリの
+    ときにこれが効くと rev-parse が「リポジトリではない」を返し、ガードは守備範囲外と読んで
+    無音 allow に落ちる (実測で exit 128 を確認)。cwd がサブディレクトリなのは日常的な状態
+    なので、所在の指定と同じ経路として塞ぐ。
+
+    所在系と別のテストにしているのは、この経路が cwd の位置に依存するため。同じループへ
+    混ぜるとリポジトリ直下の cwd では発火せず、壊しても緑になる。
+    """
+    dirty = init_repo(tmp_path / "dirty")
+    (dirty / "a.txt").write_text("changed\n")
+    sub = dirty / "sub"
+    sub.mkdir()
+
+    proc = run_hook(body("apm install", str(sub)), {"GIT_CEILING_DIRECTORIES": str(dirty)})
+
+    assert decision(proc) == "deny"
 
 
 def test_missing_cwd_denies() -> None:

@@ -85,20 +85,17 @@ _ENV_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 _ROOT_TIMEOUT = 10
 _STATUS_TIMEOUT = 30
 
-# git がどのリポジトリを見るかを決める環境変数。git はこれらを `-C` で渡したパスより優先する
-# ため、環境に残っていると検査対象と別のリポジトリを見る。しかも誤りは例外ではなく「そちらは
-# clean なので許可」という無音 allow で返るので、ガードが外れたこと自体に気づけない。
-_REPO_SCOPE_ENV = frozenset(
-    {
-        "GIT_DIR",
-        "GIT_WORK_TREE",
-        "GIT_INDEX_FILE",
-        "GIT_COMMON_DIR",
-        "GIT_OBJECT_DIRECTORY",
-        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-        "GIT_CEILING_DIRECTORIES",
-    }
-)
+# git へ渡す環境から落とす変数の接頭辞。git はこれらを `-C` で渡したパスより優先し、所在
+# (GIT_DIR / GIT_WORK_TREE) も探索の境界 (GIT_CEILING_DIRECTORIES) も外から動かせる。しかも
+# 誤りは例外ではなく「そちらは clean なので許可」という無音 allow で返るため、ガードが外れた
+# こと自体に気づけない。
+#
+# 危険なものを列挙する形は採らない。git が変数を増やすたびに黙って穴が開き、漏れは検査でも
+# 見えないためである。ここで git へ渡したい GIT_ 変数は 1 つも無いので、接頭辞ごと落として
+# 漏れを原理的に無くす。落ちて困る変数 (GIT_CONFIG_GLOBAL 等) があっても、その向きの誤りは
+# ignore の解釈が緩まらない側 = 未コミット扱いが増えて deny が出る側なので、このガードが
+# 設計上受け入れている安価な失敗で済む。
+_DROPPED_ENV_PREFIX = "GIT_"
 
 # 入力を解釈できなかったときの deny 理由。共有層は理由を problem で返すだけで文面を持たない。
 # このフックは検査不能をすべて deny へ倒すので、tirith 側のような逃げ道は用意しない。
@@ -232,11 +229,13 @@ def run_git(cwd: str, *args: str, timeout: int) -> subprocess.CompletedProcess[s
     import を関数内へ置いているのは、subprocess の import が実測で 6.8ms かかり、apm を
     含まない大多数の Bash 呼び出しではここへ到達しないため。
 
-    リポジトリの所在を指す環境変数は落としてから呼ぶ (_REPO_SCOPE_ENV のコメント参照)。
+    GIT_ で始まる環境変数は落としてから呼ぶ (_DROPPED_ENV_PREFIX のコメント参照)。
     """
     import subprocess
 
-    env = {key: value for key, value in os.environ.items() if key not in _REPO_SCOPE_ENV}
+    env = {
+        key: value for key, value in os.environ.items() if not key.startswith(_DROPPED_ENV_PREFIX)
+    }
     try:
         return subprocess.run(
             ["git", "-C", cwd, *args],
