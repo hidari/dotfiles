@@ -50,7 +50,11 @@ Phase 3a のスコープを大きく超えるため別 Issue に分けた。
 
 ## タスク
 
-- [ ] 3 つの uv ハーネスを `scripts/claude-hooks/` へ集約する (CI job / lockfile / venv / pre-commit エントリを 1 系統にまとめ、ruff と mypy のバージョンを揃える)
+- [x] 3 つの uv ハーネスを `scripts/claude-hooks/` へ集約する (CI job / lockfile / venv / pre-commit エントリを 1 系統にまとめ、ruff と mypy のバージョンを揃える)
+      集約と同時に観測フックを 4 本目として入れた。検査対象は `home/.claude/hooks/` を
+      ディレクトリごと渡す形にしたので、フック名の列挙は pre-commit にも CI にも残っていない。
+      バージョンは新しい側 (ruff 0.16.3 / mypy 2.3.1) へ揃えた。古い側へ揃えると
+      apm-install-guard が通っていた検査より緩くなるため
 - [ ] PreToolUse プロトコル層を共有モジュールへ切り出し、`tirith-check.py` と `apm-install-guard.py` から使う
 - [ ] 共通化後に `tirith-check.py` の変異注入を再実施する (security guard なので、共通化で pin が死んでいないことを確かめる)
 - [ ] `settings_invariants` の必須フック検査をイベント軸で一般化する

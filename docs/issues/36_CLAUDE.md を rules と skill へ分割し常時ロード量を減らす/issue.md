@@ -124,7 +124,10 @@ skill 側への切り分けの軸を 1 本立てる。rules に置くのは「�
 
 - [x] セッション再起動後に `~/.cache/claude/instructions-loaded.jsonl` を読み、未確認の 1 点を確定する(2026-08-17 に実測。`paths` 無しの rules は session_start で常時ロードされる)
 - [ ] 確定結果を踏まえて、常時ロード組と条件付きロード組の置き場所を決める
-- [ ] 観測フック `home/.claude/hooks/instructions-loaded-log.py` を常設するか決め、常設するならIssue #26 の集約方針に合わせてテストと lint の対象へ入れる
+- [x] 観測フック `home/.claude/hooks/instructions-loaded-log.py` を常設するか決め、常設するならIssue #26 の集約方針に合わせてテストと lint の対象へ入れる
+      (常設で確定。Issue #26 の集約を先に行い `scripts/claude-hooks/` の 4 本目として入れた。
+      黒箱テスト 12 件を書き、fail-safe / ensure_ascii / 追記 / 除外集合の 4 箇所へ変異注入して
+      いずれも赤くなることを確認済み)
 - [ ] 規範と知識の切り分け軸で各項目を仕分ける (rules 行きか skill 行きか)
 - [ ] スコープできる 3 つを `paths` 付き rules として切り出し、subagent 経由で発火を確認する
 - [ ] スコープできない 3 つの置き場所を決めて切り出す
