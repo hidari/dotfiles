@@ -1,15 +1,16 @@
 [project]
-name = "apm-install-guard"
+name = "claude-hooks"
 version = "0.1.0"
-description = "home/.claude/hooks/apm-install-guard.py（Claude Code PreToolUse フック）の単体/統合テスト"
+description = "home/.claude/hooks/ 配下の Claude Code フックの単体/統合テスト"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [{ name = "Hidari" }]
 dependencies = []
 
-# 本体 (apm-install-guard.py) は symlink 都合で home/.claude/hooks/ に置くため、
+# フック本体は symlink 都合で home/.claude/hooks/ に置くため、
 # このプロジェクトはインストール可能なパッケージを持たないテスト専用ハーネス。
+# 対象フックの一覧は tests/ のファイル名が真実源で、ここには再掲しない。
 [tool.uv]
 package = false
 
@@ -29,7 +30,9 @@ select = ["E", "W", "F", "I", "B", "UP", "N", "SIM", "RUF"]
 ignore = ["RUF002", "RUF003"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101"]
+# N802: pytest メソッド名を日本語の仕様文（テスト＝仕様）にするため、非ASCII識別子を
+# 小文字判定できない ruff の誤検知を許容する。ruff 0.16.1 でも再現することを実測済み。
+"tests/*" = ["S101", "N802"]
 
 [tool.mypy]
 strict = true
