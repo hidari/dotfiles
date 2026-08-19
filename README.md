@@ -84,7 +84,7 @@ committed 側は CI で 2 つの仕組みが守る。
 `tirith`（URL/コマンドセキュリティ CLI, mise 管理）で実行前チェックを二層に張る。
 
 - 対話シェル: `home/.zshrc` の `tirith init` が zsh のコマンド実行前に検査する。
-- Claude Code: `home/.claude/hooks/tirith-check.py` を PreToolUse(Bash) フックに登録し、エージェントの Bash 実行前に `tirith check` へ委譲する。判定ロジックとテストは `scripts/tirith-hook` を参照。
+- Claude Code: `home/.claude/hooks/tirith-check.py` を PreToolUse(Bash) フックに登録し、エージェントの Bash 実行前に `tirith check` へ委譲する。判定ロジックは本体、テストは `scripts/claude-hooks` を参照。
 
 ## apm による skill 配信 (vendored skills)
 
@@ -112,8 +112,8 @@ uv run --directory scripts/config-guard pytest -q
 # リポジトリルートを指さなくなり、skills の glob が 0 件のまま成功表示になる。
 uv run --project scripts/config-guard config-guard .
 
-# tirith-hook (Python / pytest) — Claude Code PreToolUse フックの統合テスト
-uv run --directory scripts/tirith-hook pytest -q
+# claude-hooks (Python / pytest) — Claude Code フック群の統合テスト
+uv run --directory scripts/claude-hooks pytest -q
 
 # ast-grep (構文レベル lint)。どちらのフラグも外すと結果が嘘になる
 # --skip-snapshot-tests: rules/ はスナップショットを持たないので、外すと baseline 不在で全件 fail する

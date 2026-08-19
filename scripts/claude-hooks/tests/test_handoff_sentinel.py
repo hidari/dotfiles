@@ -15,9 +15,9 @@ import sys
 from pathlib import Path
 
 import pytest
+from conftest import HOOKS_DIR
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-HOOK = REPO_ROOT / "home" / ".claude" / "hooks" / "handoff-sentinel.py"
+HOOK = HOOKS_DIR / "handoff-sentinel.py"
 
 
 def run_hook(

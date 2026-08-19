@@ -50,16 +50,28 @@ Phase 3a のスコープを大きく超えるため別 Issue に分けた。
 
 ## タスク
 
-- [ ] 3 つの uv ハーネスを `scripts/claude-hooks/` へ集約する (CI job / lockfile / venv / pre-commit エントリを 1 系統にまとめ、ruff と mypy のバージョンを揃える)
+- [x] 3 つの uv ハーネスを `scripts/claude-hooks/` へ集約する (CI job / lockfile / venv / pre-commit エントリを 1 系統にまとめ、ruff と mypy のバージョンを揃える)
+      集約と同時に観測フックを 4 本目として入れた。検査対象は `home/.claude/hooks/` を
+      ディレクトリごと渡す形にしたので、フック名の列挙は pre-commit にも CI にも残っていない。
+      バージョンは新しい側 (ruff 0.16.3 / mypy 2.3.1) へ揃えた。古い側へ揃えると
+      apm-install-guard が通っていた検査より緩くなるため
 - [ ] PreToolUse プロトコル層を共有モジュールへ切り出し、`tirith-check.py` と `apm-install-guard.py` から使う
 - [ ] 共通化後に `tirith-check.py` の変異注入を再実施する (security guard なので、共通化で pin が死んでいないことを確かめる)
 - [ ] `settings_invariants` の必須フック検査をイベント軸で一般化する
 - [ ] 全フックの JSON 出力の `ensure_ascii` 方針を 1 箇所で決める
+- [ ] 観測フックの allowlist を廃して除外集合だけにする。9 個のフィールド名を列挙しているが、
+      載っていない値も `_unknown_fields` が拾うので選別を一つも行っていない。実際に効いているのは
+      `transcript_path` / `prompt_id` の除外 2 件だけで、9 個の literal はバイナリ側の schema の
+      再掲にあたる。JSONL の形が変わりテストの書き換えを伴うので独立させる
+- [ ] pre-commit の同一 `files:` を YAML anchor へ畳む。claude-hooks の 4 エントリだけでなく
+      backup-tool / config-guard / node-security-notifier にも同じ形があるので一斉に行う。
+      anchor が既定値へ化けずに解決されることは実測済み (一致する正規表現なら発火し、
+      非一致なら Skipped になる両方向を確認)
 
 ## 関連
 
 - [Issue #25: skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する](../closed/25_skill%20と%20plugin%20を新規%20PUBLIC%20リポジトリへ集約し%20apm%20配布へ移行する/issue.md)
 - PR #91 のレビューで検出 (Reuse / Efficiency / Altitude の 3 観点から独立に同じ箇所が挙がった)
 - [Issue #36: refactor: CLAUDE.md を rules と skill へ分割し常時ロード量を減らす](../36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md)。
-  - 観測フック `home/.claude/hooks/instructions-loaded-log.py` を追加済み (2026-08-16、未追跡)。
-  - 集約の対象が 3 本から 4 本になる。常設するかは #36 で判断する
+  - 観測フック `home/.claude/hooks/instructions-loaded-log.py` は #36 で常設と決まり、集約と同時に
+    `scripts/claude-hooks/` の 4 本目として取り込んだ

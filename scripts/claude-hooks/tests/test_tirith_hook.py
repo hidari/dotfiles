@@ -14,9 +14,9 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
-# scripts/tirith-hook/tests/ から repo ルートを辿り、フック本体を解決する。
-REPO_ROOT = Path(__file__).resolve().parents[3]
-HOOK = REPO_ROOT / "home" / ".claude" / "hooks" / "tirith-check.py"
+from conftest import HOOKS_DIR
+
+HOOK = HOOKS_DIR / "tirith-check.py"
 
 # 偽 tirith が返す JSON。findings は rule_id / title / severity を持つ（本物の schema と同形）。
 _BLOCK_FINDING = {"rule_id": "blast", "title": "dangerous rm", "severity": "HIGH"}

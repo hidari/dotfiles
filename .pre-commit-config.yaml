@@ -146,89 +146,35 @@ repos:
         pass_filenames: false
         files: ^scripts/node-security-notifier/(src|tests)/.*\.py$
 
-      - id: tirith-hook-ruff-check
-        name: tirith-hook ruff check
+      # フック本体はディレクトリごと渡す。フックを増やしても対象が自動で広がるので、
+      # フック名を列挙する場所を持たない。
+      - id: claude-hooks-ruff-check
+        name: claude-hooks ruff check
         language: system
-        entry: uv run --directory scripts/tirith-hook ruff check --config pyproject.toml ../../home/.claude/hooks/tirith-check.py tests
+        entry: uv run --directory scripts/claude-hooks ruff check --config pyproject.toml ../../home/.claude/hooks tests
         pass_filenames: false
-        files: ^(home/\.claude/hooks/tirith-check\.py|scripts/tirith-hook/.*)$
+        files: ^(home/\.claude/hooks/.*\.py|scripts/claude-hooks/.*)$
 
-      - id: tirith-hook-ruff-format
-        name: tirith-hook ruff format --check
+      - id: claude-hooks-ruff-format
+        name: claude-hooks ruff format --check
         language: system
-        entry: uv run --directory scripts/tirith-hook ruff format --check --config pyproject.toml ../../home/.claude/hooks/tirith-check.py tests
+        entry: uv run --directory scripts/claude-hooks ruff format --check --config pyproject.toml ../../home/.claude/hooks tests
         pass_filenames: false
-        files: ^(home/\.claude/hooks/tirith-check\.py|scripts/tirith-hook/.*)$
+        files: ^(home/\.claude/hooks/.*\.py|scripts/claude-hooks/.*)$
 
-      - id: tirith-hook-mypy
-        name: tirith-hook mypy
+      - id: claude-hooks-mypy
+        name: claude-hooks mypy
         language: system
-        entry: uv run --directory scripts/tirith-hook mypy --config-file pyproject.toml ../../home/.claude/hooks/tirith-check.py tests
+        entry: uv run --directory scripts/claude-hooks mypy --config-file pyproject.toml ../../home/.claude/hooks tests
         pass_filenames: false
-        files: ^(home/\.claude/hooks/tirith-check\.py|scripts/tirith-hook/.*)$
+        files: ^(home/\.claude/hooks/.*\.py|scripts/claude-hooks/.*)$
 
-      - id: tirith-hook-pytest
-        name: tirith-hook pytest
+      - id: claude-hooks-pytest
+        name: claude-hooks pytest
         language: system
-        entry: uv run --directory scripts/tirith-hook pytest -q
+        entry: uv run --directory scripts/claude-hooks pytest -q
         pass_filenames: false
-        files: ^(home/\.claude/hooks/tirith-check\.py|scripts/tirith-hook/.*)$
-
-      - id: handoff-sentinel-ruff-check
-        name: handoff-sentinel ruff check
-        language: system
-        entry: uv run --directory scripts/handoff-sentinel ruff check --config pyproject.toml ../../home/.claude/hooks/handoff-sentinel.py tests
-        pass_filenames: false
-        files: ^(home/\.claude/hooks/handoff-sentinel\.py|scripts/handoff-sentinel/.*)$
-
-      - id: handoff-sentinel-ruff-format
-        name: handoff-sentinel ruff format --check
-        language: system
-        entry: uv run --directory scripts/handoff-sentinel ruff format --check --config pyproject.toml ../../home/.claude/hooks/handoff-sentinel.py tests
-        pass_filenames: false
-        files: ^(home/\.claude/hooks/handoff-sentinel\.py|scripts/handoff-sentinel/.*)$
-
-      - id: handoff-sentinel-mypy
-        name: handoff-sentinel mypy
-        language: system
-        entry: uv run --directory scripts/handoff-sentinel mypy --config-file pyproject.toml ../../home/.claude/hooks/handoff-sentinel.py tests
-        pass_filenames: false
-        files: ^(home/\.claude/hooks/handoff-sentinel\.py|scripts/handoff-sentinel/.*)$
-
-      - id: handoff-sentinel-pytest
-        name: handoff-sentinel pytest
-        language: system
-        entry: uv run --directory scripts/handoff-sentinel pytest -q
-        pass_filenames: false
-        files: ^(home/\.claude/hooks/handoff-sentinel\.py|scripts/handoff-sentinel/.*)$
-
-      - id: apm-install-guard-ruff-check
-        name: apm-install-guard ruff check
-        language: system
-        entry: uv run --directory scripts/apm-install-guard ruff check --config pyproject.toml ../../home/.claude/hooks/apm-install-guard.py tests
-        pass_filenames: false
-        files: ^(home/\.claude/hooks/apm-install-guard\.py|scripts/apm-install-guard/.*)$
-
-      - id: apm-install-guard-ruff-format
-        name: apm-install-guard ruff format --check
-        language: system
-        entry: uv run --directory scripts/apm-install-guard ruff format --check --config pyproject.toml ../../home/.claude/hooks/apm-install-guard.py tests
-        pass_filenames: false
-        files: ^(home/\.claude/hooks/apm-install-guard\.py|scripts/apm-install-guard/.*)$
-
-      - id: apm-install-guard-mypy
-        name: apm-install-guard mypy
-        language: system
-        entry: uv run --directory scripts/apm-install-guard mypy --config-file pyproject.toml ../../home/.claude/hooks/apm-install-guard.py tests
-        pass_filenames: false
-        files: ^(home/\.claude/hooks/apm-install-guard\.py|scripts/apm-install-guard/.*)$
-
-      - id: apm-install-guard-pytest
-        name: apm-install-guard pytest
-        language: system
-        entry: uv run --directory scripts/apm-install-guard pytest -q
-        pass_filenames: false
-        files: ^(home/\.claude/hooks/apm-install-guard\.py|scripts/apm-install-guard/.*)$
+        files: ^(home/\.claude/hooks/.*\.py|scripts/claude-hooks/.*)$
 
       - id: gitleaks
         name: gitleaks (secret / user-path leak guard)

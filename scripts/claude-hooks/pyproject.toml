@@ -1,15 +1,16 @@
 [project]
-name = "handoff-sentinel"
+name = "claude-hooks"
 version = "0.1.0"
-description = "home/.claude/hooks/handoff-sentinel.py（Claude Code PostToolUse/Stop/SessionStart フック）の単体/統合テスト"
+description = "home/.claude/hooks/ 配下の Claude Code フックの単体/統合テスト"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [{ name = "Hidari" }]
 dependencies = []
 
-# 本体 (handoff-sentinel.py) は symlink 都合で home/.claude/hooks/ に置くため、
+# フック本体は symlink 都合で home/.claude/hooks/ に置くため、
 # このプロジェクトはインストール可能なパッケージを持たないテスト専用ハーネス。
+# Python フックのテストは tests/ のファイル名が示す (.sh フックは shellcheck が見る)。
 [tool.uv]
 package = false
 
@@ -30,8 +31,10 @@ ignore = ["RUF002", "RUF003"]
 
 [tool.ruff.lint.per-file-ignores]
 # N802: pytest メソッド名を日本語の仕様文（テスト＝仕様）にするため、非ASCII識別子を
-# 小文字判定できない ruff の N802 誤検知 (ruff 0.15.20 で確認) を許容する。
-"tests/*" = ["S101", "N802"]
+# 小文字判定できない ruff の誤検知を許容する。現行 pin の ruff でも再現する。
+# 日本語名を持つファイルだけに限る。tests/* へ広げると ASCII の camelCase を見逃す。
+"tests/test_handoff_sentinel.py" = ["N802"]
+"tests/test_instructions_loaded_log.py" = ["N802"]
 
 [tool.mypy]
 strict = true
