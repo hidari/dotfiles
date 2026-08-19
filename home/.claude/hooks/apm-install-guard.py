@@ -35,12 +35,13 @@ scripts/tests/bootstrap.bats の cross-pin テストが見る。
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import shlex
 import sys
-from typing import TYPE_CHECKING, Any, NoReturn
+from typing import TYPE_CHECKING, NoReturn
+
+import pretooluse
 
 if TYPE_CHECKING:
     import subprocess
@@ -84,6 +85,35 @@ _ENV_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 _ROOT_TIMEOUT = 10
 _STATUS_TIMEOUT = 30
 
+# git がどのリポジトリを見るかを決める環境変数。git はこれらを `-C` で渡したパスより優先する
+# ため、環境に残っていると検査対象と別のリポジトリを見る。しかも誤りは例外ではなく「そちらは
+# clean なので許可」という無音 allow で返るので、ガードが外れたこと自体に気づけない。
+_REPO_SCOPE_ENV = frozenset(
+    {
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_COMMON_DIR",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_CEILING_DIRECTORIES",
+    }
+)
+
+# 入力を解釈できなかったときの deny 理由。共有層は理由を problem で返すだけで文面を持たない。
+# このフックは検査不能をすべて deny へ倒すので、tirith 側のような逃げ道は用意しない。
+_INPUT_PROBLEM_REASONS: dict[pretooluse.InputProblem, str] = {
+    pretooluse.InputProblem.EMPTY: "apm-install-guard: フックの入力が空でした",
+    pretooluse.InputProblem.MALFORMED_JSON: (
+        "apm-install-guard: フックの入力を JSON として解釈できませんでした"
+    ),
+    pretooluse.InputProblem.NOT_OBJECT: "apm-install-guard: フックの入力が object ではありません",
+    pretooluse.InputProblem.TOOL_INPUT_NOT_OBJECT: (
+        "apm-install-guard: tool_input が object ではありません"
+    ),
+    pretooluse.InputProblem.NO_COMMAND: "apm-install-guard: Bash コマンドを読み取れませんでした",
+}
+
 
 class GitUnavailableError(RuntimeError):
     """git を実行できなかった。検査不能なので deny へ倒す。
@@ -93,29 +123,8 @@ class GitUnavailableError(RuntimeError):
     """
 
 
-def get(data: dict[str, Any], *keys: str) -> Any:
-    """snake_case と camelCase の両方でフィールドを引く。"""
-    for key in keys:
-        if key in data:
-            return data[key]
-    return None
-
-
 def deny(reason: str) -> NoReturn:
-    # ensure_ascii=False にするのは、理由文が日本語でログをそのまま読むため。
-    # JSON としての意味は変わらない (受け取り側はどちらでも同じ文字列を得る)。
-    print(
-        json.dumps(
-            {
-                "hookSpecificOutput": {
-                    "hookEventName": "PreToolUse",
-                    "permissionDecision": "deny",
-                    "permissionDecisionReason": reason,
-                }
-            },
-            ensure_ascii=False,
-        )
-    )
+    print(pretooluse.decision_payload("deny", reason))
     sys.exit(0)
 
 
@@ -222,9 +231,12 @@ def run_git(cwd: str, *args: str, timeout: int) -> subprocess.CompletedProcess[s
 
     import を関数内へ置いているのは、subprocess の import が実測で 6.8ms かかり、apm を
     含まない大多数の Bash 呼び出しではここへ到達しないため。
+
+    リポジトリの所在を指す環境変数は落としてから呼ぶ (_REPO_SCOPE_ENV のコメント参照)。
     """
     import subprocess
 
+    env = {key: value for key, value in os.environ.items() if key not in _REPO_SCOPE_ENV}
     try:
         return subprocess.run(
             ["git", "-C", cwd, *args],
@@ -232,6 +244,7 @@ def run_git(cwd: str, *args: str, timeout: int) -> subprocess.CompletedProcess[s
             text=True,
             timeout=timeout,
             check=False,
+            env=env,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         raise GitUnavailableError(f"git を実行できませんでした: {exc}") from exc
@@ -311,29 +324,17 @@ def main() -> None:
 
     try:
         raw = sys.stdin.read()
-        data = json.loads(raw) if raw.strip() else None
     except OSError:
         deny("apm-install-guard: フックの入力を読み取れませんでした")
-    except json.JSONDecodeError:
-        deny("apm-install-guard: フックの入力を JSON として解釈できませんでした")
 
-    if data is None:
-        deny("apm-install-guard: フックの入力が空でした")
-    if not isinstance(data, dict):
-        deny("apm-install-guard: フックの入力が object ではありません")
+    try:
+        payload = pretooluse.parse_payload(raw)
+        command = pretooluse.bash_command(payload)
+    except pretooluse.HookInputError as exc:
+        deny(_INPUT_PROBLEM_REASONS[exc.problem])
 
-    event = get(data, "hook_event_name", "hookEventName")
-    tool = get(data, "tool_name", "toolName")
-    if event != "PreToolUse" or tool != "Bash":
+    if command is None:
         allow_silently()
-
-    tool_input = get(data, "tool_input", "toolInput") or {}
-    if not isinstance(tool_input, dict):
-        deny("apm-install-guard: tool_input が object ではありません")
-
-    command = tool_input.get("command")
-    if not isinstance(command, str) or not command.strip():
-        deny("apm-install-guard: Bash コマンドを読み取れませんでした")
 
     # トークン化はコマンド長に比例して重く、16KB のコマンドで 3.7ms かかる (実測)。
     # apm を含まないコマンドが判定に一致することは原理的に無いので、先に安く落とす。
@@ -349,7 +350,7 @@ def main() -> None:
     if subcommand is None:
         allow_silently()
 
-    cwd = get(data, "cwd")
+    cwd = pretooluse.get(payload, "cwd")
     if not isinstance(cwd, str) or not cwd:
         deny(f"apm-install-guard: cwd が取れないため apm {subcommand} を許可できません")
 

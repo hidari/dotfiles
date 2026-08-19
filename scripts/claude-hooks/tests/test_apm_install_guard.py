@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from conftest import HOOKS_DIR, REPO_ROOT
+from conftest import HOOKS_DIR, REPO_ROOT, git_scope_free_env
 
 HOOK = HOOKS_DIR / "apm-install-guard.py"
 BOOTSTRAP = REPO_ROOT / "bootstrap.sh"
@@ -83,19 +83,35 @@ def bash_blockers(repo: Path) -> list[str]:
     しても main は走らない。
     """
     script = f"source {shlex.quote(str(BOOTSTRAP))}; apm_install_blockers {shlex.quote(str(repo))}"
-    proc = subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=True)
+    # bash 側も内部で git を呼ぶので、python 側と同じく所在を指す環境変数を落として渡す。
+    proc = subprocess.run(
+        ["bash", "-c", script],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=git_scope_free_env(),
+    )
     return proc.stdout.splitlines()
+
+
+def git_in(repo: Path, *args: str) -> None:
+    """使い捨てリポジトリに対して git を実行する。
+
+    テストから git を呼ぶ経路をここ 1 本に閉じる。呼び出しごとに env を渡す形だと、
+    付け忘れた 1 箇所が本体のリポジトリを操作し、しかも赤くなるのは無関係なテストになる。
+    """
+    subprocess.run(["git", *args], cwd=repo, check=True, env=git_scope_free_env())
 
 
 def init_repo(path: Path) -> Path:
     """コミットを 1 つ持つ git リポジトリを作る。"""
     path.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["git", "init", "-q"], cwd=path, check=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=path, check=True)
-    subprocess.run(["git", "config", "user.name", "test"], cwd=path, check=True)
+    git_in(path, "init", "-q")
+    git_in(path, "config", "user.email", "test@example.com")
+    git_in(path, "config", "user.name", "test")
     (path / "a.txt").write_text("hello\n")
-    subprocess.run(["git", "add", "a.txt"], cwd=path, check=True)
-    subprocess.run(["git", "commit", "-qm", "init"], cwd=path, check=True)
+    git_in(path, "add", "a.txt")
+    git_in(path, "commit", "-qm", "init")
     return path
 
 
@@ -146,8 +162,8 @@ def test_apm_manifest_and_lockfile_are_allowed(tmp_path: Path) -> None:
     (repo / "home").mkdir()
     (repo / "home" / "apm.yml").write_text("name: x\n")
     (repo / "home" / "apm.lock.yaml").write_text("v: 1\n")
-    subprocess.run(["git", "add", "home"], cwd=repo, check=True)
-    subprocess.run(["git", "commit", "-qm", "add manifest"], cwd=repo, check=True)
+    git_in(repo, "add", "home")
+    git_in(repo, "commit", "-qm", "add manifest")
     (repo / "home" / "apm.yml").write_text("name: y\n")
     (repo / "home" / "apm.lock.yaml").write_text("v: 2\n")
 
@@ -186,7 +202,7 @@ def test_renamed_path_is_reported_once_and_intact(tmp_path: Path) -> None:
     実在しないパスを並べるとガードそのものの信用が落ちる。
     """
     repo = init_repo(tmp_path / "repo")
-    subprocess.run(["git", "mv", "a.txt", "renamed.txt"], cwd=repo, check=True)
+    git_in(repo, "mv", "a.txt", "renamed.txt")
 
     proc = run_hook(body("apm install", str(repo)))
 
@@ -199,7 +215,7 @@ def test_rename_from_outside_the_allowed_manifest_is_a_blocker(tmp_path: Path) -
     """移動先が許可対象でも、移動元が違えばそれは失われうる変更なので止める。"""
     repo = init_repo(tmp_path / "repo")
     (repo / "home").mkdir()
-    subprocess.run(["git", "mv", "a.txt", "home/apm.yml"], cwd=repo, check=True)
+    git_in(repo, "mv", "a.txt", "home/apm.yml")
 
     proc = run_hook(body("apm install", str(repo)))
 
@@ -229,12 +245,12 @@ def test_both_layers_agree_on_the_same_tree(tmp_path: Path) -> None:
         (repo / "home").mkdir()
         (repo / "home" / "apm.yml").write_text("name: x\n")
         (repo / "home" / "apm.lock.yaml").write_text("v: 1\n")
-        subprocess.run(["git", "add", "home"], cwd=repo, check=True)
-        subprocess.run(["git", "commit", "-qm", "manifest"], cwd=repo, check=True)
+        git_in(repo, "add", "home")
+        git_in(repo, "commit", "-qm", "manifest")
         (repo / "home" / "apm.yml").write_text("name: y\n")
 
     def renamed(repo: Path) -> None:
-        subprocess.run(["git", "mv", "a.txt", "renamed.txt"], cwd=repo, check=True)
+        git_in(repo, "mv", "a.txt", "renamed.txt")
 
     def path_with_space(repo: Path) -> None:
         (repo / "has space.txt").write_text("x\n")
@@ -532,28 +548,53 @@ def test_non_git_cwd_passes_through(tmp_path: Path) -> None:
 
 
 def test_unusable_input_denies() -> None:
-    """入力が壊れている・空のときは素通りさせない (fail-closed)。"""
-    for payload in ("{not json", ""):
+    """入力が壊れているときは素通りさせない (fail-closed)。
+
+    壊れ方ごとに違う理由を返すことも併せて見る。どれも deny なので、どの検査で倒れたかは
+    理由文だけが区別する。共有層は problem を返すだけで文面は持たないため、対応付けが
+    ずれても deny のままになり、判定だけを見ていては捕まらない。
+    """
+    bash: dict[str, Any] = {"hook_event_name": "PreToolUse", "tool_name": "Bash"}
+    cases = [
+        ("", "フックの入力が空でした"),
+        ("{not json", "JSON として解釈できませんでした"),
+        ("[]", "フックの入力が object ではありません"),
+        (json.dumps({**bash, "tool_input": ["ls"]}), "tool_input が object ではありません"),
+        (json.dumps({**bash, "tool_input": {}}), "Bash コマンドを読み取れませんでした"),
+    ]
+    for payload, expected in cases:
         proc = run_hook_raw(payload)
 
         assert proc.returncode == 0, payload
         assert decision(proc) == "deny", payload
+        assert expected in reason(proc), payload
+
+
+def test_repo_scope_env_does_not_redirect_the_check(tmp_path: Path) -> None:
+    """リポジトリの所在を指す環境変数が混入しても、cwd のリポジトリを検査する。
+
+    git はこれらを `-C` で渡したパスより優先するため、落とさないと別のリポジトリを見る。
+    しかも誤りは例外ではなく「そちらは clean なので許可」という無音 allow で返るので、
+    ガードが効かなくなったこと自体に気づけない。
+    """
+    dirty = init_repo(tmp_path / "dirty")
+    (dirty / "a.txt").write_text("changed\n")
+    clean = init_repo(tmp_path / "clean")
+
+    for name, value in (
+        ("GIT_DIR", str(clean / ".git")),
+        ("GIT_WORK_TREE", str(clean)),
+        ("GIT_INDEX_FILE", str(clean / ".git" / "index")),
+    ):
+        proc = run_hook(body("apm install", str(dirty)), {name: value})
+
+        assert decision(proc) == "deny", name
 
 
 def test_missing_cwd_denies() -> None:
     """cwd が取れないとどのリポジトリを見ればよいか決まらないので許可しない。"""
     payload = body("apm install", "/nonexistent")
     del payload["cwd"]
-
-    proc = run_hook(payload)
-
-    assert decision(proc) == "deny"
-
-
-def test_missing_command_denies(tmp_path: Path) -> None:
-    repo = init_repo(tmp_path / "repo")
-    payload = body("apm install", str(repo))
-    payload["tool_input"] = {}
 
     proc = run_hook(payload)
 

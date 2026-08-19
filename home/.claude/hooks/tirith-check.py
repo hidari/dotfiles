@@ -36,17 +36,28 @@ import os
 import shutil
 import subprocess
 import sys
+from typing import NoReturn
+
+import pretooluse
 
 # tirith check のタイムアウト秒（既定値）。
 DEFAULT_TIMEOUT = 10.0
 
-
-def get(data: dict[str, object], *keys: str) -> object | None:
-    """data から最初に見つかったキーの値を返す（camelCase/snake_case の双方に対応）。"""
-    for k in keys:
-        if k in data:
-            return data[k]
-    return None
+# 入力を解釈できなかったときの deny 理由。共有層は理由を problem で返すだけで文面を持たない。
+# 倒し方（このフックは環境変数の逃げ道つき fail-closed）と併せてフック側の判断だからである。
+_INPUT_PROBLEM_REASONS: dict[pretooluse.InputProblem, str] = {
+    pretooluse.InputProblem.EMPTY: "tirith: empty hook input — blocked for safety",
+    pretooluse.InputProblem.MALFORMED_JSON: (
+        "tirith: failed to parse hook input — blocked for safety"
+    ),
+    pretooluse.InputProblem.NOT_OBJECT: "tirith: invalid hook input format — blocked for safety",
+    pretooluse.InputProblem.TOOL_INPUT_NOT_OBJECT: (
+        "tirith: invalid tool_input format — blocked for safety"
+    ),
+    pretooluse.InputProblem.NO_COMMAND: (
+        "tirith: no command found in hook input — blocked for safety"
+    ),
+}
 
 
 def _resolve_tirith_bin() -> str:
@@ -74,23 +85,13 @@ def _timeout_seconds() -> float:
     return value if value > 0 else DEFAULT_TIMEOUT
 
 
-def deny(reason: str) -> None:
+def deny(reason: str) -> NoReturn:
     """hookSpecificOutput で deny 判定を出力して exit 0 する。"""
-    print(
-        json.dumps(
-            {
-                "hookSpecificOutput": {
-                    "hookEventName": "PreToolUse",
-                    "permissionDecision": "deny",
-                    "permissionDecisionReason": reason,
-                }
-            }
-        )
-    )
+    print(pretooluse.decision_payload("deny", reason))
     sys.exit(0)
 
 
-def fail_closed(reason: str) -> None:
+def fail_closed(reason: str) -> NoReturn:
     """エラー/バイナリ不在経路の fail-closed。TIRITH_FAIL_OPEN=1 のときだけ allow(exit 0)。"""
     if os.environ.get("TIRITH_FAIL_OPEN") == "1":
         sys.exit(0)
@@ -155,37 +156,24 @@ def _build_warning_text(stdout: str) -> str:
 def main() -> None:
     try:
         raw = sys.stdin.read()
-        if not raw.strip():
-            # 入力が空 = command を判定できない。安全側に倒して fail-closed する。
-            fail_closed("tirith: empty hook input — blocked for safety")
-            return
-        data = json.loads(raw)
-    except (json.JSONDecodeError, OSError):
+    except OSError:
+        # 読み取り自体の失敗も「入力を解釈できなかった」として、JSON 破損と同じ理由文で倒す。
+        # フックの利用者にとって stdin が読めないのと壊れているのとで対処が変わらないため。
         _hook_event("parse_error")
-        fail_closed("tirith: failed to parse hook input — blocked for safety")
-        return
+        fail_closed(_INPUT_PROBLEM_REASONS[pretooluse.InputProblem.MALFORMED_JSON])
 
-    if not isinstance(data, dict):
-        fail_closed("tirith: invalid hook input format — blocked for safety")
-        return
+    try:
+        command = pretooluse.bash_command(pretooluse.parse_payload(raw))
+    except pretooluse.HookInputError as exc:
+        # テレメトリは JSON として壊れていた場合だけ打つ。空入力や型違いは呼び出し側の形の
+        # 問題であって tirith の解析失敗ではないので、parse_error として数えない。
+        if exc.problem is pretooluse.InputProblem.MALFORMED_JSON:
+            _hook_event("parse_error")
+        fail_closed(_INPUT_PROBLEM_REASONS[exc.problem])
 
-    # camelCase / snake_case の双方からフィールドを取り出す
-    event = get(data, "hook_event_name", "hookEventName")
-    tool = get(data, "tool_name", "toolName")
-    tool_input = get(data, "tool_input", "toolInput") or {}
-
-    # PreToolUse + Bash のみ介在する
-    if event != "PreToolUse" or tool != "Bash":
+    # PreToolUse + Bash 以外は判定を出さずに素通りさせる
+    if command is None:
         sys.exit(0)
-
-    if not isinstance(tool_input, dict):
-        fail_closed("tirith: invalid tool_input format — blocked for safety")
-        return
-
-    command = tool_input.get("command")
-    if not isinstance(command, str) or not command.strip():
-        fail_closed("tirith: no command found in hook input — blocked for safety")
-        return
 
     tirith_bin = _resolve_tirith_bin()
 
@@ -218,7 +206,6 @@ def main() -> None:
                 f"tirith: TIRITH_BIN={tirith_bin} not found — blocked for safety "
                 "(fix the path or unset TIRITH_BIN)"
             )
-            return
         # TIRITH_BIN 未指定での未検出は tirith 未インストール = インフラ未整備。User スコープで
         # 全プロジェクトに効くため、ここだけ意図的に fail-open し、tirith 不在がシェルを全死に
         # させないようにする（docstring の Fail ポリシー参照）。
@@ -230,21 +217,17 @@ def main() -> None:
     except subprocess.TimeoutExpired:
         _hook_event("timeout")
         fail_closed("tirith: check timed out — blocked for safety")
-        return
     except OSError as e:
         _hook_event("unexpected_exit", str(e))
         fail_closed(f"tirith: OS error running check — {e}")
-        return
 
     # 想定外の exit code は fail-closed
     if result.returncode not in (0, 1, 2):
         _hook_event("unexpected_exit", f"exit code {result.returncode}")
         fail_closed(f"tirith: unexpected exit code {result.returncode} — blocked for safety")
-        return
     if result.returncode != 0 and not result.stdout.strip():
         _hook_event("unexpected_exit", f"exit code {result.returncode} with no output")
         fail_closed("tirith: check returned non-zero with no output — blocked for safety")
-        return
 
     # exit 0 = clean。許可する
     if result.returncode == 0:
@@ -265,16 +248,7 @@ def main() -> None:
             _hook_event("warn_allowed")
             warning_text = _build_warning_text(result.stdout)
             print(
-                json.dumps(
-                    {
-                        "hookSpecificOutput": {
-                            "hookEventName": "PreToolUse",
-                            "permissionDecision": "allow",
-                            "permissionDecisionReason": warning_text,
-                            "additionalContext": warning_text,
-                        }
-                    }
-                )
+                pretooluse.decision_payload("allow", warning_text, additional_context=warning_text)
             )
             sys.exit(0)
 
