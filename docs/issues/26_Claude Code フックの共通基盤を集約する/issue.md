@@ -59,6 +59,14 @@ Phase 3a のスコープを大きく超えるため別 Issue に分けた。
 - [ ] 共通化後に `tirith-check.py` の変異注入を再実施する (security guard なので、共通化で pin が死んでいないことを確かめる)
 - [ ] `settings_invariants` の必須フック検査をイベント軸で一般化する
 - [ ] 全フックの JSON 出力の `ensure_ascii` 方針を 1 箇所で決める
+- [ ] 観測フックの allowlist を廃して除外集合だけにする。9 個のフィールド名を列挙しているが、
+      載っていない値も `_unknown_fields` が拾うので選別を一つも行っていない。実際に効いているのは
+      `transcript_path` / `prompt_id` の除外 2 件だけで、9 個の literal はバイナリ側の schema の
+      再掲にあたる。JSONL の形が変わりテストの書き換えを伴うので独立させる
+- [ ] pre-commit の同一 `files:` を YAML anchor へ畳む。claude-hooks の 4 エントリだけでなく
+      backup-tool / config-guard / node-security-notifier にも同じ形があるので一斉に行う。
+      anchor が既定値へ化けずに解決されることは実測済み (一致する正規表現なら発火し、
+      非一致なら Skipped になる両方向を確認)
 
 ## 関連
 
