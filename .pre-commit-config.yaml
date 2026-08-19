@@ -147,7 +147,7 @@ repos:
         files: ^scripts/node-security-notifier/(src|tests)/.*\.py$
 
       # フック本体はディレクトリごと渡す。フックを増やしても対象が自動で広がるので、
-      # フック名をここと CI と README の 3 箇所へ列挙する二重管理を持たない。
+      # フック名を列挙する場所を持たない。
       - id: claude-hooks-ruff-check
         name: claude-hooks ruff check
         language: system

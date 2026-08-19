@@ -2,7 +2,7 @@
 
 hook 本体をサブプロセス起動し、stdin に PreToolUse の JSON を流して stdout の
 permissionDecision を検証する。モックは使わず、実 git リポジトリを tmp_path に作る。
-tirith-hook のテストと同じ流儀 (subprocess + 実物の代替物) で書いている。
+test_tirith_hook.py と同じ流儀 (subprocess + 実物の代替物) で書いている。
 """
 
 from __future__ import annotations
@@ -15,9 +15,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-REPO = Path(__file__).resolve().parents[3]
-HOOK = REPO / "home" / ".claude" / "hooks" / "apm-install-guard.py"
-BOOTSTRAP = REPO / "bootstrap.sh"
+from conftest import HOOKS_DIR, REPO_ROOT
+
+HOOK = HOOKS_DIR / "apm-install-guard.py"
+BOOTSTRAP = REPO_ROOT / "bootstrap.sh"
 
 
 def run_hook_raw(

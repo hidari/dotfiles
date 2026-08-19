@@ -65,5 +65,5 @@ Phase 3a のスコープを大きく超えるため別 Issue に分けた。
 - [Issue #25: skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する](../closed/25_skill%20と%20plugin%20を新規%20PUBLIC%20リポジトリへ集約し%20apm%20配布へ移行する/issue.md)
 - PR #91 のレビューで検出 (Reuse / Efficiency / Altitude の 3 観点から独立に同じ箇所が挙がった)
 - [Issue #36: refactor: CLAUDE.md を rules と skill へ分割し常時ロード量を減らす](../36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md)。
-  - 観測フック `home/.claude/hooks/instructions-loaded-log.py` を追加済み (2026-08-16、未追跡)。
-  - 集約の対象が 3 本から 4 本になる。常設するかは #36 で判断する
+  - 観測フック `home/.claude/hooks/instructions-loaded-log.py` は #36 で常設と決まり、集約と同時に
+    `scripts/claude-hooks/` の 4 本目として取り込んだ
