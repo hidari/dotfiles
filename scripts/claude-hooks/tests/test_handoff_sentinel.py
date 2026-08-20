@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from conftest import HOOKS_DIR
+from conftest import HOOKS_DIR, git_scope_free_env
 
 HOOK = HOOKS_DIR / "handoff-sentinel.py"
 
@@ -105,13 +105,10 @@ def write_handoff(cwd: Path, content: str) -> Path:
 
 
 def _git_init(path: Path) -> None:
-    """GIT_* を継承しない環境で git init する。
-
-    git hook 経由でテストを走らせると git が GIT_DIR/GIT_WORK_TREE を漏らし、それを継承した
-    git init が別 repo を触ってしまうため、GIT_* を除いた環境で起動して setup を hermetic にする。
-    """
-    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
-    subprocess.run(["git", "init", "-q", str(path)], check=True, timeout=10, env=env)
+    """GIT_* を継承しない環境で git init し、setup を hermetic にする (理由は conftest 参照)。"""
+    subprocess.run(
+        ["git", "init", "-q", str(path)], check=True, timeout=10, env=git_scope_free_env()
+    )
 
 
 def record_provenance(tmp_path: Path, *, cwd: Path | None = None) -> None:

@@ -1,5 +1,5 @@
 ---
-status: open
+status: in_progress
 ---
 
 # refactor: Claude Code フックの共通基盤を集約する
@@ -55,10 +55,24 @@ Phase 3a のスコープを大きく超えるため別 Issue に分けた。
       ディレクトリごと渡す形にしたので、フック名の列挙は pre-commit にも CI にも残っていない。
       バージョンは新しい側 (ruff 0.16.3 / mypy 2.3.1) へ揃えた。古い側へ揃えると
       apm-install-guard が通っていた検査より緩くなるため
-- [ ] PreToolUse プロトコル層を共有モジュールへ切り出し、`tirith-check.py` と `apm-install-guard.py` から使う
-- [ ] 共通化後に `tirith-check.py` の変異注入を再実施する (security guard なので、共通化で pin が死んでいないことを確かめる)
+- [x] PreToolUse プロトコル層を共有モジュールへ切り出し、`tirith-check.py` と `apm-install-guard.py` から使う
+      `home/.claude/hooks/pretooluse.py` へ純関数だけを置く形にした。fail ポリシーは共有しない。
+      tirith は環境変数の逃げ道つき fail-closed、apm は無条件 deny で、同じ関数へ潰すと倒れ方が
+      静かに変わるためである。異常は problem 付きの例外で返し、文面と倒し方は各フックが持つ。
+      print と `sys.exit` も持たせていないので、共有層だけを直接テストできる
+- [x] 共通化後に `tirith-check.py` の変異注入を再実施する (security guard なので、共通化で pin が死んでいないことを確かめる)
+      共有層 8 件 + フック側 4 件の計 12 件を 1 件ずつ隔離して適用し、全件で期待したテストが
+      赤くなることを確認した。この過程で「入力の壊れ方ごとの理由文」が dead pin だったことが
+      分かった。どの problem でも結果は deny なので、判定だけを見る assert では区別できない。
+      両フックの入力異常テストを理由文まで見る形へ強化して塞いだ。
+      あわせて symlink 経由 + PATH の `python3` (3.14.6) で live smoke を通した。pytest は
+      `sys.executable` (3.12) で実パス起動するため、本番の起動形を覆っていない
 - [ ] `settings_invariants` の必須フック検査をイベント軸で一般化する
 - [ ] 全フックの JSON 出力の `ensure_ascii` 方針を 1 箇所で決める
+      値としては 4 フックすべてが `ensure_ascii=False` で揃った (PreToolUse の 2 本は共有層
+      経由、`handoff-sentinel` と `instructions-loaded-log` は元から)。ただし canonical はまだ
+      1 つではなく、PreToolUse 以外は各フックが独立に書いている。判定 JSON の形自体が違うので
+      `pretooluse.py` への相乗りでは解けない
 - [ ] 観測フックの allowlist を廃して除外集合だけにする。9 個のフィールド名を列挙しているが、
       載っていない値も `_unknown_fields` が拾うので選別を一つも行っていない。実際に効いているのは
       `transcript_path` / `prompt_id` の除外 2 件だけで、9 個の literal はバイナリ側の schema の

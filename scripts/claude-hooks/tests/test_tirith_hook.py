@@ -140,6 +140,22 @@ def test_block_denies_with_finding_title(tmp_path: Path) -> None:
     assert "dangerous rm" in reason_text(proc)
 
 
+def test_japanese_reason_is_emitted_unescaped(tmp_path: Path) -> None:
+    """日本語の finding タイトルを \\uXXXX へ潰さず生のまま出す（ログでそのまま読むため）。
+
+    偽 tirith 側が ensure_ascii でエスケープして返しても、フックは一度 JSON として解釈して
+    から出力するので、ここで見ているのはフック自身の出力設定である。
+    """
+    finding = {"rule_id": "confusable_text", "title": "紛らわしい文字", "severity": "HIGH"}
+    fake = make_fake_tirith(
+        tmp_path, stdout=json.dumps({"action": "block", "findings": [finding]}), exit_code=1
+    )
+    proc = run_hook(bash_input("rm -rf /"), extra_env={"TIRITH_BIN": str(fake)})
+    assert permission(proc) == "deny"
+    assert "紛らわしい文字" in proc.stdout
+    assert "\\u" not in proc.stdout
+
+
 def test_warn_allows_by_default_with_context(tmp_path: Path) -> None:
     fake = make_fake_tirith(tmp_path, stdout=WARN_JSON, exit_code=2)
     proc = run_hook(bash_input("curl http://1.2.3.4"), extra_env={"TIRITH_BIN": str(fake)})
@@ -189,11 +205,26 @@ def test_nonzero_with_empty_stdout_fails_closed(tmp_path: Path) -> None:
 def test_empty_stdin_fails_closed() -> None:
     proc = run_hook(None)
     assert permission(proc) == "deny"
+    assert "empty hook input" in reason_text(proc)
 
 
 def test_invalid_json_stdin_fails_closed() -> None:
     proc = run_hook("{ this is not json")
     assert permission(proc) == "deny"
+    assert "failed to parse hook input" in reason_text(proc)
+
+
+def test_non_object_stdin_fails_closed() -> None:
+    proc = run_hook("[]")
+    assert permission(proc) == "deny"
+    assert "invalid hook input format" in reason_text(proc)
+
+
+def test_non_object_tool_input_fails_closed() -> None:
+    bad = {"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": ["ls"]}
+    proc = run_hook(bad)
+    assert permission(proc) == "deny"
+    assert "invalid tool_input format" in reason_text(proc)
 
 
 def test_missing_command_fails_closed(tmp_path: Path) -> None:
@@ -201,6 +232,7 @@ def test_missing_command_fails_closed(tmp_path: Path) -> None:
     bad = {"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {}}
     proc = run_hook(bad, extra_env={"TIRITH_BIN": str(fake)})
     assert permission(proc) == "deny"
+    assert "no command found" in reason_text(proc)
 
 
 def test_fail_open_env_allows_on_empty_stdin() -> None:

@@ -35,10 +35,15 @@ ignore = ["RUF002", "RUF003"]
 # 日本語名を持つファイルだけに限る。tests/* へ広げると ASCII の camelCase を見逃す。
 "tests/test_handoff_sentinel.py" = ["N802"]
 "tests/test_instructions_loaded_log.py" = ["N802"]
+"tests/test_pretooluse.py" = ["N802"]
 
 [tool.mypy]
 strict = true
 python_version = "3.12"
+# 共有モジュール pretooluse はフック本体と同じディレクトリにあり、tests から直接 import する。
+# 実行時は sys.path[0] が解決するが mypy はそれを知らないので探索パスを明示する。
+# 検査コマンドの cwd (このファイルのディレクトリ) からの相対で書く。
+mypy_path = "../../home/.claude/hooks"
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers --strict-config"
