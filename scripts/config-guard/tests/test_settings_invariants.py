@@ -30,6 +30,8 @@ GOOD: dict[str, Any] = {
     # 必須フックの配線。欠けていると他の検査のテストにも findings が混ざるため、
     # 「狙った検査だけが落とす」最小の差分を保つ意味でも clean な形をここに置く
     "hooks": pretooluse(hook_group(TIRITH_HOOK_COMMAND), hook_group(APM_GUARD_HOOK_COMMAND)),
+    # nested traversal の除外。フックの配線と同じ理由でここへ置く
+    "claudeMdExcludes": ["**/home/.claude/CLAUDE.md"],
 }
 
 
@@ -170,3 +172,38 @@ class TestRequiredHooks:
             group = hook_group(TIRITH_HOOK_COMMAND, APM_GUARD_HOOK_COMMAND, matcher=matcher)
             settings = {**GOOD, "hooks": pretooluse(group)}
             assert check_settings_invariants(settings) == [], matcher
+
+
+class TestClaudeMdExcludes:
+    """`home/.claude/CLAUDE.md` は `~/.claude/CLAUDE.md` の symlink 実体である。
+
+    このリポジトリで `home/.claude/` 配下のファイルを Read すると nested traversal が働き、
+    User memory として既にロード済みの同一内容がもう一度コンテキストへ入る。subagent は
+    起動ごとに新鮮なコンテキストを持つので、起動した本数だけ二重化する。
+
+    除外を外しても例外は出ず、静かに二重化するだけで誰も気づかない。フックの配線と同じく
+    取り付けそのものを不変条件として pin する。
+    """
+
+    def test_missing_key_is_flagged(self) -> None:
+        settings = {k: v for k, v in GOOD.items() if k != "claudeMdExcludes"}
+        findings = check_settings_invariants(settings)
+        assert [f.detail for f in findings] == ["**/home/.claude/CLAUDE.md"]
+
+    def test_unrelated_pattern_does_not_satisfy(self) -> None:
+        # 別のパターンで埋まっていても、狙ったファイルは除外されない。
+        # 「キーが存在するか」ではなく「必要なパターンを含むか」が仕様
+        settings = {**GOOD, "claudeMdExcludes": ["**/docs/CLAUDE.md"]}
+        findings = check_settings_invariants(settings)
+        assert [f.detail for f in findings] == ["**/home/.claude/CLAUDE.md"]
+
+    def test_non_list_value_is_flagged(self) -> None:
+        # 型を間違えた設定は Claude Code 側では無警告で無視されるので、ここで捕まえる
+        settings = {**GOOD, "claudeMdExcludes": "**/home/.claude/CLAUDE.md"}
+        findings = check_settings_invariants(settings)
+        assert [f.detail for f in findings] == ["**/home/.claude/CLAUDE.md"]
+
+    def test_extra_patterns_are_accepted(self) -> None:
+        # 必須パターンを含んでいれば追加の除外は自由（negative case）
+        settings = {**GOOD, "claudeMdExcludes": ["**/home/.claude/CLAUDE.md", "**/vendor/**"]}
+        assert check_settings_invariants(settings) == []
