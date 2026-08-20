@@ -132,7 +132,9 @@ skill 側への切り分けの軸を 1 本立てる。rules に置くのは「�
 - [ ] スコープできる 3 つを `paths` 付き rules として切り出し、subagent 経由で発火を確認する
 - [ ] スコープできない 3 つの置き場所を決めて切り出す
 - [ ] CLAUDE.md 本体に残す核を確定する (RFC2119 の定義、開発スタイル、個人情報、CI コスト、作業プロトコル)
-- [ ] プローブ 3 点を撤去する (`~/.claude/rules/` の 2 枚と `.cache/probe.rulescope`)
+- [x] プローブ 3 点を撤去する (`~/.claude/rules/` の 2 枚と `.cache/probe.rulescope`)
+      (2026-08-20 に実測して確認。`~/.claude/rules/` は空、`.cache/probe.rulescope` も不在。
+      観測フックのログ `~/.cache/claude/instructions-loaded.jsonl` は残っている)
 - [ ] 分割後に位置参照が壊れていないことを確認する
 
 ## 関連
