@@ -201,6 +201,76 @@ skill 側への切り分けの軸を 1 本立てる。rules に置くのは「�
   新規ファイルを untracked のまま変異注入すると dead pin に見える。
   git add してから変異させると意図したテストだけが赤くなり、未カバーのパスを名指しする
 
+## compact の挙動を実測した (2026-08-21)
+
+分割方針は「compact で何が失われるか」を前提に置いていたが、そこは未検証だった。
+同一セッション内で `/compact` を挟み、フックのログと `/context` の 2 系統で観測した。
+
+### 対照の設計
+
+一度発火させて「増えなかった」を見るだけでは compact の効果を分離できない。
+compact の前に 3 つの対照を取り、基準線を 73 行に固定した。
+
+| 対照 | 操作 | 結果 |
+|---|---|---|
+| A | 同じトリガファイルを再 Read | 増えない |
+| B | 同じ glob に一致する別ファイルを Read | 増えない (dedup はルール単位) |
+| C | session_start より後に作った rules のトリガを Read | 増えない (走査は session_start のキャッシュ) |
+
+### 結果
+
+`load_reason` に `compact` という値が実在する。compact 時に 3 件が記録された。
+
+| file_path | memory_type | load_reason |
+|---|---|---|
+| `<repo>/CLAUDE.md` | Project | compact |
+| `~/.claude/CLAUDE.md` | User | compact |
+| `~/.claude/rules/probe-noscope.md` (paths 無し) | User | compact |
+
+`paths` 付きの 2 プローブは 1 件も出ていない。
+
+`/context` も同じ向きを示した。
+
+| カテゴリ | compact 前 | compact 後 |
+|---|---|---|
+| 合計 | 92.3k | 70k |
+| Memory files | 17.3k (3 ファイル) | 17.5k (4 ファイル) |
+| Messages | 42.6k | 19.7k |
+
+Memory files が増えたのは probe-noscope.md (209 トークン) が加わったため。CLAUDE.md 本体は 1 トークンも減っていない。
+
+### 確定したこと
+
+- 常時ロード層 (CLAUDE.md と `paths` 無し rules) は compact で失われない。
+  Messages とは別カテゴリに置かれ、compact のたびに再注入される
+- 常時層は compact 時にディレクトリを走査し直す。
+  session_start より後に作った probe-noscope.md が compact で拾われた
+- `paths` 付き rules は Messages 側に入る。compact で再注入されず、圧縮対象になる
+- ただし compact は `paths` 付き rules の dedup をリセットする。
+  compact 後に一致ファイルを Read すると同じルールが再発火した
+  (対照 A で「同一セッション内の再 Read では増えない」を確定させてあるので、compact の効果と言える)
+- `paths` 付き rules の glob 登録は compact でも更新されない。
+  session_start より後に作った probe-compact-fresh.md は compact 後も発火しなかった。
+  常時層は再走査されるのに glob 登録は据え置かれるという非対称がある
+
+事前に立てた予測との突き合わせ。
+
+| 予測 | 結果 |
+|---|---|
+| 予測 1: CLAUDE.md は compact で失われない | 当たり |
+| 予測 2: `paths` 付き rules は失われ dedup により再注入されない | 前半は当たり、後半は外れ |
+
+### 分割方針への影響
+
+`~/.claude/rules/00-core.md` へ常時層を移す案は不要になった。CLAUDE.md 本体が既に compact 耐性を持つ。
+
+`paths` 付き rules には穴がある。compact から次に一致ファイルを Read するまでの間、その規範は不在になる。
+Read 以外の経路 (Edit / Write) で発火するかは未測定で、しないなら穴はもっと広い。
+
+`~/.claude/rules/` は symlink ではなく実ディレクトリで、`home/.claude/rules/` はリポジトリに存在しない。
+bootstrap の SYMLINK_PAIRS にも無い。切り出す前にここを配線しないと、rules は他マシンへ配布されず
+`instruction_budget` の `RULES_GLOB` からも外れる (今は glob が 0 件に一致するので予算検査は素通りしている)。
+
 ## タスク
 
 - [x] セッション再起動後に `~/.cache/claude/instructions-loaded.jsonl` を読み、未確認の 1 点を確定する(2026-08-17 に実測。`paths` 無しの rules は session_start で常時ロードされる)
@@ -226,6 +296,15 @@ skill 側への切り分けの軸を 1 本立てる。rules に置くのは「�
       (検査対象・検査機構・取り付けの 3 種の変異でいずれも赤くなることを確認済み。
       覆う範囲は User スコープの CLAUDE.md と paths 無し rules のみで、
       プロジェクト CLAUDE.md・skill description・MEMORY.md は範囲外であることを docstring に明記)
+- [x] compact で常時ロード層が失われるかを実測する
+      (対照 3 点で基準線を固定してから `/compact` を挟み、フックのログと `/context` の 2 系統で観測した。
+      詳細は「compact の挙動を実測した」節。常時層は `load_reason: compact` で再注入され、
+      `paths` 付き rules は再注入されないが dedup はリセットされる)
+- [ ] `home/.claude/rules/` を作り bootstrap の SYMLINK_PAIRS へ配線する (切り出しの前提。
+      今の `~/.claude/rules/` は追跡外の実ディレクトリで、配布も予算検査も効いていない)
+- [ ] `paths` 付き rules が Read 以外の経路 (Edit / Write) でも発火するかを新セッションで実測する
+      (compact 後に規範が不在になる窓の広さがここで決まる。glob 登録は session_start でしか
+      更新されないため、プローブはセッションを開始する前に置いておくこと)
 - [ ] スコープできる 3 つを `paths` 付き rules として切り出し、subagent 経由で発火を確認する
 - [ ] CLAUDE.md 本体に残す核を確定する (RFC2119 の定義、開発スタイル、個人情報、CI コスト、作業プロトコル)
 - [x] プローブ 3 点を撤去する (`~/.claude/rules/` の 2 枚と `.cache/probe.rulescope`)
