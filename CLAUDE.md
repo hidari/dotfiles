@@ -18,7 +18,6 @@ dotfiles はユーザーが自身のMacの設定ファイルなどを管理す�
 - ブランチのpush後は以下の手順でPull Requestを確認してください
    1. `gh pr list --head $(git branch --show-current) --base main` で Pull Request の存在を確認
    2. Pull Requestが無ければ `gh pr create --assignee @me --base main --fill` で作成
-- 既存コードの変更時もユニット/統合テストは必ず書き、他のテストを参考に一貫性を持たせる
 - PRのマージ前には必ず `/simplify` と `feature-dev:code-reviewer` プラグインによるレビューを実行すること
 - 本リポジトリでの言語は次のとおり確定させる（user CLAUDE.md が「プロジェクトごとに確定させる」ことを求めている）
    - ログメッセージはシステム内部ログを日本語、フロント側など外部に見えるものを英語にする
