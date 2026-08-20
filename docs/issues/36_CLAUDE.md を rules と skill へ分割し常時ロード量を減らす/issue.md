@@ -81,6 +81,38 @@ auto-memory の `MEMORY.md` と SessionStart フックの `additionalContext` �
 したがってレコードの非存在を「ロードされていない」と読んではならない。
 今回 `probe-user-scoped.md` を陰性と判定できたのは、同じ経路 (rules ディレクトリの走査) の対照が出ているからであって、経路が違うものには同じ推論を使えない。
 
+## 二重ロードの発見と解消 (2026-08-20)
+
+分割に着手する前に、同じ 54KB を 2 回払っている経路が見つかった。分割で減らす量とは別勘定になる。
+
+`Read` ツールで `home/.claude/` 配下のファイルを読むと、祖先の `home/.claude/CLAUDE.md` が `nested_traversal` でコンテキストへ注入される。
+このファイルは `~/.claude/CLAUDE.md` の symlink 実体なので、User memory として既にロード済みの内容と完全に同一である。
+
+| 読み方 | 発火 |
+|---|---|
+| `Bash` の `head` で同ディレクトリのファイルを読む | しない |
+| `Read` ツールで読む | する |
+
+同じディレクトリの同種のファイルで片方だけが出るため、分岐点がツールの種別であることを単独レコードより強く言える。
+同一セッション内では 2 回目以降は発火しないが、subagent は起動ごとに新鮮なコンテキストを持つため、起動した本数だけ二重化する。
+
+`claudeMdExcludes` (settings.json のキー) で止まる。除外の有無で対照を取った。
+
+| 設定 | subagent のコンテキスト | フックのログ |
+|---|---|---|
+| 除外なし | 注入される | `nested_traversal` を記録 |
+| 除外あり (プロジェクトの local) | 注入されない | 記録なし |
+| 除外あり (ユーザースコープ) | 注入されない | 記録なし |
+
+セッション再起動なしで効いた。
+ユーザースコープへ置いたのは、config-guard が `home/.claude/settings.json` を index 経由で検査しており、取り付けを不変条件として pin できるため。
+
+### 残る穴
+
+- config-guard が見るのは `home/.claude/settings.json` だけで、プロジェクトスコープの settings は覆っていない
+- `claudeMdExcludes` というキー名が Claude Code 側で変わったら静かに壊れる。設定の存在は pin できるが、それが効いていることは pin できない (未知のキーは無警告で無視される)
+- skill の重複登録 (`home:` プレフィックスで 15 個) は別経路で、この除外では止まらない。載るのは description だけなので影響は小さい
+
 ## 分割案の下書き
 
 `paths` で絞れるかどうかで性質が分かれる。
@@ -123,6 +155,9 @@ skill 側への切り分けの軸を 1 本立てる。rules に置くのは「�
 ## タスク
 
 - [x] セッション再起動後に `~/.cache/claude/instructions-loaded.jsonl` を読み、未確認の 1 点を確定する(2026-08-17 に実測。`paths` 無しの rules は session_start で常時ロードされる)
+- [x] nested traversal による二重ロードを止める
+      (`claudeMdExcludes` をユーザースコープの settings.json へ配線し、config-guard で取り付けを pin した。
+      検査対象・検査機構・取り付けの 3 種の変異でいずれも赤くなることを確認済み)
 - [ ] 確定結果を踏まえて、常時ロード組と条件付きロード組の置き場所を決める
 - [x] 観測フック `home/.claude/hooks/instructions-loaded-log.py` を常設するか決め、常設するならIssue #26 の集約方針に合わせてテストと lint の対象へ入れる
       (常設で確定。Issue #26 の集約を先に行い `scripts/claude-hooks/` の 4 本目として入れた。

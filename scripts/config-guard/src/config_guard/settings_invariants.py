@@ -32,6 +32,14 @@ _REQUIRED_PRETOOLUSE_HOOKS: tuple[str, ...] = ("tirith-check.py", "apm-install-g
 # 必須フックが守るツール。matcher がこれに一致しないグループは配線として数えない。
 _GUARDED_TOOL = "Bash"
 
+# nested traversal から必ず除外しなければならない CLAUDE.md（glob 値を完全一致で照合する）。
+# home/.claude/CLAUDE.md は ~/.claude/CLAUDE.md の symlink 実体なので、この配置のまま
+# home/.claude/ 配下のファイルを Read すると、User memory として既にロード済みの同一内容が
+# もう一度コンテキストへ入る。subagent は起動ごとに新鮮なコンテキストを持つため、
+# 起動した本数だけ二重化する（2026-08-20 に除外あり/なしの対照で実測）。
+# 外しても例外は出ず静かに二重化するだけなので、フックの配線と同じく取り付けを pin する。
+_REQUIRED_CLAUDE_MD_EXCLUDES: tuple[str, ...] = ("**/home/.claude/CLAUDE.md",)
+
 # committed に許可する公開 marketplace。ここに無い marketplace を参照する plugin は弾く。
 _PUBLIC_MARKETPLACES: frozenset[str] = frozenset(
     {
@@ -166,6 +174,18 @@ def check_settings_invariants(settings: dict[str, Any]) -> list[Finding]:
         if not any(script in command for command in commands):
             findings.append(
                 Finding(_SRC, script, f"PreToolUse に必須フックが配線されていません: {script}")
+            )
+
+    # 7. nested traversal の除外が配線されているか。
+    #    型を間違えた値は Claude Code 側では無警告で無視される。加えて文字列を渡されると
+    #    `in` が部分一致で満たされて検査が素通りするため、list 以外は空として扱う
+    excludes = settings.get("claudeMdExcludes")
+    if not isinstance(excludes, list):
+        excludes = []
+    for pattern in _REQUIRED_CLAUDE_MD_EXCLUDES:
+        if pattern not in excludes:
+            findings.append(
+                Finding(_SRC, pattern, f"claudeMdExcludes に必須の除外がありません: {pattern}")
             )
 
     return findings
