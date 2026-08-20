@@ -50,8 +50,10 @@ parent: 35
 
 ## 踏んだ罠 (運用上の注意)
 
-rules ディレクトリの走査はセッション開始時にキャッシュされる。セッション途中で作った `~/.claude/rules/` は自分のセッションからは見えず、同じファイルを読んでも発火しなかった。
+`paths` 付き rules の glob 登録はセッション開始時にキャッシュされる。セッション途中で作った `~/.claude/rules/` は自分のセッションからは見えず、同じファイルを読んでも発火しなかった。
 subagent は毎回新鮮に走査するため、subagent 経由で読ませて初めて発火した。
+
+この観測は `paths` 付きのプローブで取ったもので、射程は glob 登録に限る。paths 無しの常時層は別の挙動をする (「compact の挙動を実測した」節)。compact を挟まないセッション途中で常時層が拾われるかは未測定。
 
 rules を 1 枚足しても再起動するまで効かない。しかも「効かない」が無言なので、書いて動かして反応が無いと `paths` の書き方の誤りと誤診する形をしている。
 動作確認は subagent を 1 本投げるのが最短。
@@ -227,7 +229,7 @@ compact の前に 3 つの対照を取り、基準線を 73 行に固定した�
 | `~/.claude/CLAUDE.md` | User | compact |
 | `~/.claude/rules/probe-noscope.md` (paths 無し) | User | compact |
 
-`paths` 付きの 2 プローブは 1 件も出ていない。
+`paths` 付きの 2 プローブはどちらも 1 件も出ていない。`probe-compact-rescope.md` は session_start より前 (03:38 JST)、`probe-compact-fresh.md` は後 (03:44 JST) に作ってあり、session_start は 03:40 JST。両方ともファイルが実在して frontmatter も同形であることを確認したうえでの陰性。
 
 `/context` も同じ向きを示した。
 
@@ -298,8 +300,7 @@ bootstrap の SYMLINK_PAIRS にも無い。切り出す前にここを配線し�
       プロジェクト CLAUDE.md・skill description・MEMORY.md は範囲外であることを docstring に明記)
 - [x] compact で常時ロード層が失われるかを実測する
       (対照 3 点で基準線を固定してから `/compact` を挟み、フックのログと `/context` の 2 系統で観測した。
-      詳細は「compact の挙動を実測した」節。常時層は `load_reason: compact` で再注入され、
-      `paths` 付き rules は再注入されないが dedup はリセットされる)
+      結果は「compact の挙動を実測した」節)
 - [ ] `home/.claude/rules/` を作り bootstrap の SYMLINK_PAIRS へ配線する (切り出しの前提。
       今の `~/.claude/rules/` は追跡外の実ディレクトリで、配布も予算検査も効いていない)
 - [ ] `paths` 付き rules が Read 以外の経路 (Edit / Write) でも発火するかを新セッションで実測する
