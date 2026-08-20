@@ -28,7 +28,7 @@ from config_guard.models import Finding
 
 # 常時ロード層の上限 (バイト)。canonical はここだけに置く。
 # 移設でカテゴリを切り出したら同時に下げる (幅は test_budget_tracks_the_real_repo_closely が縛る)。
-ALWAYS_LOADED_BUDGET_BYTES = 35189
+ALWAYS_LOADED_BUDGET_BYTES = 34043
 
 CLAUDE_MD_PATH = "home/.claude/CLAUDE.md"
 RULES_GLOB = "home/.claude/rules/*.md"
