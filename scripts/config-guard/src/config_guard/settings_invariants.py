@@ -32,7 +32,7 @@ _REQUIRED_PRETOOLUSE_HOOKS: tuple[str, ...] = ("tirith-check.py", "apm-install-g
 # 必須フックが守るツール。matcher がこれに一致しないグループは配線として数えない。
 _GUARDED_TOOL = "Bash"
 
-# nested traversal から必ず除外しなければならない CLAUDE.md（glob で照合する）。
+# nested traversal から必ず除外しなければならない CLAUDE.md（glob 値を完全一致で照合する）。
 # home/.claude/CLAUDE.md は ~/.claude/CLAUDE.md の symlink 実体なので、この配置のまま
 # home/.claude/ 配下のファイルを Read すると、User memory として既にロード済みの同一内容が
 # もう一度コンテキストへ入る。subagent は起動ごとに新鮮なコンテキストを持つため、
@@ -177,11 +177,13 @@ def check_settings_invariants(settings: dict[str, Any]) -> list[Finding]:
             )
 
     # 7. nested traversal の除外が配線されているか。
-    #    型を間違えた値は Claude Code 側では無警告で無視されるため、list 以外は空として扱う
+    #    型を間違えた値は Claude Code 側では無警告で無視される。加えて文字列を渡されると
+    #    `in` が部分一致で満たされて検査が素通りするため、list 以外は空として扱う
     excludes = settings.get("claudeMdExcludes")
-    listed = excludes if isinstance(excludes, list) else []
+    if not isinstance(excludes, list):
+        excludes = []
     for pattern in _REQUIRED_CLAUDE_MD_EXCLUDES:
-        if pattern not in listed:
+        if pattern not in excludes:
             findings.append(
                 Finding(_SRC, pattern, f"claudeMdExcludes に必須の除外がありません: {pattern}")
             )

@@ -21,7 +21,7 @@ GOOD_SETTINGS = {
     "enabledPlugins": {"feature-dev@claude-plugins-official": True},
     # 必須フックの配線。欠けていると他の検査の統合テストにも findings が混ざる
     "hooks": pretooluse(hook_group(TIRITH_HOOK_COMMAND, APM_GUARD_HOOK_COMMAND)),
-    # nested traversal の除外。上と同じ理由でここへ置く
+    # nested traversal の除外。フックの配線と同じ理由でここへ置く
     "claudeMdExcludes": ["**/home/.claude/CLAUDE.md"],
 }
 
