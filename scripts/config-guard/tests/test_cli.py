@@ -6,6 +6,10 @@ import json
 from pathlib import Path
 
 from config_guard.cli import scan
+from config_guard.instruction_budget import (
+    ALWAYS_LOADED_BUDGET_BYTES,
+    CLAUDE_MD_PATH,
+)
 from tests.conftest import (
     APM_GUARD_HOOK_COMMAND,
     TIRITH_HOOK_COMMAND,
@@ -127,3 +131,14 @@ def test_broken_markdown_link_is_detected(tmp_path: Path) -> None:
     findings = scan(str(repo))
 
     assert any(f.detail == "../b/missing.md" for f in findings)
+
+
+def test_instruction_budget_is_detected(tmp_path: Path) -> None:
+    # 予算検査が scan に配線されていること。実装だけ足して配線を忘れると
+    # 常時ロード層が無言で膨らみ続け、検査を足した意味が消える
+    repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
+    write_file(repo, CLAUDE_MD_PATH, "x" * (ALWAYS_LOADED_BUDGET_BYTES + 1))
+
+    findings = scan(str(repo))
+
+    assert any(f.source == CLAUDE_MD_PATH for f in findings)

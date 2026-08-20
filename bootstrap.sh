@@ -37,6 +37,7 @@ SYMLINK_PAIRS=(
     "home/.claude/settings.json|.claude/settings.json"
     "home/.claude/statusline-command.sh|.claude/statusline-command.sh"
     "home/.claude/CLAUDE.md|.claude/CLAUDE.md"
+    "home/.claude/references|.claude/references"
     "home/.claude/.mcp.json|.claude/.mcp.json"
     "home/.claude/hooks|.claude/hooks"
     # 追加の Claude 設定ディレクトリ (2 アカウント運用) への mirror はここへ書かず、

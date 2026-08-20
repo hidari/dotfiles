@@ -4,7 +4,8 @@ stale なツール名参照 / committed settings.json の不変条件 / 追跡�
 bit が立っていないか / apm.lock.yaml の deployed_files が gitignore されているか(新しい deploy
 root の検出) / mise の global ツール pin が exact か / apm.yml の依存 pin が commit SHA で固定され
 宣言どうしと実配置で揃っているか / herdr keybinding の方向整合と chord 重複 / 追跡下の
-Markdown の相対リンクが実在するかを検査する。
+Markdown の相対リンクが実在するか / 常時ロードされる指示ファイルの総バイト数が予算内かを
+検査する。
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from config_guard.extractors import extract_skill_tokens
 from config_guard.git_source import read_committed_settings
 from config_guard.herdr_keys import check_herdr_keys, read_default_config
 from config_guard.index_flags import check_index_flags
+from config_guard.instruction_budget import check_instruction_budget
 from config_guard.markdown_links import check_markdown_links
 from config_guard.mise_pins import check_mise_pins
 from config_guard.models import Finding
@@ -67,6 +69,10 @@ def scan(repo_root: str) -> list[Finding]:
     # 追跡下の Markdown の相対リンクが実在するか。Issue を closed/ へ移すと
     # 両端のリンクが切れるが、リンク元は変更されないため差分だけでは検出できない
     findings.extend(check_markdown_links(str(root)))
+
+    # 常時ロードされる指示ファイルの総バイト数が予算内か。追記は止まらない
+    # (実測で 9 日 +44%) ので、一回きりの削減ではなく上限を検査で固定する
+    findings.extend(check_instruction_budget(str(root)))
 
     return findings
 
