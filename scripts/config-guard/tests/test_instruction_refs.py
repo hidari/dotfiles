@@ -1,11 +1,7 @@
 """instruction_refs の仕様テスト。
 
-指示ファイルどうしの参照が実在するかを検査する。参照は 2 種類ある。
-
-- パス参照: `~/.claude/<path>` が repo の `home/.claude/<path>` に実在するか
-- 見出し参照: `~/.claude/<file>` の「<name>」 の <name> が <file> の見出しに実在するか
-
-どちらも壊れ方が「探すと 0 件」の沈黙なので、改名や移動をしても誰も赤くならない。
+指示ファイルどうしの参照が実在するかを検査する。参照 2 種の定義と、母集団を明示リストで
+持つ理由はモジュール側の docstring が持つ。
 """
 
 from __future__ import annotations
@@ -13,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from config_guard.git_run import run_git_checked
+from config_guard.instruction_budget import CLAUDE_MD_PATH
 from config_guard.instruction_refs import (
     SOURCE_GLOBS,
     check_instruction_refs,
@@ -24,8 +21,6 @@ from config_guard.instruction_refs import (
     source_files,
 )
 from tests.conftest import REPO_ROOT, write_file
-
-CLAUDE_MD = "home/.claude/CLAUDE.md"
 
 # -----------------------------------------------------------------------------
 # extract_home_refs (pure)
@@ -140,6 +135,12 @@ def test_a_document_without_headings_has_no_names() -> None:
     assert heading_names("本文だけ\n") == set()
 
 
+def test_ignores_headings_inside_a_fenced_block() -> None:
+    # 参照先のフェンス内にある見出しを実在と数えると、本物の見出しを改名しても
+    # 緑のまま通る (fail-open)。抽出 2 種と同じフェンス判定を通す
+    assert heading_names("# 本物\n\n```\n## 例\n```\n") == {"本物"}
+
+
 # -----------------------------------------------------------------------------
 # check_instruction_refs (ファイルシステムを見る)
 # -----------------------------------------------------------------------------
@@ -155,7 +156,7 @@ def test_an_existing_path_ref_produces_no_finding(tmp_path: Path) -> None:
     root = _repo(
         tmp_path,
         {
-            CLAUDE_MD: "詳細は `~/.claude/references/observation.md` が持つ\n",
+            CLAUDE_MD_PATH: "詳細は `~/.claude/references/observation.md` が持つ\n",
             "home/.claude/references/observation.md": "# 観測\n",
         },
     )
@@ -163,17 +164,17 @@ def test_an_existing_path_ref_produces_no_finding(tmp_path: Path) -> None:
 
 
 def test_a_missing_path_ref_is_reported(tmp_path: Path) -> None:
-    root = _repo(tmp_path, {CLAUDE_MD: "詳細は `~/.claude/references/missing.md` が持つ\n"})
+    root = _repo(tmp_path, {CLAUDE_MD_PATH: "詳細は `~/.claude/references/missing.md` が持つ\n"})
     findings = check_instruction_refs(root)
     assert [(f.source, f.detail) for f in findings] == [
-        (CLAUDE_MD, "~/.claude/references/missing.md")
+        (CLAUDE_MD_PATH, "~/.claude/references/missing.md")
     ]
 
 
 def test_an_unresolvable_ref_is_not_reported(tmp_path: Path) -> None:
     # プレースホルダと glob は実在しなくて当然。除外の理由は UNCHECKABLE が持つ
     body = "`~/.claude/plugins/<plugin 名>` と `~/.claude/rules/*.md`\n"
-    assert check_instruction_refs(_repo(tmp_path, {CLAUDE_MD: body})) == []
+    assert check_instruction_refs(_repo(tmp_path, {CLAUDE_MD_PATH: body})) == []
 
 
 def test_a_broken_ref_in_a_references_file_is_reported(tmp_path: Path) -> None:
@@ -199,7 +200,7 @@ def test_an_existing_heading_produces_no_finding(tmp_path: Path) -> None:
     root = _repo(
         tmp_path,
         {
-            CLAUDE_MD: "## [MUST] 名前\n",
+            CLAUDE_MD_PATH: "## [MUST] 名前\n",
             "home/.claude/references/premises.md": "`~/.claude/CLAUDE.md` の「名前」カテゴリ\n",
         },
     )
@@ -210,14 +211,15 @@ def test_a_missing_heading_is_reported(tmp_path: Path) -> None:
     root = _repo(
         tmp_path,
         {
-            CLAUDE_MD: "## 別の名前\n",
+            CLAUDE_MD_PATH: "## 別の名前\n",
             "home/.claude/references/premises.md": "`~/.claude/CLAUDE.md` の「名前」カテゴリ\n",
         },
     )
-    findings = check_instruction_refs(root)
-    assert len(findings) == 1
-    assert findings[0].source == "home/.claude/references/premises.md"
-    assert "名前" in findings[0].detail
+    # detail は exact で比較する。部分一致だと、参照側の「名前」を報告しても実在側の
+    # 「別の名前」を報告しても通ってしまい、このテストが区別したい当のケースを見分けられない
+    assert [(f.source, f.detail) for f in check_instruction_refs(root)] == [
+        ("home/.claude/references/premises.md", "~/.claude/CLAUDE.md 「名前」")
+    ]
 
 
 def test_a_heading_ref_into_a_rules_file_is_checked(tmp_path: Path) -> None:
@@ -275,8 +277,8 @@ def test_real_repo_has_refs_of_both_kinds() -> None:
     texts = list(source_files(str(REPO_ROOT)).values())
     paths = [r for t in texts for r in extract_home_refs(t) if is_checkable_ref(r)]
     headings = [h for t in texts for h in extract_heading_refs(t)]
-    assert len(paths) > 1, "パス参照が見えていない"
-    assert len(headings) > 1, "見出し参照が見えていない"
+    assert paths, "パス参照が見えていない"
+    assert headings, "見出し参照が見えていない"
 
 
 def test_real_repo_has_no_broken_refs() -> None:

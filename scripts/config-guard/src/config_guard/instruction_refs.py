@@ -1,8 +1,7 @@
 """指示ファイルどうしの参照が実在するかを検査する。
 
 参照は 2 種類ある。どちらも壊れ方が「探すと 0 件」の沈黙で、改名や移動をしても
-誰も赤くならない。CLAUDE.md 自身が「誤った名前を指す参照は探すと該当箇所なしの
-0 件で返るので気づきにくい」と書いている、その機械化。
+誰も赤くならない。
 
 - パス参照: `~/.claude/<path>` が repo の `home/.claude/<path>` に実在するか
 - 見出し参照: `~/.claude/<file>` の「<name>」 の <name> が <file> の見出しに実在するか
@@ -24,22 +23,22 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from config_guard.instruction_budget import CLAUDE_MD_PATH, RULES_GLOB
 from config_guard.models import Finding
 
 HOME_PREFIX = "~/.claude/"
 REPO_PREFIX = "home/.claude/"
 
 # 検査対象。ここを広げると Issue ドキュメントの「撤去済みプローブへの言及」まで
-# 拾って誤検出になる (実測で 12 種)。母集団は常時層と、そこから名指しされる先。
+# 拾って誤検出になる。母集団は常時層と、そこから名指しされる先。
 #
 # home/.claude/**/*.md へまとめない。glob はファイルシステムを見るので、apm の deploy 先
 # である home/.claude/skills/ を巻き込む (gitignore されていても実体は在る)。
 # 明示リストの取りこぼしは tests の test_real_repo_covers_every_tracked_instruction_file が縛る。
-SOURCE_GLOBS = (
-    "home/.claude/CLAUDE.md",
-    "home/.claude/rules/*.md",
-    "home/.claude/references/*.md",
-)
+#
+# 常時層の 2 つは instruction_budget が canonical を持つ。再宣言すると、予算検査と
+# 参照検査が別の規約で別の集合を見たまま両方緑になる
+SOURCE_GLOBS = (CLAUDE_MD_PATH, RULES_GLOB, "home/.claude/references/*.md")
 
 _INLINE_CODE = re.compile(r"`([^`]*)`")
 _FENCE = re.compile(r"^\s*(`{3,})")
@@ -62,8 +61,9 @@ UNCHECKABLE: dict[str, str] = {
 def prose_lines(text: str) -> list[str]:
     """コードフェンス内を除いた行を返す。
 
-    フェンス内は例示で、実在しないパスや見出しを書くことがある。2 種の抽出が別々に
-    フェンスを判定すると、片方だけが例示を拾って誤検出になるので判定をここへ 1 つ置く。
+    フェンス内は例示で、実在しないパスや見出しを書くことがある。本文を読む 3 つ
+    (参照 2 種と見出し) が別々にフェンスを判定すると、一部だけが例示を拾って誤検出
+    または fail-open になるので判定をここへ 1 つ置く。
     閉じないままファイル末尾に達したフェンスは以降を skip する (検出漏れ側)。
     """
     lines: list[str] = []
@@ -116,7 +116,7 @@ def heading_names(text: str) -> set[str]:
     """Markdown の見出しから強度ラベルを落とした名前の集合を返す。"""
     return {
         _STRENGTH_LABEL.sub("", m.group(1))
-        for line in text.split("\n")
+        for line in prose_lines(text)
         if (m := _HEADING.match(line))
     }
 
