@@ -126,13 +126,13 @@ auto-memory の `MEMORY.md` と SessionStart フックの `additionalContext` �
 |---|---|---|
 | testing-practices | テストコード 48 行 (変異注入・dead pin・検査機構の 3 種変異) | テストファイル群 |
 | frontend-practices | プロダクションコード 11 行 (semantic HTML・a11y・aspect-ratio) | tsx / jsx / html / css |
-| shell-practices | 検証セクション内の zsh・bash 展開、exit code、パイプ、サブシェル境界 | sh / zsh / bats |
 
 スコープできない (常時ロードのまま):
 
 | 移す先 | 内容 | 理由 |
 |---|---|---|
 | verification-practices | 検証セクションの残り | 全作業に効く方法論でファイルに紐づかない |
+| shell-practices | 検証セクションの Bash ツール項・shell-out 項・`node --test` 項 | 規範が効くのは Bash ツールの使用時と任意の言語でコードを書くときで、`.sh` の編集時ではない |
 | git-github-practices | push 後の確認、長時間コマンドの結論、ruleset 判定、コミット prefix | git 操作はファイル編集と無関係に起きる |
 | subagent-practices | SubAgents の節 + 検証セクションの subagent 運用項 | 同上 |
 
@@ -319,6 +319,52 @@ current だったため。穴が開くのはこの経路、つまり対象を読
 分割案の 3 つでは testing-practices がこれを踏む。TDD で最初にテストを書く場面は
 テストファイルの新規作成そのもので、既存を読まずに Write することになる。
 
+## 切り出しを 1 つ実施した (2026-08-21)
+
+配線と最初の 1 つを同じ変更で入れた。git は空ディレクトリを追跡しないので、
+`home/.claude/rules/` を作るには最初の rules ファイルが要る。
+
+対象は frontend-practices にした。当初の予定は shell-practices だったが、
+下記のとおりスコープできないと分かったので差し替えた。
+
+### shell-practices はスコープできない
+
+分割案は paths を `sh / zsh / bats` としていたが、該当する 3 項目の適用場面は
+どれもシェルスクリプトファイルの編集ではない。
+
+| 項目 | 効く場面 |
+|---|---|
+| Bash ツールでコマンドを組むとき | Bash ツールの使用時。Bash は rules を発火させない |
+| shell-out / 外部 CLI オーケストレーション | 任意の言語で subprocess を起動するコードを書くとき |
+| `node --test` にはテストファイルか glob を渡す | Bash ツールの使用時 |
+
+判定したセッション自身が反例になっている。`.sh` を Read ツールで 1 度も開かずに
+作業したが、Bash ツールでコマンドを組む規範は繰り返し必要だった。
+`sh` にスコープしていれば全て沈黙している。
+
+testing-practices にも同じ穴が部分的にある。「検査機構 (ゲート・ガード・lint ルール・
+CI チェック) を足したときの変異は 3 種いる」はテストファイル以外を触る場面の規範。
+
+### 発火の確認と、確認できなかったこと
+
+`paths: ["**/*.tsx", "**/*.jsx", "**/*.html", "**/*.css"]` で切り出し、
+subagent に `.tsx` を Read させて注入を確認した。見出しと 6 項目がそのまま入っている。
+
+同時に確認できなかったことが 1 つある。その subagent は起動時の User memory にも
+同じ 6 項目を持っていた。CLAUDE.md からの削除は済んでいて live ファイルにも残って
+いないので、実行中のセッションが session_start でキャッシュした削除前の版を保持し、
+subagent がそれを継承したことになる。常時層が compact で再走査される挙動と同じで、
+編集の反映も新セッションか compact を待つ。
+
+つまり今回観測したのは「scoped rules が発火する」ことだけで、「常時層から消えた」
+ことは観測できていない。後者の確認には新セッションが要る。
+
+### 副次的に直ったもの
+
+bootstrap を走らせたところ、追加の設定ディレクトリ側の `references` が張られて
+いなかったことが分かり、同時に張られた。SYMLINK_PAIRS には元から載っていたので
+テストは緑のままで、live にだけ穴が開いていた。
+
 ## 常時層に載っていても守られなかった 1 例 (2026-08-21)
 
 分割の前提は「量を減らせば読まれる」だった。compact の実測と同じセッションで、その前提に対する反例が 1 件出たので記録する。
@@ -394,11 +440,15 @@ zsh 5.9 で実測した。
 - [x] compact で常時ロード層が失われるかを実測する
       (対照 3 点で基準線を固定してから `/compact` を挟み、フックのログと `/context` の 2 系統で観測した。
       結果は「compact の挙動を実測した」節)
-- [ ] `home/.claude/rules/` を作り bootstrap の SYMLINK_PAIRS へ配線する (切り出しの前提。
-      今の `~/.claude/rules/` は追跡外の実ディレクトリで、配布も予算検査も効いていない)
+- [x] `home/.claude/rules/` を作り bootstrap の SYMLINK_PAIRS へ配線する
+      (最初の切り出しと同じ変更で入れた。結果は「切り出しを 1 つ実施した」節)
 - [x] `paths` 付き rules が Read 以外の経路 (Edit / Write) でも発火するかを新セッションで実測する
       (結果は「発火経路を実測した」節)
-- [ ] スコープできる 3 つを `paths` 付き rules として切り出し、subagent 経由で発火を確認する
+- [x] frontend-practices を切り出し、subagent 経由で発火を確認する
+      (切り出せる候補は 3 つではなく 2 つだった。理由は「切り出しを 1 つ実施した」節)
+- [ ] testing-practices を切り出す (検査機構の変異を扱う項は対象外にするか決める)
+- [ ] 新セッションで常時層から消えていることを確認する (現セッションは削除前の
+      CLAUDE.md をキャッシュしているため、このセッションでは観測できない)
 - [ ] CLAUDE.md 本体に残す核を確定する (RFC2119 の定義、開発スタイル、個人情報、CI コスト、作業プロトコル)
 - [x] プローブ 3 点を撤去する (`~/.claude/rules/` の 2 枚と `.cache/probe.rulescope`)
       (2026-08-20 に実測して確認。`~/.claude/rules/` は空、`.cache/probe.rulescope` も不在。
