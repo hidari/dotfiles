@@ -159,6 +159,17 @@ def test_budget_ratchet_is_detected(tmp_path: Path) -> None:
     assert any(f.source == BUDGET_MODULE_PATH for f in findings)
 
 
+def test_broken_instruction_ref_is_detected(tmp_path: Path) -> None:
+    # 参照検査が scan に配線されていること。配線を忘れると、指示ファイルの改名で
+    # 参照が切れても誰も赤くならない状態 (探すと 0 件の沈黙) へ戻る
+    repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
+    write_file(repo, CLAUDE_MD_PATH, "詳細は `~/.claude/references/gone.md` が持つ\n")
+
+    findings = scan(str(repo))
+
+    assert any(f.detail == "~/.claude/references/gone.md" for f in findings)
+
+
 def test_main_prints_the_budget_summary(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     # 問題が無いときも出す。移設の効果は「赤くならなかった」では見えない
     repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)

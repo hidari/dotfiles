@@ -6,7 +6,7 @@ root の検出) / mise の global ツール pin が exact か / apm.yml の依�
 宣言どうしと実配置で揃っているか / herdr keybinding の方向整合と chord 重複 / 追跡下の
 Markdown の相対リンクが実在するか / 常時ロードされる指示ファイルの総バイト数が予算内か /
 その予算そのものが main から無音で上がっていないか / rules の paths 宣言が pin と
-一致するかを検査する。
+一致するか / 指示ファイルどうしの参照 (パスと見出し) が実在するかを検査する。
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ from config_guard.instruction_budget import (
     budget_summary,
     check_instruction_budget,
 )
+from config_guard.instruction_refs import check_instruction_refs
 from config_guard.markdown_links import check_markdown_links
 from config_guard.mise_pins import check_mise_pins
 from config_guard.models import Finding
@@ -89,6 +90,10 @@ def scan(repo_root: str) -> list[Finding]:
     # rules の paths 宣言が pin と一致するか。誤った paths は scoped と判定されて
     # 予算にも計上されないので、予算検査では捕まらない (全緑のままルールが沈黙する)
     findings.extend(check_rules_paths(str(root)))
+
+    # 指示ファイルどうしの参照が実在するか。参照は全てバッククォート記法なので
+    # markdown_links からは 1 件も見えない (インラインコードを除去してから探すため)
+    findings.extend(check_instruction_refs(str(root)))
 
     return findings
 

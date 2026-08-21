@@ -895,6 +895,59 @@ canonical は config-guard の `apm_pins` 検査)。
 「セッション途中に作った rules も発火する」の隣接事例になる (rules と skill は別機構だが、
 どちらも session_start のスナップショットで固定されるわけではない)。
 
+## 参照の実在を検査で pin した (2026-08-22)
+
+`~/.claude/` 参照はどの検査からも見えていなかった。全てバッククォート記法なので
+`markdown_links` が `INLINE_CODE_PATTERN` で除去してしまう。改名や移動をしても参照側は
+変更されないため、壊れ方は「探すと 0 件」の沈黙になる。
+
+`config_guard.instruction_refs` として足した。検査は 2 種で、パス参照 (`~/.claude/` 配下が
+`home/.claude/` 配下に実在するか) と見出し参照 (references の冒頭が名指しする見出しが
+参照先に実在するか) を見る。
+
+### 母集団は測ってから決めた
+
+追跡下 Markdown 81 枚へ広げると、実在しない distinct 参照が 7 種出る。プレースホルダ、
+glob、Claude Code が実行時に作るディレクトリ、撤去済みプローブへの言及で、どれも実在
+しなくて当然のもの。CLAUDE.md + rules + references の 11 枚に絞ると誤検出は 0 になる。
+
+`home/.claude/**/*.md` へまとめる案は採れない。glob はファイルシステムを見るので、
+apm の deploy 先 `home/.claude/skills/` を巻き込む。gitignore されていても実体は在る。
+
+明示リストは取りこぼす側へ drift するので、`git ls-files` の追跡下集合と一致することを
+テストで縛った。**この pin が最初の母集団から漏れを見つけた。**
+`rules/testing-practices.md` が `references/testing.md` を名指ししており、CLAUDE.md と
+references だけを見る母集団では、この 1 本が検査されないままだった。
+
+### 参照先を CLAUDE.md へ決め打ちできない
+
+references の冒頭は参照先の見出しを literal で名指ししている。`references/testing.md` は
+CLAUDE.md ではなく `rules/testing-practices.md` を指すので、決め打ちすると取りこぼす。
+見出しレベルも決め打ちできない (CLAUDE.md のカテゴリは H2、rules の見出しは H1)。
+
+### この検査自身が、検査対象と同型の欠陥を持っていた
+
+マージ前ゲートのレビューで 3 件見つかった。いずれも散文なので、どのテストも見ていない。
+
+docstring が CLAUDE.md から「誤った名前を指す参照は探すと該当箇所なしの 0 件で返るので
+気づきにくい」を鉤括弧付きで引いていたが、この文は CLAUDE.md にも references にも rules
+にも無い。実体は Issue #24 の notes で、close すると移動する。**参照の実在を機械化する
+モジュールが、実在しない参照を持っていた。**
+
+`(実測で 12 種)` も再現しなかった (実際は 7 種)。隣の `rules_paths` が「件数は書かない
+(手元で裏取りした人には偽に見える)」と規約化している箇所でもあった。
+
+`SOURCE_GLOBS` が `instruction_budget` の定数を literal で再宣言していた点も同じ。
+canonical を 1 つに決める規範を、それを守るための検査を書く過程で破っていた。
+
+### 弱い assertion は変異注入をすり抜ける
+
+見出し欠落のテストが部分一致で detail を見ていた。fixture の実在側が「別の名前」なので、
+参照側を報告しても実在側を報告しても通る。exact 比較へ強化したところ、強化前には通って
+いた変異 (detail に参照側ではなく実在側の見出しを載せる) が赤くなった。
+
+変異注入は 12 種すべてが赤くなり dead pin は 0 件。
+
 ## タスク
 
 - [x] セッション再起動後に `~/.cache/claude/instructions-loaded.jsonl` を読み、未確認の 1 点を確定する(2026-08-17 に実測。`paths` 無しの rules は session_start で常時ロードされる)
@@ -942,17 +995,18 @@ canonical は config-guard の `apm_pins` 検査)。
 - [x] プローブ 3 点を撤去する (`~/.claude/rules/` の 2 枚と `.cache/probe.rulescope`)
       (2026-08-20 に実測して確認。`~/.claude/rules/` は空、`.cache/probe.rulescope` も不在。
       観測フックのログ `~/.cache/claude/instructions-loaded.jsonl` は残っている)
-- [ ] 分割後に位置参照が壊れていないことを確認する
+- [x] 分割後に位置参照が壊れていないことを確認する
+      (一度きりの確認ではなく `instruction_refs` の検査にした。パス参照と見出し参照の
+      両方が現状 broken 0。以後は改名や移動のたびに CI が赤くなる)
 - [ ] 切り出しのたびに、移した語が定義なしで残っていないかを検算する。母集団は
       CLAUDE.md + `references/*.md` (テストファイルを Read せずに到達しうる集合)
       (詳細は「移した先にしか定義が無い語が常時層に残る」節)
 - [ ] `references/observation.md` が `変異注入` と `dead pin` を定義なしで使っているのを直す
       (今回の切り出しで露出した。observation カテゴリを触る回に合わせる)
-- [ ] `~/.claude/` 参照の機械検査を作る (`config-guard` の `markdown_links.py` の隣)
-      (`~/.claude/X` を `home/.claude/X` へ写して実在を検査し、references 冒頭が名指しする
-      見出しが指す先に実在するかまで見る。20 箇所すべてバッククォート記法なので
-      既存の `markdown_links` は `INLINE_CODE_PATTERN` で除去してしまい 1 件も見えない。
-      記法をリンクへ変える案は `~` が `source.parent` 相対に解決されて偽陽性になるので使えない)
+- [x] `~/.claude/` 参照の機械検査を作る (`config-guard` の `markdown_links.py` の隣)
+      (`config_guard.instruction_refs` として実装。パス参照と見出し参照の 2 種を見る。
+      記法をリンクへ変える案は `~` が `source.parent` 相対に解決されて偽陽性になるので
+      使えなかった。結果は「参照の実在を検査で pin した」節)
 - [ ] glob が corpus の形をしている問題を決着させる
       (8 パターンは管理下 26 リポジトリのうち 20 から導出したので、その corpus に無い規約は
       沈黙する。RSpec の `*_spec.rb` は `**/*.spec.*` が `.spec.` を要求するので不一致、
@@ -986,3 +1040,5 @@ canonical は config-guard の `apm_pins` 検査)。
   参照先が別ファイルへ飛び、沈黙して壊れる
 - [Issue #26: Claude Code フックの共通基盤を集約する](../26_Claude%20Code%20フックの共通基盤を集約する/issue.md)。
   本 Issue で足した観測フックが 4 本目のフックになる
+- [Issue #39: refactor: config-guard の Markdown フェンス走査を 1 実装へ寄せる](../39_config-guard%20の%20Markdown%20フェンス走査を%201%20実装へ寄せる/issue.md)。
+  本 Issue で足した `instruction_refs` が 2 つ目のフェンス走査になった。派生
