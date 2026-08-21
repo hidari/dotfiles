@@ -268,12 +268,56 @@ Memory files が増えたのは probe-noscope.md (209 トークン) が加わっ
 
 `~/.claude/rules/00-core.md` へ常時層を移す案は不要になった。CLAUDE.md 本体が既に compact 耐性を持つ。
 
-`paths` 付き rules には穴がある。compact から次に一致ファイルを Read するまでの間、その規範は不在になる。
-Read 以外の経路 (Edit / Write) で発火するかは未測定で、しないなら穴はもっと広い。
+`paths` 付き rules には穴がある。compact のあと規範が戻るのは、一致ファイルへ特定の操作をしたときだけ。
+どの操作が該当するかで穴の広さが決まる。実測は「発火経路を実測した」節。
 
 `~/.claude/rules/` は symlink ではなく実ディレクトリで、`home/.claude/rules/` はリポジトリに存在しない。
 bootstrap の SYMLINK_PAIRS にも無い。切り出す前にここを配線しないと、rules は他マシンへ配布されず
 `instruction_budget` の `RULES_GLOB` からも外れる (今は glob が 0 件に一致するので予算検査は素通りしている)。
+
+## 発火経路を実測した (2026-08-21)
+
+compact 節が残した 1 点。`paths` 付き rules が Read で発火することは分かっていたが、
+Edit / Write でも発火するかは測っていなかった。
+
+### 前提
+
+compact の実験で使った `probe-compact-rescope.md` (`paths: ["**/*.rulescope"]`) を撤去せずに
+前セッションを終え、触らないまま新しいセッションを開始した。glob 登録は session_start でしか
+更新されないので、プローブはセッションを跨いで置いておかないと登録されない。
+判定後に撤去したので `~/.claude/rules/` は空に戻っている。
+
+### 手順
+
+dedup はルール単位かつセッション単位なので、一致ファイルへの最初の 1 アクションだけが情報を持つ。
+順序を固定し、陰性のときだけ次へ進めた。基準線は 86 行。
+
+| # | ツール | 操作 | ログ増分 | 注入 |
+|---|---|---|---|---|
+| 1 | Write | 新規ファイル `.cache/phase0w.rulescope` を作成 | 0 | なし |
+| 2 | Edit | 同じファイルを書き換え | 0 | なし |
+| 3 | Read | 同じファイルを読む (positive control) | +1 | あり |
+
+3 で記録された行は `load_reason` が `path_glob_match` で、`trigger_file_path` は 1 で作ったファイル。
+
+### 確定したこと
+
+- 発火するのは Read のみ。Write と Edit では発火しない
+- この陰性は dedup 由来ではない。dedup はルール単位なので、1 か 2 で発火していれば
+  3 でも注入されないはず。3 が注入された以上 1 と 2 は発火していない。
+  ログ増分 0 と合わせて 2 経路で確認している
+- トリガファイル側の glob 判定は動的。session_start の時点で存在しなかったファイルが
+  発火させている。session_start のキャッシュに固定されるのは rules 側の登録だけで、
+  一致するファイルの一覧ではない
+
+### 切り出しへの影響
+
+Edit ツールは原則として同一会話内の事前 Read を要求するので、実運用の Edit は
+直前の Read が発火させている。今回それを回避できたのは Write 直後で file state が
+current だったため。穴が開くのはこの経路、つまり対象を読まずに書く場面に限られる。
+
+分割案の 3 つでは testing-practices がこれを踏む。TDD で最初にテストを書く場面は
+テストファイルの新規作成そのもので、既存を読まずに Write することになる。
 
 ## 常時層に載っていても守られなかった 1 例 (2026-08-21)
 
@@ -352,9 +396,8 @@ zsh 5.9 で実測した。
       結果は「compact の挙動を実測した」節)
 - [ ] `home/.claude/rules/` を作り bootstrap の SYMLINK_PAIRS へ配線する (切り出しの前提。
       今の `~/.claude/rules/` は追跡外の実ディレクトリで、配布も予算検査も効いていない)
-- [ ] `paths` 付き rules が Read 以外の経路 (Edit / Write) でも発火するかを新セッションで実測する
-      (compact 後に規範が不在になる窓の広さがここで決まる。glob 登録は session_start でしか
-      更新されないため、プローブはセッションを開始する前に置いておくこと)
+- [x] `paths` 付き rules が Read 以外の経路 (Edit / Write) でも発火するかを新セッションで実測する
+      (結果は「発火経路を実測した」節)
 - [ ] スコープできる 3 つを `paths` 付き rules として切り出し、subagent 経由で発火を確認する
 - [ ] CLAUDE.md 本体に残す核を確定する (RFC2119 の定義、開発スタイル、個人情報、CI コスト、作業プロトコル)
 - [x] プローブ 3 点を撤去する (`~/.claude/rules/` の 2 枚と `.cache/probe.rulescope`)
