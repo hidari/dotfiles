@@ -5,7 +5,8 @@ bit が立っていないか / apm.lock.yaml の deployed_files が gitignore �
 root の検出) / mise の global ツール pin が exact か / apm.yml の依存 pin が commit SHA で固定され
 宣言どうしと実配置で揃っているか / herdr keybinding の方向整合と chord 重複 / 追跡下の
 Markdown の相対リンクが実在するか / 常時ロードされる指示ファイルの総バイト数が予算内か /
-rules の paths 宣言が pin と一致するかを検査する。
+その予算そのものが main から無音で上がっていないか / rules の paths 宣言が pin と
+一致するかを検査する。
 """
 
 from __future__ import annotations
@@ -16,11 +17,17 @@ from pathlib import Path
 
 from config_guard.apm_gitignore import check_apm_deployed_files_ignored
 from config_guard.apm_pins import check_apm_pins
+from config_guard.budget_ratchet import check_budget_ratchet
 from config_guard.extractors import extract_skill_tokens
 from config_guard.git_source import read_committed_settings
 from config_guard.herdr_keys import check_herdr_keys, read_default_config
 from config_guard.index_flags import check_index_flags
-from config_guard.instruction_budget import check_instruction_budget
+from config_guard.instruction_budget import (
+    ALWAYS_LOADED_BUDGET_BYTES,
+    BUDGET_RAISES,
+    budget_summary,
+    check_instruction_budget,
+)
 from config_guard.markdown_links import check_markdown_links
 from config_guard.mise_pins import check_mise_pins
 from config_guard.models import Finding
@@ -75,6 +82,10 @@ def scan(repo_root: str) -> list[Finding]:
     # (実測で 9 日 +44%) ので、一回きりの削減ではなく上限を検査で固定する
     findings.extend(check_instruction_budget(str(root)))
 
+    # 予算定数そのものが main から無音で上がっていないか。超えたときに上限のほうを
+    # 書き換えれば通る形だと、上の予算検査は上限として働かない (実際に 2 度上げている)
+    findings.extend(check_budget_ratchet(str(root), ALWAYS_LOADED_BUDGET_BYTES, BUDGET_RAISES))
+
     # rules の paths 宣言が pin と一致するか。誤った paths は scoped と判定されて
     # 予算にも計上されないので、予算検査では捕まらない (全緑のままルールが沈黙する)
     findings.extend(check_rules_paths(str(root)))
@@ -85,6 +96,9 @@ def scan(repo_root: str) -> list[Finding]:
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
     repo_root = args[0] if args else "."
+    # 問題の有無に関わらず出す。移設で常時層が減ったことは「赤くならなかった」では
+    # 見えず、scoped 層を併記しないと移設が「消えた」ように見えるメトリクスになる
+    print(f"config-guard: {budget_summary(repo_root)}")
     findings = scan(repo_root)
     if not findings:
         print("config-guard: 問題は検出されませんでした")

@@ -31,10 +31,22 @@ from config_guard.models import Finding
 # 移設でカテゴリを切り出したら同時に下げる (幅は test_budget_tracks_the_real_repo_closely が縛る)。
 ALWAYS_LOADED_BUDGET_BYTES = 29012
 
+# 予算を引き上げた記録。上げるときは (日付, 引き上げ後の値, 理由) を末尾へ 1 行足す。
+# budget_ratchet が origin/main より大きい定数を、末尾がその値を指すときだけ許す。
+# 空 = main へ入った値から一度も上げていない。引き下げには記録が要らない。
+BUDGET_RAISES: tuple[tuple[str, int, str], ...] = ()
+
 CLAUDE_MD_PATH = "home/.claude/CLAUDE.md"
 RULES_GLOB = "home/.claude/rules/*.md"
 
 _FRONTMATTER_OPEN = "---\n"
+
+# 内訳の区切りと、最初の見出しより前を指す名前。
+_H2_PREFIX = "## "
+_PREAMBLE_NAME = "(冒頭)"
+
+# 超過時に名指しするカテゴリの数。全件出すと報告が読まれなくなる。
+_HEAVIEST_SHOWN = 3
 
 
 def rule_files(repo_root: str) -> dict[str, str]:
@@ -99,14 +111,63 @@ def always_loaded_bytes(repo_root: str) -> int:
     return total
 
 
+def category_bytes(text: str) -> list[tuple[str, int]]:
+    """本文を H2 見出しで区切り、(見出し, バイト数) を重い順に返す。
+
+    粒度をカテゴリ (H2) に留めるのは、H3 まで割ると件数が読める量を超えるため。
+    最初の見出しより前も 1 件として数える。落とすと内訳の合計が本文と合わなくなり、
+    「ここに挙がっていない分は無い」と読めてしまう。
+    """
+    sections: list[tuple[str, list[str]]] = []
+    name = _PREAMBLE_NAME
+    lines: list[str] = []
+
+    for line in text.split("\n"):
+        if line.startswith(_H2_PREFIX):
+            sections.append((name, lines))
+            name, lines = line[len(_H2_PREFIX) :], [line]
+        else:
+            lines.append(line)
+    sections.append((name, lines))
+
+    sized = [(n, len("\n".join(ls).encode("utf-8"))) for n, ls in sections if ls]
+    return sorted(sized, key=lambda entry: entry[1], reverse=True)
+
+
 def check_instruction_budget(repo_root: str) -> list[Finding]:
-    """常時ロード層が予算を超えていないか検査する。"""
+    """常時ロード層が予算を超えていないか検査する。
+
+    超過量だけでは「どこを削るか」が分からず、報告が行動につながらない
+    (定数を上げる方が早いという判断を誘う)。重いカテゴリを名指しする。
+    """
     actual = always_loaded_bytes(repo_root)
     if actual <= ALWAYS_LOADED_BUDGET_BYTES:
         return []
+
     over = actual - ALWAYS_LOADED_BUDGET_BYTES
     detail = f"{actual}B > {ALWAYS_LOADED_BUDGET_BYTES}B (超過 {over}B)"
     message = (
         "常時ロード層が予算を超えている。規範を references へ移すか paths 付き rules へ切り出すこと"
     )
+
+    claude_md = Path(repo_root) / CLAUDE_MD_PATH
+    if claude_md.is_file():
+        heaviest = category_bytes(claude_md.read_text(encoding="utf-8"))[:_HEAVIEST_SHOWN]
+        message += "。重い順: " + " / ".join(f"{name} {size}B" for name, size in heaviest)
+
     return [Finding(CLAUDE_MD_PATH, detail, message)]
+
+
+def budget_summary(repo_root: str) -> str:
+    """常時層と scoped 層の現況を 1 行で返す。
+
+    scoped 層も出すのは、移設した分が数字の上で「消えた」ように見えるため。
+    移設は無料ではなく、一致ファイルを読んだ agent 文脈ごとに払っている。
+    片側だけを見ていると「移せば必ず勝ち」というメトリクスのままになる。
+    """
+    scoped = [text for text in rule_files(repo_root).values() if not is_always_loaded_rule(text)]
+    scoped_bytes = sum(len(text.encode("utf-8")) for text in scoped)
+    return (
+        f"常時 {always_loaded_bytes(repo_root)}B / 予算 {ALWAYS_LOADED_BUDGET_BYTES}B、"
+        f"scoped {len(scoped)} 枚 {scoped_bytes}B"
+    )

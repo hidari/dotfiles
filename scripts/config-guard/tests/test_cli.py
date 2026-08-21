@@ -5,7 +5,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from config_guard.cli import scan
+import pytest
+
+from config_guard.budget_ratchet import BUDGET_MODULE_PATH
+from config_guard.cli import main, scan
 from config_guard.instruction_budget import (
     ALWAYS_LOADED_BUDGET_BYTES,
     CLAUDE_MD_PATH,
@@ -142,3 +145,24 @@ def test_instruction_budget_is_detected(tmp_path: Path) -> None:
     findings = scan(str(repo))
 
     assert any(f.source == CLAUDE_MD_PATH for f in findings)
+
+
+def test_budget_ratchet_is_detected(tmp_path: Path) -> None:
+    # ラチェットが scan に配線されていること。配線を忘れると予算定数が
+    # 無音で上がり続け、上限が上限でなくなる状態へ戻る。
+    # この repo には origin/main が無いので「baseline を取得できない」で赤くなる
+    repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
+    write_file(repo, BUDGET_MODULE_PATH, "ALWAYS_LOADED_BUDGET_BYTES = 1\n")
+
+    findings = scan(str(repo))
+
+    assert any(f.source == BUDGET_MODULE_PATH for f in findings)
+
+
+def test_main_prints_the_budget_summary(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # 問題が無いときも出す。移設の効果は「赤くならなかった」では見えない
+    repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
+
+    main([str(repo)])
+
+    assert "常時" in capsys.readouterr().out
