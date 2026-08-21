@@ -174,6 +174,12 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
+      # 予算ラチェットの baseline は origin/main の定数。checkout は既定 (fetch-depth: 1) で
+      # PR の merge ref しか作らないため refs/remotes/origin/main を明示的に取る。
+      # この step を消すと config-guard が「baseline を取得できない」で赤くなる
+      - name: Fetch main for the budget ratchet baseline
+        run: git fetch --depth=1 origin main:refs/remotes/origin/main
+
       - name: Install uv
         uses: ./.github/actions/setup-uv
 

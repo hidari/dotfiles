@@ -14,6 +14,8 @@ from config_guard.instruction_budget import (
     ALWAYS_LOADED_BUDGET_BYTES,
     CLAUDE_MD_PATH,
     always_loaded_bytes,
+    budget_summary,
+    category_bytes,
     check_instruction_budget,
     is_always_loaded_rule,
 )
@@ -125,6 +127,83 @@ def test_scoped_rule_does_not_push_over_budget(tmp_path: Path) -> None:
         '---\npaths: ["**/*.ts"]\n---\n' + "y" * 1000,
     )
     assert check_instruction_budget(str(tmp_path)) == []
+
+
+def test_over_budget_finding_names_the_heaviest_category(tmp_path: Path) -> None:
+    # 超過量だけ言われても「どこを削るか」は分からない。行動につながらない報告は
+    # 検査が赤いだけで役に立たず、定数を上げる方が早いという判断を誘う
+    body = "## 重い\n" + "x" * ALWAYS_LOADED_BUDGET_BYTES + "\n## 軽い\ny\n"
+    write_file(tmp_path, CLAUDE_MD_PATH, body)
+
+    findings = check_instruction_budget(str(tmp_path))
+
+    assert len(findings) == 1
+    assert "重い" in findings[0].message
+
+
+def test_over_budget_finding_names_only_the_heaviest_few(tmp_path: Path) -> None:
+    # 全件出すと報告が読まれなくなる。上限を縛らないと定数を大きくしても誰も赤くならない。
+    # 期待値はプロダクト定数から生成せず literal で置く (conftest の pin 規約)
+    write_file(tmp_path, CLAUDE_MD_PATH, "".join(f"## cat{i}\n{'x' * 5000}\n" for i in range(6)))
+
+    message = check_instruction_budget(str(tmp_path))[0].message
+
+    assert len([i for i in range(6) if f"cat{i}" in message]) == 3
+
+
+# -----------------------------------------------------------------------------
+# category_bytes (pure)
+# -----------------------------------------------------------------------------
+
+
+def test_splits_on_h2_headings() -> None:
+    # 見出し行はそのカテゴリに属する。次の見出しの直前までが 1 つ
+    assert category_bytes("## A\nx\n## B\nyy\n") == [("B", 8), ("A", 6)]
+
+
+def test_text_before_the_first_heading_is_its_own_entry() -> None:
+    # 冒頭も削減対象になりうる。落とすと内訳の合計が本文と合わなくなる
+    assert dict(category_bytes("冒頭\n## A\nx\n"))["(冒頭)"] == 6
+
+
+def test_returns_the_heaviest_first() -> None:
+    # 重い順でないと「どこから削るか」の答えにならない
+    text = "## small\nx\n## large\n" + "y" * 100 + "\n"
+    assert next(name for name, _ in category_bytes(text)) == "large"
+
+
+def test_a_document_without_headings_is_a_single_entry() -> None:
+    assert [name for name, _ in category_bytes("本文だけ\n")] == ["(冒頭)"]
+
+
+def test_h3_headings_do_not_split() -> None:
+    # 内訳の粒度はカテゴリ (H2)。H3 まで割ると件数が読める量を超える
+    assert len(category_bytes("## A\n### sub\nx\n")) == 1
+
+
+# -----------------------------------------------------------------------------
+# budget_summary
+# -----------------------------------------------------------------------------
+
+
+def test_summary_reports_the_always_loaded_layer(tmp_path: Path) -> None:
+    write_file(tmp_path, CLAUDE_MD_PATH, "x" * 100)
+
+    summary = budget_summary(str(tmp_path))
+
+    assert f"常時 100B / 予算 {ALWAYS_LOADED_BUDGET_BYTES}B" in summary
+
+
+def test_summary_reports_the_scoped_layer(tmp_path: Path) -> None:
+    # scoped を出さないと移設した分が数字の上で「消えた」ように見え、
+    # 「移せば必ず勝ち」というメトリクスのままになる
+    scoped = '---\npaths: ["**/*.ts"]\n---\nbody'
+    write_file(tmp_path, CLAUDE_MD_PATH, "x" * 100)
+    write_file(tmp_path, "home/.claude/rules/scoped.md", scoped)
+
+    summary = budget_summary(str(tmp_path))
+
+    assert f"scoped 1 枚 {len(scoped.encode())}B" in summary
 
 
 # -----------------------------------------------------------------------------
