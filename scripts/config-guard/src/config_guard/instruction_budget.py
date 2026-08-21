@@ -7,7 +7,8 @@ CLAUDE.md は追記で膨らみ続ける (実測: 2026-08-12 の 36,599B から 
 
 - User スコープの CLAUDE.md は session_start で必ずロードされる
 - `~/.claude/rules/*.md` は paths frontmatter が無いときだけ session_start でロードされる
-- paths を持つ rules は該当パターンのファイルに触れたときだけロードされる
+- paths を持つ rules は該当パターンのファイルを Read したときだけロードされる。
+  予算には計上しないが無料ではなく、一致ファイルを読んだ agent 文脈ごとに払う (実測は Issue #36)
 
 常時層のコストは session_start だけでなく subagent の dispatch ごとにも払う
 (subagent がツールを一切使わずに CLAUDE.md の本文を引用できることを実測した)。
@@ -28,7 +29,7 @@ from config_guard.models import Finding
 
 # 常時ロード層の上限 (バイト)。canonical はここだけに置く。
 # 移設でカテゴリを切り出したら同時に下げる (幅は test_budget_tracks_the_real_repo_closely が縛る)。
-ALWAYS_LOADED_BUDGET_BYTES = 32287
+ALWAYS_LOADED_BUDGET_BYTES = 29012
 
 CLAUDE_MD_PATH = "home/.claude/CLAUDE.md"
 RULES_GLOB = "home/.claude/rules/*.md"
