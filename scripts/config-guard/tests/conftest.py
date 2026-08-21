@@ -57,11 +57,16 @@ def run_git(repo: Path, *args: str) -> None:
     )
 
 
+def configure_identity(repo: Path) -> None:
+    """commit するテストのための user 設定。init した repo と clone した repo の両方で要る。"""
+    run_git(repo, "config", "user.email", "test@example.com")
+    run_git(repo, "config", "user.name", "test")
+
+
 def init_repo(repo: Path) -> None:
     """テスト用の git repo を初期化する。commit するテストのため user 設定も入れる。"""
     run_git(repo, "init", "-q")
-    run_git(repo, "config", "user.email", "test@example.com")
-    run_git(repo, "config", "user.name", "test")
+    configure_identity(repo)
 
 
 def write_file(repo: Path, rel: str, text: str) -> Path:

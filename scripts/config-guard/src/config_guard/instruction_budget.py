@@ -32,8 +32,7 @@ from config_guard.models import Finding
 ALWAYS_LOADED_BUDGET_BYTES = 29012
 
 # 予算を引き上げた記録。上げるときは (日付, 引き上げ後の値, 理由) を末尾へ 1 行足す。
-# budget_ratchet が origin/main より大きい定数を、末尾がその値を指すときだけ許す。
-# 空 = main へ入った値から一度も上げていない。引き下げには記録が要らない。
+# 許可の条件は budget_ratchet.evaluate_ratchet が canonical。
 BUDGET_RAISES: tuple[tuple[str, int, str], ...] = ()
 
 CLAUDE_MD_PATH = "home/.claude/CLAUDE.md"
@@ -41,7 +40,6 @@ RULES_GLOB = "home/.claude/rules/*.md"
 
 _FRONTMATTER_OPEN = "---\n"
 
-# 内訳の区切りと、最初の見出しより前を指す名前。
 _H2_PREFIX = "## "
 _PREAMBLE_NAME = "(冒頭)"
 
@@ -115,22 +113,21 @@ def category_bytes(text: str) -> list[tuple[str, int]]:
     """本文を H2 見出しで区切り、(見出し, バイト数) を重い順に返す。
 
     粒度をカテゴリ (H2) に留めるのは、H3 まで割ると件数が読める量を超えるため。
-    最初の見出しより前も 1 件として数える。落とすと内訳の合計が本文と合わなくなり、
+    最初の見出しより前も 1 件として数える。落とすと冒頭の分がどこにも現れず、
     「ここに挙がっていない分は無い」と読めてしまう。
+
+    区切りの改行は前のセクションから外れるので、合計はファイルサイズと一致しない
+    (見出しの数だけ小さい)。どこが重いかを示す用途なので、その差は許容する。
     """
-    sections: list[tuple[str, list[str]]] = []
-    name = _PREAMBLE_NAME
-    lines: list[str] = []
+    sections: list[tuple[str, list[str]]] = [(_PREAMBLE_NAME, [])]
 
     for line in text.split("\n"):
         if line.startswith(_H2_PREFIX):
-            sections.append((name, lines))
-            name, lines = line[len(_H2_PREFIX) :], [line]
+            sections.append((line[len(_H2_PREFIX) :], [line]))
         else:
-            lines.append(line)
-    sections.append((name, lines))
+            sections[-1][1].append(line)
 
-    sized = [(n, len("\n".join(ls).encode("utf-8"))) for n, ls in sections if ls]
+    sized = [(name, len("\n".join(ls).encode("utf-8"))) for name, ls in sections if ls]
     return sorted(sized, key=lambda entry: entry[1], reverse=True)
 
 

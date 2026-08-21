@@ -2,7 +2,7 @@
 
 常時ロード層の予算定数が origin/main の値から増えていないことを検査する。
 増やすこと自体は禁じない。禁じるのは「無音で増やすこと」で、引き上げには
-BUDGET_RAISES への記録を要求する (起票理由は 9 日 +44% の無音な増加だった)。
+BUDGET_RAISES への記録を要求する (起票理由は追記による無音な増加)。
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from config_guard.budget_ratchet import (
     parse_budget,
 )
 from config_guard.instruction_budget import ALWAYS_LOADED_BUDGET_BYTES, BUDGET_RAISES
-from tests.conftest import REPO_ROOT, init_repo, run_git, write_file
+from tests.conftest import REPO_ROOT, configure_identity, init_repo, run_git, write_file
 
 # -----------------------------------------------------------------------------
 # parse_budget (pure)
@@ -62,14 +62,26 @@ def test_returns_none_when_the_constant_is_absent() -> None:
 
 
 def test_returns_none_for_a_non_integer_value() -> None:
-    # 文字列を int として読むと baseline が壊れたまま比較が成立してしまう
-    assert parse_budget('ALWAYS_LOADED_BUDGET_BYTES = "29012"\n') is None
+    # 文字列を int として読むと baseline が壊れたまま比較が成立してしまう。
+    # 値は他の parse テストと同じダミー。実予算値を置くと連動していると誤読させる
+    assert parse_budget('ALWAYS_LOADED_BUDGET_BYTES = "12345"\n') is None
 
 
 def test_returns_none_for_unparsable_source() -> None:
     # baseline 側が壊れているのは「取れない」であって「0」ではない。
     # 0 として読むと、どんな値でも「増えている」と報告する誤検出になる
     assert parse_budget("def broken(\n") is None
+
+
+def test_only_a_plain_integer_literal_is_read() -> None:
+    # 受けるのは整数リテラル 1 つだけ。式を評価しにいくと (literal_eval 等)
+    # 想定より広いものを受け、例外面も広がる。どちらも読めない側へ倒れるので
+    # baseline は Finding になり、黙って誤った値を使うことはない
+    for body in (
+        "ALWAYS_LOADED_BUDGET_BYTES = -1\n",
+        "ALWAYS_LOADED_BUDGET_BYTES = 20000 + 9012\n",
+    ):
+        assert parse_budget(body) is None, body
 
 
 # -----------------------------------------------------------------------------
@@ -111,7 +123,7 @@ def test_record_with_a_blank_reason_is_reported() -> None:
 
 
 def test_record_with_a_malformed_date_is_reported() -> None:
-    # 日付が読めないと増加の傾向 (起票理由の「9 日で +44%」) を後から測れない。
+    # 日付が読めないと増加の傾向を後から測れない。
     # 形の regex ではなく date.fromisoformat に解釈させるので 13 月 45 日も落ちる
     assert evaluate_ratchet(300, 200, (("2026-13-45", 300, "理由"),)) != []
 
@@ -175,6 +187,31 @@ def test_the_baseline_from_git_drives_the_comparison(tmp_path: Path) -> None:
 
     assert check_budget_ratchet(str(tmp_path), 100, (), ref="HEAD") == []
     assert check_budget_ratchet(str(tmp_path), 101, (), ref="HEAD") != []
+
+
+def test_the_default_ref_reads_origin_main_not_the_local_head(tmp_path: Path) -> None:
+    # 上のテスト群は ref を明示するので BASELINE_REF の値を一度も通らない。
+    # 既定が "HEAD" のような自己参照へ変わると、clean checkout では
+    # working tree == HEAD なので常に current == baseline となり無条件に通る。
+    # ラチェットが防ぐはずの「無音で無効になる」形そのものなので、既定値をここで縛る
+    origin = tmp_path / "origin"
+    origin.mkdir()
+    _commit_budget_module(origin, "ALWAYS_LOADED_BUDGET_BYTES = 100\n")
+    # 既定ブランチ名は git の設定に依存する。BASELINE_REF が指す main へ揃える
+    run_git(origin, "branch", "-M", "main")
+
+    clone = tmp_path / "clone"
+    run_git(tmp_path, "clone", "-q", str(origin), str(clone))
+    configure_identity(clone)
+    # clone 側だけを進めて HEAD と origin/main を分ける。commit しないと
+    # git show HEAD:<path> が clone 時点の値を返し、両者の差が出ない
+    write_file(clone, BUDGET_MODULE_PATH, "ALWAYS_LOADED_BUDGET_BYTES = 300\n")
+    run_git(clone, "add", "-A")
+    run_git(clone, "commit", "-q", "-m", "raise")
+
+    # origin/main は 100 なので 200 は引き上げ。HEAD 側 (300) を読んでいれば
+    # 200 <= 300 で緑になる。どちらの ref を見ているかがこの差に出る
+    assert check_budget_ratchet(str(clone), 200, ()) != []
 
 
 # -----------------------------------------------------------------------------

@@ -79,7 +79,7 @@ def scan(repo_root: str) -> list[Finding]:
     findings.extend(check_markdown_links(str(root)))
 
     # 常時ロードされる指示ファイルの総バイト数が予算内か。追記は止まらない
-    # (実測で 9 日 +44%) ので、一回きりの削減ではなく上限を検査で固定する
+    # (実測は instruction_budget の docstring) ので、削減量ではなく上限を固定する
     findings.extend(check_instruction_budget(str(root)))
 
     # 予算定数そのものが main から無音で上がっていないか。超えたときに上限のほうを

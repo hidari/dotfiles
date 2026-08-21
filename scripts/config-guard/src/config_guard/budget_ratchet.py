@@ -1,15 +1,15 @@
 """常時ロード層の予算定数が baseline から無音で増えていないことの検査。
 
 `instruction_budget` の予算は上限を名乗るが、超えたときに上限のほうを書き換えれば
-全緑で通る。実際に 1 セッションで 2 度上げている。起票理由 (9 日で +44%) を防ぐ力が
-無いのはこの経路のためで、爪の無い歯車になっていた。
+全緑で通る。実際に 1 セッションで 2 度上げている。追記が止まらないという起票理由
+(実測値は `instruction_budget` の docstring) を防ぐ力が無いのはこの経路のためで、
+爪の無い歯車になっていた。
 
 上げること自体は禁じない。禁じるのは無音で上げることで、引き上げには
 `BUDGET_RAISES` への記録 (日付・引き上げ後の値・理由) を要求する。据え置きと
 引き下げは無条件に通す。
 
-baseline は `origin/main` の同じファイルから ast で読む。regex だとコメントや
-文字列中の同名を拾い、exec だと baseline 側の任意コードを実行してしまう。
+baseline は `BASELINE_REF` の同じファイルから読む。読み方の理由は `parse_budget`。
 """
 
 from __future__ import annotations
@@ -55,13 +55,12 @@ def parse_budget(source: str) -> int | None:
 
         if not any(isinstance(t, ast.Name) and t.id == BUDGET_NAME for t in targets):
             continue
-        if node.value is None:
-            return None
-        try:
-            value = ast.literal_eval(node.value)
-        except ValueError:
-            return None
-        return value if isinstance(value, int) else None
+        # 受けたいのは整数リテラル 1 つなので、式を評価する literal_eval ではなく
+        # ノードの形で判定する。注釈だけの宣言 (value が None) もここで落ちる
+        value = node.value
+        if isinstance(value, ast.Constant) and isinstance(value.value, int):
+            return value.value
+        return None
 
     return None
 

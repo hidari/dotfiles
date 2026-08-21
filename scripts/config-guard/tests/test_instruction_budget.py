@@ -141,6 +141,16 @@ def test_over_budget_finding_names_the_heaviest_category(tmp_path: Path) -> None
     assert "重い" in findings[0].message
 
 
+def test_over_budget_finding_names_only_the_heaviest_few(tmp_path: Path) -> None:
+    # 全件出すと報告が読まれなくなる。上限を縛らないと定数を大きくしても誰も赤くならない。
+    # 期待値はプロダクト定数から生成せず literal で置く (conftest の pin 規約)
+    write_file(tmp_path, CLAUDE_MD_PATH, "".join(f"## cat{i}\n{'x' * 5000}\n" for i in range(6)))
+
+    message = check_instruction_budget(str(tmp_path))[0].message
+
+    assert len([i for i in range(6) if f"cat{i}" in message]) == 3
+
+
 # -----------------------------------------------------------------------------
 # category_bytes (pure)
 # -----------------------------------------------------------------------------
