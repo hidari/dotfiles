@@ -665,6 +665,96 @@ bootstrap の `SYMLINK_PAIRS` は触っていない。配線はディレクト�
 (`home/.claude/rules|.claude/rules`) なので、中のファイルが増えても reverse-drift も
 追加ディレクトリの mirror も動かない。実際に両テストが緑のままであることを確認した。
 
+## paths リストを検査で pin した (2026-08-21)
+
+`paths` を「非空だが誤った値」にすると `is_always_loaded_rule` は scoped と判定し、
+予算にも計上されないため、既存のどの検査も赤くならない。全緑のままルールが永久に
+沈黙する経路がここにあった。
+
+### 最初はテストに置いたが、レビューで置き場所ごと作り直した
+
+最初の実装は `tests/test_rules_paths.py` に literal 比較を置くだけだった。
+これは守る対象を編集したときに走らない。`config-guard-pytest` の発火条件は
+`files: ^scripts/config-guard/(src|tests)/.*\.py$` なので、`home/.claude/rules/*.md` だけを
+編集したコミットでは Skipped になる。CI では走るが、手元では無音。
+
+**このリポジトリは同じ教訓を既に言語化して pin していた。**
+`tests/test_precommit_wiring.py` の docstring が「files 方式は検査追加のたびに配線と
+files への追記が独立した手作業になり、追記漏れが silent に起きる (mise で実際に起きた)」と
+書き、`config-guard-scan` の `always_run: true` を pin している。最初の実装はその外側にあった。
+
+`cli.scan()` の検査 (`config_guard.rules_paths.check_rules_paths`) へ作り直した。
+`always_run` の経路に乗るので `files` の列挙を増やさずに済む。
+
+**変異の置き場所を間違えていた。** 最初の (3) 取り付け変異は「テストファイルを untracked に
+する」だった。これはテスト側の追跡状態であって、トリガファイル側のゲートを踏んでいない。
+変異が赤くなったことに満足して、変異の置き場所が正しいかを疑わなかった。
+
+### glob の意味論は検証しない
+
+どのパスが一致するかを決めるのは Claude Code のマッチャで、その挙動は実プローブでしか
+測れない。venv の Python は 3.12 で `PurePath.full_match` も `glob.translate` も無いが、
+仮にあっても代わりにはならない。自前の翻訳器を置けば翻訳器を pin するだけになり、
+実マッチャと意味がずれても両方緑で通る (対照が対象と同じだけ壊れる形)。
+
+分業をこう決めた。実マッチャの検証は live probe、検査はリストの編集だけを見る。
+
+検査するのは 3 つ。pin と実体のファイル集合が一致するか、各ファイルの paths が pin と
+一致するか、載せないと決めたパターンが混入していないか。除外は理由ごと持たせてあり、
+Finding のメッセージに載る。理由が無いと、次に見た人が「漏れている」と判断して足し直す。
+
+**理由から件数を落とした。** 最初は「設計ドキュメントが 55 件」などと書いていたが、
+これは 26 リポジトリ横断の数字で、dotfiles 単体で裏取りすると 0 件に見える。
+裏取りした人には「rot している」と読め、この dict が防ごうとした失敗を dict 自身が誘発する。
+
+### frontmatter のパースと rules の列挙を production へ寄せた
+
+テスト側で再パース・再列挙するとパーサと集合が 2 つになって drift する
+(CLAUDE.md の「定義ブロックを source / import して言語自身に解釈させる」と
+「対照は検証対象と同じ規約で作る」)。`instruction_budget` に `rule_files()` と
+`rule_paths()` を置き、`always_loaded_bytes` も新しい検査も同じものを使う。
+
+`rule_paths` から `or None` を落とした。falsy を潰していたのに docstring は
+「読んだままの形で返す」と書いており、`paths: []` と null と frontmatter 無しが
+呼び出し側から区別できなかった。`is_always_loaded_rule` は `not rule_paths(text)` になり、
+分岐が 1 つ減って docstring が真になった。挙動は等価 (既存 17 件が緑のまま)。
+
+### rules ディレクトリが無いリポジトリは対象外にした
+
+`scan()` は任意のルートに対して走るので、rules を管理していないリポジトリへ
+「pin したファイルが無い」と言っても意味がない。この early return はディレクトリごと
+消したケースを見逃すので、`test_real_repo_has_a_rules_dir` が実リポジトリに対して縛る。
+
+### 変異注入
+
+| 変異 | 種別 | 結果 |
+|---|---|---|
+| パターンを 1 つ消す | (1) 検査対象 | 赤。scan が差分を名指しで報告 |
+| 順序を入れ替える | (1) 検査対象 | 赤 |
+| frontmatter を壊す | (1) 検査対象 | 赤 |
+| 除外パターンを足す | 緩めすぎる方向 | 赤。理由がメッセージに載る |
+| `DELIBERATELY_EXCLUDED` を空にする | 縮む方向 | 赤 (`test_pins_are_not_empty`) |
+| pin していない rules を 1 枚足す | 範囲 | 赤 |
+| `check_rules_paths` を早期 return させる | (2) 検査機構 | 検出が消える |
+| `scan()` から呼び出しを消す | (3) 取り付け | 検出が消える |
+
+**rules だけを編集した状態で両フックを回して確かめた。** `config-guard-scan` が Failed に
+なり、`paths が pin と違う` と差分を名指しで報告する。
+
+範囲の変異では対照も取れた。pin していない rules を足したとき予算検査は 17 件緑のまま
+気づかない。scoped な rules は計上されないので、ルールが増えても既存の検査には見えない。
+
+### 入れなかったもの
+
+pytest の `empty_parameter_set_mark`。最初の実装は `parametrize` を使っており、
+`DELIBERATELY_EXCLUDED` を空にすると 0 件へ縮んで FAIL ではなく SKIP になる
+(実測で確認、exit code も 0)。レビューはこれを `"fail"` に設定せよと提案したが、
+その値は不正で、有効値は `skip` / `xfail` / `fail_at_collect` だった。
+
+`fail_at_collect` が正しく効くことまで確かめたうえで入れないことにした。
+書き直しで `parametrize` は 0 件になり、使う人がいない設定は**それ自体が pin されない機構**に
+なる。外しても誰も赤くならない。縮む方向のリスクは `test_pins_are_not_empty` が直接押さえる。
+
 ## タスク
 
 - [x] セッション再起動後に `~/.cache/claude/instructions-loaded.jsonl` を読み、未確認の 1 点を確定する(2026-08-17 に実測。`paths` 無しの rules は session_start で常時ロードされる)
@@ -730,10 +820,9 @@ bootstrap の `SYMLINK_PAIRS` は触っていない。配線はディレクト�
       共有基盤へ特殊ケースを積む形が動き出している。「実際に使うと分かってから足す」を
       続けるか、偽陽性許容を徹底して広い 1〜2 個へ寄せるか、リポジトリ固有の規約は
       project scope の rules へ置くか、を決める)
-- [ ] rules の `paths` リストをテストで pin する
-      (`paths` を「非空だが誤った値」にすると scoped と判定され予算にも計上されず、
-      既存テストは全緑のままルールが永久に沈黙する。live probe は CI で再現しない。
-      代表パス × 期待一致のデシジョンテーブルを置けば、リストを編集したとき赤くなる)
+- [x] rules の `paths` リストをテストで pin する
+      (`scripts/config-guard/tests/test_rules_paths.py` に 9 件。
+      結果は「paths リストを pin した」節)
 - [ ] 予算をラチェットにする (`ALWAYS_LOADED_BUDGET_BYTES` の手書きをやめる)
       (定数は実測値の写しで、増加も定数を書き換えるだけで無音で通る。
       `git_source.py` に `git show` 経路があるので、`origin/main` の実測を baseline にして

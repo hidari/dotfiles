@@ -37,29 +37,50 @@ RULES_GLOB = "home/.claude/rules/*.md"
 _FRONTMATTER_OPEN = "---\n"
 
 
-def is_always_loaded_rule(text: str) -> bool:
-    """rules の本文が paths frontmatter を持たない (= 常時ロードされる) かを返す。
+def rule_files(repo_root: str) -> dict[str, str]:
+    """`RULES_GLOB` に一致する rules を {ファイル名: 本文} で返す。
+
+    追跡状態は見ない。予算の実態も Claude Code の発火もファイルシステム上の実体で
+    決まるので、git の index を挟むと対象がずれる。列挙をここに 1 つだけ置くのは、
+    予算検査と paths 検査が別の規約で別の集合を見たまま両方緑になるのを防ぐため。
+    """
+    return {p.name: p.read_text(encoding="utf-8") for p in sorted(Path(repo_root).glob(RULES_GLOB))}
+
+
+def rule_paths(text: str) -> object:
+    """rules の frontmatter が宣言する paths を、YAML が読んだままの形で返す。
 
     frontmatter は YAML として解釈する。regex で `paths:` を探すと本文中の記述を
     frontmatter と誤読し、正当な scoped rules を予算へ計上してしまう。
 
-    frontmatter が壊れているときは常時ロード扱い (予算へ計上) にする。
-    計上漏れは予算を無言ですり抜けるので、誤るなら厳しい側へ倒す。
+    frontmatter が無い・壊れているときは None。`paths` が空リストや null のときは
+    その値をそのまま返す (呼び出し側は非空かどうかで判定する)。型も検証せず、
+    `paths: "x"` のような不正な形も値として返す。形の pin は rules_paths が持つ。
     """
     if not text.startswith(_FRONTMATTER_OPEN):
-        return True
+        return None
     end = text.find("\n---", len(_FRONTMATTER_OPEN) - 1)
     if end == -1:
-        return True
+        return None
     try:
         front = yaml.safe_load(text[len(_FRONTMATTER_OPEN) : end])
     except yaml.YAMLError:
-        return True
+        return None
     if not isinstance(front, dict):
-        return True
-    # 空・null の paths が scoped 扱いになるかは未実測 (Issue #36 の probe は
-    # 非空の値しか使っていない)。曖昧なので他のケースと同じく計上側へ倒す
-    return not front.get("paths")
+        return None
+    return front.get("paths")
+
+
+def is_always_loaded_rule(text: str) -> bool:
+    """rules の本文が paths frontmatter を持たない (= 常時ロードされる) かを返す。
+
+    frontmatter が壊れているときは常時ロード扱い (予算へ計上) にする。
+    計上漏れは予算を無言ですり抜けるので、誤るなら厳しい側へ倒す。
+
+    空・null の paths が Claude Code 側で scoped 扱いになるかは未実測 (Issue #36 の
+    probe は非空の値しか使っていない)。曖昧なので他のケースと同じく計上側へ倒す。
+    """
+    return not rule_paths(text)
 
 
 def always_loaded_bytes(repo_root: str) -> int:
@@ -71,8 +92,7 @@ def always_loaded_bytes(repo_root: str) -> int:
     if claude_md.is_file():
         total += len(claude_md.read_bytes())
 
-    for rule in sorted(root.glob(RULES_GLOB)):
-        text = rule.read_text(encoding="utf-8")
+    for text in rule_files(repo_root).values():
         if is_always_loaded_rule(text):
             total += len(text.encode("utf-8"))
 
