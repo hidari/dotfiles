@@ -1,12 +1,12 @@
 lockfile_version: '1'
-generated_at: '2026-08-21T16:42:23.751207+00:00'
+generated_at: '2026-08-22T07:04:20.269517+00:00'
 apm_version: 0.28.0
 dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: dev-workflow
   host: github.com
-  resolved_commit: 419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
-  resolved_ref: 419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
+  resolved_commit: 3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
+  resolved_ref: 3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
   version: 0.2.0
   virtual_path: plugins/dev-workflow
   is_virtual: true
@@ -40,8 +40,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: security-blue-red-team
   host: github.com
-  resolved_commit: 419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
-  resolved_ref: 419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
+  resolved_commit: 3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
+  resolved_ref: 3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
   version: 0.4.1
   virtual_path: plugins/security-blue-red-team
   is_virtual: true
@@ -101,8 +101,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: web-monkey-qa
   host: github.com
-  resolved_commit: 419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
-  resolved_ref: 419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
+  resolved_commit: 3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
+  resolved_ref: 3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
   version: 0.1.0
   virtual_path: plugins/web-monkey-qa
   is_virtual: true
@@ -140,8 +140,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: windows-vm-verification
   host: github.com
-  resolved_commit: 419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
-  resolved_ref: 419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
+  resolved_commit: 3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
+  resolved_ref: 3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
   version: unknown
   virtual_path: skills/devops/windows-vm-verification
   is_virtual: true
@@ -167,8 +167,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: context-loading-mechanics
   host: github.com
-  resolved_commit: 419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
-  resolved_ref: 419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
+  resolved_commit: 3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
+  resolved_ref: 3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
   version: unknown
   virtual_path: skills/meta/context-loading-mechanics
   is_virtual: true
@@ -177,13 +177,13 @@ dependencies:
   - .claude/skills/context-loading-mechanics
   - .claude/skills/context-loading-mechanics/SKILL.md
   deployed_file_hashes:
-    .claude/skills/context-loading-mechanics/SKILL.md: sha256:2227c93abc7b862f55a6c185ee72530ae3a3da3ea0297a127804025748102787
-  content_hash: sha256:044a66eec387ea01369322d74d71877d71f08fc5125c058526dde5f2f7ba6486
+    .claude/skills/context-loading-mechanics/SKILL.md: sha256:85a40003edbb1a259bc63ac4c760add07e9afa6fba82598379e1623b02829f76
+  content_hash: sha256:ad90de6fba4fdd14c98d6712df8dc301f93fb716bad53955c081abcaedcf6838
 - repo_url: hidari/agentic-coding-tools
   name: session-handoff
   host: github.com
-  resolved_commit: 419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
-  resolved_ref: 419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
+  resolved_commit: 3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
+  resolved_ref: 3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
   version: unknown
   virtual_path: skills/meta/session-handoff
   is_virtual: true
@@ -199,8 +199,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: chrome-devtools-debugger
   host: github.com
-  resolved_commit: 419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
-  resolved_ref: 419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
+  resolved_commit: 3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
+  resolved_ref: 3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
   version: unknown
   virtual_path: skills/tooling/chrome-devtools-debugger
   is_virtual: true
@@ -214,8 +214,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: herdr
   host: github.com
-  resolved_commit: 419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
-  resolved_ref: 419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
+  resolved_commit: 3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
+  resolved_ref: 3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
   version: unknown
   virtual_path: skills/tooling/herdr
   is_virtual: true
@@ -229,8 +229,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: markdown-to-pdf
   host: github.com
-  resolved_commit: 419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
-  resolved_ref: 419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
+  resolved_commit: 3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
+  resolved_ref: 3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
   version: unknown
   virtual_path: skills/tooling/markdown-to-pdf
   is_virtual: true
@@ -642,7 +642,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/skills/meta/context-loading-mechanics
   active_owner: hidari/agentic-coding-tools/skills/meta/context-loading-mechanics
-  content_hash: sha256:2227c93abc7b862f55a6c185ee72530ae3a3da3ea0297a127804025748102787
+  content_hash: sha256:85a40003edbb1a259bc63ac4c760add07e9afa6fba82598379e1623b02829f76
 - kind: project-relative
   target: claude
   value: .claude/skills/dev-workflow
