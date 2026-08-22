@@ -1322,6 +1322,136 @@ security-blue-red-team / dev-workflow / web-monkey-qa) のうち、`commands/` �
 4. バイナリ由来のバイトが混ざった検索結果を `grep` にパイプすると、マッチしても行が出ずに 0 件に
    見える。`grep -a` を使うか、対照を並べて検査自体が生きていることを先に確かめる
 
+## command と agent の二重登録の出所を確定し方針を決めた (2026-08-23、apm 0.28.0 / Claude Code 2.1.240)
+
+前節で見つけた別系統を決着させた。出所は Claude Code ではなく apm の deploy 規則で、抑止ノブは
+存在しない。最初に採ろうとした案は plugin の契約を壊すことが分かり、別の案へ切り替えた。実施は
+[Issue #40](../40_skill%20バンドルの%20command%20と%20agent%20の二重登録を止める/issue.md)。
+
+### 出所は apm が 2 経路で配っていること
+
+prefix 無しで載っていた 8 件は `~/.claude/commands/` の 5 ファイルと `~/.claude/agents/` の
+3 ファイルに過不足なく一致する。どちらも apm の deploy 先で `home/.gitignore` が ignore しており、
+`home/apm.lock.yaml` の `deployed_files` が両経路への配布を記録している。配られるファイルは完全に
+同一ではない。agent 3 件は両側でハッシュが一致するが、command 5 件は apm が frontmatter を
+再直列化するぶんだけ差がある。system prompt に載る description のほうは両側で同一。
+
+引き金は構造で、合成パッケージの対照で切り分けた。
+
+| root SKILL.md | `.claude-plugin/` | verbatim `.claude/skills/<pkg>/` | flat `.claude/{agents,commands}/` |
+|---|---|---|---|
+| あり | あり | 配る | 配る |
+| なし | あり | 配らない | 配る |
+| あり | なし | 配る | 配らない |
+
+root SKILL.md が verbatim コピーの引き金、`.claude-plugin/` が flat 分解の引き金で、両方あると
+両方走る。Claude Code はこの 2 つを別経路として登録するので、同じ description が prefix 有無で
+2 回載る。`home/.gitignore` のコメントは以前からこの規則を書いていたが、再現して確かめたのは今回が
+最初になる。
+
+### 抑止ノブは無い
+
+plugin.json の明示宣言で止まるかを 4 ケースの対照で測った。`"skills": ["./skills"]` は nested
+skills の flat 分解を止める。実物の 2 bundle は既にこれを使っており、だから sub-skill の flat コピーが
+存在しない。一方 `"commands"` と `"agents"` を同じ形で宣言しても flat 分解は止まらなかった。
+
+消費側にもノブは無い。`home/apm.yml` の末尾には `includes: auto` という行があるが、`includes` は
+apm の manifest schema にも 0.28.0 の雛形にも現れないキーで、認識される設定ではない。`apm targets`
+はどちらの deploy も同じ `claude` ターゲットとして扱う。
+
+### 同名衝突は 1 件に潰れ、勝つ側が名前空間で逆になる
+
+command と sub-skill が同名だと system prompt には 1 件しか載らない。勝つ側は名前空間で逆になる。
+
+- prefix 名前空間では command が勝つ。`security-blue-red-team:security-vulnerability-assessment` と
+  `web-monkey-qa:monkey-qa` は、どちらも command 側の短い英語 description で載っており、
+  sub-skill 側の長い日本語 description は載っていない。一次証拠は自分の system prompt
+- bare 名前空間では skill が勝つ。既存の bare command と同名の skill ディレクトリを合成して置き、
+  headless セッションに該当行を出力させたところ、skill 側の marker が載り command 側は消えた
+
+この結果、`skills/security-vulnerability-assessment/SKILL.md` (1,575B) と
+`skills/monkey-qa/SKILL.md` (1,227B) は一度も system prompt に載っていない。計 2,802B の
+authored content が dead になっている。
+
+### prefix 無しの agent 名は解決しない
+
+plugin の中にしか存在しない agent を prefix 無しで dispatch できるかを、合成 plugin で測った。
+結果は不可で、Claude Code 自身が registry を列挙したエラーを返す。
+
+```
+Agent type 'zz-probe-agent' not found. Available agents: blue-team-agent, claude, ...,
+security-blue-red-team:blue-team-agent, ..., zz-probe-plugin:zz-probe-agent
+```
+
+security bundle は SKILL.md と command のどちらでも agent を `subagent_type: red-team-agent` と
+bare 名で呼んでいる (計 6 箇所)。一方 web-monkey-qa は `web-monkey-qa:monkey-explorer-agent` と
+prefix 名で呼んでいる。同じリポジトリの 2 bundle で流儀が割れており、どちらの経路を残すかを決めると
+片方は必ず張り替えが要る。
+
+### シナリオごとの常時ロード bytes
+
+description のみを数えた値。衝突の勝敗規則は上記の実測に従う。
+
+| シナリオ | 常時ロード | 削減 |
+|---|---|---|
+| S0 現状 | 9,997B | — |
+| S1 flat 側の deploy 先 (`~/.claude/{commands,agents}`) を消す | 6,929B | 3,068B (30.7%) |
+| S2 verbatim コピー側の `commands/` `agents/` を消す | 9,731B | 266B (2.7%) |
+| S3 root SKILL.md と `skills` 宣言を外して全部 bare へ | 8,830B | 1,167B (11.7%) |
+| S4 root SKILL.md を外し sub-skills を配らない | 3,068B | 6,929B (69.3%) |
+| S5 flat 側を消し sub-skills も撤去 | 3,584B | 6,413B (64.1%) |
+| S6 sub-skills だけ撤去 | 6,652B | 3,345B (33.5%) |
+
+内訳は bare 名前空間が flat commands 1,093B (5 件) と flat agents 1,975B (3 件) と bundle root
+516B (2 件) で 3,584B、prefix 名前空間が同内容の commands と agents 3,068B と、載っている
+sub-skills 3,345B (2 件) で 6,413B。sub-skill の残り 2 件 2,802B は同名の command に隠れて
+載っていない。S2 と S3 が中途半端な数字になるのは、重複を消すと隠れていた sub-skill の長い
+description が出てきて相殺するため。
+
+### 削減が最大の S4 は plugin の契約を壊す
+
+いったんは S4 を採ると決めたが、レビューで 3 点が出て取り下げた。いずれも実測で確認した。
+
+- **`schemas/` の deploy 経路が消える**。root SKILL.md を外した形で apm を走らせると `.claude/` に
+  届くのは agent と command だけで、`schemas/` は 1 件も届かない。実物の agent と command は
+  `${CLAUDE_PLUGIN_ROOT}/schemas/<name>` を 6 箇所で参照しており、参照先ごと消える
+- **`/monkey-qa` が壊れる**。この command は `Skill(skill="web-monkey-qa:monkey-qa")` を起動する
+  薄い entry point で、実体は S4 が削除する sub-skill にある
+- **web-monkey-qa の dispatch が prefix 名に依存している**。S4 では prefix 名前空間そのものが
+  消えるので、`web-monkey-qa:monkey-explorer-agent` への 3 箇所の dispatch が解決しなくなる
+
+つまり flat 側 (bare 名) は「軽いほう」ではなく「契約を満たしていないほう」だった。`${CLAUDE_PLUGIN_ROOT}`
+が解決し `schemas/` が届くのは verbatim コピー経由の prefix 側だけで、残すべきはこちらになる。
+
+### 決定
+
+S5 を採る。上流の 2 bundle から sub-skills を撤去して bundle を command と agent だけにし、
+dotfiles 側は apm install 後に flat 側の deploy 先を削除する。登録は prefix 名の 1 経路になり、
+常時ロードは 9,997B から 3,584B へ 6,413B (64.1%) 減る。
+
+採った理由は、契約を壊さない案の中で削減が最大であること、残る経路が `schemas/` と
+`${CLAUDE_PLUGIN_ROOT}` を満たしている側であることの 2 つ。上流では security bundle の bare
+dispatch 6 箇所を prefix 名へ揃え、`/monkey-qa` には削除する sub-skill の本体を取り込む必要がある。
+dotfiles 側の後始末は apm install のたびに再生成されるぶんを消す形になるので、bootstrap か apm の
+lifecycle script のどちらに置くかは Issue #40 で決める。
+
+`dev-workflow` と `justfile` は `commands/` も `agents/` も持たないので影響を受けない。
+
+### 落とし穴
+
+- **削減量だけを見て S4 を薦め、plugin の契約を確かめていなかった**。root SKILL.md を外すと
+  verbatim コピーが消えるところまでは測っていたのに、そのコピーが `schemas/` の唯一の deploy 経路で
+  あることと、`${CLAUDE_PLUGIN_ROOT}` が解決する場所であることを結び付けていなかった。バイト数の
+  比較表は正しく、正しい表の上で誤った結論に至った
+- **衝突の勝敗規則を片方の名前空間から一般化しかけた**。prefix 名前空間の観測だけで「command が
+  勝つ」を全体の規則にして S3 を 3,584B 削減と見積もったが、bare 名前空間は逆で実際は 1,167B
+  だった。名前空間ごとに測り直して初めて表が正しくなった
+- **プローブの位置が違うと疑ったが、それ自体が外れだった**。合成パッケージと実物で結果が食い違った
+  ので `package_type` の違いを疑ったが、どちらも `marketplace_plugin` で同じ経路だった。実際の
+  差分は plugin.json の `"skills"` 宣言の有無で、疑う先を間違えると 1 手無駄になる
+- **`uv run --project` を pytest に渡すとリポジトリ全体を収集して 17 件の collection error になる**。
+  テストが壊れているように見えるが呼び出し側の誤りで、pytest には `--directory` を渡す
+
 ## タスク
 
 - [x] セッション再起動後に `~/.cache/claude/instructions-loaded.jsonl` を読み、未確認の 1 点を確定する(2026-08-17 に実測。`paths` 無しの rules は session_start で常時ロードされる)
@@ -1398,9 +1528,13 @@ security-blue-red-team / dev-workflow / web-monkey-qa) のうち、`commands/` �
       live probe で確かめ、`home/.gitignore` の Read 1 回で 16 個 8,349B が入ることを実測した。
       頻度は 1 セッション 1 回で、cwd がこのリポジトリのときに限る。
       結果は「skills の二重登録を実装から特定して live probe で確かめた」節)
-- [ ] `commands/` と `agents/` を持つ skill バンドルの二重登録 3,068B を止めるか決める
-      (上の調査で見つけた別系統。条件付きではなく毎ターン出ている。prefix 無しの `<name>` が
-      plugin 経由なのか別のスキャン経路なのかを実測してから決める)
+- [x] `commands/` と `agents/` を持つ skill バンドルの二重登録 3,068B を止めるか決める
+      (出所は apm の 2 経路 deploy で、抑止ノブは無いことを合成パッケージの対照で確定した。
+      同名衝突の勝敗規則が名前空間で逆になることと、prefix 無しの agent 名が解決しないことも
+      実測した。削減が最大の案は `schemas/` の deploy 経路を消して plugin の契約を壊すので
+      取り下げ、S5 (flat 側を消し sub-skills も撤去、6,413B 削減) を採ることに決めた。
+      実施は [Issue #40](../40_skill%20バンドルの%20command%20と%20agent%20の二重登録を止める/issue.md) へ切り出した。
+      結果は「command と agent の二重登録の出所を確定し方針を決めた」節)
 - [ ] glob が corpus の形をしている問題を決着させる
       (8 パターンは管理下 26 リポジトリのうち 20 から導出したので、その corpus に無い規約は
       沈黙する。RSpec の `*_spec.rb` は `**/*.spec.*` が `.spec.` を要求するので不一致、
@@ -1437,3 +1571,5 @@ security-blue-red-team / dev-workflow / web-monkey-qa) のうち、`commands/` �
   本 Issue で足した観測フックが 4 本目のフックになる
 - [Issue #39: refactor: config-guard の Markdown フェンス走査を 1 実装へ寄せる](../39_config-guard%20の%20Markdown%20フェンス走査を%201%20実装へ寄せる/issue.md)。
   本 Issue で足した `instruction_refs` が 2 つ目のフェンス走査になった。派生
+- [Issue #40: skill バンドルの command と agent の二重登録を止める](../40_skill%20バンドルの%20command%20と%20agent%20の二重登録を止める/issue.md)。
+  本 Issue で確定した S5 の実施先。派生
