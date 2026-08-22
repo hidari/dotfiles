@@ -13,15 +13,15 @@ dependencies:
   - mizchi/skills/tooling/apm-usage#d7999453cdb4e0e09df1c7f82fd23752539c546c
   - mizchi/skills/tooling/justfile#d7999453cdb4e0e09df1c7f82fd23752539c546c
   - yusukebe/ax/skills/ax#8abbca2fc400c2ff4866248ba1ec9309b948812f
-  - hidari/agentic-coding-tools/skills/devops/windows-vm-verification#419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
-  - hidari/agentic-coding-tools/skills/meta/context-loading-mechanics#419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
-  - hidari/agentic-coding-tools/skills/meta/session-handoff#419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
-  - hidari/agentic-coding-tools/skills/tooling/chrome-devtools-debugger#419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
-  - hidari/agentic-coding-tools/skills/tooling/herdr#419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
-  - hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf#419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
-  - hidari/agentic-coding-tools/plugins/dev-workflow#419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
-  - hidari/agentic-coding-tools/plugins/security-blue-red-team#419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
-  - hidari/agentic-coding-tools/plugins/web-monkey-qa#419ff9f9a0291e9d8a2e2696a5cdc5daf61b7afc
+  - hidari/agentic-coding-tools/skills/devops/windows-vm-verification#3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
+  - hidari/agentic-coding-tools/skills/meta/context-loading-mechanics#3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
+  - hidari/agentic-coding-tools/skills/meta/session-handoff#3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
+  - hidari/agentic-coding-tools/skills/tooling/chrome-devtools-debugger#3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
+  - hidari/agentic-coding-tools/skills/tooling/herdr#3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
+  - hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf#3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
+  - hidari/agentic-coding-tools/plugins/dev-workflow#3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team#3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
+  - hidari/agentic-coding-tools/plugins/web-monkey-qa#3a407fcc84e6b7d5e3cf52d9f1fb8e0b8c08086e
   mcp: []
 includes: auto
 scripts: {}
