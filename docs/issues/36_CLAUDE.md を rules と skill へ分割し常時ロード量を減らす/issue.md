@@ -1160,6 +1160,168 @@ A/B で振っていない次元が原因である可能性は、その A/B の�
 
 常時ロード層の予算とは別勘定なので `instruction_budget` の数字には出ない。
 
+## skills の二重登録を実装から特定して live probe で確かめた (2026-08-23、Claude Code 2.1.238)
+
+前回まで `home/` にスコープされた skill の登録は挙動の A/B で追っていた。引き金の候補は
+「`home/.claude/rules/` への一括書き込み」と「subagent の起動」の 2 つで、どちらも決め手が
+なかった。今回は振る側をやめ、走っている実行ファイルを読んで機構を特定し、そこから立てた予測を
+live probe で確かめた。
+
+結論から書くと、引き金は前者だった。「一括書き込みの直後に出た」という前回の観測は偶然の隣接
+ではなく因果で、書き込みそのものではなく「cwd 配下のファイルをツールで触ったこと」が条件を
+満たしていた。
+
+### 読み方
+
+実行ファイルは Bun の single-file executable (306MB) で、JS ソースが平文で埋まっている。
+ホスト実機で大きいバイナリを一括ロードしない規範があるので、チャンクの逐次読みに
+チャンク境界をまたぐ overlap を持たせた検索スクリプトで当たりを付け、オフセット 250MB 以降の
+68MB だけを切り出してから読んだ。
+
+識別子は minify されているのでバージョンが変われば変わる。以下の名前は 2.1.238 のもの。
+
+### 機構
+
+1. Read / Write / Edit の各ツールが、触ったファイルの絶対パスを添えて
+   `HWr(session.host, <path>, dynamicSkillDirTriggers)` を呼ぶ (Edit は `bhv`、Write は `Chv`)
+2. `HWr` は `XcT(host, [path], cwd)` を呼ぶ。`XcT` は `dirname(path)` から cwd に向かって
+   `while (u.startsWith(cwd + sep))` で遡り、各祖先 `u` について `join(u, ".claude", "skills")` を
+   stat する。条件が strictly-under-cwd なので、リポジトリ直下の `.claude/skills` はこの経路に
+   入らない
+3. 見つかったディレクトリは `B_l` 経由で `dynamicSkills` へ入る。skillRoot は walk が組み立てた
+   `<u>/.claude/skills/<name>` で、`XcT` は `i.push(p)` と未解決のまま積む。`realpath` も取るが
+   sync-owned prefix の判定にしか使わない
+4. `XcT` は候補パスを `dynamicSkillDirs` へ stat の前に無条件で add する。よって同じディレクトリは
+   1 セッションに 1 回しか評価されない
+5. gitignore ガードは `BUo(u, o)`、つまり祖先ディレクトリ `u` に対して効く。skills ディレクトリ
+   自身は見ていない
+6. scoped 化の判定は `ujT(skill, cwd)`。skillRoot の中で最後に現れる `/.claude/` の位置より前を
+   取り、cwd からの相対パスを prefix にする。空・`..` 始まり・絶対パスなら null
+7. prefix が得られたとき、同名衝突があれば `djT` が `<prefix>:<name>` へ改名して description に
+   `scoped to <prefix>/ — use this instead of the unscoped ...` を足す。衝突が無ければ `y4m` が
+   名前を変えず `from <prefix>/.claude/skills — applies when ...` を足す。`y4m` の枝は定義上
+   同名の既存エントリが無いので重複を生まない。重複するのは `djT` の枝だけ
+
+`.claude/skills/<name>/` を plugin として adopt する経路 (`Tyi`、内部名 `skills-as-plugins` /
+`@skills-dir`) は上とは別で、配下に `.claude-plugin/` があるものだけが対象になる。候補は user
+scope の `<userConfigDir>/skills` と project scope の `<cwd>/.claude/skills` の 2 つだけ
+(`aFp`)。plugin のロード (`F$`) はメモ化されるが、`clearPluginCache` (`y1`) が
+`pluginLoad` を `undefined` に戻すので「1 回きり」ではなく「無効化されるまで」が正しい。
+
+### live probe
+
+機構から「`home/` 配下のファイルをツールで 1 つ触れば登録される」という予測が立つので、
+その状態を作って確かめた。
+
+- 事前状態: このセッションは調査をすべて Bash 経由で行っており、`home/` 配下を Read / Write /
+  Edit のいずれでも触っていない。skill 一覧に `home:` prefix も `from home/.claude/skills` の
+  注記も無い
+- 操作: `home/.gitignore` を Read ツールで 1 回読んだ。このパスは `paths` 付き rules のどの
+  パターンにも一致しないので、rules の発火と混ざらない
+- 結果: 直後に `New skills discovered in home/.claude/skills` として 16 個が `home:` prefix で
+  登録された
+
+登録された 16 個はすべて `scoped to home/ — use this instead of the unscoped "<name>" skill ...`
+の文言だった。これは `djT` の衝突あり側の枝で、16 個すべてに unscoped の双子が存在することを
+意味する。
+
+`home/.gitignore` は `.claude/skills/` を ignore しているが登録は起きた。ガードが見るのは祖先
+`<repo>/home` で、そちらは追跡下にあるため素通りする。deploy 先が gitignore されていることは
+この経路の防御にならない。
+
+### コスト
+
+登録された 16 件について、SKILL.md の description と付加される注記を実ファイルから数えた。
+
+| skill | desc | 注記 | 行全体 |
+| --- | --- | --- | --- |
+| apm-usage | 456 | 117 | 592 |
+| ast-grep-practice | 201 | 125 | 353 |
+| ax | 324 | 110 | 446 |
+| chrome-devtools-debugger | 379 | 132 | 545 |
+| context-loading-mechanics | 609 | 133 | 777 |
+| dev-workflow | 327 | 120 | 469 |
+| empirical-prompt-tuning | 448 | 131 | 612 |
+| herdr | 260 | 113 | 388 |
+| justfile | 338 | 116 | 472 |
+| markdown-to-pdf | 428 | 123 | 576 |
+| playwright-cli | 270 | 122 | 416 |
+| playwright-test | 243 | 123 | 391 |
+| security-blue-red-team | 271 | 130 | 433 |
+| session-handoff | 606 | 123 | 754 |
+| web-monkey-qa | 245 | 121 | 389 |
+| windows-vm-verification | 572 | 131 | 736 |
+
+合計 8,349B (description 5,977B + 注記 1,970B)。前回の観測値 8,364B とほぼ一致する。
+払うコストの 4 分の 1 が「これは home/ スコープ版だ」という説明文そのものになっている。
+
+頻度は 1 セッションに 1 回。ただし cwd がこのリポジトリで、かつ `home/` 配下を Read / Write /
+Edit のいずれかで触ったときに限る。他のリポジトリで作業しているセッションでは
+`u.startsWith(cwd + sep)` が成立しないので起きない。
+
+`instruction_budget` が覆うのは User スコープの CLAUDE.md と paths 無しの rules なので、この
+8,349B は予算の数字に出ない。
+
+### 別系統の重複が恒常的に出ている
+
+上とは別に、`home/.claude/skills/` 配下で `.claude-plugin/` を持つ 4 つ (justfile /
+security-blue-red-team / dev-workflow / web-monkey-qa) のうち、`commands/` と `agents/` を持つ
+2 つは `<bundle>:<name>` と prefix 無しの `<name>` が両方 system prompt に載り、description が
+完全に一致する。`dev-workflow` と `justfile` は `commands/` も `agents/` も持たず重複していない。
+
+| bundle | kind | name | bytes |
+| --- | --- | --- | --- |
+| security-blue-red-team | commands | security-blueteam | 187 |
+| security-blue-red-team | commands | security-cleanup | 410 |
+| security-blue-red-team | commands | security-redteam | 111 |
+| security-blue-red-team | commands | security-vulnerability-assessment | 260 |
+| security-blue-red-team | agents | blue-team-agent | 412 |
+| security-blue-red-team | agents | red-team-agent | 695 |
+| web-monkey-qa | commands | monkey-qa | 125 |
+| web-monkey-qa | agents | monkey-explorer-agent | 868 |
+
+合計 3,068B。commands 側の 5 件は frontmatter の値が `"` で囲まれているので、引用符を剥がした
+値で数えている。system prompt に載るのは剥がした側。
+
+### 最初に書いた結論の誤りと、その直し方
+
+この節の最初の版は引き金について逆の結論を書いていた。検証で 6 点の食い違いが出て、いずれも
+バイナリを読み直して確認したうえで訂正した。誤りの型を残しておく。
+
+- `ujT` と `djT` (scoped 化の判定) だけを読み、その母集団 `TJn()` = `dynamicSkills` がどう
+  埋まるかを追っていなかった。空いた穴を「skillRoot が realpath 化されるとしたら」という仮定で
+  埋め、その仮定を必要条件として書いた。実際には realpath 化する経路は存在せず、パスは ancestor
+  walk が最初からその形で組み立てている
+- 「セッションに一度しか起きず再発しない」「30 回書き込んでも再発しない」を、書き込み説を
+  弱める材料として読んだ。実際は `dynamicSkillDirs` のメモ化の予測どおりの挙動で、書き込み説を
+  支持する材料だった。同じ観測が反対の結論を支えうる
+- description のバイト数を frontmatter から数えるとき、YAML の引用符を剥がさずに数えて 10B
+  過大になっていた。8 行の内訳と合計は互いに整合していたので、内部整合の検算では見つからない
+
+### 説明できていないこと
+
+- prefix 無しの `security-redteam` などがどの経路で載るのかは確かめていない。`.claude-plugin/` を
+  外せば消えるかどうかも未確認
+- `HWr` は末尾で `ZcT([path], cwd)` を呼び、これが `paths` 付きの照合を行っている。Write と Edit
+  も同じ `HWr` を通るのに、前回の実測では Write / Edit で rules が発火しなかった。`ZcT` の内部に
+  さらに条件があるはずだが追っていない
+- `blockedMarketplaces` に `{"source":"skills-dir"}` を入れると `usr()` が false を返して
+  skills-as-plugins が止まる。ただし `Upi` も `kme` も `pn("policySettings")` しか読まないので
+  ソース上は managed settings 層限定に見える。他の層が合流しないかまでは追っていない
+
+### 再現手順
+
+バージョンが上がるとオフセットも識別子も変わるので、当たりの付け方だけ残す。
+
+1. `$CLAUDE_CODE_EXECPATH` で走っている実行ファイルを特定する (`claude --version` は zshrc の
+   関数が非対話シェルに無いので使えない)
+2. チャンク読み + overlap の検索で `skills-as-plugins` を探し、その周辺のオフセットを見る
+3. そのオフセット以降を切り出してから `dynamicSkillDirTriggers` を探すと、ツール側の呼び出しから
+   `HWr` → `XcT` → `B_l` の連鎖にたどり着く。scoped 化側は `scopedSkillName` を export している
+   オブジェクトから辿る
+4. バイナリ由来のバイトが混ざった検索結果を `grep` にパイプすると、マッチしても行が出ずに 0 件に
+   見える。`grep -a` を使うか、対照を並べて検査自体が生きていることを先に確かめる
+
 ## タスク
 
 - [x] セッション再起動後に `~/.cache/claude/instructions-loaded.jsonl` を読み、未確認の 1 点を確定する(2026-08-17 に実測。`paths` 無しの rules は session_start で常時ロードされる)
@@ -1230,10 +1392,15 @@ A/B で振っていない次元が原因である可能性は、その A/B の�
       [agentic-coding-tools#11](https://github.com/hidari/agentic-coding-tools/pull/11)、
       `3a407fc`)。供給は apm の pin 9 件をまとめて揃えて繋いだ (PR #145)。
       同リポジトリのチェックアウトは別セッションが使用中だったので worktree で隔離して作業した
-- [ ] `home/.claude/skills/` が `home/` スコープの skill として登録される件のコストを測る
-      (apm の deploy 先が directory-scoped skill として二重に列挙され、16 個の description
-      8,364B が一度に入る。`instruction_budget` は常時ロード層しか見ないので数字に出ない。
-      引き金が特定できていないので頻度が分からず、コストも見積もれない。まず引き金を測る)
+- [x] `home/.claude/skills/` が `home/` スコープの skill として登録される件のコストを測る
+      (引き金は cwd 配下のファイルを Read / Write / Edit ツールで触ること。触ったパスから
+      dirname で cwd へ遡り、祖先に `.claude/skills` があれば拾う。実装から立てた予測を
+      live probe で確かめ、`home/.gitignore` の Read 1 回で 16 個 8,349B が入ることを実測した。
+      頻度は 1 セッション 1 回で、cwd がこのリポジトリのときに限る。
+      結果は「skills の二重登録を実装から特定して live probe で確かめた」節)
+- [ ] `commands/` と `agents/` を持つ skill バンドルの二重登録 3,068B を止めるか決める
+      (上の調査で見つけた別系統。条件付きではなく毎ターン出ている。prefix 無しの `<name>` が
+      plugin 経由なのか別のスキャン経路なのかを実測してから決める)
 - [ ] glob が corpus の形をしている問題を決着させる
       (8 パターンは管理下 26 リポジトリのうち 20 から導出したので、その corpus に無い規約は
       沈黙する。RSpec の `*_spec.rb` は `**/*.spec.*` が `.spec.` を要求するので不一致、
