@@ -1224,11 +1224,12 @@ A/B で振っていない次元が原因である可能性は、その A/B の�
       出力にだけ名前が現れる場合はいずれも発火させない。測ったのは Bash / Read / Write / Edit の
       4 つで、Grep / Glob はこのセッションに無かったので未測定。照合対象は Read の `file_path`
       引数で、実在しないパスでも発火する。結果は「発火の条件を単一文脈で測り直した」節)
-- [ ] rules を開いたセッションでは発火確認をしない、を運用へ落とす
-      (`home/.claude/rules/` 側で Read / Write / Edit すると、その場で登録が落ちて
-      そのセッションでは二度と発火しない。切り出し PR の検証手順がそのまま偽陰性を出す。
-      canonical は `context-loading-mechanics` skill なので agentic-coding-tools 側の
-      変更と apm の SHA pin 往復が要る)
+- [x] rules を開いたセッションでは発火確認をしない、を運用へ落とす
+      (`context-loading-mechanics` skill へ「登録は『どう触ったか』で決まる」節を新設し、
+      発火条件の精密化と、本文キャッシュに関する 1 点の訂正も入れた
+      [agentic-coding-tools#11](https://github.com/hidari/agentic-coding-tools/pull/11)、
+      `3a407fc`)。供給は apm の pin 9 件をまとめて揃えて繋いだ (PR #145)。
+      同リポジトリのチェックアウトは別セッションが使用中だったので worktree で隔離して作業した
 - [ ] `home/.claude/skills/` が `home/` スコープの skill として登録される件のコストを測る
       (apm の deploy 先が directory-scoped skill として二重に列挙され、16 個の description
       8,364B が一度に入る。`instruction_budget` は常時ロード層しか見ないので数字に出ない。
