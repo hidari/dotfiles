@@ -23,7 +23,8 @@ from config_guard.models import Finding
 
 _RULES_DIR = RULES_GLOB.rsplit("/", 1)[0]
 
-# 各 rules が宣言する paths。測定の詳細は Issue #36 の「paths は測ってから決めた」節。
+# 各 rules が宣言する paths。測定の詳細は Issue #36 の「paths は測ってから決めた」節と
+# 「corpus 問題を数字で決着させた」節。前者が 8 パターン時代、後者が現在のリスト。
 EXPECTED_PATHS: dict[str, list[str]] = {
     "frontend-practices.md": [
         "**/*.tsx",
@@ -35,11 +36,14 @@ EXPECTED_PATHS: dict[str, list[str]] = {
         "**/*.test.*",
         "**/*.spec.*",
         "**/*_test.*",
+        "**/*-test.*",
         "**/test_*.*",
         "**/*.Tests.ps1",
         "**/tests/**",
         "**/test/**",
         "**/__tests__/**",
+        "**/test-utils/**",
+        "**/*.rs",
     ],
 }
 
@@ -47,11 +51,19 @@ EXPECTED_PATHS: dict[str, list[str]] = {
 # 次に見た人が「漏れている」と判断して足し直す。件数は書かない (リポジトリごとに
 # 違う数字を literal で持つと、手元で裏取りした人には偽に見える)。
 DELIBERATELY_EXCLUDED: dict[str, str] = {
-    "**/spec/**": "テストではなく仕様の置き場だった (測定は Issue #36 の"
-    "「paths は測ってから決めた」節)",
-    "**/specs/**": "同上。設計ドキュメントの置き場なので、入れると設計ドキュメントを"
-    "読むたびにテスト規範が注入される",
+    "**/spec/**": (
+        "テストではなく仕様の置き場だった (測定は Issue #36 の「paths は測ってから決めた」節)"
+    ),
+    "**/specs/**": (
+        "**/spec/** と同じ。実体はほぼ全件が設計ドキュメントなので、一致が偽陽性にしかならない"
+    ),
     "**/*.bats": "すべて tests/ 配下にあり **/tests/** が拾うので限界カバレッジが 0",
+    "**/*test*": "substring 形。Issue や設計ドキュメントの .md を大量に巻き込み、測って除外した "
+    "**/specs/** と同じ失敗を作り直す (測定は Issue #36 の「corpus 問題を数字で決着させた」節)",
+    "**/*spec*": "substring 形。**/*test* と同じ理由で載せない",
+    "**/*_spec.rb": "RSpec の規約。管理下のリポジトリに実体が無く限界カバレッジが 0 なので、実際に"
+    "使い始めてから測って足す (測定は Issue #36 の「corpus 問題を数字で決着させた」節)",
+    "**/*.feature": "Cucumber の規約。**/*_spec.rb と同じく管理下に実体が無く限界カバレッジが 0",
 }
 
 
