@@ -1505,8 +1505,11 @@ lifecycle script のどちらに置くかは Issue #40 で決める。
 - [ ] 切り出しのたびに、移した語が定義なしで残っていないかを検算する。母集団は
       CLAUDE.md + `references/*.md` (テストファイルを Read せずに到達しうる集合)
       (詳細は「移した先にしか定義が無い語が常時層に残る」節)
-- [ ] `references/observation.md` が `変異注入` と `dead pin` を定義なしで使っているのを直す
+- [x] `references/observation.md` が `変異注入` と `dead pin` を定義なしで使っているのを直す
       (今回の切り出しで露出した。observation カテゴリを触る回に合わせる)
+      (2026-08-24 に対応。定義を書き足すと `rules/testing-practices.md` と三重管理に
+      なるので、既に定義を持つ場所を指す形にした。母集団で引くと `変異注入` の定義は
+      CLAUDE.md の括弧書き 1 箇所だけ、`dead pin` は母集団に 1 箇所も無かった)
 - [x] `~/.claude/` 参照の機械検査を作る (`config-guard` の `markdown_links.py` の隣)
       (`config_guard.instruction_refs` として実装。パス参照と見出し参照の 2 種を見る。
       記法をリンクへ変える案は `~` が `source.parent` 相対に解決されて偽陽性になるので
