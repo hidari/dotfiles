@@ -29,11 +29,20 @@ from config_guard.models import Finding
 
 # 常時ロード層の上限 (バイト)。canonical はここだけに置く。
 # 移設でカテゴリを切り出したら同時に下げる (幅は test_budget_tracks_the_real_repo_closely が縛る)。
-ALWAYS_LOADED_BUDGET_BYTES = 29012
+ALWAYS_LOADED_BUDGET_BYTES = 29223
 
 # 予算を引き上げた記録。上げるときは (日付, 引き上げ後の値, 理由) を末尾へ 1 行足す。
 # 許可の条件は budget_ratchet.evaluate_ratchet が canonical。
-BUDGET_RAISES: tuple[tuple[str, int, str], ...] = ()
+BUDGET_RAISES: tuple[tuple[str, int, str], ...] = (
+    (
+        "2026-08-24",
+        29223,
+        "Private と Public のリポジトリが混在するため公開範囲を常に確認する規範を 前提 へ追加し、"
+        "開発スタイルの主語を 私 から ユーザー (Hidari) へ明確化した (+211B)。"
+        "規範側は過去の露出インシデントに直結するので常時層に置く必要がある。"
+        "体系的な削減は Issue #36 の 本体に残す核を確定する で行う",
+    ),
+)
 
 CLAUDE_MD_PATH = "home/.claude/CLAUDE.md"
 RULES_GLOB = "home/.claude/rules/*.md"
