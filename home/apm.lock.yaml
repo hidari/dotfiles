@@ -1,12 +1,12 @@
 lockfile_version: '1'
-generated_at: '2026-08-24T08:28:21.625043+00:00'
+generated_at: '2026-08-24T17:48:10.205022+00:00'
 apm_version: 0.28.0
 dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: dev-workflow
   host: github.com
-  resolved_commit: f2443c251e5033b2a0f392439abb4cd9cad577a9
-  resolved_ref: f2443c251e5033b2a0f392439abb4cd9cad577a9
+  resolved_commit: e08b991d88544133ddca1952f7a6dc734cd9d4b7
+  resolved_ref: e08b991d88544133ddca1952f7a6dc734cd9d4b7
   version: 0.2.0
   virtual_path: plugins/dev-workflow
   is_virtual: true
@@ -44,8 +44,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: security-blue-red-team
   host: github.com
-  resolved_commit: f2443c251e5033b2a0f392439abb4cd9cad577a9
-  resolved_ref: f2443c251e5033b2a0f392439abb4cd9cad577a9
+  resolved_commit: e08b991d88544133ddca1952f7a6dc734cd9d4b7
+  resolved_ref: e08b991d88544133ddca1952f7a6dc734cd9d4b7
   version: 0.4.1
   virtual_path: plugins/security-blue-red-team
   is_virtual: true
@@ -105,8 +105,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: web-monkey-qa
   host: github.com
-  resolved_commit: f2443c251e5033b2a0f392439abb4cd9cad577a9
-  resolved_ref: f2443c251e5033b2a0f392439abb4cd9cad577a9
+  resolved_commit: e08b991d88544133ddca1952f7a6dc734cd9d4b7
+  resolved_ref: e08b991d88544133ddca1952f7a6dc734cd9d4b7
   version: 0.1.0
   virtual_path: plugins/web-monkey-qa
   is_virtual: true
@@ -144,8 +144,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: windows-vm-verification
   host: github.com
-  resolved_commit: f2443c251e5033b2a0f392439abb4cd9cad577a9
-  resolved_ref: f2443c251e5033b2a0f392439abb4cd9cad577a9
+  resolved_commit: e08b991d88544133ddca1952f7a6dc734cd9d4b7
+  resolved_ref: e08b991d88544133ddca1952f7a6dc734cd9d4b7
   version: unknown
   virtual_path: skills/devops/windows-vm-verification
   is_virtual: true
@@ -171,8 +171,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: context-loading-mechanics
   host: github.com
-  resolved_commit: f2443c251e5033b2a0f392439abb4cd9cad577a9
-  resolved_ref: f2443c251e5033b2a0f392439abb4cd9cad577a9
+  resolved_commit: e08b991d88544133ddca1952f7a6dc734cd9d4b7
+  resolved_ref: e08b991d88544133ddca1952f7a6dc734cd9d4b7
   version: unknown
   virtual_path: skills/meta/context-loading-mechanics
   is_virtual: true
@@ -186,8 +186,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: session-handoff
   host: github.com
-  resolved_commit: f2443c251e5033b2a0f392439abb4cd9cad577a9
-  resolved_ref: f2443c251e5033b2a0f392439abb4cd9cad577a9
+  resolved_commit: e08b991d88544133ddca1952f7a6dc734cd9d4b7
+  resolved_ref: e08b991d88544133ddca1952f7a6dc734cd9d4b7
   version: unknown
   virtual_path: skills/meta/session-handoff
   is_virtual: true
@@ -203,8 +203,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: chrome-devtools-debugger
   host: github.com
-  resolved_commit: f2443c251e5033b2a0f392439abb4cd9cad577a9
-  resolved_ref: f2443c251e5033b2a0f392439abb4cd9cad577a9
+  resolved_commit: e08b991d88544133ddca1952f7a6dc734cd9d4b7
+  resolved_ref: e08b991d88544133ddca1952f7a6dc734cd9d4b7
   version: unknown
   virtual_path: skills/tooling/chrome-devtools-debugger
   is_virtual: true
@@ -218,8 +218,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: herdr
   host: github.com
-  resolved_commit: f2443c251e5033b2a0f392439abb4cd9cad577a9
-  resolved_ref: f2443c251e5033b2a0f392439abb4cd9cad577a9
+  resolved_commit: e08b991d88544133ddca1952f7a6dc734cd9d4b7
+  resolved_ref: e08b991d88544133ddca1952f7a6dc734cd9d4b7
   version: unknown
   virtual_path: skills/tooling/herdr
   is_virtual: true
@@ -233,8 +233,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: markdown-to-pdf
   host: github.com
-  resolved_commit: f2443c251e5033b2a0f392439abb4cd9cad577a9
-  resolved_ref: f2443c251e5033b2a0f392439abb4cd9cad577a9
+  resolved_commit: e08b991d88544133ddca1952f7a6dc734cd9d4b7
+  resolved_ref: e08b991d88544133ddca1952f7a6dc734cd9d4b7
   version: unknown
   virtual_path: skills/tooling/markdown-to-pdf
   is_virtual: true
@@ -245,10 +245,10 @@ dependencies:
   - .claude/skills/markdown-to-pdf/scripts/render.py
   - .claude/skills/markdown-to-pdf/scripts/style.css
   deployed_file_hashes:
-    .claude/skills/markdown-to-pdf/SKILL.md: sha256:d58d468fe7240c0951d720c958e610b06ef069bbf9455dea59dd74cae0bfcf31
-    .claude/skills/markdown-to-pdf/scripts/render.py: sha256:c536e8c3f5525a0d7aad6eacd84c7207133e10df4e9b046102a618c88bdce56d
+    .claude/skills/markdown-to-pdf/SKILL.md: sha256:9e32b4d4d313de6fb25b13b27ab4d86500c7e530fee3d24137726fc994c35d67
+    .claude/skills/markdown-to-pdf/scripts/render.py: sha256:d94c62b2b86502543e2fe94e830ee8b4bf67d05eb76dad6fc5f1250df0546ab6
     .claude/skills/markdown-to-pdf/scripts/style.css: sha256:be7ecf56c0a6368d66e748d3c765e313149e6a172bbc8bd37aff9d7c567cf72f
-  content_hash: sha256:3097a1f069d9e7f767ceebd89a6cac26d63af67d221d4a78954678290b95defa
+  content_hash: sha256:b438d456e98cd2703c641de947b54216bda426ad8982debae16d876f0372ba36
 - repo_url: mizchi/skills
   name: empirical-prompt-tuning
   host: github.com
@@ -907,7 +907,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf
   active_owner: hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf
-  content_hash: sha256:d58d468fe7240c0951d720c958e610b06ef069bbf9455dea59dd74cae0bfcf31
+  content_hash: sha256:9e32b4d4d313de6fb25b13b27ab4d86500c7e530fee3d24137726fc994c35d67
 - kind: project-relative
   target: claude
   value: .claude/skills/markdown-to-pdf/scripts/render.py
@@ -916,7 +916,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf
   active_owner: hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf
-  content_hash: sha256:c536e8c3f5525a0d7aad6eacd84c7207133e10df4e9b046102a618c88bdce56d
+  content_hash: sha256:d94c62b2b86502543e2fe94e830ee8b4bf67d05eb76dad6fc5f1250df0546ab6
 - kind: project-relative
   target: claude
   value: .claude/skills/markdown-to-pdf/scripts/style.css
