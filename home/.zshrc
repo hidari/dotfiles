@@ -150,27 +150,33 @@ setopt nonomatch
 
 ########################################
 # エイリアス
+#
+# 対話シェルに限る。このファイルは非対話シェル（エージェントの Bash ツール等）
+# でも読まれ、そこで ls が -a を持つと件数が . と .. のぶん 2 件多く出る。
+# エラーではなくもっともらしい数字で返るので、出力を見ても気づけない。
+# 個別ではなくブロックごと囲うのは、後から足すエイリアスが同じ穴を作り直すため。
+if [[ -o interactive ]]; then
+  # ファイル一覧を表示（隠しファイル含む、色付き）
+  alias ls='ls -aG'
 
-# ファイル一覧を表示（隠しファイル含む、色付き）
-alias ls='ls -aG'
+  # Git履歴を見やすく表示（直近15件、グラフ付き）
+  alias gitl='git log -15 --graph --date-order --decorate=short --date=iso --format="%C(yellow)%h%C(reset) %C(magenta)[%ad]%C(reset)%C(auto)%d%C(reset) %s %C(cyan)Author:%an%C(reset)"'
 
-# Git履歴を見やすく表示（直近15件、グラフ付き）
-alias gitl='git log -15 --graph --date-order --decorate=short --date=iso --format="%C(yellow)%h%C(reset) %C(magenta)[%ad]%C(reset)%C(auto)%d%C(reset) %s %C(cyan)Author:%an%C(reset)"'
+  # UUIDを生成し、小文字に変換してクリップボードにコピー
+  alias uug='uuidgen | tr "[:upper:]" "[:lower:]" | tr -d "\n" | pbcopy && pbpaste'
 
-# UUIDを生成し、小文字に変換してクリップボードにコピー
-alias uug='uuidgen | tr "[:upper:]" "[:lower:]" | tr -d "\n" | pbcopy && pbpaste'
+  # SL（Steam Locomotive）コマンドのオプション付き
+  alias sl='sl -Falc'
 
-# SL（Steam Locomotive）コマンドのオプション付き
-alias sl='sl -Falc'
+  # ディスクの空き容量を確認
+  alias disk='diskutil info / | grep -E "Free|Available"'
 
-# ディスクの空き容量を確認
-alias disk='diskutil info / | grep -E "Free|Available"'
+  # $PATHを見やすく表示
+  alias path='echo $PATH | tr ":" "\n" | nl'
 
-# $PATHを見やすく表示
-alias path='echo $PATH | tr ":" "\n" | nl'
-
-# herdr の設定再読み込み
-alias herdr-reload='herdr server reload-config'
+  # herdr の設定再読み込み
+  alias herdr-reload='herdr server reload-config'
+fi
 
 ########################################
 # シェル関数

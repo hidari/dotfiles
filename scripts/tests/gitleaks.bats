@@ -1,9 +1,11 @@
 #!/usr/bin/env bats
 # =============================================================================
-# .gitleaks.toml の custom ルール (macOS user-path 検出) と allowlist の検証
+# .gitleaks.toml の custom ルール (macOS user-path / メールアドレス検出) と
+# allowlist の検証
 #
 # 注意:
-# - fixture の secret / user-path は printf のフォーマット引数で実行時に合成し、
+# - fixture の secret / user-path / メールアドレスは printf のフォーマット引数で
+#   実行時に合成し、
 #   このテストファイル自体にはスキャン対象のリテラルを残さない。
 #   (リテラルを書くと gitleaks 自身がこのファイルを leak として弾き、
 #    public repo に username/secret が載る矛盾が起きるため)
@@ -68,6 +70,30 @@ fired() {
 
 @test "allows /Users/runner CI path via allowlist" {
     printf 'p = "/Users/%s/work/repo"\n' "runner" > "$SCAN_DIR/f.txt"
+    scan
+    [ "$status" -eq 0 ]
+}
+
+@test "detects an email address (custom rule)" {
+    # 架空のドメインで検証 (実アドレスはソースに残さない)。
+    # ユーザー名パスと違い、メールは $HOME 形式へ書き換えても消えないので
+    # 気づかないまま追跡下へ入りうる
+    printf 'contact = "%s@%s"\n' "alice" "somewhere.test" > "$SCAN_DIR/f.txt"
+    scan
+    [ "$status" -ne 0 ]
+    fired "email-address"
+}
+
+@test "allows example.com placeholder addresses via allowlist" {
+    # ドキュメントの例示アドレスは追跡下に多数ある。塞ぐと編集のたびに赤くなる
+    printf 'contact = "%s@%s"\n' "noreply" "example.com" > "$SCAN_DIR/f.txt"
+    scan
+    [ "$status" -eq 0 ]
+}
+
+@test "allows the git@ SSH URL user via allowlist" {
+    # SSH URL の git@ は個人を指さない。フィクスチャで実際に使っている形
+    printf 'url = "%s@%s:org/repo.git"\n' "git" "gitlab.com" > "$SCAN_DIR/f.txt"
     scan
     [ "$status" -eq 0 ]
 }

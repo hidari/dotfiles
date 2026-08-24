@@ -1,7 +1,7 @@
 # gitleaks 設定
 # 既定の secret 検出ルールを継承しつつ、macOS のローカルユーザー名を含む
-# 絶対パス (/Users/<name>) の漏洩を検出する custom ルールを追加する。
-# pre-commit (staged 検査) と CI の双方が本設定を使用する。
+# 絶対パス (/Users/<name>) と、メールアドレスの漏洩を検出する custom ルールを
+# 追加する。pre-commit (staged 検査) と CI の双方が本設定を使用する。
 title = "hidari-dotfiles gitleaks config"
 
 [extend]
@@ -21,4 +21,23 @@ tags = ["pii", "path"]
   regexTarget = "match"
   regexes = [
     '''/Users/(example|user|username|runner|shared)([/."]|$)''',
+  ]
+
+[[rules]]
+id = "email-address"
+description = "メールアドレスの漏洩"
+regex = '''[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'''
+tags = ["pii", "email"]
+
+  # 例示アドレスと、個人を指さない SSH URL のユーザー名は許可する。
+  # ここを狭めすぎると、追跡下に既にある例示アドレスを含む行を触るたびに赤くなる。
+  # 許可する形は実測で決めた (追跡下のメール形は 29 件で、内訳は example.com が
+  # 26 件、SSH URL の git@ が 1 件、残り 2 件が実アドレスの露出)。
+  [rules.allowlist]
+  description = "例示アドレスと SSH URL のユーザー名は許可"
+  # secret==match (capture group 無し) だが、境界判定の意図を明示するため match を指定
+  regexTarget = "match"
+  regexes = [
+    '''@example\.(com|org|net)$''',
+    '''^git@''',
   ]

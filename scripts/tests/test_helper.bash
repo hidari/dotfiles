@@ -110,15 +110,17 @@ load_pairs_array() {
     rm -f "$temp_pairs_file"
 }
 
-# 2 つのマーカー行に挟まれたブロックだけを切り出して source する汎用ローダー。
-# load_bootstrap_functions と同じ marker-slice 方式で、whole-file source による副作用
-# (set -euo pipefail / zsh 専用構文 / 実処理の実行) を避ける。
-# マーカー欠落や空ブロックは黙って空を source せず失敗させる。静かに素通りすると
+# 2 つのマーカー行に挟まれたブロックを dest へ書き出す。
+# 切り出しの規約 (開始マーカーの次行から、開始より後ろの最初の終了マーカーの前行まで) を
+# ここに 1 つだけ置く。bash へ source する側と、別のシェルへ渡す側が別々に範囲を決めると、
+# 片方だけが規約を変えたときに気づけない。
+# マーカー欠落や空ブロックは黙って空を返さず失敗させる。静かに素通りすると
 # 「1 件もアサーションが走っていないのに緑」という空虚なテストになるため。
-load_marker_block() {
+extract_marker_block() {
     local file="$1"
     local start_marker="$2"
     local end_marker="$3"
+    local dest="$4"
 
     if [ ! -f "$file" ]; then
         echo "Error: file not found: $file" >&2
@@ -142,12 +144,22 @@ load_marker_block() {
     fi
     local end_line=$((start_line + end_offset))
 
+    sed -n "$((start_line + 1)),$((end_line - 1))p" "$file" > "$dest"
+
+    if [ ! -s "$dest" ]; then
+        echo "Error: empty block extracted from $file" >&2
+        return 1
+    fi
+}
+
+# 2 つのマーカー行に挟まれたブロックだけを切り出して source する汎用ローダー。
+# load_bootstrap_functions と同じ marker-slice 方式で、whole-file source による副作用
+# (set -euo pipefail / zsh 専用構文 / 実処理の実行) を避ける。
+load_marker_block() {
     local temp_file
     temp_file=$(mktemp)
-    sed -n "$((start_line + 1)),$((end_line - 1))p" "$file" > "$temp_file"
 
-    if [ ! -s "$temp_file" ]; then
-        echo "Error: empty block extracted from $file" >&2
+    if ! extract_marker_block "$1" "$2" "$3" "$temp_file"; then
         rm -f "$temp_file"
         return 1
     fi
@@ -167,6 +179,16 @@ load_statusline_functions() {
 # source できないため、当該セクションだけを切り出す。
 load_zshrc_claude_functions() {
     load_marker_block "$ZSHRC_FILE" '^# Claude Code 起動$' '^########################################$'
+}
+
+# .zshrc のブロックを dest へ書き出す。bash へ source する上の 2 つと違い、
+# zsh 専用の構文 (setopt / [[ -o ... ]] / print -rnD 等) を含むブロックを
+# 実際の zsh へ渡して評価させるための入口。bash で解釈すると、構文は通るのに
+# 意味が変わる形 (bash に interactive オプションが無い等) で検査が別物になる。
+extract_zshrc_block() {
+    local start_marker="$1"
+    local dest="$2"
+    extract_marker_block "$ZSHRC_FILE" "$start_marker" '^########################################$' "$dest"
 }
 
 # Raycast のリファレンスモード切り替えスクリプトを読み込む。
