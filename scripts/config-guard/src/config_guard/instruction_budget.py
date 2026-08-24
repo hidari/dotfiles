@@ -29,7 +29,7 @@ from config_guard.models import Finding
 
 # 常時ロード層の上限 (バイト)。canonical はここだけに置く。
 # 移設でカテゴリを切り出したら同時に下げる (幅は test_budget_tracks_the_real_repo_closely が縛る)。
-ALWAYS_LOADED_BUDGET_BYTES = 29223
+ALWAYS_LOADED_BUDGET_BYTES = 26554
 
 # 予算を引き上げた記録。上げるときは (日付, 引き上げ後の値, 理由) を末尾へ 1 行足す。
 # 許可の条件は budget_ratchet.evaluate_ratchet が canonical。

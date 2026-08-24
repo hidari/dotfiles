@@ -86,7 +86,10 @@ def test_unpinned_rule_file_is_reported(tmp_path: Path) -> None:
 def test_pinned_rule_file_without_a_body_is_reported(tmp_path: Path) -> None:
     root = _repo_with(tmp_path, {PINNED_NAME: PINNED_GLOBS})
     findings = check_rules_paths(root)
-    assert [f.detail for f in findings] == ["実体が無い"]
+    # 実体を置いたのは pin の 1 つだけなので、残りが「実体が無い」で報告される。
+    # 期待を pin の件数から導出しないと、rules を 1 枚足した瞬間にこのテストが
+    # 無関係な理由で赤くなる (実際に markdown-practices を足したとき赤くなった)
+    assert [f.detail for f in findings] == ["実体が無い"] * (len(EXPECTED_PATHS) - 1)
 
 
 def test_excluded_glob_is_reported_with_its_reason(tmp_path: Path) -> None:

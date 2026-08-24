@@ -24,13 +24,17 @@ from config_guard.models import Finding
 _RULES_DIR = RULES_GLOB.rsplit("/", 1)[0]
 
 # 各 rules が宣言する paths。測定の詳細は Issue #36 の「paths は測ってから決めた」節と
-# 「corpus 問題を数字で決着させた」節。前者が 8 パターン時代、後者が現在のリスト。
+# 「corpus 問題を数字で決着させた」節。前者が 8 パターン時代、後者が testing の現在のリスト。
+# markdown の 1 パターンは「Markdown の規範を scoped へ移した」節が持つ。
 EXPECTED_PATHS: dict[str, list[str]] = {
     "frontend-practices.md": [
         "**/*.tsx",
         "**/*.jsx",
         "**/*.html",
         "**/*.css",
+    ],
+    "markdown-practices.md": [
+        "**/*.md",
     ],
     "testing-practices.md": [
         "**/*.test.*",
@@ -64,6 +68,8 @@ DELIBERATELY_EXCLUDED: dict[str, str] = {
     "**/*_spec.rb": "RSpec の規約。管理下のリポジトリに実体が無く限界カバレッジが 0 なので、実際に"
     "使い始めてから測って足す (測定は Issue #36 の「corpus 問題を数字で決着させた」節)",
     "**/*.feature": "Cucumber の規約。**/*_spec.rb と同じく管理下に実体が無く限界カバレッジが 0",
+    "**/*.mdx": "MDX の拡張子。管理下に実体が無く限界カバレッジが 0 なので、**/*_spec.rb と"
+    "同じ扱いで実際に使い始めてから測って足す",
 }
 
 
