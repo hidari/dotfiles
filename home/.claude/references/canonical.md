@@ -1,7 +1,8 @@
 # canonical を 1 つに決める話の一次実測
 
-`~/.claude/CLAUDE.md` の「同じ制約を 2 箇所に書かず canonical を 1 つ決める」
-カテゴリが持つ規範の、手当ての詳細と一次実測。
+`~/.claude/CLAUDE.md` の「同じ制約を 2 箇所に書かず canonical を 1 つ決める」カテゴリと、
+そこから `~/.claude/rules/testing-practices.md` へ移した regex text-parse の項の、
+手当ての詳細と一次実測。
 
 規範の遵守そのものには要らない。手当ての具体が要るとき、規範を疑うとき、
 似た失敗を踏んで「これは既知か」を確かめるときに読む。
