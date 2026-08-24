@@ -17,7 +17,7 @@ prefix 有無の 2 通りで system prompt に載っている。description が�
 apm 0.28.0 にこれを抑止するノブは無い。
 
 実測と選択肢の比較は
-[Issue #36](../36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md) の
+[Issue #36](../closed/36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md) の
 「command と agent の二重登録の出所を確定し方針を決めた」節が canonical。同節で S5 を採ることを
 決めた。上流の 2 bundle から sub-skills を撤去して bundle を command と agent だけにし、dotfiles
 側は apm install 後に flat 側の deploy 先を消す。登録は prefix 名の 1 経路になる。
@@ -51,7 +51,7 @@ apm 0.28.0 にこれを抑止するノブは無い。
 
 ## 関連
 
-- [Issue #36: CLAUDE.md を rules と skill へ分割し常時ロード量を減らす](../36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md)。
+- [Issue #36: CLAUDE.md を rules と skill へ分割し常時ロード量を減らす](../closed/36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md)。
   本 Issue の実測と方針決定はすべて #36 側にある。派生
 - [Issue #25: skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する](../closed/25_skill%20と%20plugin%20を新規%20PUBLIC%20リポジトリへ集約し%20apm%20配布へ移行する/issue.md)。
   供給を apm 1 経路へ寄せた Issue。本 Issue はその経路の中で起きている二重配置を扱う
