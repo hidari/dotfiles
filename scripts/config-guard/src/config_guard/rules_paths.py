@@ -16,12 +16,8 @@ glob の意味論は検証しない。どのパスが一致するかを決める
 
 from __future__ import annotations
 
-from pathlib import Path
-
-from config_guard.instruction_budget import RULES_GLOB, rule_files, rule_paths
+from config_guard.instruction_budget import RULES_DIR, has_rules_dir, rule_files, rule_paths
 from config_guard.models import Finding
-
-_RULES_DIR = RULES_GLOB.rsplit("/", 1)[0]
 
 # 各 rules が宣言する paths。測定の詳細は Issue #36 の「paths は測ってから決めた」節と
 # 「corpus 問題を数字で決着させた」節。前者が 8 パターン時代、後者が testing の現在のリスト。
@@ -76,12 +72,11 @@ DELIBERATELY_EXCLUDED: dict[str, str] = {
 def check_rules_paths(repo_root: str) -> list[Finding]:
     """rules の paths 宣言が pin と一致するかを検査する。
 
-    rules ディレクトリが無いリポジトリは対象外にする。`scan()` は任意のルートへ対して
-    走るので、rules を管理していないリポジトリへ「pin したファイルが無い」と言っても
-    意味がない。この early return はディレクトリごと消したケースを見逃すが、そこは
-    tests の `test_real_repo_has_a_rules_dir` が実リポジトリに対して縛る。
+    rules ディレクトリが無いリポジトリは対象外にする (判定は `has_rules_dir`)。
+    この early return はディレクトリごと消したケースを見逃すが、そこは tests の
+    `test_real_repo_has_a_rules_dir` が実リポジトリに対して縛る。
     """
-    if not (Path(repo_root) / _RULES_DIR).is_dir():
+    if not has_rules_dir(repo_root):
         return []
 
     findings: list[Finding] = []
@@ -90,7 +85,7 @@ def check_rules_paths(repo_root: str) -> list[Finding]:
     for name in sorted(set(actual) - set(EXPECTED_PATHS)):
         findings.append(
             Finding(
-                f"{_RULES_DIR}/{name}",
+                f"{RULES_DIR}/{name}",
                 "pin が無い",
                 f"rules を足したら {__name__} の EXPECTED_PATHS へも足すこと。"
                 "pin の無い rules は paths が壊れても誰も気づかない",
@@ -99,7 +94,7 @@ def check_rules_paths(repo_root: str) -> list[Finding]:
     for name in sorted(set(EXPECTED_PATHS) - set(actual)):
         findings.append(
             Finding(
-                f"{_RULES_DIR}/{name}",
+                f"{RULES_DIR}/{name}",
                 "実体が無い",
                 f"rules を消したら {__name__} の EXPECTED_PATHS からも消すこと",
             )
@@ -111,7 +106,7 @@ def check_rules_paths(repo_root: str) -> list[Finding]:
         if declared != expected:
             findings.append(
                 Finding(
-                    f"{_RULES_DIR}/{name}",
+                    f"{RULES_DIR}/{name}",
                     f"{declared!r} != {expected!r}",
                     "paths が pin と違う。意図した変更なら pin も更新し、"
                     "実マッチャで発火することを実プローブで確かめること",
@@ -124,7 +119,7 @@ def check_rules_paths(repo_root: str) -> list[Finding]:
             if glob in declared_globs:
                 findings.append(
                     Finding(
-                        f"{_RULES_DIR}/{name}",
+                        f"{RULES_DIR}/{name}",
                         glob,
                         f"載せないと決めたパターンが入っている。理由: {reason}",
                     )

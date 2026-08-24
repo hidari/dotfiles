@@ -17,7 +17,9 @@ from config_guard.instruction_budget import (
     budget_summary,
     category_bytes,
     check_instruction_budget,
+    has_rules_dir,
     is_always_loaded_rule,
+    rule_body,
 )
 from tests.conftest import REPO_ROOT, write_file
 
@@ -58,6 +60,49 @@ def test_broken_frontmatter_is_treated_as_always_loaded() -> None:
     # YAML が壊れているときは安全側 (常時ロード扱い = 予算に計上) へ倒す。
     # 計上漏れは予算を無言ですり抜けるので、誤って厳しい方が安全
     assert is_always_loaded_rule("---\npaths: [unclosed\n---\n\n# broken\n")
+
+
+# -----------------------------------------------------------------------------
+# rule_body (pure)
+# -----------------------------------------------------------------------------
+
+
+def test_body_drops_the_frontmatter() -> None:
+    # 宣言と本文を突き合わせる検査は、frontmatter が残ると宣言自身に当たって常に成立する
+    assert rule_body('---\npaths: ["**/*.md"]\n---\n\n# rule\n\n- 規範\n') == "\n# rule\n\n- 規範\n"
+
+
+def test_body_of_a_rule_without_frontmatter_is_the_whole_text() -> None:
+    assert rule_body("# core\n\n- 規範\n") == "# core\n\n- 規範\n"
+
+
+def test_body_of_an_unclosed_frontmatter_is_the_whole_text() -> None:
+    # 閉じていない形は frontmatter として読めないので、落とす範囲も決められない
+    text = "---\npaths: [\n\n# rule\n"
+    assert rule_body(text) == text
+
+
+def test_body_is_empty_when_nothing_follows_the_frontmatter() -> None:
+    assert rule_body('---\npaths: ["**/*.md"]\n---') == ""
+
+
+# -----------------------------------------------------------------------------
+# has_rules_dir (実ファイル)
+# -----------------------------------------------------------------------------
+
+
+def test_missing_rules_dir_is_detected(tmp_path: Path) -> None:
+    assert not has_rules_dir(str(tmp_path))
+
+
+def test_existing_rules_dir_is_detected(tmp_path: Path) -> None:
+    write_file(tmp_path, "home/.claude/rules/core.md", "# core\n")
+    assert has_rules_dir(str(tmp_path))
+
+
+def test_real_repo_has_rules_dir() -> None:
+    # 実リポジトリで False になると rules 前提の検査が丸ごと無言で外れる
+    assert has_rules_dir(str(REPO_ROOT))
 
 
 # -----------------------------------------------------------------------------

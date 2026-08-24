@@ -45,7 +45,8 @@ BUDGET_RAISES: tuple[tuple[str, int, str], ...] = (
 )
 
 CLAUDE_MD_PATH = "home/.claude/CLAUDE.md"
-RULES_GLOB = "home/.claude/rules/*.md"
+RULES_DIR = "home/.claude/rules"
+RULES_GLOB = f"{RULES_DIR}/*.md"
 
 _FRONTMATTER_OPEN = "---\n"
 
@@ -66,22 +67,43 @@ def rule_files(repo_root: str) -> dict[str, str]:
     return {p.name: p.read_text(encoding="utf-8") for p in sorted(Path(repo_root).glob(RULES_GLOB))}
 
 
+def has_rules_dir(repo_root: str) -> bool:
+    """`RULES_DIR` が実体として在るかを返す。
+
+    `scan()` は任意のルートへ走るので、rules を管理していないリポジトリでは
+    rules 前提の検査を丸ごと外す。判定をここに 1 つだけ置くのは、外し方が
+    検査ごとにずれると片方だけが無関係なリポジトリで報告を出すため。
+    """
+    return (Path(repo_root) / RULES_DIR).is_dir()
+
+
+def _split_frontmatter(text: str) -> tuple[str, str] | None:
+    """rules を frontmatter の YAML 部分と本文へ割る。無い・閉じていないときは None。
+
+    区切りの解釈をここに 1 つだけ置くのは、frontmatter を読む側と本文を読む側が
+    別々に区切りを探すと、片方だけが壊れた形の扱いを変えたときに気づけないため。
+    """
+    if not text.startswith(_FRONTMATTER_OPEN):
+        return None
+    close = text.find("\n---", len(_FRONTMATTER_OPEN) - 1)
+    if close == -1:
+        return None
+    body_start = text.find("\n", close + 1)
+    body = "" if body_start == -1 else text[body_start + 1 :]
+    return text[len(_FRONTMATTER_OPEN) : close], body
+
+
 def rule_frontmatter(text: str) -> dict[str, object] | None:
     """rules の frontmatter を dict で返す。無い・壊れている・dict でないときは None。
 
     frontmatter は YAML として解釈する。regex でキーを探すと本文中の記述を
     frontmatter と誤読し、正当な scoped rules を予算へ計上してしまう。
-
-    パースをここに 1 つだけ置くのは、キーごとに読み方を書くと同じ規約が複数箇所へ
-    散り、片方だけが壊れた frontmatter の扱いを変えたときに気づけないため。
     """
-    if not text.startswith(_FRONTMATTER_OPEN):
-        return None
-    end = text.find("\n---", len(_FRONTMATTER_OPEN) - 1)
-    if end == -1:
+    split = _split_frontmatter(text)
+    if split is None:
         return None
     try:
-        front = yaml.safe_load(text[len(_FRONTMATTER_OPEN) : end])
+        front = yaml.safe_load(split[0])
     except yaml.YAMLError:
         return None
     if not isinstance(front, dict):
@@ -89,17 +111,24 @@ def rule_frontmatter(text: str) -> dict[str, object] | None:
     return front
 
 
+def rule_body(text: str) -> str:
+    """frontmatter を除いた本文を返す。frontmatter が無い・閉じていないときは全文。
+
+    宣言と本文を突き合わせる検査は本文だけを見る。全文を見ると宣言そのものに当たり、
+    「宣言した語が本文にある」が常に成立して検査が無言で vacuous になる。
+    """
+    split = _split_frontmatter(text)
+    return text if split is None else split[1]
+
+
 def rule_paths(text: str) -> object:
     """rules の frontmatter が宣言する paths を、YAML が読んだままの形で返す。
 
-    frontmatter が無い・壊れているときは None。`paths` が空リストや null のときは
-    その値をそのまま返す (呼び出し側は非空かどうかで判定する)。型も検証せず、
+    frontmatter を読めないときの扱いは `rule_frontmatter` が持つ。`paths` が空リストや
+    null のときはその値をそのまま返す (呼び出し側は非空かどうかで判定する)。型も検証せず、
     `paths: "x"` のような不正な形も値として返す。形の pin は rules_paths が持つ。
     """
-    front = rule_frontmatter(text)
-    if front is None:
-        return None
-    return front.get("paths")
+    return (rule_frontmatter(text) or {}).get("paths")
 
 
 def is_always_loaded_rule(text: str) -> bool:
