@@ -170,6 +170,23 @@ def test_broken_instruction_ref_is_detected(tmp_path: Path) -> None:
     assert any(f.detail == "~/.claude/references/gone.md" for f in findings)
 
 
+def test_term_without_reachable_definition_is_detected(tmp_path: Path) -> None:
+    # 語の検査が scan に配線されていること。配線を忘れると、移設で語だけが常時層に
+    # 残っても誰も赤くならない状態へ戻る (実装とテストは緑のまま通る)
+    repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
+    term = "架空の造語ゼペット"
+    write_file(
+        repo,
+        "home/.claude/rules/testing-practices.md",
+        f'---\npaths: ["**/*.x"]\ndefines: ["{term}"]\n---\n\n# rule\n',
+    )
+    write_file(repo, CLAUDE_MD_PATH, f"{term} を使うこと\n")
+
+    findings = scan(str(repo))
+
+    assert any(f.detail == term for f in findings)
+
+
 def test_main_prints_the_budget_summary(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     # 問題が無いときも出す。移設の効果は「赤くならなかった」では見えない
     repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)

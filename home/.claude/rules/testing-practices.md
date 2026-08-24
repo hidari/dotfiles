@@ -1,5 +1,6 @@
 ---
 paths: ["**/*.test.*", "**/*.spec.*", "**/*_test.*", "**/*-test.*", "**/test_*.*", "**/*.Tests.ps1", "**/tests/**", "**/test/**", "**/__tests__/**", "**/test-utils/**", "**/*.rs"]
+defines: ["変異注入", "dead pin", "gaming", "negative case", "narrowing"]
 ---
 
 # [MUST] テストが緑であることを、仕様を守れている証拠にしない

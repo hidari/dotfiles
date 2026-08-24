@@ -66,15 +66,14 @@ def rule_files(repo_root: str) -> dict[str, str]:
     return {p.name: p.read_text(encoding="utf-8") for p in sorted(Path(repo_root).glob(RULES_GLOB))}
 
 
-def rule_paths(text: str) -> object:
-    """rules の frontmatter が宣言する paths を、YAML が読んだままの形で返す。
+def rule_frontmatter(text: str) -> dict[str, object] | None:
+    """rules の frontmatter を dict で返す。無い・壊れている・dict でないときは None。
 
-    frontmatter は YAML として解釈する。regex で `paths:` を探すと本文中の記述を
+    frontmatter は YAML として解釈する。regex でキーを探すと本文中の記述を
     frontmatter と誤読し、正当な scoped rules を予算へ計上してしまう。
 
-    frontmatter が無い・壊れているときは None。`paths` が空リストや null のときは
-    その値をそのまま返す (呼び出し側は非空かどうかで判定する)。型も検証せず、
-    `paths: "x"` のような不正な形も値として返す。形の pin は rules_paths が持つ。
+    パースをここに 1 つだけ置くのは、キーごとに読み方を書くと同じ規約が複数箇所へ
+    散り、片方だけが壊れた frontmatter の扱いを変えたときに気づけないため。
     """
     if not text.startswith(_FRONTMATTER_OPEN):
         return None
@@ -86,6 +85,19 @@ def rule_paths(text: str) -> object:
     except yaml.YAMLError:
         return None
     if not isinstance(front, dict):
+        return None
+    return front
+
+
+def rule_paths(text: str) -> object:
+    """rules の frontmatter が宣言する paths を、YAML が読んだままの形で返す。
+
+    frontmatter が無い・壊れているときは None。`paths` が空リストや null のときは
+    その値をそのまま返す (呼び出し側は非空かどうかで判定する)。型も検証せず、
+    `paths: "x"` のような不正な形も値として返す。形の pin は rules_paths が持つ。
+    """
+    front = rule_frontmatter(text)
+    if front is None:
         return None
     return front.get("paths")
 
