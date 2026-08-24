@@ -20,15 +20,7 @@ PROBE="$REPO_ROOT/scripts/tests/nvim-markdown-probe.lua"
 NVIM_BIN="${NVIM_BIN:-nvim}"
 
 setup() {
-    if ! command -v "$NVIM_BIN" >/dev/null 2>&1; then
-        # CI では Neovim の導入失敗を skip で隠さない。
-        # 緑のまま何も検証していない状態が一番危ない
-        if [ -n "${CI:-}" ]; then
-            echo "nvim is required in CI but was not found" >&2
-            return 1
-        fi
-        skip "nvim is not installed"
-    fi
+    require_command_or_skip "$NVIM_BIN" || return 1
 }
 
 # 本番と同じ rtp 構成 (拡張クエリを含む) でプローブを走らせる

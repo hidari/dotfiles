@@ -28,6 +28,16 @@ jobs:
       - name: Setup uv
         uses: ./.github/actions/setup-uv
 
+      # bats スイートには .zshrc のブロックを実際の zsh へ渡して評価するものがある。
+      # ubuntu ランナーは zsh を同梱しないので明示的に入れる。入れないと該当テストが
+      # 「zsh が無い」で赤くなり、ガード本体の検査は 1 件も走らない。
+      # shellcheck のような version pin を置かないのは、検査対象が [[ -o interactive ]] の
+      # セマンティクスだけで、警告集合のようにバージョンで変わる面を持たないため。
+      - name: Setup zsh
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends zsh
+
       - name: Run Bats tests
         run: bats scripts/tests/
 

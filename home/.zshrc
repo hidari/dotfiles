@@ -159,7 +159,7 @@ if [[ -o interactive ]]; then
   # ファイル一覧を表示（隠しファイル含む、色付き）
   alias ls='ls -aG'
 
-  # Git履歴を見やすく表示（直近15件、グラフ付き）
+  # Git履歴を見やすく表示（グラフ付き）
   alias gitl='git log -15 --graph --date-order --decorate=short --date=iso --format="%C(yellow)%h%C(reset) %C(magenta)[%ad]%C(reset)%C(auto)%d%C(reset) %s %C(cyan)Author:%an%C(reset)"'
 
   # UUIDを生成し、小文字に変換してクリップボードにコピー

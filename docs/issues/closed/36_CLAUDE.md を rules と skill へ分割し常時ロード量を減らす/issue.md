@@ -2105,8 +2105,8 @@ pin は 2 本に見えて 1 本ぶんだった。
 
 ## 関連
 
-- [Issue #35: CLAUDE.md の指示量と読む単位を減らす](../../35_CLAUDE.md%20の指示量と読む単位を減らす/issue.md) (親)
-- [Issue #24: CLAUDE.md の MUST GLOBAL を族でまとめて読む単位を減らす](../../24_CLAUDE.md%20の%20MUST%20GLOBAL%20を族でまとめて読む単位を減らす/issue.md)。
+- [Issue #35: CLAUDE.md の指示量と読む単位を減らす](../35_CLAUDE.md%20の指示量と読む単位を減らす/issue.md) (親)
+- [Issue #24: CLAUDE.md の MUST GLOBAL を族でまとめて読む単位を減らす](../24_CLAUDE.md%20の%20MUST%20GLOBAL%20を族でまとめて読む単位を減らす/issue.md)。
   #24 の「位置参照を族名参照へ張り替える」は本 Issue の前提条件。位置参照を残したまま分割すると
   参照先が別ファイルへ飛び、沈黙して壊れる
 - [Issue #26: Claude Code フックの共通基盤を集約する](../../26_Claude%20Code%20フックの共通基盤を集約する/issue.md)。

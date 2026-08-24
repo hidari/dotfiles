@@ -13,13 +13,7 @@ load test_helper
 RULE="$REPO_ROOT/rules/nvim-lua-no-hex-literal.yml"
 
 setup() {
-    if ! command -v ast-grep >/dev/null 2>&1; then
-        if [ -n "${CI:-}" ]; then
-            echo "ast-grep is required in CI but was not found" >&2
-            return 1
-        fi
-        skip "ast-grep is not installed"
-    fi
+    require_command_or_skip ast-grep || return 1
 
     # 本番と同じ相対パスを持つ fixture を作る。
     # 実ルールをコピーするので、ルールの二重管理にならない
@@ -109,14 +103,7 @@ scan_exit() {
     #
     # 配線は YAML を safe_load して構造として読む (グローバル CLAUDE.md の MUST:
     # 設定のデータ構造を検証するときは regex ではなく言語自身に解釈させる)。
-    if ! command -v uv >/dev/null 2>&1; then
-        # CI では uv の導入失敗を skip で隠さない (ast-grep / nvim と同じ流儀)
-        if [ -n "${CI:-}" ]; then
-            echo "uv is required in CI but was not found" >&2
-            return 1
-        fi
-        skip "uv is not installed"
-    fi
+    require_command_or_skip uv || return 1
 
     run uv run --quiet --no-project --with pyyaml python3 \
         "$REPO_ROOT/scripts/tests/ast-grep-wiring-probe.py"

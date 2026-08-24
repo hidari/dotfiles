@@ -1032,7 +1032,7 @@ setup_dev_packages() {
 @test "load_zshrc_claude_functions: fails loudly when the marker is missing" {
     # マーカーが消えたのに黙って空を source すると、以降の全テストが
     # 「関数が未定義なのにアサーションだけ通る」空虚な緑になる
-    run load_marker_block "$ZSHRC_FILE" '^# nonexistent marker$' '^########################################$'
+    run load_marker_block "$ZSHRC_FILE" '^# nonexistent marker$' "$ZSHRC_SECTION_END"
 
     [ "$status" -ne 0 ]
     assert_contains "$output" "start marker not found"

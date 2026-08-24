@@ -3,10 +3,8 @@
 # .zshrc のエイリアスが対話シェルに限定されているかのテスト
 # =============================================================================
 #
-# エイリアスは対話シェルの利便機能だが、非対話シェル (エージェントの Bash ツール
-# など) にも効くと出力の形が変わる。実測では `alias ls='ls -aG'` の -a が . と ..
-# を数え、ファイル 2 個のディレクトリで `ls -1 | wc -l` が 4 を返した。エラーでは
-# なくもっともらしい数字で返るため、出力を見ても気づけない。
+# エイリアスが非対話シェルにも効くと何が壊れるかは、home/.zshrc のエイリアス
+# ブロック冒頭が canonical。ここはその検査だけを持つ。
 #
 # 検査は実際の zsh へ聞く。bats は bash で走るが `[[ -o interactive ]]` は zsh の
 # オプション検査で、bash には interactive オプションが無い。bash へ source すると
@@ -18,29 +16,31 @@
 load test_helper
 
 setup() {
+    require_command_or_skip zsh || return 1
+
     ALIAS_SLICE="$BATS_TEST_TMPDIR/aliases.zsh"
     extract_zshrc_block '^# エイリアス$' "$ALIAS_SLICE"
 }
 
 # ブロックが宣言するエイリアス名を空白区切りで返す。名前をテスト側へ literal で
 # 書くと、エイリアスを足したときに検査だけが古いリストを見たまま緑で通る。
+# 空白へ畳むところまでが責務。戻り値は zsh へ渡すコマンド文字列の `for n in ...`
+# へ埋め込まれるので、改行区切りのまま返すと語リストが 1 件目で終わる。
 alias_names_in_block() {
-    grep -oE '^[[:space:]]*alias [A-Za-z0-9_-]+' "$ALIAS_SLICE" \
-        | sed -E 's/.*alias //' \
+    sed -nE 's/^[[:space:]]*alias ([A-Za-z0-9_-]+)=.*/\1/p' "$ALIAS_SLICE" \
         | tr '\n' ' '
 }
 
-@test "alias block: zsh is available for the shell-semantics tests" {
-    # 不在だと下の 2 本が status 127 で落ち、原因が読み取りにくい失敗になる
-    run command -v zsh
-    [ "$status" -eq 0 ]
-}
-
-@test "alias block: the slice actually contains alias definitions" {
-    # 切り出しが空だと下の 2 本が何も見ずに緑になる
+@test "alias block: the slice holds every alias defined in the file" {
+    # 切り出しが空だと下の 2 本が何も見ずに緑になる。さらに件数をファイル全体と
+    # 突き合わせるのは、ブロック外に書いた alias がガードの外側に居るのに
+    # ブロック限定の検査からは見えないため
     run grep -c '^[[:space:]]*alias ' "$ALIAS_SLICE"
-    [ "$status" -eq 0 ]
     [ "$output" -ge 1 ]
+    local in_block="$output"
+
+    run grep -c '^[[:space:]]*alias ' "$ZSHRC_FILE"
+    [ "$output" -eq "$in_block" ]
 }
 
 @test "alias block: no alias from the block survives in a non-interactive shell" {
