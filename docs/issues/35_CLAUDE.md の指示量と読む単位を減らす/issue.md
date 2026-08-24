@@ -27,7 +27,7 @@ Issue #24 の「位置参照を族名参照へ張り替える」タスクは、#
 ## タスク
 
 - [ ] [Issue #24: CLAUDE.md の MUST GLOBAL を族でまとめて読む単位を減らす](../24_CLAUDE.md%20の%20MUST%20GLOBAL%20を族でまとめて読む単位を減らす/issue.md)
-- [ ] [Issue #36: refactor: CLAUDE.md を rules と skill へ分割し常時ロード量を減らす](../36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md)
+- [ ] [Issue #36: refactor: CLAUDE.md を rules と skill へ分割し常時ロード量を減らす](../closed/36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md)
 
 ## 関連
 

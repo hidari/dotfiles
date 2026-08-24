@@ -1,5 +1,5 @@
 ---
-status: open
+status: closed
 parent: 35
 ---
 
@@ -1326,7 +1326,7 @@ security-blue-red-team / dev-workflow / web-monkey-qa) のうち、`commands/` �
 
 前節で見つけた別系統を決着させた。出所は Claude Code ではなく apm の deploy 規則で、抑止ノブは
 存在しない。最初に採ろうとした案は plugin の契約を壊すことが分かり、別の案へ切り替えた。実施は
-[Issue #40](../40_skill%20バンドルの%20command%20と%20agent%20の二重登録を止める/issue.md)。
+[Issue #40](../../40_skill%20バンドルの%20command%20と%20agent%20の二重登録を止める/issue.md)。
 
 ### 出所は apm が 2 経路で配っていること
 
@@ -2067,7 +2067,7 @@ pin は 2 本に見えて 1 本ぶんだった。
       同名衝突の勝敗規則が名前空間で逆になることと、prefix 無しの agent 名が解決しないことも
       実測した。削減が最大の案は `schemas/` の deploy 経路を消して plugin の契約を壊すので
       取り下げ、S5 (flat 側を消し sub-skills も撤去、6,413B 削減) を採ることに決めた。
-      実施は [Issue #40](../40_skill%20バンドルの%20command%20と%20agent%20の二重登録を止める/issue.md) へ切り出した。
+      実施は [Issue #40](../../40_skill%20バンドルの%20command%20と%20agent%20の二重登録を止める/issue.md) へ切り出した。
       結果は「command と agent の二重登録の出所を確定し方針を決めた」節)
 - [x] glob が corpus の形をしている問題を決着させる
       (8 パターンは管理下 26 リポジトリのうち 20 から導出したので、その corpus に無い規約は
@@ -2105,13 +2105,15 @@ pin は 2 本に見えて 1 本ぶんだった。
 
 ## 関連
 
-- [Issue #35: CLAUDE.md の指示量と読む単位を減らす](../35_CLAUDE.md%20の指示量と読む単位を減らす/issue.md) (親)
-- [Issue #24: CLAUDE.md の MUST GLOBAL を族でまとめて読む単位を減らす](../24_CLAUDE.md%20の%20MUST%20GLOBAL%20を族でまとめて読む単位を減らす/issue.md)。
+- [Issue #35: CLAUDE.md の指示量と読む単位を減らす](../../35_CLAUDE.md%20の指示量と読む単位を減らす/issue.md) (親)
+- [Issue #24: CLAUDE.md の MUST GLOBAL を族でまとめて読む単位を減らす](../../24_CLAUDE.md%20の%20MUST%20GLOBAL%20を族でまとめて読む単位を減らす/issue.md)。
   #24 の「位置参照を族名参照へ張り替える」は本 Issue の前提条件。位置参照を残したまま分割すると
   参照先が別ファイルへ飛び、沈黙して壊れる
-- [Issue #26: Claude Code フックの共通基盤を集約する](../26_Claude%20Code%20フックの共通基盤を集約する/issue.md)。
+- [Issue #26: Claude Code フックの共通基盤を集約する](../../26_Claude%20Code%20フックの共通基盤を集約する/issue.md)。
   本 Issue で足した観測フックが 4 本目のフックになる
-- [Issue #39: refactor: config-guard の Markdown フェンス走査を 1 実装へ寄せる](../39_config-guard%20の%20Markdown%20フェンス走査を%201%20実装へ寄せる/issue.md)。
+- [Issue #39: refactor: config-guard の Markdown フェンス走査を 1 実装へ寄せる](../../39_config-guard%20の%20Markdown%20フェンス走査を%201%20実装へ寄せる/issue.md)。
   本 Issue で足した `instruction_refs` が 2 つ目のフェンス走査になった。派生
-- [Issue #40: skill バンドルの command と agent の二重登録を止める](../40_skill%20バンドルの%20command%20と%20agent%20の二重登録を止める/issue.md)。
+- [Issue #40: skill バンドルの command と agent の二重登録を止める](../../40_skill%20バンドルの%20command%20と%20agent%20の二重登録を止める/issue.md)。
   本 Issue で確定した S5 の実施先。派生
+- [Issue #41: 語の検査の近似を減らし免除の粒度を上げる](../../41_語の検査の近似を減らし免除の粒度を上げる/issue.md)。
+  本 Issue で足した `term_definitions` が承知のうえで残した 3 つの近似。派生

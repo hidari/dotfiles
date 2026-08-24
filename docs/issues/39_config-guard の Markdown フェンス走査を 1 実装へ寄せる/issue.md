@@ -48,5 +48,5 @@ Issue #30 (Markdown 内のシェルスニペットを構文検査する) は、�
 - [Issue #30: feat: Markdown 内のシェルスニペットを構文検査する](../30_Markdown%20内のシェルスニペットを構文検査する/issue.md)
   3 つ目の利用者。着手順は #30 が先でもよいが、その場合はフェンス走査を 3 つ目として
   足さずに、この Issue の共通化を先に通すか、少なくとも同じ PR で寄せること
-- [Issue #36: CLAUDE.md を rules と skill へ分割し常時ロード量を減らす](../36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md)
+- [Issue #36: CLAUDE.md を rules と skill へ分割し常時ロード量を減らす](../closed/36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md)
   `instruction_refs` を足した Issue。2 つ目の実装はここで入った

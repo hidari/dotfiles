@@ -1,6 +1,5 @@
 ---
 status: open
-parent: 36
 ---
 
 # refactor: 語の検査の近似を減らし免除の粒度を上げる
@@ -54,6 +53,7 @@ rules) を起点に、references は名指しした側の文脈を継ぐ、と�
 
 ## 関連
 
-- 親 Issue #36 の「simplify が見つけた「宣言側の沈黙」」節と「覆っていない範囲」節
+- [Issue #36: CLAUDE.md を rules と skill へ分割し常時ロード量を減らす](../closed/36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md) の
+  「simplify が見つけた「宣言側の沈黙」」節と「覆っていない範囲」節 (この Issue の切り出し元)
 - `scripts/config-guard/src/config_guard/term_definitions.py`
 - `scripts/config-guard/src/config_guard/instruction_refs.py` (`prose_lines` と `extract_home_refs`)

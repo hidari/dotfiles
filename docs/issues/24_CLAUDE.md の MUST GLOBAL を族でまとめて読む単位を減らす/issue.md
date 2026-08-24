@@ -154,6 +154,6 @@ Issue #20 のルール化 (PR #83) で 4 件を追加した際、増加を抑え
 項目数から族の数へ減れば目的は達成される。
 
 - [Issue #35: CLAUDE.md の指示量と読む単位を減らす](../35_CLAUDE.md%20の指示量と読む単位を減らす/issue.md) (親)
-- [Issue #36: refactor: CLAUDE.md を rules と skill へ分割し常時ロード量を減らす](../36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md)。
+- [Issue #36: refactor: CLAUDE.md を rules と skill へ分割し常時ロード量を減らす](../closed/36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md)。
   本 Issue が 1 ファイル内の構造を扱うのに対し、#36 はロード機構への載せ替えを扱う。
   本 Issue の相互参照の張り替えが #36 の前提条件という順序依存がある
