@@ -6,7 +6,7 @@
 #
 # - scripts/ 配下の Python ツールの ruff / mypy / pytest を uv 仮想環境で実行する (対象は下の hook 定義が真実源)。
 # - config-guard で skills / committed settings.json の stale なツール名参照・構造逸脱を検出する。
-# - gitleaks で staged 差分の secret / ユーザー名パス (/Users/<name>) 漏洩を弾く (.gitleaks.toml)。
+# - gitleaks で staged 差分の漏洩を弾く (検出集合の正本は .gitleaks.toml)。
 # - ast-grep で一般的な linter で表現できない構文レベルのルール (rules/) を検査する (sgconfig.yml)。
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -177,7 +177,7 @@ repos:
         files: ^(home/\.claude/hooks/.*\.py|scripts/claude-hooks/.*)$
 
       - id: gitleaks
-        name: gitleaks (secret / user-path leak guard)
+        name: gitleaks (leak guard)
         language: system
         entry: gitleaks git --staged --redact --no-banner -c .gitleaks.toml
         pass_filenames: false

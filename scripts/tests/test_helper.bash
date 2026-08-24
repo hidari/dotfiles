@@ -7,18 +7,20 @@ TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_DIR="$(dirname "$TEST_DIR")"
 REPO_ROOT="$(dirname "$SCRIPTS_DIR")"
 
-# 変異注入でコピーを読ませられるよう上書き可能にする (下の 2 つと同じ理由)。
+# 検査対象のスクリプト群。いずれも変異注入でコピーを読ませられるよう上書き可能に
+# する。既定値は実ファイルなので通常実行と CI の対象は変わらない。
 BOOTSTRAP_SCRIPT="${BOOTSTRAP_SCRIPT:-$REPO_ROOT/bootstrap.sh}"
 
-# この 2 つは ~/.zshrc と ~/.claude/statusline-command.sh のライブ symlink 先そのもの。
+# 次の 2 つは ~/.zshrc と ~/.claude/statusline-command.sh のライブ symlink 先そのもの。
 # 変異注入で実ファイルを壊すと、その間に開いたシェルや statusLine の描画が壊れた版を踏む
-# (特に claude 関数の再帰変異は実害が大きい)。コピーに対して変異を入れられるよう
-# 上書き可能にしておく。既定値は実ファイルなので通常実行と CI の対象は変わらない。
+# (特に claude 関数の再帰変異は実害が大きい)。上書き可能にしておく理由がここだけ重い。
 STATUSLINE_SCRIPT="${STATUSLINE_SCRIPT:-$REPO_ROOT/home/.claude/statusline-command.sh}"
 ZSHRC_FILE="${ZSHRC_FILE:-$REPO_ROOT/home/.zshrc}"
 
-# Raycast のリファレンスモード切り替えスクリプト。上の 2 つと同じく変異注入で
-# コピーを読ませられるよう上書き可能にする。
+# .zshrc のセクション区切り。ブロック切り出しの終端マーカーとして複数の入口が使う
+ZSHRC_SECTION_END='^########################################$'
+
+# Raycast のリファレンスモード切り替えスクリプト。
 RAYCAST_TOGGLE_SCRIPT="${RAYCAST_TOGGLE_SCRIPT:-$REPO_ROOT/home/.config/raycast/scripts/toggle-reference-mode.sh}"
 
 FIXTURES_DIR="$TEST_DIR/fixtures"
@@ -46,47 +48,31 @@ teardown_test_home() {
     fi
 }
 
+# 外部コマンドの有無で分岐する。CI では skip で隠さず落とす。
+# 緑のまま何も検証していない状態が一番危ないので、ローカルの利便とは非対称にする。
+# 「CI なら必須」が成り立つのは、そのテストを走らせる job が導入するコマンドに限る。
+# job が入れないコマンド (bats job にとっての gitleaks、Linux にとっての osacompile)
+# へこの入口を使うと、正当な不在で CI が赤くなる。
+require_command_or_skip() {
+    local cmd="$1"
+
+    if command -v "$cmd" >/dev/null 2>&1; then
+        return 0
+    fi
+    if [ -n "${CI:-}" ]; then
+        echo "$cmd is required in CI but was not found" >&2
+        return 1
+    fi
+    skip "$cmd is not installed"
+}
+
 # bootstrap.sh からヘルパー関数を読み込む
 load_bootstrap_functions() {
-    local temp_func_file
-    temp_func_file=$(mktemp)
-
-    if [ ! -f "$BOOTSTRAP_SCRIPT" ]; then
-        echo "Error: Bootstrap script not found: $BOOTSTRAP_SCRIPT" >&2
-        return 1
-    fi
-
-    # 重複マーカーに対応するため head -1 を使用
-    local func_start main_start
-    func_start=$(grep -n "^# ヘルパー関数$" "$BOOTSTRAP_SCRIPT" | head -1 | cut -d: -f1)
-    main_start=$(grep -n "^# メイン処理$" "$BOOTSTRAP_SCRIPT" | head -1 | cut -d: -f1)
-
-    if [ -z "$func_start" ]; then
-        echo "Error: '# ヘルパー関数' marker not found in $BOOTSTRAP_SCRIPT" >&2
-        rm -f "$temp_func_file"
-        return 1
-    fi
-    if [ -z "$main_start" ]; then
-        echo "Error: '# メイン処理' marker not found in $BOOTSTRAP_SCRIPT" >&2
-        rm -f "$temp_func_file"
-        return 1
-    fi
-
-    sed -n "$((func_start + 1)),$((main_start - 1))p" "$BOOTSTRAP_SCRIPT" > "$temp_func_file"
-
-    if [ ! -s "$temp_func_file" ]; then
-        echo "Warning: No functions extracted from $BOOTSTRAP_SCRIPT" >&2
-        rm -f "$temp_func_file"
-        return 1
-    fi
-
-    # shellcheck source=/dev/null
-    source "$temp_func_file"
-    rm -f "$temp_func_file"
+    load_marker_block "$BOOTSTRAP_SCRIPT" '^# ヘルパー関数$' '^# メイン処理$'
 }
 
 # 名前で指定した配列定義ブロックだけを切り出して source し、テストシェルに実配列を
-# 定義する。load_bootstrap_functions と同じ marker-slice 方式。ブロックは純データ
+# 定義する。load_marker_block と同じ marker-slice 方式。ブロックは純データ
 # (set -euo pipefail 等の副作用を含まない) なので、whole-file source を避けている理由が
 # ここにも当てはまる。実配列を source すればテキスト parse の脆さ
 # (配列内コメントを phantom source と誤読する等) を避けられる。
@@ -110,15 +96,17 @@ load_pairs_array() {
     rm -f "$temp_pairs_file"
 }
 
-# 2 つのマーカー行に挟まれたブロックだけを切り出して source する汎用ローダー。
-# load_bootstrap_functions と同じ marker-slice 方式で、whole-file source による副作用
-# (set -euo pipefail / zsh 専用構文 / 実処理の実行) を避ける。
-# マーカー欠落や空ブロックは黙って空を source せず失敗させる。静かに素通りすると
+# 2 つのマーカー行に挟まれたブロックを dest へ書き出す。
+# 切り出しの規約 (開始マーカーの次行から、開始より後ろの最初の終了マーカーの前行まで) を
+# ここに 1 つだけ置く。bash へ source する側と、別のシェルへ渡す側が別々に範囲を決めると、
+# 片方だけが規約を変えたときに気づけない。
+# マーカー欠落や空ブロックは黙って空を返さず失敗させる。静かに素通りすると
 # 「1 件もアサーションが走っていないのに緑」という空虚なテストになるため。
-load_marker_block() {
+extract_marker_block() {
     local file="$1"
     local start_marker="$2"
     local end_marker="$3"
+    local dest="$4"
 
     if [ ! -f "$file" ]; then
         echo "Error: file not found: $file" >&2
@@ -132,7 +120,6 @@ load_marker_block() {
         return 1
     fi
 
-    # 終了マーカーは開始マーカーより後ろの最初の一致を採る。
     # tail で先頭を落としてから grep するため、得られる行番号は start_line からの相対値。
     local end_offset
     end_offset=$(tail -n "+$((start_line + 1))" "$file" | grep -n "$end_marker" | head -1 | cut -d: -f1)
@@ -142,12 +129,21 @@ load_marker_block() {
     fi
     local end_line=$((start_line + end_offset))
 
+    sed -n "$((start_line + 1)),$((end_line - 1))p" "$file" > "$dest"
+
+    if [ ! -s "$dest" ]; then
+        echo "Error: empty block extracted from $file" >&2
+        return 1
+    fi
+}
+
+# 2 つのマーカー行に挟まれたブロックだけを切り出して source する汎用ローダー。
+# whole-file source による副作用 (set -euo pipefail / zsh 専用構文 / 実処理の実行) を避ける。
+load_marker_block() {
     local temp_file
     temp_file=$(mktemp)
-    sed -n "$((start_line + 1)),$((end_line - 1))p" "$file" > "$temp_file"
 
-    if [ ! -s "$temp_file" ]; then
-        echo "Error: empty block extracted from $file" >&2
+    if ! extract_marker_block "$1" "$2" "$3" "$temp_file"; then
         rm -f "$temp_file"
         return 1
     fi
@@ -166,11 +162,21 @@ load_statusline_functions() {
 # .zshrc 全体は zsh 専用構文 (typeset -U / mise activate zsh 等) を含み bash で
 # source できないため、当該セクションだけを切り出す。
 load_zshrc_claude_functions() {
-    load_marker_block "$ZSHRC_FILE" '^# Claude Code 起動$' '^########################################$'
+    load_marker_block "$ZSHRC_FILE" '^# Claude Code 起動$' "$ZSHRC_SECTION_END"
+}
+
+# .zshrc のブロックを dest へ書き出す。bash へ source する上の 2 つと違い、
+# zsh 専用の構文 (setopt / [[ -o ... ]] / print -rnD 等) を含むブロックを
+# 実際の zsh へ渡して評価させるための入口。bash で解釈すると、構文は通るのに
+# 意味が変わる形 (bash に interactive オプションが無い等) で検査が別物になる。
+extract_zshrc_block() {
+    local start_marker="$1"
+    local dest="$2"
+    extract_marker_block "$ZSHRC_FILE" "$start_marker" "$ZSHRC_SECTION_END" "$dest"
 }
 
 # Raycast のリファレンスモード切り替えスクリプトを読み込む。
-# 上の 2 つと違い marker-slice を使わず丸ごと source できるのは、スクリプト末尾の
+# marker-slice 方式のローダーと違い丸ごと source できるのは、スクリプト末尾の
 # BASH_SOURCE ガードが source 時の main 実行を抑えているため。marker 方式は
 # 「ブロックの外に関数を置くと読み込まれない」制約を呼び込むので、新規スクリプトでは
 # ガード方式を採る。ガードが生きていることは raycast-reference-mode.bats が pin する。

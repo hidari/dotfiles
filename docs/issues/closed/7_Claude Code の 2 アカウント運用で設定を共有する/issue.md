@@ -8,8 +8,8 @@ status: closed
 
 仕事の都合で Claude Code のサブスクリプションを 2 つ運用する必要が出た。設定は同じままアカウントだけを使い分けたい。
 
-- 個人: `~/.claude`（ika5140@gmail.com）
-- 仕事: `~/.claude-hamiltonian`（ikawa@hamiltonian.studio）
+- 個人: `~/.claude`
+- 仕事: `~/.claude-hamiltonian`
 
 `CLAUDE_CONFIG_DIR` で分離されるのはユーザースコープのみ。プロジェクトスコープの `.claude/settings.json` と `.claude/settings.local.json` はどちらのアカウントで起動しても同じものが読まれる。実用上は望ましい挙動だが「アカウントを分ければ全部分かれる」という前提だと誤解しやすい。
 

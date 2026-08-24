@@ -76,7 +76,7 @@ config-guard は settings.json だけ working tree ではなく git の index �
 
 committed 側は CI で 2 つの仕組みが守る。
 
-- gitleaks: secret とユーザー名パス (`/Users/<name>`) の漏洩を検出する。
+- gitleaks: secret と PII の漏洩を検出する。検出集合は `.gitleaks.toml` が正本なので README には再掲しない。
 - config-guard: 構造 curation (禁止キー・directory marketplace・dead config・不正なツール名) を検出する。
 
 ## tirith によるコマンドセキュリティ

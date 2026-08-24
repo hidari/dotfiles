@@ -1,8 +1,21 @@
 ---
-status: open
+status: closed
 ---
 
 # fix: npx の deny が配布している Playwright ワークフローを塞ぐ
+
+## クローズ理由 (2026-08-25)
+
+**dotfiles 側の不整合は解消済みで、残るのは書き換えられない上流の管轄。**
+本 Issue が挙げた「配布している Playwright ワークフローが deny と矛盾する」状態は、
+user CLAUDE.md の E2E 手順が `pnpm exec` / `pnpm dlx` へ書き換えられた時点で消えている。
+`~/.claude/settings.json` はリポジトリへの symlink なので committed と live の
+二重管理も無く、deny は方針どおりのまま矛盾しない。
+
+`npx` の記述が残るのは apm が展開する `home/.claude/skills/` 配下の skill 本文だけで、
+これは ignore 済みの展開物である。供給元は `home/apm.yml` が SHA で pin している上流
+(mizchi/skills) なので dotfiles では書き換えられず、本 Issue のタスクは適用先を持たない。
+未チェックのタスクは何が検討対象だったかの記録として、チェックせずそのまま残す。
 
 ## 背景
 

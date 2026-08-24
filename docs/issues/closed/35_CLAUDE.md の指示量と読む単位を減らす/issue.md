@@ -1,5 +1,5 @@
 ---
-status: open
+status: closed
 children: [24, 36]
 ---
 
@@ -26,12 +26,12 @@ Issue #24 の「位置参照を族名参照へ張り替える」タスクは、#
 
 ## タスク
 
-- [ ] [Issue #24: CLAUDE.md の MUST GLOBAL を族でまとめて読む単位を減らす](../24_CLAUDE.md%20の%20MUST%20GLOBAL%20を族でまとめて読む単位を減らす/issue.md)
-- [ ] [Issue #36: refactor: CLAUDE.md を rules と skill へ分割し常時ロード量を減らす](../closed/36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md)
+- [x] [Issue #24: CLAUDE.md の MUST GLOBAL を族でまとめて読む単位を減らす](../24_CLAUDE.md%20の%20MUST%20GLOBAL%20を族でまとめて読む単位を減らす/issue.md)
+- [x] [Issue #36: refactor: CLAUDE.md を rules と skill へ分割し常時ロード量を減らす](../36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md)
 
 ## 関連
 
-- [Issue #6: CLAUDE.md の散文ルールのうち機械検出可能なものを ast-grep へ移す](../closed/6_CLAUDE.md%20の散文ルールのうち機械検出可能なものを%20ast-grep%20へ移す/issue.md) (closed)。
+- [Issue #6: CLAUDE.md の散文ルールのうち機械検出可能なものを ast-grep へ移す](../6_CLAUDE.md%20の散文ルールのうち機械検出可能なものを%20ast-grep%20へ移す/issue.md) (closed)。
   - 散文から静的検査へ逃がす経路。本 Issue は逃がせない散文をどう構造化・分割するかを扱う
-- [Issue #26: Claude Code フックの共通基盤を集約する](../26_Claude%20Code%20フックの共通基盤を集約する/issue.md)。
+- [Issue #26: Claude Code フックの共通基盤を集約する](../../26_Claude%20Code%20フックの共通基盤を集約する/issue.md)。
   - #36 で足す観測フックがこの集約対象に加わる
