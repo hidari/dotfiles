@@ -87,23 +87,74 @@ bare dispatch 6 箇所も正しい (commands 3 + skills 3)。ただし commands 
 後始末を隣接させ、config-guard に「flat の deploy 先が空であること」を不変条件として足す。
 bootstrap 単独では日常の `apm install` を取りこぼすので不十分。
 
+## 上流の完了 (2026-08-26)
+
+agentic-coding-tools の ISSUE-27 が PR #24 でマージされた (main `d1de3ea`)。上のタスク 11 件の
+うち上流側 7 件が完了し、残る 4 件が dotfiles 側の担当分になる。
+
+撤去された sub-skill は 4 個。`security-red-team` / `security-blue-team` /
+`security-vulnerability-assessment` / `monkey-qa`。bundle は root SKILL.md と command と
+agent だけになり、`plugin.json` の `"skills"` 宣言も外れた。
+
+### 着手前の懸念は解消した
+
+「sub-skill の description が担っていた自然言語からの自動起動をどうするか」は、command の
+`description` へ凝縮して移す形で決着した。root SKILL.md へ移す案も検討されたが採らなかった。
+root は案内しか持たないので、移すと「案内を読んでから command を呼ぶ」2 段になる。
+
+`security-vulnerability-assessment` が撤去で失うものは、精査の結果「対の command との
+6 行対比表」と「cron 運用の前提」の 2 つだった。どちらも command へ移してある。
+
+### 実測で確定した前提
+
+**`${CLAUDE_PLUGIN_ROOT}` は plugin の command と agent でも展開される。** 公式ドキュメントは
+「plugin skills の中でのみ置換される」としか書いておらず、command と agent については記載が
+無い。記載が無いことを「展開されない」と読むと移設そのものが成立しないので、Claude Code
+2.1.245 のバイナリを解析して確定させた。plugin skill と plugin command は同一のローダーが
+処理しており、どちらも同じ置換関数を通る。agent 側も別のローダーから同じ関数を呼ぶ。
+
+root SKILL.md で展開されないのは、apm の verbatim コピーが plugin ではなく user skill として
+読まれ、plugin の path 情報を持たないため。この非対称が「schemas/ が届くのは verbatim
+コピー経由だけ」の実体である。
+
+### 常時ロード層の削減
+
+description のバイト数は on-disk で 11050 → 5928 (-46.4%)。内訳は sub-skills -6155 /
+commands +1148 (起動語彙の移設) / plugin.json -138 / root +20 / agents +3。
+
+**ただし実際にロードされる量はこの数字どおりにはならない。** 上流側で実測したところ、
+command と agent の description は bare 名と prefix 名で listing に 2 回出る一方、撤去した
+sub-skill 4 個のうち 2 個 (`security-vulnerability-assessment` / `monkey-qa`) は同名 command に
+shadow されて元々一度もロードされていなかった。実効の削減幅は flat 側を消したあとに測り直す
+必要がある。最後のタスク「新セッションで登録が prefix 名の 1 経路になったことを実測し」が
+その場になる。
+
+### 上流で切り出した Issue 2 件
+
+どちらも dotfiles 側の作業には影響しない。
+
+- agentic-coding-tools の ISSUE-30: README の component 数を直したとき、component の定義が
+  README 生成器と形の検査に分裂した
+- agentic-coding-tools の ISSUE-31: production ガードを command へ移したことで、
+  web-monkey-qa 側の防御が 1 層しかないことが可視化された
+
 ## タスク
 
-- [ ] sub-skill の description が担っていた自然言語からの自動起動の移し先を決める
+- [x] sub-skill の description が担っていた自然言語からの自動起動の移し先を決める
       (root `SKILL.md` へ移す / command の description へ移す / 落とす)
-- [ ] `security-vulnerability-assessment` が撤去で失うものを精査する。現時点では dead で
+- [x] `security-vulnerability-assessment` が撤去で失うものを精査する。現時点では dead で
       実質なしと見ているが確定していない
-- [ ] 2 bundle から sub-skills を撤去する (`security-blue-red-team/skills/` の 3 個と
+- [x] 2 bundle から sub-skills を撤去する (`security-blue-red-team/skills/` の 3 個と
       `web-monkey-qa/skills/` の 1 個)。plugin.json の `"skills"` 宣言も外す。
       root `SKILL.md` は残す (verbatim コピーが `schemas/` の唯一の deploy 経路のため)
-- [ ] `/monkey-qa` は `Skill(skill="web-monkey-qa:monkey-qa")` を起動する薄い entry point で、
+- [x] `/monkey-qa` は `Skill(skill="web-monkey-qa:monkey-qa")` を起動する薄い entry point で、
       実体が撤去する sub-skill 側にある。dispatcher 本体を command へ取り込む
-- [ ] security bundle の bare dispatch 6 箇所 (`subagent_type: red-team-agent` 等) を prefix 名へ
+- [x] security bundle の bare dispatch 6 箇所 (`subagent_type: red-team-agent` 等) を prefix 名へ
       揃える。web-monkey-qa は既に prefix 名で呼んでいるので対象外
-- [ ] 撤去した skill への参照を残さない。`web-monkey-qa/README.md` と
+- [x] 撤去した skill への参照を残さない。`web-monkey-qa/README.md` と
       `web-monkey-qa/commands/monkey-qa.md` に加え、security bundle の root `SKILL.md` 自身
       (component 表と description) も該当する
-- [ ] `${CLAUDE_PLUGIN_ROOT}/schemas/<name>` の参照 6 箇所が撤去後も解決することを確かめる
+- [x] `${CLAUDE_PLUGIN_ROOT}/schemas/<name>` の参照 6 箇所が撤去後も解決することを確かめる
 - [ ] dotfiles 側で flat 側の deploy 先を消す後始末を入れる。apm install のたびに再生成される。
       置き場は決着済みで、`bootstrap.sh` の `install_apm_packages` に隣接させ、config-guard で
       「flat の deploy 先が空であること」を不変条件として pin する (経緯は上の調査結果)
