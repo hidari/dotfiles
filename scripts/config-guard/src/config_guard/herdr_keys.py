@@ -58,6 +58,12 @@ _MODIFIER_ORDER = ("ctrl", "alt", "shift")
 _BACKWARD = "previous"
 _FORWARD = "next"
 
+# `herdr --default-config` の待ち時間。実運用の herdr は検査済みなので即座に応答するが、
+# テストが chmod +x したばかりの fake を起動すると macOS の初回検査で待たされ、混み合うと
+# この値を超える (実測: 同一プロセス内で 8 秒 -> 10 秒超 -> 1.6 秒 -> 0.1 秒)。テスト側から
+# 緩められるよう定数へ出してある。実運用側の値としては、pre-commit が毎回引くので短く保つ。
+_SUBPROCESS_TIMEOUT_SECONDS = 10
+
 
 @dataclass(frozen=True)
 class Binding:
@@ -153,7 +159,7 @@ def read_default_config() -> str | None:
             capture_output=True,
             text=True,
             check=False,
-            timeout=10,
+            timeout=_SUBPROCESS_TIMEOUT_SECONDS,
         )
     except (OSError, subprocess.SubprocessError):
         return None
