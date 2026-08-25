@@ -38,7 +38,7 @@ command の description へ移すか、落とすかを決める必要がある�
 
 ## 調査結果 (2026-08-25)
 
-セッション間で失われかけたものを引き取った。以下は実測で、着手時にそのまま使える。
+以下は実測で、着手時にそのまま使える。
 
 ### 実行順序に制約がある
 
@@ -48,7 +48,7 @@ command の description へ移すか、落とすかを決める必要がある�
 ### 上流 main は無保護だが PR 経由で進める
 
 classic の branch protection API が 404、ruleset も空であることを、dotfiles の
-protect-main を対照に置いて確認済み。編集許可も取得済み。それでも PR 経由にする。
+protect-main を対照に置いて確認した。それでも PR 経由にする。
 
 ### 撤去で失われるものは 4 つのうち 2 つだけ
 
@@ -74,7 +74,7 @@ bare dispatch 6 箇所も正しい (commands 3 + skills 3)。ただし commands 
 `` - `subagent_type`: `red-team-agent` `` という記法なので、`subagent_type[=:" ]` のような
 文字クラスで引くと 3 箇所が落ちる。
 
-### タスク 6 は実機で決着済み
+### flat 側の後始末をどこへ置くかは実機で決着済み
 
 `apm lifecycle` は採らない。実測で次が分かっている。
 
@@ -89,6 +89,10 @@ bootstrap 単独では日常の `apm install` を取りこぼすので不十分�
 
 ## タスク
 
+- [ ] sub-skill の description が担っていた自然言語からの自動起動の移し先を決める
+      (root `SKILL.md` へ移す / command の description へ移す / 落とす)
+- [ ] `security-vulnerability-assessment` が撤去で失うものを精査する。現時点では dead で
+      実質なしと見ているが確定していない
 - [ ] 2 bundle から sub-skills を撤去する (`security-blue-red-team/skills/` の 3 個と
       `web-monkey-qa/skills/` の 1 個)。plugin.json の `"skills"` 宣言も外す。
       root `SKILL.md` は残す (verbatim コピーが `schemas/` の唯一の deploy 経路のため)
