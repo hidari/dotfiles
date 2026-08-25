@@ -5,10 +5,12 @@ binding パーサ(pure)と、方向整合 / chord 重複の検査(実ファイ�
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import pytest
 
+from config_guard import herdr_keys
 from config_guard.herdr_keys import (
     CONFIG_PATH,
     Binding,
@@ -412,6 +414,9 @@ def test_read_default_config_returns_none_without_herdr(
 def test_read_default_config_returns_none_on_nonzero_exit(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    # 待ち時間を緩める理由は次のテストのコメントを参照。こちらは timeout でも None を
+    # 返すので、緩めないと「壊れたまま緑」になり flaky であることすら見えない。
+    monkeypatch.setattr(herdr_keys, "_SUBPROCESS_TIMEOUT_SECONDS", 120)
     fake = tmp_path / "herdr"
     fake.write_text("#!/bin/sh\necho boom >&2\nexit 3\n", encoding="utf-8")
     fake.chmod(0o755)
@@ -423,6 +428,11 @@ def test_read_default_config_returns_none_on_nonzero_exit(
 def test_read_default_config_returns_stdout_on_success(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    # macOS は chmod +x した直後の実行ファイルを初回起動時に検査し、混み合うと
+    # _SUBPROCESS_TIMEOUT_SECONDS を超える (実測値は同定数の定義コメントが持つ)。実運用の
+    # herdr は検査済みなので影響を受けず、fake を作って起動するテストだけが落ちる。ここで
+    # 測りたいのは stdout の受け渡しなので、待ち時間だけを緩める。
+    monkeypatch.setattr(herdr_keys, "_SUBPROCESS_TIMEOUT_SECONDS", 120)
     fake = tmp_path / "herdr"
     fake.write_text("#!/bin/sh\nprintf '[keys]\\n# next_agent = \"\"\\n'\n", encoding="utf-8")
     fake.chmod(0o755)
@@ -432,3 +442,25 @@ def test_read_default_config_returns_stdout_on_success(
 
     assert text is not None
     assert known_action_names(text) == {"next_agent"}
+
+
+def test_read_default_config_returns_none_on_timeout(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # timeout も None へ畳むことの仕様化と、_SUBPROCESS_TIMEOUT_SECONDS が実際に
+    # subprocess へ渡っていることの pin を兼ねる。定数が渡っていなければ fake は 1 秒で
+    # 成功して stdout が返るので、この assert が落ちる。
+    #
+    # sleep を解決済みの絶対パスで呼ぶのは、PATH を tmp_path だけへ絞ると PATH 経由では
+    # 見つからないため。相対名のままだと sh が not found を出したまま次行の printf (組み込み)
+    # へ進んで即座に成功する。macOS では初回起動検査の待ちで偶然 timeout していたので緑に
+    # 見え、Linux の CI だけが落ちた。
+    sleep = shutil.which("sleep")
+    assert sleep is not None, "sleep が見つからない環境ではこのテストを構成できない"
+    monkeypatch.setattr(herdr_keys, "_SUBPROCESS_TIMEOUT_SECONDS", 0.001)
+    fake = tmp_path / "herdr"
+    fake.write_text(f"#!/bin/sh\n{sleep} 1\nprintf '[keys]\\n'\n", encoding="utf-8")
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", str(tmp_path))
+
+    assert read_default_config() is None
