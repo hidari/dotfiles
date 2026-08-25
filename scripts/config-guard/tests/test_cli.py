@@ -187,6 +187,18 @@ def test_term_without_reachable_definition_is_detected(tmp_path: Path) -> None:
     assert any(f.detail == term for f in findings)
 
 
+def test_unresolvable_related_ref_is_detected(tmp_path: Path) -> None:
+    # 関連の識別子検査が scan に配線されていること。リンクを外すと markdown_links の
+    # 検査は届かなくなるので、配線を忘れると参照を見る検査が 1 つも無い状態へ戻る
+    repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
+    write_file(repo, "docs/issues/1_a/issue.md", "# a\n\n## 関連\n\n- Issue 99\n")
+    run_git(repo, "add", "-A")
+
+    findings = scan(str(repo))
+
+    assert any(f.detail == "Issue 99" for f in findings)
+
+
 def test_main_prints_the_budget_summary(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     # 問題が無いときも出す。移設の効果は「赤くならなかった」では見えない
     repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
@@ -194,3 +206,17 @@ def test_main_prints_the_budget_summary(tmp_path: Path, capsys: pytest.CaptureFi
     main([str(repo)])
 
     assert "常時" in capsys.readouterr().out
+
+
+def test_main_prints_the_related_refs_summary(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # 走査した節と抽出した識別子の数を出す。0 件で緑になる経路と、そもそも見ていないから
+    # 0 件の経路は、どちらも「問題は検出されませんでした」で区別が付かない
+    repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
+    write_file(repo, "docs/issues/1_a/issue.md", "# a\n\n## 関連\n\n- Issue 1\n")
+    run_git(repo, "add", "-A")
+
+    main([str(repo)])
+
+    assert "識別子 1 件" in capsys.readouterr().out

@@ -36,6 +36,7 @@
     "deny": [
       "Bash(npx:*)",
       "Bash(npm:*)",
+      "Bash(gh issue *)",
       "Bash(pkill:*)"
     ],
     "ask": [

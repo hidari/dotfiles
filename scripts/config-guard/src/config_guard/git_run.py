@@ -60,3 +60,15 @@ def run_git_checked(repo_root: str, *args: str) -> str:
     if proc.returncode != 0:
         raise RuntimeError(f"git {args[0]} が失敗しました (exit {proc.returncode})")
     return proc.stdout
+
+
+def tracked_files(repo_root: str, pathspec: str) -> list[str]:
+    """`git ls-files -z <pathspec>` の結果を repo 相対パスのリストで返す。
+
+    NUL 区切りで受けて件数を落とさない作法は「パースが静かに欠ける」経路として CLAUDE.md が
+    名指ししており、手当ての canonical は references/observation.md が持つ。分割の実装を
+    ここへ 1 つだけ置くのは、モジュールごとに書くと片方だけが改行区切りへ戻っても
+    両方緑のまま通るため。
+    """
+    stdout = run_git_checked(repo_root, "ls-files", "-z", pathspec)
+    return [path for path in stdout.split("\0") if path]

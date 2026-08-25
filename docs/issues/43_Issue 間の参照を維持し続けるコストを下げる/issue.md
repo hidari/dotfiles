@@ -75,20 +75,23 @@ ISSUE-24 の実測から、こちらの裁定を支える材料が 1 つ出た�
 - [x] 3 案を、リネーム耐性 / 導線 / 採番スクリプトへの影響で比較する (結果は `43-spec.md`)
 - [x] 上流 ISSUE-24 の実測と突き合わせ、結論が両立するか確かめる (両立した)
 - [x] 記法移行 (旧記法のディレクトリ全件) をこの後に行うかを決める。行わない (理由は `43-spec.md`)
-- [ ] 識別子の実在検査を実装する。走査した節の数と抽出した識別子の数を出力し、陽性対照を
-      テストに置く
-- [ ] baseline を作って検査を取り付ける。既存のリンクは一括変換しない
-- [ ] 検査の取り付け自体を pin する (`test_precommit_wiring.py` の形)
+- [x] 識別子の実在検査を実装する。走査した節の数と抽出した識別子の数を出力し、陽性対照を
+      テストに置く (config-guard の `related_refs`)
+- [x] baseline を作って検査を取り付ける。既存のリンクは一括変換しない
+- [x] 検査の取り付け自体を pin する (`test_precommit_wiring.py` の形)。`scan()` への配線は
+      `test_cli.py` が、hook の無条件発火は `test_precommit_wiring.py` が持つ
 - [ ] 決定を上流 ISSUE-24 へ持ち込む。新規 Issue は立てず追記を既定とする
 - [ ] baseline を減らす。Issue を触ったついでに 1 件ずつ
 
 ## 関連
 
-- [Issue #17: Issue ディレクトリ配下の成果物ファイル名を config-guard で検査する](../17_Issue%20ディレクトリ配下の成果物ファイル名を%20config-guard%20で検査する/issue.md)。
+- Issue 17: Issue ディレクトリ配下の成果物ファイル名を config-guard で検査する。
   ディレクトリ名の規約を機械検査する側。案 2 を採ると検査対象が変わる
-- [Issue #18: closed 配下の Issue の status を config-guard で検査する](../18_closed%20配下の%20Issue%20の%20status%20を%20config-guard%20で検査する/issue.md)。
-  #17 と 1 本にまとめる候補で、同じくディレクトリ構造に依存する
-- 上流 agentic-coding-tools の ISSUE-24 (Issue 間の相対リンクの書式が 3 通り混在している) と
-  ISSUE-22 (skill のグローバル配布で他リポジトリの Issue 記法が混在する)
+- Issue 18: closed 配下の Issue の status を config-guard で検査する。
+  Issue 17 と 1 本にまとめる候補で、同じくディレクトリ構造に依存する
+- agentic-coding-tools の ISSUE-24: Issue 間の相対リンクの書式が 3 通り混在している。
+  この Issue の裁定を持ち込む先
+- agentic-coding-tools の ISSUE-22: skill のグローバル配布で他リポジトリの Issue 記法が
+  混在する。rename しない判断を持つ
 - ISSUE-46: 両リポジトリの Issue をマイルストーンへ整理し着手順を決める。この Issue が
   そこで言う M1 の本体

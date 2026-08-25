@@ -16,20 +16,36 @@ open / closed 状態に依存するためで、close する側とは別のファ
 (fail-open)。閉じないまま EOF に達したフェンスは以降の行を黙って skip する (こちらは
 誤検出ではなく検出漏れ側)。構造的な取りこぼしのクラスを踏んだときは、regex の逐次強化
 (別の取りこぼしと引き換えになりやすい) ではなく extract_link_targets の中身を
-CommonMark トークナイザへ差し替える。抽出はこの関数 1 つに隔離してある。
+CommonMark トークナイザへ差し替える。
+
+リンク記法の regex はこのモジュールが canonical で、隣が import して使う。2 本あるのは
+向きが違うため。LINK_PATTERN はターゲットを取り出す側で、リンクテキストの形を問わず
+広く拾う (取りこぼすと検査が素通りするので広い方へ倒す)。strip_inline_links はリンクを
+丸ごと落とす側で、こちらは落としすぎない形にしてある (落としすぎると本文が消える)。
+2 本を 1 本へ寄せると、どちらかがもう片方の失敗方向を引き受けることになる。
 """
 
 from __future__ import annotations
 
 import re
 import urllib.parse
+from collections.abc import Iterator
 from pathlib import Path
 
-from config_guard.git_run import run_git_checked
+from config_guard.git_run import tracked_files
 from config_guard.models import Finding
 
-# インラインリンクのターゲット部分。画像記法 ![alt](target) も同じ形なので拾える
+# 追跡下の Markdown を引く pathspec。git のパススペックは既定で * が / も跨ぐ
+MARKDOWN_GLOB = "*.md"
+
+# インラインリンクのターゲット部分。画像記法 ![alt](target) も同じ形なので拾える。
+# リンクテキストの形を問わないので `[a[b]](x)` のような入れ子も拾う
 LINK_PATTERN = re.compile(r"\]\(([^)]+)\)")
+
+# リンクを丸ごと落とすための形。LINK_PATTERN と違いテキスト部の形を要求するので、
+# 入れ子の角括弧を持つリンクは落とし残す。落とし残しても本文にリンクが残るだけで、
+# 呼び出し側は「リンクの中の語を本文の語として読む」= 報告が増える側へ倒れる
+_INLINE_LINK = re.compile(r"!?\[[^\]]*\]\([^)]+\)")
 
 # URL スキーム。既知スキームの列挙ではなく RFC 3986 の文法で判定する。列挙だと
 # 未知のスキーム (vscode: 等) が相対パス扱いになり、踏むたびにソース編集が要る
@@ -72,6 +88,15 @@ def extract_link_targets(text: str) -> list[str]:
     return targets
 
 
+def strip_inline_links(line: str) -> str:
+    """行からインラインリンクを丸ごと落とす。
+
+    リンクの中の語を本文の語として読ませたくない呼び出し側のためのもの。落とし残しの
+    向きは `_INLINE_LINK` のコメントが持つ。
+    """
+    return _INLINE_LINK.sub("", line)
+
+
 def link_path_to_check(target: str) -> str | None:
     """検査すべきパス部分を URL デコードして返す。検査不要なら None を返す。"""
     if EXTERNAL_SCHEME.match(target):
@@ -87,30 +112,33 @@ def link_path_to_check(target: str) -> str | None:
     return urllib.parse.unquote(path_part)
 
 
-def _tracked_markdown_files(repo_root: str) -> list[str]:
-    """追跡下の .md を repo 相対パスで列挙する。
+def read_tracked_texts(repo_root: str, paths: list[str]) -> Iterator[tuple[str, str]]:
+    """追跡パスの本文を (repo 相対パス, 本文) で返す。削除途中のファイルは飛ばす。
 
-    git エラー (128 = git repo でない等) を「対象なし」と誤解して検査を素通りさせない
-    (「リンクが無い」との取り違え防止) は run_git_checked の RuntimeError が担う。
+    git ls-files は index を列挙するが read は worktree を見る。追跡下の .md を rm した
+    だけの状態 (commit 前の削除途中) では index にあって worktree に無く、読むと
+    FileNotFoundError で落ちる。削除途中のファイル自身は検査対象として意味を持たないので
+    skip する。そのファイルへ向かう他ファイルのリンク切れは、実在判定が worktree を見る
+    ため通常どおり検出される。
+
+    パス一覧を引数で受けるのは、呼び出し側が同じ一覧を別の用途にも使うため。ここで
+    引き直すと 1 回の検査で git ls-files が複数回走る。
     """
-    stdout = run_git_checked(repo_root, "ls-files", "-z", "*.md")
-    return [path for path in stdout.split("\0") if path]
+    root = Path(repo_root).resolve()
+    for rel in paths:
+        source = root / rel
+        if not source.is_file():
+            continue
+        yield rel, source.read_text(encoding="utf-8")
 
 
 def check_markdown_links(repo_root: str) -> list[Finding]:
     """追跡下の Markdown の相対リンクが実在するか検査する。"""
     root = Path(repo_root).resolve()
     findings: list[Finding] = []
-    for rel in _tracked_markdown_files(repo_root):
+    for rel, text in read_tracked_texts(repo_root, tracked_files(repo_root, MARKDOWN_GLOB)):
         source = root / rel
-        # git ls-files は index を列挙するが read は worktree を見る。追跡下の .md を
-        # rm しただけの状態 (commit 前の削除途中) では index にあって worktree に無く、
-        # 読むと FileNotFoundError で落ちる。削除途中のファイル自身のリンクは検査対象と
-        # して意味を持たないので skip する。そのファイルへ向かう他ファイルのリンク切れは
-        # 下の実在判定が worktree を見るため通常どおり検出される
-        if not source.is_file():
-            continue
-        for target in extract_link_targets(source.read_text(encoding="utf-8")):
+        for target in extract_link_targets(text):
             path_part = link_path_to_check(target)
             if path_part is None:
                 continue
