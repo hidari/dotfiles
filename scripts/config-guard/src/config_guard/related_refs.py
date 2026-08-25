@@ -38,6 +38,9 @@ Issue をクローズすると `docs/issues/closed/` へ移り、パスの深さ
   誤検出になる
 - リンクの中の識別子は読まない。リンク自体を下の形式検査と `markdown_links` が見るのと、
   角括弧が `PR ` の直前判定を壊すため (`- relay PR [#588](...)` が実在する)
+- 前置は同じ行のそれより後ろに在る識別子すべてに効く。他リポ前置の後ろへ自リポの識別子を
+  書くと実在検査を素通りする。識別子ごとに前置を必須にする案を採らなかった理由は
+  Issue 43 の spec が持つ (書き忘れの結果が誤解決の側へ倒れるため)
 """
 
 from __future__ import annotations
@@ -46,12 +49,18 @@ import re
 from collections.abc import Iterator
 from pathlib import Path
 
-from config_guard.git_run import run_git_checked
+from config_guard.git_run import tracked_files
 from config_guard.instruction_refs import prose_lines
-from config_guard.markdown_links import link_path_to_check
+from config_guard.markdown_links import (
+    LINK_PATTERN,
+    link_path_to_check,
+    read_tracked_texts,
+    strip_inline_links,
+)
 from config_guard.models import Finding
 
 ISSUE_ROOT = "docs/issues"
+ISSUE_MARKDOWN_GLOB = f"{ISSUE_ROOT}/*.md"
 CLOSED_DIR = "closed"
 RELATED_HEADING = "## 関連"
 
@@ -68,12 +77,12 @@ _ISSUE_DIR = re.compile(r"^(?:ISSUE-)?([0-9]+)_")
 _HEADING = re.compile(r"^(#{1,6})\s")
 
 # `<repo> 側:` の形。配下の識別子が前置を失う形なので、見出しそのものを報告する。
+# リポジトリ名が既知かどうかは条件に入れない。未知の名前で括られた見出しこそ配下が
+# 自リポジトリで解決される側なので、既知に限ると危ない方だけが報告されなくなる。
 # 全角コロンはコードポイントで書く。字面で置くと半角と見分けが付かず、片方を落とす
 # 変更が目視レビューを通り抜ける (落ちた側は違反 0 件の緑になるので出力にも出ない)
-_SCOPE_HEADING = re.compile(r"^(?P<repo>\S+)\s*側[:\uff1a]\s*$")
+_SCOPE_HEADING = re.compile(r"^\S+\s*側[:\uff1a]\s*$")
 
-# インラインリンク全体。画像記法も同じ形なので拾える
-_FULL_LINK = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
 
 # 使われている 4 つの記法をまとめて受ける。`Issue #N` は `#` の枝が
 # 前置ごと消費するので、1 つの出現が 2 回数えられることはない。
@@ -85,10 +94,13 @@ _IDENTIFIER = re.compile(r"(?:\bISSUE-|(?:\bIssue\s+)?(?<![0-9A-Za-z&])#|\bIssue
 # issue-id.py (GITHUB_REF_ALLOWED_PREFIX と CROSS_REPO_REF)
 _GITHUB_QUALIFIER = re.compile(r"(?:\bPR|[0-9A-Za-z._-]+/[0-9A-Za-z._-]+)\s*$")
 
-# `## 関連` 節に残っているローカルリンクの本数。単調非増加で運用する。
-# 既存のリンクは一括変換しない (リンクテキストがディレクトリ名と一致していない実例が
-# 上流 ISSUE-24 の実測にあり、機械変換すると不一致を識別子側へ持ち込む)。
+# `## 関連` 節に残っているローカルリンクの本数。既存のリンクは一括変換しない
+# (リンクテキストがディレクトリ名と一致していない実例が上流 ISSUE-24 の実測にあり、
+# 機械変換すると不一致を識別子側へ持ち込む)。
 # リンクを外したらここも減らす。減らし忘れは「baseline が実態と合っていない」で報告される。
+# 増やす側は今のところ機械が止めない。同じコミットでリンクを 1 本足してここを 1 増やすと
+# 実態と一致するので緑で通る (main と突き合わせるラチェットが無い)。単調非増加は
+# レビューが守る約束であって検査が守っている状態ではない。埋めるのは Issue 47。
 _LINK_BASELINE_ENTRIES: dict[str, int] = {
     "11_2 つのランチャの重複をどこまで共通化するか決める/issue.md": 1,
     "12_プロジェクト名の導出が .zshrc と statusline で二重実装されている/issue.md": 1,
@@ -138,7 +150,11 @@ def issue_number_of(directory_name: str) -> str | None:
 
 
 def related_lines(text: str) -> list[str]:
-    """`## 関連` 節の本文行を返す。見出し行とフェンス内は含まない。"""
+    """`## 関連` 節の本文行を返す。見出し行・フェンス内・空行は含まない。
+
+    空行を落とすのは、行の位置を使う呼び出し側が 1 つも無いため。返すと呼び出しごとに
+    落とし直すことになり、落とし忘れた側だけが空行を数える。
+    """
     lines: list[str] = []
     inside = False
     for line in prose_lines(text):
@@ -147,7 +163,7 @@ def related_lines(text: str) -> list[str]:
             if len(heading.group(1)) <= 2:
                 inside = line.strip() == RELATED_HEADING
             continue
-        if inside:
+        if inside and line.strip():
             lines.append(line)
     return lines
 
@@ -155,9 +171,10 @@ def related_lines(text: str) -> list[str]:
 def local_link_targets(line: str) -> list[str]:
     """行に含まれるローカルリンクのターゲットを返す。外部 URL とアンカーは除く。
 
-    ローカルかどうかの判定は `markdown_links` が canonical を持つ。
+    リンク記法もローカル判定も `markdown_links` が canonical を持つ。数える側は
+    取りこぼすと検査が素通りするので、リンクテキストの形を問わない広い方を使う。
     """
-    return [target for target in _FULL_LINK.findall(line) if link_path_to_check(target)]
+    return [target for target in LINK_PATTERN.findall(line) if link_path_to_check(target)]
 
 
 def identifier_matches(line: str) -> list[tuple[str, str]]:
@@ -167,7 +184,7 @@ def identifier_matches(line: str) -> list[tuple[str, str]]:
     除く。除外はいずれも識別子より前のテキストだけを見るので、同じ行の後続の識別子は
     通常どおり読まれる。
     """
-    body = _FULL_LINK.sub("", line)
+    body = strip_inline_links(line)
     found: list[tuple[str, str]] = []
     for match in _IDENTIFIER.finditer(body):
         before = body[: match.start()]
@@ -179,46 +196,67 @@ def identifier_matches(line: str) -> list[tuple[str, str]]:
     return found
 
 
-def self_identifiers(line: str) -> list[str]:
-    """行が指す自リポジトリの Issue 番号を返す。"""
-    return [number for _, number in identifier_matches(line)]
+def tracked_issue_markdown(repo_root: str) -> list[str]:
+    """追跡下の Issue ドキュメントを repo 相対パスで返す。"""
+    return tracked_files(repo_root, ISSUE_MARKDOWN_GLOB)
 
 
-def _tracked_issue_markdown(repo_root: str) -> list[str]:
-    """追跡下の `docs/issues/**/*.md` を repo 相対パスで返す。"""
-    stdout = run_git_checked(repo_root, "ls-files", "-z", f"{ISSUE_ROOT}/*.md")
-    return [path for path in stdout.split("\0") if path]
+def issue_numbers(paths: list[str]) -> set[str]:
+    """Issue ドキュメントのパス一覧から、実在する Issue 番号の集合を返す。
 
-
-def issue_numbers(repo_root: str) -> dict[str, str]:
-    """自リポジトリに実在する Issue を {番号: ディレクトリ名} で返す。"""
-    numbers: dict[str, str] = {}
-    for rel in _tracked_issue_markdown(repo_root):
-        rest = Path(rel).parts[2:]
+    パス一覧を引数で受けるのは、呼び出し側が同じ一覧を節の走査にも使うため。ここで
+    引き直すと 1 回の検査で git ls-files が何度も走る。
+    """
+    numbers: set[str] = set()
+    for rel in paths:
+        # `closed/` の 1 段だけ剥がす。その先は剥がさない (Issue ディレクトリの下に
+        # notes/ のようにもう 1 段持つ実例がある)
+        rest = Path(rel).relative_to(ISSUE_ROOT).parts
         if rest and rest[0] == CLOSED_DIR:
             rest = rest[1:]
         if not rest:
             continue
         number = issue_number_of(rest[0])
         if number is not None:
-            numbers[number] = rest[0]
+            numbers.add(number)
     return numbers
 
 
-def _sections(repo_root: str) -> Iterator[tuple[str, list[str]]]:
-    """追跡下の Issue ドキュメントの `## 関連` 節を (repo 相対パス, 本文行) で返す。
-
-    index にあって worktree に無いファイル (削除途中) は飛ばす。理由は
-    `markdown_links.check_markdown_links` と同じ。
-    """
-    root = Path(repo_root).resolve()
-    for rel in _tracked_issue_markdown(repo_root):
-        source = root / rel
-        if not source.is_file():
-            continue
-        lines = related_lines(source.read_text(encoding="utf-8"))
-        if any(line.strip() for line in lines):
+def _sections(repo_root: str, paths: list[str]) -> Iterator[tuple[str, list[str]]]:
+    """Issue ドキュメントの `## 関連` 節を (repo 相対パス, 本文行) で返す。"""
+    for rel, text in read_tracked_texts(repo_root, paths):
+        lines = related_lines(text)
+        if lines:
             yield rel, lines
+
+
+def _section_refs(lines: list[str]) -> tuple[list[str], list[tuple[str, str]], int]:
+    """節を 1 度だけ走り (括りの見出し, 識別子, ローカルリンク本数) を返す。
+
+    検査とサマリが別々に走ると、片方だけを直したときに出力と Finding が食い違う。
+    """
+    headings: list[str] = []
+    identifiers: list[tuple[str, str]] = []
+    links = 0
+    for line in lines:
+        if _SCOPE_HEADING.match(line.strip()):
+            headings.append(line.strip())
+            continue
+        links += len(local_link_targets(line))
+        identifiers.extend(identifier_matches(line))
+    return headings, identifiers, links
+
+
+_SCOPE_MESSAGE = (
+    "リポジトリ名でまとめて括る見出しは、配下の識別子が前置を失う。行単位の走査から"
+    "見出しは見えないので、番号が自リポジトリにも在ると別の Issue へ静かに解決される。"
+    "見出しをやめ、識別子ごとに同じ行へ前置すること"
+)
+
+_MISSING_MESSAGE = (
+    "この識別子に対応する Issue が docs/issues に無い。参照先が消えたか綴りが違う。"
+    f"他リポジトリを指すならリポジトリ名を前置すること (既知: {', '.join(FOREIGN_REPOS)})"
+)
 
 
 def check_related_refs(
@@ -231,40 +269,22 @@ def check_related_refs(
     1 件も無いときは baseline の突き合わせも行わない (全件を「消えた」と報告してしまうため)。
     """
     allowed_links = LINK_BASELINE if baseline is None else baseline
-    if not _tracked_issue_markdown(repo_root):
+    tracked = tracked_issue_markdown(repo_root)
+    if not tracked:
         return []
 
-    numbers = issue_numbers(repo_root)
+    numbers = issue_numbers(tracked)
     findings: list[Finding] = []
     links_by_file: dict[str, int] = {}
 
-    for rel, lines in _sections(repo_root):
-        links = 0
-        for line in lines:
-            scope = _SCOPE_HEADING.match(line.strip())
-            if scope is not None and scope.group("repo") in FOREIGN_REPOS:
-                findings.append(
-                    Finding(
-                        rel,
-                        line.strip(),
-                        "他リポジトリをまとめて括る見出しは、配下の識別子が前置を失う。"
-                        "行単位の走査から見出しは見えないので、番号が自リポジトリにも"
-                        "在ると別の Issue へ静かに解決される。識別子ごとに前置すること",
-                    )
-                )
-                continue
-            links += len(local_link_targets(line))
-            for written, number in identifier_matches(line):
-                if number not in numbers:
-                    findings.append(
-                        Finding(
-                            rel,
-                            written,
-                            "この識別子に対応する Issue が docs/issues に無い。"
-                            "参照先が消えたか綴りが違う。他リポジトリを指すなら"
-                            f"リポジトリ名を前置すること (既知: {', '.join(FOREIGN_REPOS)})",
-                        )
-                    )
+    for rel, lines in _sections(repo_root, tracked):
+        headings, identifiers, links = _section_refs(lines)
+        findings.extend(Finding(rel, heading, _SCOPE_MESSAGE) for heading in headings)
+        findings.extend(
+            Finding(rel, written, _MISSING_MESSAGE)
+            for written, number in identifiers
+            if number not in numbers
+        )
         links_by_file[rel] = links
 
     findings.extend(_check_link_baseline(links_by_file, allowed_links))
@@ -319,9 +339,9 @@ def related_refs_summary(repo_root: str) -> str:
     0 件で緑になる経路と、そもそも見ていないから 0 件の経路を区別できるようにする。
     """
     sections = identifiers = links = 0
-    for _, lines in _sections(repo_root):
+    for _, lines in _sections(repo_root, tracked_issue_markdown(repo_root)):
         sections += 1
-        for line in lines:
-            identifiers += len(self_identifiers(line))
-            links += len(local_link_targets(line))
+        _, found, count = _section_refs(lines)
+        identifiers += len(found)
+        links += count
     return f"関連 {sections} 節 / 識別子 {identifiers} 件 / 残リンク {links} 件"
