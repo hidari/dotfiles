@@ -7,7 +7,8 @@ root の検出) / mise の global ツール pin が exact か / apm.yml の依�
 Markdown の相対リンクが実在するか / 常時ロードされる指示ファイルの総バイト数が予算内か /
 その予算そのものが main から無音で上がっていないか / rules の paths 宣言が pin と
 一致するか / 指示ファイルどうしの参照 (パスと見出し) が実在するか / rules が定義する語が
-定義の届かない層で使われていないかを検査する。
+定義の届かない層で使われていないか / Issue の `## 関連` 節がリンクを持たず識別子だけで書かれ
+その識別子が実在するかを検査する。
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ from config_guard.instruction_refs import check_instruction_refs
 from config_guard.markdown_links import check_markdown_links
 from config_guard.mise_pins import check_mise_pins
 from config_guard.models import Finding
+from config_guard.related_refs import check_related_refs, related_refs_summary
 from config_guard.rules_paths import check_rules_paths
 from config_guard.settings_invariants import check_settings_invariants
 from config_guard.term_definitions import check_term_definitions
@@ -101,6 +103,10 @@ def scan(repo_root: str) -> list[Finding]:
     # 常時層へ残す形で壊れ、参照検査からも予算検査からも見えない
     findings.extend(check_term_definitions(str(root)))
 
+    # Issue の `## 関連` 節がリンクを持たず、識別子が実在するか。リンクを外すと
+    # markdown_links の検査は届かなくなるので、識別子を見る側をここで足す
+    findings.extend(check_related_refs(str(root)))
+
     return findings
 
 
@@ -110,6 +116,9 @@ def main(argv: list[str] | None = None) -> int:
     # 問題の有無に関わらず出す。移設で常時層が減ったことは「赤くならなかった」では
     # 見えず、scoped 層を併記しないと移設が「消えた」ように見えるメトリクスになる
     print(f"config-guard: {budget_summary(repo_root)}")
+    # 同じ理由で常に出す。識別子を 1 件も抽出できていない状態と、抽出したうえで
+    # 全件が実在する状態は、どちらも「問題は検出されませんでした」になる
+    print(f"config-guard: {related_refs_summary(repo_root)}")
     findings = scan(repo_root)
     if not findings:
         print("config-guard: 問題は検出されませんでした")

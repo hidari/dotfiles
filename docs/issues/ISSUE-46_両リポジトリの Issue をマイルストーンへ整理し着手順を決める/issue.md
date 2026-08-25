@@ -132,9 +132,9 @@ git hook / CI から呼ぶ」という土俵そのものを疑うところから
 
 ## 関連
 
-参照は識別子だけで書く。この Issue 自身が M1 の裁定内容の先行実装にあたる。
-
-dotfiles 側:
+参照は識別子だけで書く。他リポジトリを指すときはリポジトリ名を前置し、前置を行をまたいで
+共有しない。1 行ずつ独立に解決できる形にしておくと、行を動かしても指す先が変わらない。
+この Issue 自身が M1 の裁定内容の先行実装にあたる。
 
 - Issue 43: Issue 間の参照を維持し続けるコストを下げる。M1 の本体。3 案の評価結果を
   この Issue が持つので、着手時に突き合わせること
@@ -145,14 +145,13 @@ dotfiles 側:
 - Issue 21 と Issue 29: M4 の dotfiles 側
 - Issue 26: フック共通基盤。唯一の in_progress
 - Issue 31: stale な参照を持つ
-
-agentic-coding-tools 側:
-
-- ISSUE-22: 記法混在の追跡。rename しない判断と、取り付けコスト見積もりの残タスクを持つ
-- ISSUE-24: Issue 間の相対リンクの書式。M1 の裁定を持ち込む先
-- ISSUE-27: sub-skills の撤去。M3 の上流側で、起票済み・実装前で中断している
-- ISSUE-15: PUBLIC 露出の scrub。M4 の上流側
-- ISSUE-23: 露出スイープの保留分。ISSUE-15 の後続
-- ISSUE-16: 配布先での偽陽性。「配る前に完了させる」というゲート宣言を持つが、配布は
-  既に完了しているためゲートとして機能していない
-- ISSUE-12 と ISSUE-13: 検査自身の検査と、両取り付けの同時撤去の検出
+- agentic-coding-tools の ISSUE-22: 記法混在の追跡。rename しない判断と、取り付けコストの
+  見積もりの残タスクを持つ
+- agentic-coding-tools の ISSUE-24: Issue 間の相対リンクの書式。M1 の裁定を持ち込む先
+- agentic-coding-tools の ISSUE-27: sub-skills の撤去。M3 の上流側で、起票済み・実装前で
+  中断している
+- agentic-coding-tools の ISSUE-15: PUBLIC 露出の scrub。M4 の上流側
+- agentic-coding-tools の ISSUE-23: 露出スイープの保留分。ISSUE-15 の後続
+- agentic-coding-tools の ISSUE-16: 配布先での偽陽性。「配る前に完了させる」というゲート
+  宣言を持つが、配布は既に完了しているためゲートとして機能していない
+- agentic-coding-tools の ISSUE-12 と ISSUE-13: 検査自身の検査と、両取り付けの同時撤去の検出
