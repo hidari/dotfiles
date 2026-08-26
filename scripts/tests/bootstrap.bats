@@ -1565,6 +1565,24 @@ load_prune_arrays() {
     [ -L "$TEST_HOME/.config/gone" ]
 }
 
+@test "prune_stale_symlinks: is not skipped when only the shared projects entity exists" {
+    load_prune_arrays
+    # 共有実体は .claude- 名前空間の内側に住むが設定ディレクトリではない。
+    # ディスクを見る glob から除外しないと、setup_dotfiles が自分で作った実体を
+    # 「追加の設定ディレクトリ」と誤認し、以後すべての実行で撤去が止まる。
+    # 行の文法の予約 (claude_config_dir_line_kind) は別レイヤーなので塞がらない。
+    # 上の skip テストの対照 (正常なら撤去が走る側)
+    mkdir -p "$TEST_HOME/.claude-shared/projects" "$TEST_HOME/.config"
+    ln -s "$DOTFILES_DIR/home/.config/gone" "$TEST_HOME/.config/gone"
+
+    run prune_stale_symlinks
+
+    [ "$status" -eq 0 ]
+    refute_contains "$output" "claude-config-dirs"
+    [ ! -L "$TEST_HOME/.config/gone" ]
+    [ -L "$BACKUP_DIR/.config/gone" ]
+}
+
 @test "prune_stale_symlinks: dry-run previews the backup without removing" {
     load_prune_arrays
     mkdir -p "$TEST_HOME/.config"

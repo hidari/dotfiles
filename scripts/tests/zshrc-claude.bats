@@ -511,6 +511,21 @@ setup_extra_account() {
     [ -z "$output" ]
 }
 
+@test "_claude_define_launchers: stays silent when only the shared projects entity exists" {
+    # 共有実体は .claude- 名前空間の内側に住むが設定ディレクトリではない。
+    # ディスクを見る glob から除外しないと、bootstrap が自分で作った実体を
+    # 「追加の設定ディレクトリ」と誤認して毎シェル起動で警告が出る。
+    # 行の文法の予約は別レイヤーなので、こちらは塞がらない
+    mkdir -p "$TEST_HOME/.claude-shared/projects"
+    load_zshrc_claude_functions
+
+    run --separate-stderr _claude_define_launchers
+
+    [ "$status" -eq 0 ]
+    [ -z "$stderr" ]
+    [ -z "$output" ]
+}
+
 @test "_claude_define_launchers: agrees with bootstrap.sh on where the config dir list lives" {
     # 同じパスを 2 ファイルに書かざるを得ない (プロセスが別で共有できない) ため、
     # 値そのものを突き合わせて drift を検出する。片方だけ変えると赤くなる

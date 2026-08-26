@@ -320,12 +320,20 @@ function claude-dev() {
 # できない。両者が一致することはテスト (zshrc-claude.bats) が pin する。
 CLAUDE_CONFIG_DIRS_FILE="${CLAUDE_CONFIG_DIRS_FILE:-$HOME/.config/dotfiles/claude-config-dirs}"
 
+# projects の共有実体が住むディレクトリ名。設定ディレクトリではないが同じ名前空間に
+# 住むため、下の 2 箇所 (ディスクの存在検査と行の文法) で除外する必要がある。
+# 値の canonical は bootstrap.sh の同名変数で、一致は zshrc-claude.bats の parity
+# テストが pin する。
+CLAUDE_SHARED_DIR='.claude-shared'
+
 # 追加の設定ディレクトリが $HOME 直下に実在するかを調べる。グロブを裸で展開しない
 # のは、zsh の nomatch が既定で有効で不一致のときエラーになるため (bats は bash で
 # source し実シェルは zsh なので両方で成立する必要がある)。find は不一致でも exit 0
 # を返すので出力の非空で判定する。既定の .claude はパターンに一致しない。
+# 共有実体を除外しないと、bootstrap がそれを作った時点でこの検査が真になり、追加
+# アカウントを使わないマシンでも毎シェル起動で警告が出る。
 function _claude_extra_config_dir_exists() {
-  [ -n "$(find "$HOME" -maxdepth 1 -type d -name '.claude-*' -print -quit 2>/dev/null)" ]
+  [ -n "$(find "$HOME" -maxdepth 1 -type d -name '.claude-*' ! -name "$CLAUDE_SHARED_DIR" -print -quit 2>/dev/null)" ]
 }
 
 # 追加アカウントのランチャを設定ファイルから生成する。生成するのは「既定以外」
@@ -333,8 +341,7 @@ function _claude_extra_config_dir_exists() {
 # ため静的定義のまま残す (理由は claude() のコメントを参照)。
 # 1 ディレクトリにつき素のランチャ (<name>) と開発版の派生 (<name>-dev) の 2 関数を
 # 対で作る。派生は素のランチャを名前で呼ぶので、片方だけ生成すると呼び先を失う。
-# 行の検証は bootstrap.sh の claude_extra_config_dirs と同じ規約 (.claude- で始まる
-# 英数字・ハイフン・ドット・アンダースコアのみ、末尾 -dev は派生名の予約として却下)。
+# 行の検証は bootstrap.sh の claude_extra_config_dirs と同じ規約。
 # 名前空間を .claude- に閉じるのは、この行から作られるのがパスだけでなく関数名でも
 # あるため。閉じないと .git のような行から関数 git が生えて外部コマンドを shadow する。
 # 生成器は静的定義より後で走るので、衝突した名前は常に生成側が後勝ちする。
@@ -359,12 +366,10 @@ function _claude_define_launchers() {
     case "$line" in
       '' | '#'* | '.claude') continue ;;
     esac
-    # .claude-shared は設定ディレクトリではなく projects の共有実体の置き場。
-    # 名前空間の内側に住むので、予約しないと設定ディレクトリとして書けてしまう
-    # (bootstrap 側では自分自身を指す symlink になる)。値の canonical は
-    # bootstrap.sh の CLAUDE_SHARED_DIR で、一致は parity テストが pin する。
+    # 共有実体の置き場は設定ディレクトリではないので却下する。理由と値の canonical は
+    # bootstrap.sh の CLAUDE_SHARED_DIR。
     if [ "$line" != "${line%-dev}" ] \
-      || [ "$line" = '.claude-shared' ] \
+      || [ "$line" = "$CLAUDE_SHARED_DIR" ] \
       || ! printf '%s' "$line" | grep -Eq '^\.claude-[A-Za-z0-9._-]+$'; then
       echo "設定ディレクトリ名として受け付けられない行を無視します: $line" >&2
       continue

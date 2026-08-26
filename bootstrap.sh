@@ -462,6 +462,8 @@ CLAUDE_CONFIG_DIRS_FILE="${CLAUDE_CONFIG_DIRS_FILE:-$HOME/.config/dotfiles/claud
 # アカウントを畳んだときに他方が道連れになる)。
 # この名前は追跡下に書いてよい。外部化しているのはアカウント名であって、共有実体の
 # 名前はアカウントを示さない。
+# ただし設定ディレクトリの名前空間の内側に住むので、行の文法からは予約する
+# (受理すると source と target が同じ場所になり、自分自身を指す symlink を張りにいく)。
 CLAUDE_SHARED_DIR='.claude-shared'
 
 # 設定ファイルの 1 行を分類する。0 = 有効、1 = 無視 (空行・コメント・既定ディレクトリ)、
@@ -818,9 +820,13 @@ prune_stale_symlinks() {
     # それでも撤去そのものを止めるのは、設定を読めていない状態で「今の集合が正しい」
     # 前提の掃除を続けないため。走査の導出が将来変わったときの第 2 層でもある。
     # 存在検査はグロブを裸で展開せず find で行う (.zshrc の同じ検査と規約を揃える。
-    # zsh は nomatch が既定で有効なため不一致の裸グロブがエラーになる)
+    # zsh は nomatch が既定で有効なため不一致の裸グロブがエラーになる)。
+    # 共有実体は同じ名前空間に住むが設定ディレクトリではないので除外する。除外しないと
+    # setup_dotfiles が自分で作った実体をここが誤認し、以後すべての実行で撤去が止まる。
+    # 行の文法の予約 (claude_config_dir_line_kind) はこの glob には効かない。答える問いが
+    # 「書いてよい名前か」と「ディスクに何があるか」で違うレイヤーだからである
     if [ ! -f "$CLAUDE_CONFIG_DIRS_FILE" ] \
-        && [ -n "$(find "$HOME" -maxdepth 1 -type d -name '.claude-*' -print -quit 2> /dev/null)" ]; then
+        && [ -n "$(find "$HOME" -maxdepth 1 -type d -name '.claude-*' ! -name "$CLAUDE_SHARED_DIR" -print -quit 2> /dev/null)" ]; then
         warn "追加の設定ディレクトリがありますが設定ファイルが無いため stale symlink の撤去を skip します: $CLAUDE_CONFIG_DIRS_FILE"
         return 0
     fi
