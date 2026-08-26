@@ -79,6 +79,18 @@ committed 側は CI で 2 つの仕組みが守る。
 - gitleaks: secret と PII の漏洩を検出する。検出集合は `.gitleaks.toml` が正本なので README には再掲しない。
 - config-guard: 構造 curation (禁止キー・directory marketplace・dead config・不正なツール名) を検出する。
 
+### 設定ディレクトリ間で共有するもの
+
+複数の Anthropic アカウントを使い分けるため、`projects/`（メモリとセッションログ）は設定
+ディレクトリごとに持たず、中立な実体への symlink にして共有する。どのアカウントから起動しても
+同じ記憶を読む。実体の置き場と pair の生成は `bootstrap.sh` の `claude_shared_symlink_pairs`
+が正本。
+
+bootstrap は既存の `projects/` を移行しない。実体を持つ設定ディレクトリを 1 つでも見つけたら
+警告して 1 件も張らずに抜ける。稼働中のセッションが開いているディレクトリを移すと、その
+ファイル記述子は移動先を指したまま書き続けてログが分岐するため、統合は内容を見ながらの
+手作業に限る。
+
 ## tirith によるコマンドセキュリティ
 
 `tirith`（URL/コマンドセキュリティ CLI, mise 管理）で実行前チェックを二層に張る。

@@ -570,6 +570,8 @@ setup_extra_account() {
         '' '# comment'
         '..' '../escape' 'noleadingdot' '.git' '.claudex' '.claude.dot'
         '.claude;rm -rf /' '.claude-with space' '.claude-x-dev'
+        # 共有実体の置き場。設定ディレクトリではないので両側とも却下する
+        '.claude-shared'
     )
     write_config_dirs_file "${probe[@]}"
 

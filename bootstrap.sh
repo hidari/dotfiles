@@ -454,6 +454,16 @@ install_apm_packages() {
 # テストの load_bootstrap_functions がマーカー間だけを切り出して source するため。
 CLAUDE_CONFIG_DIRS_FILE="${CLAUDE_CONFIG_DIRS_FILE:-$HOME/.config/dotfiles/claude-config-dirs}"
 
+# 設定ディレクトリ間で共有する projects の実体が住むディレクトリ ($HOME 直下)。
+# メモリとセッションログはアカウントではなく作業に紐づくので、どの設定ディレクトリ
+# から起動しても同じ実体を読み書きさせる。
+# 実体を既定側 (.claude) ではなく中立な場所へ置くのは tasks との意図的な差で、
+# アカウントが増減しても実体の置き場が動かないようにするため (片側へ置くと、その
+# アカウントを畳んだときに他方が道連れになる)。
+# この名前は追跡下に書いてよい。外部化しているのはアカウント名であって、共有実体の
+# 名前はアカウントを示さない。
+CLAUDE_SHARED_DIR='.claude-shared'
+
 # 設定ファイルの 1 行を分類する。0 = 有効、1 = 無視 (空行・コメント・既定ディレクトリ)、
 # 2 = 却下 (文法違反)。行を吐く側と警告する側が同じ述語を使うことで、文法が二重管理に
 # ならない。文法の canonical はここ 1 箇所で、home/.zshrc 側との一致は
@@ -464,6 +474,7 @@ claude_config_dir_line_kind() {
         '' | '#'* | '.claude') return 1 ;;
     esac
     if [ "$1" != "${1%-dev}" ] \
+        || [ "$1" = "$CLAUDE_SHARED_DIR" ] \
         || ! printf '%s' "$1" | grep -Eq '^\.claude-[A-Za-z0-9._-]+$'; then
         return 2
     fi
@@ -564,6 +575,22 @@ claude_home_symlink_pairs() {
     done < <(claude_extra_config_dirs)
 }
 
+# projects (メモリとセッションログ) の共有 pair を 1 行 1 件で出力する。
+# tasks の共有と分けてあるのは、実体の置き場と衝突時の作法がどちらも違うため。
+# 既定の .claude 側も target に含める。実体が中立な場所にあるので、既定側だけ
+# 実体を持つ非対称にはしない (アカウントが 1 つでも張っておけば、増えたときに
+# 既定側を移行しなくて済む)。
+# projects の粒度で張るのが要点で、配下の memory/ 単位にすると新しいプロジェクトが
+# 実体の外に生まれて静かに共有から漏れる (2026-08-27 に再現済み)。
+claude_shared_symlink_pairs() {
+    printf '%s\n' "$CLAUDE_SHARED_DIR/projects|.claude/projects"
+
+    local dir
+    while IFS= read -r dir; do
+        printf '%s\n' "$CLAUDE_SHARED_DIR/projects|$dir/projects"
+    done < <(claude_extra_config_dirs)
+}
+
 # 受け取った pair 列と、その mirror (追加の設定ディレクトリぶん、claude_mirror_pairs が
 # 導出) を 1 行 1 件で出力する。repo / apm 両カテゴリの供給規則はここが単一の持ち場で、
 # 片方だけ更新されて drift する型を生成器の中に残さない。
@@ -604,10 +631,14 @@ symlink_pairs_for() {
         home)
             claude_home_symlink_pairs
             ;;
+        shared)
+            claude_shared_symlink_pairs
+            ;;
         all)
             symlink_pairs_for repo
             symlink_pairs_for apm
             symlink_pairs_for home
+            symlink_pairs_for shared
             ;;
         *)
             error "Unknown symlink pair category: $category"
@@ -634,6 +665,52 @@ setup_home_symlinks() {
         ensure_directory "$source"
         create_symlink "$source" "$target"
     done
+}
+
+# projects の共有リンクを張る（冪等）。pair は stdin から 1 行 1 件で受け取る。
+# 引数で受けないのは、張る前に全 pair を見て可否を決める必要があるため
+# (/bin/bash 3.2 + set -u では空配列の "${arr[@]}" 展開が落ちるので配列も使わない)。
+#
+# 既存の実体には触れない。create_symlink の --force 経路は target を backup へ mv
+# するが、稼働中セッションが開いている projects を mv すると、その fd は移動先を
+# 指したまま書き続けるので新しい実体側に穴が空く (2026-08-27 の移行で 167 レコードが
+# 移動先にしか残らなかった)。統合は衝突ファイルの内容を読んで決める手作業であり、
+# bootstrap が担える種類の操作ではない。
+#
+# 1 件でも張れないときは 1 件も張らない。一部だけ共有されると、どの設定ディレクトリ
+# から起動したかで見えるメモリが変わる。共有していない状態より分かりにくい。
+setup_shared_symlinks() {
+    local pairs
+    pairs="$(cat)"
+    [ -n "$pairs" ] || return 0
+
+    local pair source target blocked=0
+    while IFS= read -r pair; do
+        source="$HOME/${pair%%|*}"
+        target="$HOME/${pair##*|}"
+
+        if [ -L "$target" ]; then
+            if [ "$(readlink "$target")" != "$source" ]; then
+                warn "別の場所を指すリンクがあるため projects の共有を skip します: $target"
+                blocked=1
+            fi
+            continue
+        fi
+
+        if [ -e "$target" ]; then
+            warn "既存の実体があるため projects の共有を skip します (移行は手動): $target"
+            blocked=1
+        fi
+    done <<< "$pairs"
+
+    [ "$blocked" -eq 0 ] || return 0
+
+    while IFS= read -r pair; do
+        source="$HOME/${pair%%|*}"
+        target="$HOME/${pair##*|}"
+        ensure_directory "$source"
+        create_symlink "$source" "$target"
+    done <<< "$pairs"
 }
 
 # apm pair 1 件ぶんの symlink を張る。source が無いときは張らずに警告する。
@@ -686,6 +763,10 @@ setup_dotfiles() {
     while IFS= read -r pair; do
         setup_home_symlinks "$pair"
     done < <(symlink_pairs_for home)
+
+    # projects の共有。既存の実体を絶対に動かさない作法を持つため専用の張り方を使い、
+    # pair も 1 件ずつではなくまとめて渡す (全件揃うときだけ張る判定があるため)
+    setup_shared_symlinks < <(symlink_pairs_for shared)
 
     # .gitconfig.private をコピー（既存の場合はスキップ）
     if [ -f "$DOTFILES_DIR/home/.gitconfig.private.example" ]; then

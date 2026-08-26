@@ -1193,6 +1193,168 @@ uncovered_symlink_targets() {
 }
 
 # =============================================================================
+# claude_shared_symlink_pairs / setup_shared_symlinks tests
+# =============================================================================
+#
+# projects (メモリとセッションログ) を設定ディレクトリ間で共有する配線。
+# tasks の共有 (claude_home_symlink_pairs) と分けてあるのは、実体の置き場と
+# 衝突時の作法がどちらも違うため。理由は bootstrap.sh 側のコメントが持つ。
+
+@test "claude_config_dir_line_kind: reserves the shared projects dir name" {
+    # 共有実体は .claude- 名前空間の内側に住むので、設定ディレクトリとして
+    # 書けてしまうと自分自身を指す symlink を張りにいく。-dev と同じ予約。
+    run claude_config_dir_line_kind '.claude-shared'
+
+    [ "$status" -eq 2 ]
+}
+
+@test "claude_shared_symlink_pairs: links the default dir and every extra dir to one entity" {
+    # tasks と違い既定の .claude 側も symlink になる。実体を片側へ置くと
+    # そのアカウントを畳んだときに他方が道連れになるため中立な場所に置く
+    write_config_dirs_file '.claude-alpha' '.claude-beta'
+
+    run claude_shared_symlink_pairs
+
+    [ "$status" -eq 0 ]
+    [ "${#lines[@]}" -eq 3 ]
+    [ "${lines[0]}" = ".claude-shared/projects|.claude/projects" ]
+    [ "${lines[1]}" = ".claude-shared/projects|.claude-alpha/projects" ]
+    [ "${lines[2]}" = ".claude-shared/projects|.claude-beta/projects" ]
+}
+
+@test "claude_shared_symlink_pairs: still yields the default dir with no extra dir configured" {
+    # アカウントが 1 つでも実体を中立な場所へ置く。あとからアカウントが増えたとき
+    # 既定側の移行が要らなくなる
+    run claude_shared_symlink_pairs
+
+    [ "$status" -eq 0 ]
+    [ "${#lines[@]}" -eq 1 ]
+    [ "${lines[0]}" = ".claude-shared/projects|.claude/projects" ]
+}
+
+@test "setup_shared_symlinks: links every config dir to the shared entity" {
+    write_config_dirs_file '.claude-alpha'
+    mkdir -p "$TEST_HOME/.claude-alpha"
+
+    run setup_shared_symlinks <<< "$(claude_shared_symlink_pairs)"
+
+    [ "$status" -eq 0 ]
+    [ -d "$TEST_HOME/.claude-shared/projects" ]
+    [ "$(readlink "$TEST_HOME/.claude/projects")" = "$TEST_HOME/.claude-shared/projects" ]
+    [ "$(readlink "$TEST_HOME/.claude-alpha/projects")" = "$TEST_HOME/.claude-shared/projects" ]
+}
+
+@test "setup_shared_symlinks: stays idempotent on a second run" {
+    setup_shared_symlinks <<< ".claude-shared/projects|.claude/projects"
+
+    run setup_shared_symlinks <<< ".claude-shared/projects|.claude/projects"
+
+    [ "$status" -eq 0 ]
+    [ "$(readlink "$TEST_HOME/.claude/projects")" = "$TEST_HOME/.claude-shared/projects" ]
+    # 入れ子 (projects/projects) が生えていないこと
+    [ ! -e "$TEST_HOME/.claude/projects/projects" ]
+}
+
+@test "setup_shared_symlinks: never moves an existing projects dir, even in force mode" {
+    # 実測で確かめた壊れ方の再発防止。稼働中セッションが開いている projects を
+    # mv すると、その fd は移動先を指したまま書き続けるので新しい実体側に
+    # 穴が空く (2026-08-27 の移行で 167 レコードが移動先にしか残らなかった)。
+    # 移行は内容を読んで判断する手作業であって bootstrap の仕事ではない
+    FORCE_MODE=true
+    mkdir -p "$TEST_HOME/.claude/projects/keep"
+
+    run setup_shared_symlinks <<< ".claude-shared/projects|.claude/projects"
+
+    [ "$status" -eq 0 ]
+    [ ! -L "$TEST_HOME/.claude/projects" ]
+    [ -d "$TEST_HOME/.claude/projects/keep" ]
+    assert_contains "$output" ".claude/projects"
+}
+
+@test "setup_shared_symlinks: links nothing when any config dir is blocked" {
+    # 一部だけ張ると、どの設定ディレクトリから起動したかで見えるメモリが変わる。
+    # 共有していない状態より分かりにくいので全件揃うときだけ張る
+    write_config_dirs_file '.claude-alpha'
+    mkdir -p "$TEST_HOME/.claude-alpha"
+    mkdir -p "$TEST_HOME/.claude/projects/keep"
+
+    run setup_shared_symlinks <<< "$(claude_shared_symlink_pairs)"
+
+    [ "$status" -eq 0 ]
+    [ ! -e "$TEST_HOME/.claude-alpha/projects" ]
+    [ ! -e "$TEST_HOME/.claude-shared/projects" ]
+    [ -d "$TEST_HOME/.claude/projects/keep" ]
+}
+
+@test "setup_shared_symlinks: leaves a symlink that points somewhere else alone" {
+    # 利用者が意図して別の場所へ向けている可能性がある。黙って張り替えない
+    mkdir -p "$TEST_HOME/elsewhere"
+    ln -s "$TEST_HOME/elsewhere" "$TEST_HOME/.claude/projects"
+
+    run setup_shared_symlinks <<< ".claude-shared/projects|.claude/projects"
+
+    [ "$status" -eq 0 ]
+    [ "$(readlink "$TEST_HOME/.claude/projects")" = "$TEST_HOME/elsewhere" ]
+    assert_contains "$output" ".claude/projects"
+}
+
+@test "setup_shared_symlinks: dry-run mode does not create anything" {
+    DRY_RUN=true
+
+    run setup_shared_symlinks <<< ".claude-shared/projects|.claude/projects"
+
+    [ "$status" -eq 0 ]
+    [ ! -e "$TEST_HOME/.claude/projects" ]
+    # 実体側も作らない。target だけ見ると副作用を半分見逃す
+    [ ! -e "$TEST_HOME/.claude-shared/projects" ]
+}
+
+@test "setup_shared_symlinks: does nothing when stdin is empty" {
+    run setup_shared_symlinks < /dev/null
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+    [ ! -e "$TEST_HOME/.claude-shared" ]
+}
+
+@test "symlink_pairs_for: the all category carries the shared projects pairs" {
+    # 数える側 (current_symlink_targets) が all から取るため、ここから漏れると
+    # 生きているリンクを stale と誤認する余地が残る
+    load_pairs_array SYMLINK_PAIRS
+    load_pairs_array APM_SYMLINK_PAIRS
+    write_config_dirs_file '.claude-alpha'
+
+    run symlink_pairs_for all
+
+    [ "$status" -eq 0 ]
+    assert_array_contains ".claude-shared/projects|.claude/projects" "${lines[@]}"
+    assert_array_contains ".claude-shared/projects|.claude-alpha/projects" "${lines[@]}"
+}
+
+@test "setup_dotfiles: links projects for sharing on a machine that has none yet" {
+    # 配線の pin。関数が揃っていても setup_dotfiles から呼ばれなければ何も起きない
+    write_config_dirs_file '.claude-alpha'
+    mkdir -p "$TEST_HOME/.claude-alpha"
+
+    run setup_dotfiles
+
+    [ "$status" -eq 0 ]
+    [ "$(readlink "$TEST_HOME/.claude/projects")" = "$TEST_HOME/.claude-shared/projects" ]
+    [ "$(readlink "$TEST_HOME/.claude-alpha/projects")" = "$TEST_HOME/.claude-shared/projects" ]
+}
+
+@test "setup_dotfiles: leaves an existing projects dir untouched" {
+    # 既存マシンで走らせたときの経路。ここが壊れると実データを巻き込む
+    mkdir -p "$TEST_HOME/.claude/projects/keep"
+
+    run setup_dotfiles
+
+    [ "$status" -eq 0 ]
+    [ ! -L "$TEST_HOME/.claude/projects" ]
+    [ -d "$TEST_HOME/.claude/projects/keep" ]
+}
+
+# =============================================================================
 # symlink_pairs_for tests (pair 列挙の単一生成器)
 # =============================================================================
 #
@@ -1225,15 +1387,23 @@ uncovered_symlink_targets() {
     [ "$status" -eq 0 ]
     [ "$output" = '.claude/tasks|.claude-alpha/tasks' ]
 
-    # all: 3 カテゴリの合併。件数で部分集合ではなく合併であることを見る
+    # shared: projects の共有 pair だけ。既定の .claude も target に含む
+    run symlink_pairs_for shared
+    [ "$status" -eq 0 ]
+    [ "${#lines[@]}" -eq 2 ]
+    [ "${lines[0]}" = '.claude-shared/projects|.claude/projects' ]
+    [ "${lines[1]}" = '.claude-shared/projects|.claude-alpha/projects' ]
+
+    # all: 全カテゴリの合併。件数で部分集合ではなく合併であることを見る
     run symlink_pairs_for all
     [ "$status" -eq 0 ]
-    local repo_n apm_n home_n all_n
+    local repo_n apm_n home_n shared_n all_n
     repo_n="$(symlink_pairs_for repo | wc -l | tr -d ' ')"
     apm_n="$(symlink_pairs_for apm | wc -l | tr -d ' ')"
     home_n="$(symlink_pairs_for home | wc -l | tr -d ' ')"
+    shared_n="$(symlink_pairs_for shared | wc -l | tr -d ' ')"
     all_n="$(symlink_pairs_for all | wc -l | tr -d ' ')"
-    [ "$all_n" -eq "$((repo_n + apm_n + home_n))" ]
+    [ "$all_n" -eq "$((repo_n + apm_n + home_n + shared_n))" ]
 
     # 未知のカテゴリは黙って空を返さない。空だと「対象 0 件」と区別が付かない
     run symlink_pairs_for bogus

@@ -359,7 +359,12 @@ function _claude_define_launchers() {
     case "$line" in
       '' | '#'* | '.claude') continue ;;
     esac
+    # .claude-shared は設定ディレクトリではなく projects の共有実体の置き場。
+    # 名前空間の内側に住むので、予約しないと設定ディレクトリとして書けてしまう
+    # (bootstrap 側では自分自身を指す symlink になる)。値の canonical は
+    # bootstrap.sh の CLAUDE_SHARED_DIR で、一致は parity テストが pin する。
     if [ "$line" != "${line%-dev}" ] \
+      || [ "$line" = '.claude-shared' ] \
       || ! printf '%s' "$line" | grep -Eq '^\.claude-[A-Za-z0-9._-]+$'; then
       echo "設定ディレクトリ名として受け付けられない行を無視します: $line" >&2
       continue
