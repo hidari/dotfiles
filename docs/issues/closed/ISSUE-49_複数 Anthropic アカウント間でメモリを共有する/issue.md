@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: closed
 ---
 
 # feat: 複数 Anthropic アカウント間でメモリを共有する
