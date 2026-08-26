@@ -84,13 +84,41 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 
 | # | マイルストーン | 指す Issue | 先行 |
 | --- | --- | --- | --- |
-| M1 | Issue 維持コストの原因を消す | Issue 43 | なし |
+| M1 | Issue 維持コストの原因を消す | Issue 43、ISSUE-52 | なし |
 | M2 | 検査を配布先で走る状態にする | 新規起票が要る (担当 Issue が無い) | M1 |
 | M3 | skill バンドルの二重登録を止める | ISSUE-27、Issue 40 | なし |
 | M4 | PUBLIC 露出の scrub | ISSUE-15、ISSUE-23、Issue 21、Issue 29 | なし |
 | M5 | config-guard の検査基盤を 1 実装へ寄せる | Issue 39、Issue 30、Issue 41 | なし |
 | M6 | winvm の実装品質 | 上流の winvm 系 Issue | なし |
-| M7 | 環境とテスト網の個別 | dotfiles の zsh / bats / PowerShell / Raycast クラスタ | なし |
+| M7 | 環境とテスト網の個別 | dotfiles の zsh / bats / PowerShell / Raycast クラスタ、ISSUE-51 | なし |
+| M8 | CI の必須チェックを実効化する | ISSUE-50 | なし |
+
+M1 の「指す Issue」に ISSUE-52 を足したのは、扱う対象が同じだから。M1 は Issue 本文から
+リンクを外す方向なので、PR 本文の Closes 行がリンクの残る最後の場所になる。上流 ISSUE-24 と
+同じテーブルで裁定するなら ISSUE-52 もそこへ持ち込む。
+
+### 着手順の裁定 (2026-08-27)
+
+**M1 を優先する。M8 (ISSUE-50) は後回し。**
+
+M1 を先に置くのは、M2 の baseline がパスに依存するという既存の理由に加えて、ISSUE-52 で
+同じ対象の欠陥が実際に稼働中のプロジェクトへ出たため。上流 ISSUE-24 が未決のまま残っている
+ぶんだけ、判断待ちが下流に溜まる。
+
+M8 を後回しにするのは、CI が緑であることの確認が手作業 (SHA を突き合わせてジョブ件数を数える)
+で今のところ回っているため。取りこぼしのリスクは残るが、判断待ちを増やしてはいない。
+
+### 件数の再計測 (2026-08-27)
+
+| リポジトリ | open | in_progress | closed |
+| --- | --- | --- | --- |
+| dotfiles | 29 | 2 | 21 |
+| agentic-coding-tools | 22 | 1 | 8 |
+
+active 合計 54 件 (open 51 + in_progress 3)。背景節の「46 件」は 2026-08-25 のスナップショット。
+
+同じセッションで一覧を目で数えて 29 と報告し、実際は 28 だった。**件数は着手の根拠にする前に
+数え直すこと。**この Issue が既に書いている注意を、この Issue を読みながら踏んだ。
 
 ### M1 が M2 に先行する理由
 
@@ -140,6 +168,10 @@ git hook / CI から呼ぶ」という土俵そのものを疑うところから
   この Issue が持つので、着手時に突き合わせること
 - Issue 17 と Issue 18: Issue ディレクトリの検査。M1 の裁定でディレクトリ構造が変わらない
   ことが決まったので、両者の前提は保たれる
+- ISSUE-52: Closes の識別子抽出がリンクテキストの空白で 0 件になる。M1。稼働中の別プロジェクト
+  から委譲され、dotfiles で再現して境界を詰めた。上流へ委譲する
+- ISSUE-50: GitHub Repository Rulesets を導入する。M8。2026-08-27 の裁定で後回し
+- ISSUE-51: メモリのファイル名と name を kebab へ統一する。M7。ISSUE-49 からの派生
 - Issue 40: skill バンドルの二重登録。M3 の dotfiles 側。順序制約はそちらが持つ
 - Issue 39、Issue 30、Issue 41: M5
 - Issue 21 と Issue 29: M4 の dotfiles 側
