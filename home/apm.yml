@@ -13,15 +13,15 @@ dependencies:
   - mizchi/skills/tooling/apm-usage#d7999453cdb4e0e09df1c7f82fd23752539c546c
   - mizchi/skills/tooling/justfile#d7999453cdb4e0e09df1c7f82fd23752539c546c
   - yusukebe/ax/skills/ax#8abbca2fc400c2ff4866248ba1ec9309b948812f
-  - hidari/agentic-coding-tools/skills/devops/windows-vm-verification#2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
-  - hidari/agentic-coding-tools/skills/meta/context-loading-mechanics#2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
-  - hidari/agentic-coding-tools/skills/meta/session-handoff#2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
-  - hidari/agentic-coding-tools/skills/tooling/chrome-devtools-debugger#2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
-  - hidari/agentic-coding-tools/skills/tooling/herdr#2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
-  - hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf#2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
-  - hidari/agentic-coding-tools/plugins/dev-workflow#2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
-  - hidari/agentic-coding-tools/plugins/security-blue-red-team#2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
-  - hidari/agentic-coding-tools/plugins/web-monkey-qa#2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
+  - hidari/agentic-coding-tools/skills/devops/windows-vm-verification#2bb83b14f8dafb113432fba4ef2e0e3f947c6a64 # v0.2.0
+  - hidari/agentic-coding-tools/skills/meta/context-loading-mechanics#2bb83b14f8dafb113432fba4ef2e0e3f947c6a64 # v0.2.0
+  - hidari/agentic-coding-tools/skills/meta/session-handoff#2bb83b14f8dafb113432fba4ef2e0e3f947c6a64 # v0.2.0
+  - hidari/agentic-coding-tools/skills/tooling/chrome-devtools-debugger#2bb83b14f8dafb113432fba4ef2e0e3f947c6a64 # v0.2.0
+  - hidari/agentic-coding-tools/skills/tooling/herdr#2bb83b14f8dafb113432fba4ef2e0e3f947c6a64 # v0.2.0
+  - hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf#2bb83b14f8dafb113432fba4ef2e0e3f947c6a64 # v0.2.0
+  - hidari/agentic-coding-tools/plugins/dev-workflow#2bb83b14f8dafb113432fba4ef2e0e3f947c6a64 # v0.2.0
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team#2bb83b14f8dafb113432fba4ef2e0e3f947c6a64 # v0.2.0
+  - hidari/agentic-coding-tools/plugins/web-monkey-qa#2bb83b14f8dafb113432fba4ef2e0e3f947c6a64 # v0.2.0
   mcp: []
 includes: auto
 scripts: {}

@@ -1,12 +1,12 @@
 lockfile_version: '1'
-generated_at: '2026-08-27T03:09:24.136322+00:00'
+generated_at: '2026-08-27T03:48:08.238245+00:00'
 apm_version: 0.28.0
 dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: dev-workflow
   host: github.com
-  resolved_commit: 2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
-  resolved_ref: 2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
+  resolved_commit: 2bb83b14f8dafb113432fba4ef2e0e3f947c6a64
+  resolved_ref: 2bb83b14f8dafb113432fba4ef2e0e3f947c6a64
   version: 0.2.0
   virtual_path: plugins/dev-workflow
   is_virtual: true
@@ -44,8 +44,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: security-blue-red-team
   host: github.com
-  resolved_commit: 2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
-  resolved_ref: 2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
+  resolved_commit: 2bb83b14f8dafb113432fba4ef2e0e3f947c6a64
+  resolved_ref: 2bb83b14f8dafb113432fba4ef2e0e3f947c6a64
   version: 0.5.0
   virtual_path: plugins/security-blue-red-team
   is_virtual: true
@@ -99,8 +99,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: web-monkey-qa
   host: github.com
-  resolved_commit: 2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
-  resolved_ref: 2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
+  resolved_commit: 2bb83b14f8dafb113432fba4ef2e0e3f947c6a64
+  resolved_ref: 2bb83b14f8dafb113432fba4ef2e0e3f947c6a64
   version: 0.2.0
   virtual_path: plugins/web-monkey-qa
   is_virtual: true
@@ -136,8 +136,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: windows-vm-verification
   host: github.com
-  resolved_commit: 2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
-  resolved_ref: 2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
+  resolved_commit: 2bb83b14f8dafb113432fba4ef2e0e3f947c6a64
+  resolved_ref: 2bb83b14f8dafb113432fba4ef2e0e3f947c6a64
   version: unknown
   virtual_path: skills/devops/windows-vm-verification
   is_virtual: true
@@ -163,8 +163,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: context-loading-mechanics
   host: github.com
-  resolved_commit: 2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
-  resolved_ref: 2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
+  resolved_commit: 2bb83b14f8dafb113432fba4ef2e0e3f947c6a64
+  resolved_ref: 2bb83b14f8dafb113432fba4ef2e0e3f947c6a64
   version: unknown
   virtual_path: skills/meta/context-loading-mechanics
   is_virtual: true
@@ -178,8 +178,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: session-handoff
   host: github.com
-  resolved_commit: 2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
-  resolved_ref: 2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
+  resolved_commit: 2bb83b14f8dafb113432fba4ef2e0e3f947c6a64
+  resolved_ref: 2bb83b14f8dafb113432fba4ef2e0e3f947c6a64
   version: unknown
   virtual_path: skills/meta/session-handoff
   is_virtual: true
@@ -195,8 +195,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: chrome-devtools-debugger
   host: github.com
-  resolved_commit: 2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
-  resolved_ref: 2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
+  resolved_commit: 2bb83b14f8dafb113432fba4ef2e0e3f947c6a64
+  resolved_ref: 2bb83b14f8dafb113432fba4ef2e0e3f947c6a64
   version: unknown
   virtual_path: skills/tooling/chrome-devtools-debugger
   is_virtual: true
@@ -210,8 +210,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: herdr
   host: github.com
-  resolved_commit: 2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
-  resolved_ref: 2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
+  resolved_commit: 2bb83b14f8dafb113432fba4ef2e0e3f947c6a64
+  resolved_ref: 2bb83b14f8dafb113432fba4ef2e0e3f947c6a64
   version: unknown
   virtual_path: skills/tooling/herdr
   is_virtual: true
@@ -225,8 +225,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: markdown-to-pdf
   host: github.com
-  resolved_commit: 2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
-  resolved_ref: 2cf35d9454a18778c1fe07edbf1cd3bd92aff8fb
+  resolved_commit: 2bb83b14f8dafb113432fba4ef2e0e3f947c6a64
+  resolved_ref: 2bb83b14f8dafb113432fba4ef2e0e3f947c6a64
   version: unknown
   virtual_path: skills/tooling/markdown-to-pdf
   is_virtual: true
