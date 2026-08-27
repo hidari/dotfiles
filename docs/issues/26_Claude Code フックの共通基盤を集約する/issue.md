@@ -81,6 +81,14 @@ Phase 3a のスコープを大きく超えるため別 Issue に分けた。
       backup-tool / config-guard / node-security-notifier にも同じ形があるので一斉に行う。
       anchor が既定値へ化けずに解決されることは実測済み (一致する正規表現なら発火し、
       非一致なら Skipped になる両方向を確認)
+- [ ] フックが user スコープへ作る状態とログの寿命を決める。現在どのフックも削除機構を
+      持たず、単調に増える (2026-08-28 の実測)
+      - `handoff-sentinel` の state ディレクトリに 272 ファイル (`notified` 236 /
+        `blocked` 28 / `provenance` 8)。最古は 7 月 3 日。`notified` と `blocked` は
+        セッション単位の使い捨てフラグで、session_id は再利用されないため二度と参照されない
+      - `instructions-loaded-log` の JSONL が 301KB / 724 行。上限もローテーションも無い
+      - どちらも実害は現時点でディスク使用のみだが、フック自身が消す形にするか、
+        別の掃除経路を持つかを 1 箇所で決める (フックごとに別々の寿命規則を持たせない)
 
 ## 関連
 
@@ -89,3 +97,13 @@ Phase 3a のスコープを大きく超えるため別 Issue に分けた。
 - [Issue #36: refactor: CLAUDE.md を rules と skill へ分割し常時ロード量を減らす](../closed/36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md)。
   - 観測フック `home/.claude/hooks/instructions-loaded-log.py` は #36 で常設と決まり、集約と同時に
     `scripts/claude-hooks/` の 4 本目として取り込んだ
+- ISSUE-58 が `handoff-sentinel` の位置づけ (security guard として扱うか) の判断を扱う。
+  本 Issue は「個人ツールであり security guard ではない」として必須フック検査への追加を
+  据え置いているが、現物は provenance 照合を prompt injection 防御として fail-closed で
+  実装しており、台帳と現物が食い違っている。必須フック検査のイベント軸への一般化は
+  この判断の後に行うのが順序として正しい
+- ISSUE-55 と ISSUE-56 が PreToolUse の 2 フックそれぞれの穴を扱う。どちらも共有層
+  (`pretooluse.py`) ではなくフック固有の判定にあるため、本 Issue の集約とは独立して直せる
+- ISSUE-57 が `home/.claude/hooks/herdr-agent-state.sh` の埋め込み Python を構文検査する。
+  同ファイルは `scripts/claude-hooks/` の対象 (Python フック 4 本) に入っておらず、
+  取り込むかどうかは本 Issue の範囲と重なる
