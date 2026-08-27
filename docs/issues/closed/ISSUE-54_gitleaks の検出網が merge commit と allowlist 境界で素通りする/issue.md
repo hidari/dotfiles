@@ -1,5 +1,5 @@
 ---
-status: open
+status: closed
 ---
 
 # fix(ci): gitleaks の検出網が merge commit と allowlist 境界で素通りする
