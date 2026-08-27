@@ -160,6 +160,9 @@ jobs:
 
       # 履歴 (既知の過去パス) を蒸し返さないよう、PR/push の新規コミット範囲のみ走査する。
       # SHA は env 経由で渡し ${{ }} の script injection を避ける。
+      # -m が要るのは、git log が既定で merge commit の diff を出さず、gitleaks が内容を
+      # 一切受け取らないため。両親のどちらにも無い変更を merge commit が持つ形は、
+      # -m 無しでは静かに走査対象から落ちる。検証は scripts/tests/gitleaks.bats。
       - name: Scan new commits for leaks
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -173,7 +176,7 @@ jobs:
             RANGE="HEAD~1..HEAD"
           fi
           echo "Scanning range: $RANGE"
-          gitleaks git --log-opts="$RANGE" --redact --no-banner -c .gitleaks.toml
+          gitleaks git --log-opts="-m $RANGE" --redact --no-banner -c .gitleaks.toml
 
   config-guard:
     name: config-guard (python)

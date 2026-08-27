@@ -14,13 +14,15 @@ regex = '''/Users/[a-z_][a-z0-9._-]*'''
 tags = ["pii", "path"]
 
   # placeholder / 共有・CI 用のユーザー名は許可する。
-  # 境界 ([/."]|$) で /Users/user (許可) と /Users/userfoo (検出) を区別する。
+  # 境界 ([/"]|$) で許可語をそこで終わらせ、/Users/user (許可) と /Users/userfoo (検出) を
+  # 区別する。境界に . を含めない: 含めると許可語で始まるだけの別名 (user.smith 等) が
+  # 丸ごと通り、実在しうる名前を素通りさせる。
   [rules.allowlist]
   description = "placeholder / 共有・CI 用パスは許可"
   # secret==match (capture group 無し) だが、境界判定の意図を明示するため match を指定
   regexTarget = "match"
   regexes = [
-    '''/Users/(example|user|username|runner|shared)([/."]|$)''',
+    '''/Users/(example|user|username|runner|shared)([/"]|$)''',
   ]
 
 [[rules]]
@@ -29,13 +31,23 @@ description = "メールアドレスの漏洩"
 regex = '''[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'''
 tags = ["pii", "email"]
 
-  # 許可は 2 軸ある。ドメイン軸で文書用の例示アドレスを、ローカルパート軸で
-  # SSH clone URL の git@ を通す。後者は個人を指さない。
+  # 許可は 2 軸ある。ドメイン軸で文書用の例示アドレスを、SSH clone URL 軸で git@ を通す。
+  # 見る対象が違う (前者はマッチ部分、後者は行全体) ため allowlist を 2 つに分ける。
   # ここを狭めすぎると、追跡下に既にある例示アドレスを含む行を触るたびに赤くなる。
-  [rules.allowlist]
-  description = "例示アドレスと SSH URL のユーザー名は許可"
+
+  [[rules.allowlists]]
+  description = "文書用の例示ドメインは許可"
   regexTarget = "match"
   regexes = [
     '''@example\.(com|org|net)$''',
-    '''^git@''',
+  ]
+
+  # git@ をローカルパートだけで通すと、SSH URL でない任意のホスト名 (社内ホスト等) まで
+  # 許可される。clone URL は git@<host>:<path> の形を取るので、コロンとパスの存在を
+  # 行全体で確認してから許可する。マッチ部分にはコロン以降が含まれないので line が要る。
+  [[rules.allowlists]]
+  description = "SSH clone URL の git@ は許可"
+  regexTarget = "line"
+  regexes = [
+    '''\bgit@[A-Za-z0-9.-]+:[A-Za-z0-9._/~-]''',
   ]
