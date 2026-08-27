@@ -23,7 +23,7 @@ status: open
 | force push のブロック | 充足 |
 | ブランチ削除の禁止 | 充足 |
 | 必要な承認数 0 | 充足 |
-| linear history 必須 | 未設定。ただし許可されたマージ方式が squash のみなので merge commit は既に入らない |
+| linear history 必須 | 未設定。`allow_merge_commit` も true のままで、履歴にも merge commit が 2 件ある (2026-08-28 実測。起票時は「許可されたマージ方式が squash のみ」と書いていたが誤り) |
 | 必須ステータスチェック | 未設定 |
 | bypass list は原則空 | 未充足。User 1 名が always で入っている |
 | 集約ジョブ | 存在しない。`test.yml` の 10 ジョブはすべて独立で `needs` を持たない |
