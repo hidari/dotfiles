@@ -97,8 +97,129 @@ fired() {
     [ "$status" -eq 0 ]
 }
 
+# 以下 4 件は allowlist が許可語を終端させていなかったために素通りしていた形。
+# 許可語で始まるだけの別名が丸ごと通る (境界に . を含めていたため) のと、
+# git@ が SSH URL の形を確認せず任意ドメインを通していたのが原因。
+
+@test "detects a username that merely starts with an allowlisted word" {
+    printf 'p = "/Users/%s.%s/Develop/foo"\n' "user" "smith" > "$SCAN_DIR/f.txt"
+    scan
+    [ "$status" -ne 0 ]
+    fired "macos-user-path"
+}
+
+@test "detects a username that merely starts with the example placeholder" {
+    printf 'p = "/Users/%s.%s/Develop/foo"\n' "example" "co" > "$SCAN_DIR/f.txt"
+    scan
+    [ "$status" -ne 0 ]
+    fired "macos-user-path"
+}
+
+@test "detects a username that merely starts with the shared placeholder" {
+    printf 'p = "/Users/%s.%s/Develop/foo"\n' "shared" "acct" > "$SCAN_DIR/f.txt"
+    scan
+    [ "$status" -ne 0 ]
+    fired "macos-user-path"
+}
+
+@test "detects a git@ address that is not an SSH clone URL" {
+    # コロンとパスを伴わない git@ は clone URL ではなく、内部ホスト名を名指ししうる
+    printf 'host = "%s@%s"\n' "git" "internal.corp.invalid" > "$SCAN_DIR/f.txt"
+    scan
+    [ "$status" -ne 0 ]
+    fired "email-address"
+}
+
 @test "passes clean content with no secret or user path" {
     printf 'greeting = "hello world"\nbase = "$HOME/Develop"\n' > "$SCAN_DIR/f.txt"
     scan
+    [ "$status" -eq 0 ]
+}
+
+# -----------------------------------------------------------------------------
+# CI の range scan は commit 範囲を走査する。git log は既定で merge commit の diff を
+# 出さないため、-m が無いと merge commit で初めて入った内容が gitleaks へ渡らない。
+# 機構 (走査が merge を見ること) と取り付け (workflow が -m を渡すこと) を別々に pin する。
+# -----------------------------------------------------------------------------
+
+# 両親のどちらにも存在せず merge commit だけが持つ leak を含むリポジトリを作り、
+# base commit の SHA を stdout へ返す。
+make_evil_merge_repo() {
+    local dir="$1" leak="$2"
+    git init -q -b main "$dir"
+    git -C "$dir" config user.email probe@example.com
+    git -C "$dir" config user.name probe
+    printf 'base\n' > "$dir/base.txt"
+    git -C "$dir" add base.txt
+    git -C "$dir" commit -qm base
+    local base_sha
+    base_sha=$(git -C "$dir" rev-parse HEAD)
+
+    git -C "$dir" checkout -q -b feature
+    printf 'feat\n' > "$dir/feat.txt"
+    git -C "$dir" add feat.txt
+    git -C "$dir" commit -qm feat
+
+    git -C "$dir" checkout -q main
+    printf 'mainside\n' > "$dir/mainside.txt"
+    git -C "$dir" add mainside.txt
+    git -C "$dir" commit -qm mainside
+
+    # 競合しない併合にしてから、どちらの親にも無いファイルを merge commit へ載せる
+    git -C "$dir" merge --no-ff --no-commit feature >/dev/null 2>&1 || true
+    printf 'p = "%s"\n' "$leak" > "$dir/only-in-merge.txt"
+    git -C "$dir" add only-in-merge.txt
+    git -C "$dir" commit -qm merge
+
+    printf '%s\n' "$base_sha"
+}
+
+# 指定した log-opts で範囲走査する (CI と同じ gitleaks git サブコマンド)
+range_scan() {
+    run gitleaks git "$1" --log-opts="$2" -c "$GITLEAKS_CONFIG" \
+        --no-banner --redact --report-format json --report-path "$REPORT"
+}
+
+@test "the range scan sees a leak introduced only by a merge commit" {
+    local repo base leak
+    repo="$SCAN_DIR/repo"
+    leak=$(printf '/Users/%s/Develop/foo' "alice")
+    base=$(make_evil_merge_repo "$repo" "$leak")
+
+    range_scan "$repo" "-m $base..HEAD"
+    [ "$status" -ne 0 ]
+    fired "macos-user-path"
+}
+
+@test "the range scan without -m misses that same leak" {
+    # 上のテストが何を守っているかを示す対照。-m を落とすと同じ leak が見えなくなる。
+    # この 2 件が揃って初めて「-m が効いている」と言える
+    local repo base leak
+    repo="$SCAN_DIR/repo"
+    leak=$(printf '/Users/%s/Develop/foo' "alice")
+    base=$(make_evil_merge_repo "$repo" "$leak")
+
+    range_scan "$repo" "$base..HEAD"
+    [ "$status" -eq 0 ]
+}
+
+@test "the range scan still catches a leak in an ordinary commit" {
+    # -m を足したことで通常コミットの検出が壊れていないことの対照
+    local repo base leak
+    repo="$SCAN_DIR/repo"
+    leak=$(printf '/Users/%s/Develop/foo' "alice")
+    base=$(make_evil_merge_repo "$repo" "$leak")
+    printf 'q = "%s"\n' "$(printf '/Users/%s/x' "bob")" > "$repo/ordinary.txt"
+    git -C "$repo" add ordinary.txt
+    git -C "$repo" commit -qm ordinary
+
+    range_scan "$repo" "-m $base..HEAD"
+    [ "$status" -ne 0 ]
+    fired "macos-user-path"
+}
+
+@test "the CI leak guard is wired with -m" {
+    # 機構が正しくても取り付けが外れれば何も守らない。workflow 側の配線を pin する
+    run grep -qE 'gitleaks git --log-opts="-m ' "$REPO_ROOT/.github/workflows/test.yml"
     [ "$status" -eq 0 ]
 }
