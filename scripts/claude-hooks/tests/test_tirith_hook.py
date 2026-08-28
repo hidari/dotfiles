@@ -171,7 +171,7 @@ def test_warn_reports_context_without_a_decision(tmp_path: Path) -> None:
     assert "MEDIUM" in context_text(proc)
 
 
-def test_the_removed_warn_knob_no_longer_changes_the_outcome(tmp_path: Path) -> None:
+def test_removed_warn_knob_no_longer_changes_the_outcome(tmp_path: Path) -> None:
     """判定の強さを選ぶノブは廃止した。設定が残っていても振る舞いは変わらない。
 
     ノブを読む経路が復活すると、warn の扱いが環境変数ひとつで allow へ戻せてしまう。

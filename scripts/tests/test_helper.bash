@@ -19,9 +19,10 @@ ZSHRC_FILE="${ZSHRC_FILE:-$REPO_ROOT/home/.zshrc}"
 
 # apm ガードの判定を持つ共有シェル層。bootstrap.sh と PATH shim の両方が source する。
 # bootstrap.sh はブロック切り出しで source されるため自分の位置から解決できず、
-# ここが指す先が唯一の入口になる。export しているのは切り出したブロックが
-# 別プロセスではなく同じシェルで source されるため実際には不要だが、
-# bats の run が起こす副シェルでも同じ値を見せるために揃えておく。
+# ここが指す先が唯一の入口になる。export が要るのは bootstrap.bats が
+# `run bash "$BOOTSTRAP_SCRIPT"` で別プロセスとして起動する経路のため。非 export の値は
+# プロセス境界を越えず、変異注入で BOOTSTRAP_SCRIPT をコピーへ向けると相対解決の
+# フォールバックも別ディレクトリを指すので、export を外すと変異注入だけが静かに壊れる。
 APM_GUARD_LIB="${APM_GUARD_LIB:-$REPO_ROOT/scripts/apm-guard/lib.sh}"
 export APM_GUARD_LIB
 

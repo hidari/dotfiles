@@ -110,11 +110,28 @@ bare 名で渡す形、変数が bare 名を持つ形、プロセス置換。こ
 | --- | --- | --- |
 | `bootstrap.sh` の `SYMLINK_PAIRS` と `.zshrc` の PATH 行 | 実行すれば shim と PATH 設定が配置される | 実行し忘れ、shim の消失 |
 | bats と config-guard | リポジトリ側に配線が存在すること | ローカルの実配置 (CI にホーム環境が無い) |
-| フックの実行時検出 | 配置漏れが deny として見える | フック自体が無効化された場合 |
+| フックの実行時検出 | フックがパースできる形での配置漏れが deny として見える | フック自体が無効化された場合。shim だけが担当する形 (包み込み・変数展開・xargs) での配置漏れ |
 
 PATH への差し込み位置には制約がある。`.zshrc` の `path` 配列の先頭へ足しても、後続の
 `eval "$(mise activate zsh)"` が PATH を再構成するため実物より後ろへ落ちる (実測で 31 番目)。
 `mise activate` の直後に prepend すると先頭に入る。
+
+3 層目には射程の穴がある。フックは `guarded_command` がパースできた形にしか到達しないので、
+配置漏れの検出も同じ形にしか効かない。shim 不在でフックへ 6 形を投入した実測は次のとおり。
+
+| 形 | shim 不在時のフック |
+| --- | --- |
+| `apm install` | deny |
+| `/opt/homebrew/bin/apm install` | deny |
+| `PATH=/usr/bin apm install` | deny |
+| `bash -c "apm install"` | 無音の素通り |
+| `X=apm; $X install` | 無音の素通り |
+| `echo install \| xargs apm` | 無音の素通り |
+
+deny になる 3 形はフックが自力で捕まえる形と一致する。つまり配置漏れ検出は shim が要らない
+場所でだけ働き、shim だけが担当する形では働かない。「配置されているか」はコマンド単位ではなく
+セッション単位の事実なので、正しい置き場は SessionStart の behavioral canary になる。これは
+ISSUE-56 が残した「検査が沈黙している状態を検出する層」と同じもので、派生 Issue で扱う。
 
 ## タスク
 

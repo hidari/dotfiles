@@ -28,7 +28,10 @@ _HOOK_EVENT_NAME = "PreToolUse"
 # 介在する対象のツール。これ以外は判定を出さずに通す。
 _GUARDED_TOOL = "Bash"
 
-Decision = Literal["allow", "deny"]
+# この層は deny しか出さない。allow は permission プロンプトを飛ばすため、検査が「通した」
+# ことが他の検査の省略に化ける。文脈だけを載せたいときは notice_payload を使う。
+# 型で閉じているのは、規律をコメントに置くと引数 1 つで復活してしまうため。
+Decision = Literal["deny"]
 
 
 class InputProblem(enum.Enum):
@@ -116,9 +119,7 @@ def notice_payload(context: str) -> str:
     )
 
 
-def decision_payload(
-    decision: Decision, reason: str, *, additional_context: str | None = None
-) -> str:
+def decision_payload(decision: Decision, reason: str) -> str:
     """権限判定の JSON 文字列を組み立てる。stdout へ出すのは呼び出し側の役目。
 
     ensure_ascii=False は判定理由をログでそのまま読むため。JSON としての意味は変わらない
@@ -129,6 +130,4 @@ def decision_payload(
         "permissionDecision": decision,
         "permissionDecisionReason": reason,
     }
-    if additional_context is not None:
-        output["additionalContext"] = additional_context
     return json.dumps({"hookSpecificOutput": output}, ensure_ascii=False)

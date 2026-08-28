@@ -22,6 +22,19 @@ from conftest import HOOKS_DIR, REPO_ROOT, git_scope_free_env
 
 HOOK = HOOKS_DIR / "apm-install-guard.py"
 BOOTSTRAP = REPO_ROOT / "bootstrap.sh"
+GUARD_LIB = REPO_ROOT / "scripts" / "apm-guard" / "lib.sh"
+
+
+def load_guard_module() -> Any:
+    """フック本体をモジュールとして読み込む。定数を突き合わせるテストが使う。"""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("guard", HOOK)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
 
 # フックは PATH 上の apm が配布した shim へ解決されることを要求する。テストは shim が
 # 配置されていないマシンでも走るので、実在する代役をここで 1 度だけ用意する。
@@ -662,7 +675,7 @@ def bash_symlink_pairs() -> list[str]:
     return [line for line in proc.stdout.splitlines() if line]
 
 
-def test_a_missing_shim_is_refused(tmp_path: Path) -> None:
+def test_missing_shim_is_refused(tmp_path: Path) -> None:
     """shim が PATH 上に無いとき止める。
 
     ここが素通りすると、包み込みや変数展開の形はどの層にも掛からないまま「ガードがある」
@@ -677,7 +690,7 @@ def test_a_missing_shim_is_refused(tmp_path: Path) -> None:
     assert decision(proc) == "deny"
 
 
-def test_the_missing_shim_reason_names_the_expected_location(tmp_path: Path) -> None:
+def test_missing_shim_reason_names_the_expected_location(tmp_path: Path) -> None:
     """理由文だけを読んで復旧できること。パスが無いと何を直せばよいか分からない。"""
     repo = init_repo(tmp_path)
     missing = tmp_path / "nonexistent" / "apm"
@@ -689,7 +702,7 @@ def test_the_missing_shim_reason_names_the_expected_location(tmp_path: Path) -> 
     assert str(missing) in reason(proc)
 
 
-def test_a_readonly_subcommand_does_not_need_the_shim(tmp_path: Path) -> None:
+def test_readonly_subcommand_does_not_need_the_shim(tmp_path: Path) -> None:
     """shim の検査は止める対象を見つけた後に行う。
 
     順序が逆になると、読み取り専用のサブコマンドまで shim の有無で止まり、ガードが
@@ -704,20 +717,132 @@ def test_a_readonly_subcommand_does_not_need_the_shim(tmp_path: Path) -> None:
     assert decision(proc) is None
 
 
-def test_the_shim_path_matches_the_distributed_target() -> None:
+def test_shim_path_matches_the_distributed_target() -> None:
     """フックが見る場所と bootstrap が配置する場所が一致すること。
 
     別々に書かれているので、片方だけ直すと shim は置かれるのにフックは別の場所を見る。
     その食い違いは「配置したのに deny が出続ける」という形で現れ、原因が分かりにくい。
     """
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location("guard", HOOK)
-    assert spec is not None and spec.loader is not None
-    guard = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(guard)
+    guard = load_guard_module()
 
     targets = [pair.split("|", 1)[1] for pair in bash_symlink_pairs() if "|" in pair]
     expected = guard.DEFAULT_SHIM_PATH.removeprefix("~/")
 
     assert expected in targets
+
+
+# ---------------------------------------------------------------------------
+# 読み取り専用 allowlist の cross-pin
+# ---------------------------------------------------------------------------
+
+
+def bash_readonly_commands() -> set[tuple[str, ...]]:
+    """lib.sh の APM_READONLY_COMMANDS を bash 自身に解釈させて読む。
+
+    bash_symlink_pairs と同じ理由で text-parse しない。regex で拾うと配列内のコメントを
+    要素と誤読し、引用規約をテスト側へ二重実装して drift させる。
+    """
+    script = (
+        f"source {shlex.quote(str(GUARD_LIB))}; printf '%s\\n' \"${{APM_READONLY_COMMANDS[@]}}\""
+    )
+    proc = subprocess.run(
+        ["bash", "-c", script],
+        capture_output=True,
+        text=True,
+        env=git_scope_free_env(),
+        check=True,
+    )
+    return {tuple(line.split()) for line in proc.stdout.splitlines() if line}
+
+
+def test_both_layers_allow_the_same_readonly_commands() -> None:
+    """bash 側 (shim) と Python 側 (フック) の読み取り専用一覧が集合として一致すること。
+
+    片方だけへ追加しても双方のテストは緑のまま通る。危険なのは bash 側だけが広い向きで、
+    判定の主網は shim なので、そちらが広いと破壊的なサブコマンドが検査を受けずに通る。
+    """
+    guard = load_guard_module()
+
+    assert bash_readonly_commands() == set(guard.READONLY_COMMANDS)
+
+
+def test_bash_layer_agrees_on_each_python_entry() -> None:
+    """集合の一致だけでなく、bash の判定関数が実際にその要素を真と返すこと。
+
+    集合が一致していても突き合わせの規則 (前方一致の語数) がずれていれば判定は食い違う。
+    負の対照として install が偽であることも見る。
+    """
+    guard = load_guard_module()
+    checks = [(list(entry), True) for entry in guard.READONLY_COMMANDS]
+    checks.append((["install"], False))
+    checks.append((["deps"], False))
+
+    for args, expected in checks:
+        quoted = " ".join(shlex.quote(a) for a in args)
+        script = f"source {shlex.quote(str(GUARD_LIB))}; apm_is_readonly_invocation {quoted}"
+        proc = subprocess.run(
+            ["bash", "-c", script],
+            capture_output=True,
+            text=True,
+            env=git_scope_free_env(),
+            check=False,
+        )
+        assert (proc.returncode == 0) is expected, f"{args} の判定が食い違った"
+
+
+# ---------------------------------------------------------------------------
+# コマンド位置の判定
+# ---------------------------------------------------------------------------
+
+
+def test_environment_assignment_is_not_an_apm_invocation(tmp_path: Path) -> None:
+    """先頭が VAR=... の代入は、値の basename が apm でも呼び出しとして数えない。
+
+    basename だけで見ると FOO=/opt/homebrew/bin/apm echo hi が apm の呼び出しに化け、
+    apm と無関係のコマンドが deny される。代入かどうかの規則は is_command_position が
+    手前のトークンに対して既に持っており、判定する側のトークンにも同じ規則が要る。
+
+    ツリーを汚しておくのは、clean なままだと誤認しても後段の dirty 判定が無音 allow へ
+    落として同じ結果になり、この分岐を壊しても緑のままになるため (変異注入で確認)。
+    """
+    repo = init_repo(tmp_path)
+    (repo / "a.txt").write_text("changed\n")
+
+    proc = run_hook(body("FOO=/opt/homebrew/bin/apm echo hi", str(repo)))
+
+    assert decision(proc) is None
+
+
+def test_redirect_target_is_not_an_apm_invocation(tmp_path: Path) -> None:
+    """リダイレクト先のファイル名は、basename が apm でも呼び出しとして数えない。
+
+    制御演算子 (; | &&) の直後はコマンド位置だが、リダイレクト演算子の直後は出力先である。
+    区別しないと printf x >> scripts/apm-guard/apm が apm の呼び出しに化け、shim 自身を
+    編集する操作がガードに止められる (このリポジトリで実際に起きた)。
+
+    リダイレクト先の後ろにコマンドを続けるのは、apm トークンの後ろに引数が無いと
+    invocation_args が空を返して誤認しても同じ結果になり、この分岐を壊しても緑のまま
+    になるため (変異注入で確認)。改行は区切りではないので後続行の語が引数として付く。
+
+    ツリーを汚しておく理由は environment_assignment 側と同じ。
+    """
+    repo = init_repo(tmp_path)
+    (repo / "a.txt").write_text("changed\n")
+
+    proc = run_hook(body("printf x >> scripts/apm-guard/apm\npre-commit run", str(repo)))
+
+    assert decision(proc) is None
+
+
+def test_control_operator_still_starts_a_command_position(tmp_path: Path) -> None:
+    """リダイレクトを外した副作用で、制御演算子の直後まで見なくならないこと。
+
+    負の対照。ここが緑のまま素通りすると、`git status; apm install` のような形が
+    検出されなくなる。
+    """
+    repo = init_repo(tmp_path)
+    (repo / "a.txt").write_text("changed\n")
+
+    proc = run_hook(body("git status; apm install", str(repo)))
+
+    assert decision(proc) == "deny"

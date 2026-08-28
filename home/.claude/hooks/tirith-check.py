@@ -230,6 +230,8 @@ def main() -> None:
         # stderr だけだと、検査が沈黙したことがモデルの文脈へ入らない。判定は出さずに
         # 文脈だけ載せる。ここで tirith のテレメトリは使えない（tirith 自体が不在なので
         # Popen が FileNotFoundError で失敗し、_hook_event が握り潰す）。
+        # 「tirith が入っていない」はセッション単位の事実なのに、ここはコマンド単位で告げる
+        # ため同じ文が積み上がる。これは暫定で、恒久策は SessionStart で 1 回だけ告げる層。
         notice = (
             f"tirith: {tirith_bin} が見つからないため、このコマンドは検査されていません。"
             "以降のコマンドも同じ状態です。mise で tirith を入れ直すと検査が戻ります。"
@@ -259,13 +261,17 @@ def main() -> None:
 
     # exit 2 = warn。判定は出さず、警告文だけを文脈へ載せる。
     #
-    # 以前はここで permissionDecision: "allow" を明示していた。allow は permission プロンプトを
+    # ここで permissionDecision: "allow" を出してはならない。allow は permission プロンプトを
     # 飛ばすため、tirith が「怪しい」と判断したコマンドの方が、何も言わなかったコマンド
-    # （無出力の exit 0 = 通常の権限フローへ）より弱い審査で通っていた。warn は稀ではなく、
+    # （無出力の exit 0 = 通常の権限フローへ）より弱い審査で通ることになる。warn は稀ではなく、
     # finding の最大 severity が MEDIUM のときに返る（実測で 30 検体中 23 件）。
     #
-    # 判定の強さを選べるノブ（旧 TIRITH_HOOK_WARN_ACTION）は置かない。severity の閾値を
-    # 動かしたいときは tirith 側の policy を使う。
+    # ただし差し控えは「審査を強める」ことではない。settings.json の permissions.allow に
+    # 載っているコマンドでは、判定を出さないことがそのまま自動承認になる。強めるには ask が
+    # 要るが、warn の頻度からすると通知が過大になるため採っていない。
+    #
+    # 判定の強さを選べるノブは置かない。severity の閾値を動かしたいときは tirith 側の
+    # policy を使う。
     if result.returncode == 2:
         _hook_event("warn_noticed")
         print(pretooluse.notice_payload(_build_warning_text(result.stdout)))

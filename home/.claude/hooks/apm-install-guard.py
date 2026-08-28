@@ -30,13 +30,15 @@ precedence が deny > defer > ask > allow と公式ドキュメントに定め�
 
 判定の網はこの層ではなく PATH shim (scripts/apm-guard/apm) が持つ。shim は apm が exec される
 瞬間に立つので、コマンド文字列がどう書かれていたかに依存しない。このフックが受け持つのは、shim を
-迂回できる 2 形 (絶対パスでの起動、PATH の一時差し替え) と、shim が配置されているかの検出である。
+迂回できる 2 形 (絶対パスでの起動、PATH の一時差し替え) と、それらを判定する過程で shim の
+配置漏れに気づくことである。配置漏れの検出はこの層がパースできる形にしか効かない (下の
+shim_resolves の呼び出し位置を参照)。
 
 したがってここでのトークン化の射程は「トップレベルのトークンとして apm が現れる形」までとする。
 包み込み (sh -c / バッククォート / eval) と変数展開は追わない。追ってもシェル文法の近似は
 終わらないことを実測で確かめた (26 ケース中 7 件が残り、区切りの集合を広げるたびに新しい形が
 出た)。絶対パスを変数やコピー経由で叩く形は shim とこの層のどちらにも掛からないが、事故としては
-発生しない形なので受容している (docs/issues/ISSUE-55_* の issue.md「両層をすり抜ける形」)。
+発生しない形なので受容している。
 
 未コミット変更の判定そのものは scripts/apm-guard/lib.sh にあり、bootstrap.sh の
 install_apm_packages と shim の両方がそれを source する。この Python 側の判定と bash 側の判定が
@@ -163,6 +165,8 @@ def shim_resolves() -> bool:
     パス文字列ではなく実体で比べる。shim は symlink として配置されるので、文字列比較では
     「解決先が symlink 自身か実体か」で結果が変わり、環境によって判定が揺れる。
     """
+    # import を関数内へ置く理由は run_git と同じ (そちらのコメント参照)。ここは
+    # guarded_command が非 None を返した後にしか呼ばれない。
     import shutil
 
     resolved = shutil.which("apm")
@@ -178,6 +182,17 @@ def shim_resolves() -> bool:
 def is_operator(token: str) -> bool:
     """トークンがシェル演算子か。"""
     return bool(token) and all(char in _PUNCTUATION_CHARS for char in token)
+
+
+def is_redirect(token: str) -> bool:
+    """トークンがリダイレクト演算子か。
+
+    制御演算子 (; | && || 括弧) の直後はコマンド位置だが、リダイレクト演算子の直後は
+    出力先のファイル名でコマンドではない。両者を区別しないと
+    `printf x >> scripts/apm-guard/apm` が apm の呼び出しに化ける (実測)。
+    リダイレクトは必ず < か > を含み、制御演算子はどちらも含まない。
+    """
+    return is_operator(token) and ("<" in token or ">" in token)
 
 
 def tokenize(command: str) -> list[str] | None:
@@ -203,10 +218,13 @@ def is_command_position(tokens: list[str], index: int) -> bool:
     allowlist 方式では「読み取り専用一覧に無い語」が全て止まるので、位置の判定が要る。
     `sudo -u other apm install` のように wrapper が引数を取る形は検出できないが、apm は
     ユーザー権限のツールでその形を採る理由が無く、自動実行経路は層 1 が塞いでいる。
+
+    誤検知の側も同じだけ重い。apm と無関係のコマンドが止まると、ガードが日常の操作を壊す。
+    リダイレクト先と環境変数代入はどちらもコマンドではないので、コマンド位置から外す。
     """
     for previous in reversed(tokens[:index]):
         if is_operator(previous):
-            return True
+            return not is_redirect(previous)
         if previous.startswith("-"):
             continue
         if _ENV_ASSIGNMENT.match(previous):
@@ -236,6 +254,12 @@ def guarded_command(tokens: list[str]) -> str | None:
     なので対象外。読み取り専用と確認できたサブコマンドも対象外。
     """
     for index, token in enumerate(tokens):
+        # VAR=... は代入であってコマンドではない。basename だけで見ると
+        # FOO=/opt/homebrew/bin/apm が apm の呼び出しに化ける。代入かどうかの規則は
+        # is_command_position が手前のトークンに対して既に持っており、判定する側の
+        # トークンにも同じ規則が要る。
+        if _ENV_ASSIGNMENT.match(token):
+            continue
         if token.rsplit("/", 1)[-1] != "apm" or not is_command_position(tokens, index):
             continue
         args = invocation_args(tokens, index)
@@ -394,8 +418,11 @@ def main() -> None:
     if subcommand is None:
         allow_silently()
 
-    # shim が PATH 上に無ければ、包み込みや変数展開の形はどこにも掛からない。配置漏れが
-    # 「静かな素通り」ではなく見える拒否として返るよう、ここで倒す。
+    # shim が PATH 上に無ければ、包み込みや変数展開の形はどこにも掛からない。ここで倒すのは
+    # そのことに気づける形を 1 つでも残すためで、配置漏れ全体を捕まえる検査ではない。
+    # この判定へ来るのは guarded_command がパースできた形だけなので、shim だけが担当する
+    # 包み込み・変数展開・xargs の形では、配置漏れは無音の素通りのまま残る (実測)。
+    # 配置漏れそのものを検出する層は、コマンド単位ではなくセッション単位に置く必要がある。
     if not shim_resolves():
         deny(
             f"apm-install-guard: apm ガードの shim が PATH 上に見つからないため apm {subcommand} を"

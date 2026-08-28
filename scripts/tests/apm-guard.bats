@@ -35,28 +35,33 @@ FAKE
     chmod +x "$REAL_DIR/apm"
 }
 
+teardown() {
+    teardown_test_home
+}
+
 # shim を PATH 先頭に置いて起動する。CPU 時間を縛るのは、PATH の除去が壊れたときの
 # 失敗が「エラー」ではなく自分自身の再実行 = 無限再帰として現れるため。
+# SHIM_ALIAS_DIR を与えると shim の別名をもう 1 つ PATH に残す (再実行の検出を測る用)。
 run_shim() {
     local dir="$1"
     shift
     run bash -c '
         ulimit -t 10
         cd "$1" || exit 9
-        shift
-        PATH="$1:$2:/usr/bin:/bin"
-        APM_GUARD_TEST_DIR="$1"
+        guard="$2"
+        real="$3"
+        alias_dir="$4"
+        shift 4
+        PATH="$guard${alias_dir:+:$alias_dir}:$real:/usr/bin:/bin"
+        APM_GUARD_TEST_DIR="$guard"
         export PATH APM_GUARD_TEST_DIR
-        # 起動前に配線そのものを確かめる。ここが無いと、PATH の組み立てを間違えて
-        # shim が一度も走らない状態でも、委譲を期待するテストが全て緑になる
-        # (実際に一度そうなり、拒否を期待する 1 件だけが落ちた)。
+        # 起動前に配線そのものを確かめる (理由は setup の fake apm のコメント)。
         case ":$PATH:" in
             *":$APM_GUARD_TEST_DIR:"*) ;;
             *) echo "TEST_WIRING_BROKEN: guard dir is not on PATH" >&2; exit 98 ;;
         esac
-        shift 2
         exec apm "$@"
-    ' _ "$dir" "$GUARD_DIR" "$REAL_DIR" "$@"
+    ' _ "$dir" "$GUARD_DIR" "$REAL_DIR" "${SHIM_ALIAS_DIR:-}" "$@"
 }
 
 
@@ -194,17 +199,24 @@ assert_shim_delegated() {
     assert_contains "$output" "REAL_APM_RAN:install"
 }
 
-@test "apm shim: does not re-exec itself when delegating" {
-    # PATH から自分を外す処理が壊れると、失敗は「エラー」ではなく自分の再実行として
-    # 現れる。ulimit -t が切るまで回り続けるので、status が 0 であることを見る。
+@test "apm shim: refuses to re-exec itself when another copy stays on PATH" {
+    # PATH から自分のディレクトリを外しても、shim が別の場所にも置かれていれば
+    # command -v apm は再び shim を返す。この失敗は「エラー」ではなく無限再帰として
+    # 現れるので、パス文字列ではなく inode (-ef) で止める。別名を PATH に残さないと
+    # この分岐へは到達しないため、委譲するだけのテストではこの機構を pin できない。
     local repo="$TEST_HOME/repo"
     init_committed_repo "$repo"
 
-    run_shim "$repo" install
+    local alias_dir="$TEST_HOME/guard-alias"
+    mkdir -p "$alias_dir"
+    ln -sf "$SHIM_SOURCE" "$alias_dir/apm"
+    ln -sf "$APM_GUARD_LIB" "$alias_dir/lib.sh"
 
-    [ "$status" -eq 0 ]
-    assert_shim_delegated "$output"
-    assert_contains "$output" "REAL_APM_RAN:install"
+    SHIM_ALIAS_DIR="$alias_dir" run_shim "$repo" install
+
+    [ "$status" -eq 1 ]
+    assert_contains "$output" "refusing to re-exec the guard itself"
+    refute_contains "$output" "REAL_APM_RAN"
 }
 
 # =============================================================================
