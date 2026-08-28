@@ -6,15 +6,11 @@ sys.exit) を持たない層なので、この形で仕様を読める。
 
 from __future__ import annotations
 
-import shlex
-import subprocess
 from pathlib import Path
 
 import guard_probes
 import pytest
-from conftest import REPO_ROOT
-
-BOOTSTRAP = REPO_ROOT / "bootstrap.sh"
+from conftest import bash_symlink_pairs
 
 
 def test_shim_へ解決すれば健全(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -64,12 +60,11 @@ def test_PATH_に_apm_が無ければ沈黙(tmp_path: Path, monkeypatch: pytest.
 def test_shim_の置き場が配布先と一致する() -> None:
     """bootstrap.sh の SYMLINK_PAIRS を bash 自身に解釈させて読み、定数と突き合わせる。
 
-    どちらか片方を直しても、もう片方が古いまま実配置と食い違う。文字列を写した検査では
-    なく bash に解釈させるのは、配列の書式が変わったときに検査側が黙って空を返さないため。
+    どちらか片方を直しても、もう片方が古いまま実配置と食い違う。bash に解釈させる読み方は
+    conftest の bash_symlink_pairs に 1 つだけ置き、test_apm_install_guard.py とここが
+    両方それを使う。読み方自体が 2 実装になると、そちらが食い違う側になる。
     """
-    script = f"source {shlex.quote(str(BOOTSTRAP))}; printf '%s\\n' \"${{SYMLINK_PAIRS[@]}}\""
-    out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=True).stdout
-    pairs = [line for line in out.splitlines() if line]
+    pairs = bash_symlink_pairs()
     assert pairs, "SYMLINK_PAIRS を 1 件も読めていない"
 
     expected = guard_probes.DEFAULT_SHIM_PATH.removeprefix("~/")

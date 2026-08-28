@@ -657,24 +657,6 @@ def test_missing_cwd_denies() -> None:
 # ---------------------------------------------------------------------------
 
 
-def bash_symlink_pairs() -> list[str]:
-    """bootstrap.sh の SYMLINK_PAIRS を bash 自身に解釈させて読む。
-
-    text-parse せずに source する。regex で拾うと、配列内のコメント行を要素と誤読したり
-    引用規約をテスト側へ二重実装して drift させる。BASH_SOURCE ガードがあるので source
-    しても main は走らない。
-    """
-    script = f"source {shlex.quote(str(BOOTSTRAP))}; printf '%s\\n' \"${{SYMLINK_PAIRS[@]}}\""
-    proc = subprocess.run(
-        ["bash", "-c", script],
-        capture_output=True,
-        text=True,
-        env=git_scope_free_env(),
-        check=True,
-    )
-    return [line for line in proc.stdout.splitlines() if line]
-
-
 def test_missing_shim_is_refused(tmp_path: Path) -> None:
     """shim が PATH 上に無いとき止める。
 

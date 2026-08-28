@@ -11,11 +11,14 @@
 from __future__ import annotations
 
 import os
+import shlex
+import subprocess
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 HOOKS_DIR = REPO_ROOT / "home" / ".claude" / "hooks"
+BOOTSTRAP = REPO_ROOT / "bootstrap.sh"
 
 if str(HOOKS_DIR) not in sys.path:
     sys.path.insert(0, str(HOOKS_DIR))
@@ -33,3 +36,25 @@ def git_scope_free_env() -> dict[str, str]:
     本番環境で動くため、落とす対象を所在の指定だけに絞っている (apm-install-guard.py 参照)。
     """
     return {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+
+
+def bash_symlink_pairs() -> list[str]:
+    """bootstrap.sh の SYMLINK_PAIRS を bash 自身に解釈させて読む。
+
+    text-parse せずに source する。regex で拾うと、配列内のコメント行を要素と誤読したり
+    引用規約をテスト側へ二重実装して drift させる。BASH_SOURCE ガードがあるので source
+    しても main は走らない。
+
+    test_apm_install_guard.py と test_guard_probes.py の両方が同じ SYMLINK_PAIRS を
+    読むため、ここに 1 つだけ置く。片方だけが直接 source すると、bash の解釈規則が
+    変わったときにもう片方が古い読み方のまま食い違う。
+    """
+    script = f"source {shlex.quote(str(BOOTSTRAP))}; printf '%s\\n' \"${{SYMLINK_PAIRS[@]}}\""
+    proc = subprocess.run(
+        ["bash", "-c", script],
+        capture_output=True,
+        text=True,
+        env=git_scope_free_env(),
+        check=True,
+    )
+    return [line for line in proc.stdout.splitlines() if line]
