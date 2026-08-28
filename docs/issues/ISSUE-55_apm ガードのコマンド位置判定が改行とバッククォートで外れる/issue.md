@@ -118,20 +118,53 @@ PATH への差し込み位置には制約がある。`.zshrc` の `path` 配列�
 
 ## タスク
 
-- [ ] 判定ロジックを共有シェル層へ切り出す。現在 `bootstrap.sh` の `apm_io_path` /
-      `apm_install_blockers` と `apm-install-guard.py` に二重実装されており、shim を足すと
-      三重になる。bootstrap と shim が同じファイルを source する形にして 1 つへ寄せる
-- [ ] shim 本体を追加する。readonly サブコマンドの allowlist、無効化の環境変数、
-      通すときに自分を PATH から外して実物へ exec する処理を持つ
-- [ ] `SYMLINK_PAIRS` へ shim と共有層を足し、`.zshrc` の `mise activate` 直後へ
+- [x] 判定ロジックを共有シェル層へ切り出す (`scripts/apm-guard/lib.sh`)。
+      `bootstrap.sh` と shim が同じファイルを source する
+- [x] shim 本体を追加する (`scripts/apm-guard/apm`)
+- [x] `SYMLINK_PAIRS` へ shim と共有層を足し、`.zshrc` の `mise activate` 直後へ
       PATH の prepend を足す
-- [ ] フックに shim の解決可能性の検査を足す。解決できなければ deny する
-- [ ] フックの docstring を直す。射程 (トップレベルのトークンとして見える範囲まで) を書き、
-      cross-pin テストの所在の誤りを直す。現在は `scripts/tests/bootstrap.bats` と書いてあるが
-      両層の一致を見るテストはそこに無く、`scripts/claude-hooks/tests/` 側にある
-- [ ] テストを足す。shim の判定 (bats)、フックの shim 検出 (pytest)、
-      shim と bootstrap が同じ判定を返すことの cross-pin
-- [ ] 変異注入 3 種で pin する (検査対象を壊す / 検査機構を壊す / 取り付けを外す)
+- [x] フックに shim の解決可能性の検査を足す。解決できなければ deny する
+- [x] フックの docstring を直す (射程 / cross-pin テストの所在 / 合成規則の記載)
+- [x] テストを足す (bats 16 件、pytest 4 件)
+- [x] 変異注入で pin する
+
+## 検証
+
+| 検査 | 結果 |
+| --- | --- |
+| `bats scripts/tests/` | 302 件緑 (286 -> 新規 16 件) |
+| `uv run --directory scripts/claude-hooks pytest -q` | 159 件緑 (155 -> 新規 4 件) |
+| `uv run --project scripts/config-guard config-guard .` | 問題なし |
+| `pre-commit run` | 全フック通過 |
+
+### 変異注入
+
+3 種 (検査対象 / 検査機構 / 取り付け) に緩めすぎ方向を加えた 10 件を 1 件ずつ隔離して当て、
+すべて kill した。
+
+| 変異 | 種別 | 結果 |
+| --- | --- | --- |
+| shim の解決判定を常に真にする | 検査機構 | kill |
+| main から shim 検査を外す | 取り付け | kill |
+| 配布先と食い違う shim パスにする | 検査対象 | kill |
+| shim の拒否を素通りへ変える | 検査機構 | kill |
+| 拒否メッセージは出すが exit せず委譲する | 検査機構 | kill |
+| dirty 判定を常に空にする | 検査対象 | kill |
+| `SYMLINK_PAIRS` から shim を落とす | 取り付け | kill |
+| `.zshrc` の PATH prepend を消す | 取り付け | kill |
+| `bootstrap.sh` の共有層 source を消す | 取り付け | kill |
+| readonly allowlist へ `install` を足す | 緩めすぎ | kill |
+
+### 途中で見つけたテスト側の欠陥
+
+shim を起動する PATH の組み立てを間違えており、shim が一度も走らないまま実物が直接
+呼ばれていた。委譲を期待する 10 件はそれでも緑になり、拒否を期待する 1 件だけが落ちた。
+壊れた対照が「もっともらしい不一致」を返して対象側の欠陥に見える形である。
+
+最初の手当て (実物側で PATH に guard が残っているかを見る) は dead pin だった。配線が
+壊れた場合は guard がそもそも PATH に無いので、「PATH から外れている = shim を通った」
+という判定が破損と正常な委譲を区別できない。変異注入で赤が 1 件しか出ないことから
+気づいた。起動前に配線そのものを確かめる形へ替え、同じ変異で 7 件が赤くなることを確認した。
 
 ## 関連
 
