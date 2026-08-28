@@ -67,7 +67,7 @@ from conftest import REPO_ROOT
 BOOTSTRAP = REPO_ROOT / "bootstrap.sh"
 
 
-def test_shim へ解決すれば健全(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_shim_へ解決すれば健全(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     shim = tmp_path / "libexec" / "apm"
     shim.parent.mkdir(parents=True)
     shim.write_text("#!/bin/sh\n", encoding="utf-8")
@@ -101,7 +101,7 @@ def test_別の実体へ解決すれば沈黙(tmp_path: Path, monkeypatch: pytes
     assert "bootstrap" in result.detail
 
 
-def test_PATH に apm が無ければ沈黙(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_PATH_に_apm_が無ければ沈黙(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     empty = tmp_path / "empty"
     empty.mkdir()
     monkeypatch.setenv("PATH", str(empty))
@@ -111,7 +111,7 @@ def test_PATH に apm が無ければ沈黙(tmp_path: Path, monkeypatch: pytest.
     assert guard_probes.probe_apm().healthy is False
 
 
-def test_shim の置き場が配布先と一致する() -> None:
+def test_shim_の置き場が配布先と一致する() -> None:
     """bootstrap.sh の SYMLINK_PAIRS を bash 自身に解釈させて読み、定数と突き合わせる。
 
     どちらか片方を直しても、もう片方が古いまま実配置と食い違う。文字列を写した検査では
@@ -331,13 +331,13 @@ def _fake_tirith(path: Path, exit_code: int) -> Path:
     return path
 
 
-def test_tirith が clean へ応答すれば健全(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_tirith_が_clean_へ応答すれば健全(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     fake = _fake_tirith(tmp_path / "tirith", 0)
     monkeypatch.setenv("TIRITH_BIN", str(fake))
     assert guard_probes.probe_tirith().healthy is True
 
 
-def test_TIRITH_BIN 未設定で解決しなければ沈黙(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_TIRITH_BIN_未設定で解決しなければ沈黙(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     empty = tmp_path / "empty"
     empty.mkdir()
     monkeypatch.delenv("TIRITH_BIN", raising=False)
@@ -349,7 +349,7 @@ def test_TIRITH_BIN 未設定で解決しなければ沈黙(tmp_path: Path, monk
     assert "沈黙" in result.detail
 
 
-def test_TIRITH_BIN のパスが無ければ全 Bash が止まると告げる(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_TIRITH_BIN_のパスが無ければ全_Bash_が止まると告げる(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TIRITH_BIN", str(tmp_path / "nonexistent" / "tirith"))
 
     result = guard_probes.probe_tirith()
@@ -357,7 +357,7 @@ def test_TIRITH_BIN のパスが無ければ全 Bash が止まると告げる(tm
     assert "Bash" in result.detail
 
 
-def test_clean なコマンドに clean を返さなければ沈黙(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_clean_なコマンドに_clean_を返さなければ沈黙(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """応答はするが clean を clean と判定しない状態。フックは fail-closed に倒れる。"""
     fake = _fake_tirith(tmp_path / "tirith", 1)
     monkeypatch.setenv("TIRITH_BIN", str(fake))
@@ -600,7 +600,7 @@ def _silent(detail: str) -> guard_probes.ProbeResult:
     return guard_probes.ProbeResult(False, detail)
 
 
-def test_全て健全なら沈黙は 0 件(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_全て健全なら沈黙は_0_件(monkeypatch: pytest.MonkeyPatch) -> None:
     hook = _load_hook()
     monkeypatch.setattr(guard_probes, "PROBES", (("apm", _ok), ("tirith", _ok)))
     assert hook.collect() == []
@@ -637,7 +637,7 @@ def test_プローブが落ちても他は走り落ちたことを報告する(
     assert "boom" in silent[0][1].detail
 
 
-def test_文面は名前と件数と detail を持つ() -> None:
+def test_文面は名前と件数と_detail_を持つ() -> None:
     hook = _load_hook()
     message = hook.format_message(
         [("apm", _silent("shim が横取りしていない")), ("tirith", _silent("解決しない"))]
@@ -897,13 +897,13 @@ def _guard_health_group(matcher: str = "*") -> dict[str, Any]:
     return hook_group(GUARD_HEALTH_HOOK_COMMAND, matcher=matcher)
 
 
-def test_SessionStart の必須フックが無ければ検出する() -> None:
+def test_SessionStart_の必須フックが無ければ検出する() -> None:
     settings = _settings_with_hooks(pretooluse(_pretooluse_group()))
     findings = check_settings_invariants(settings)
     assert any("guard-health.py" in f.detail for f in findings)
 
 
-def test_SessionStart に配線されていれば検出しない() -> None:
+def test_SessionStart_に配線されていれば検出しない() -> None:
     settings = _settings_with_hooks(
         {**pretooluse(_pretooluse_group()), **session_start(_guard_health_group())}
     )
@@ -911,7 +911,7 @@ def test_SessionStart に配線されていれば検出しない() -> None:
     assert not any("guard-health.py" in f.detail for f in findings)
 
 
-def test_開始理由を絞った matcher は配線として数えない() -> None:
+def test_開始理由を絞った_matcher_は配線として数えない() -> None:
     """SessionStart の matcher は開始理由を見る。startup だけでは compact で発火しない。"""
     settings = _settings_with_hooks(
         {
@@ -923,7 +923,7 @@ def test_開始理由を絞った matcher は配線として数えない() -> No
     assert any("guard-health.py" in f.detail for f in findings)
 
 
-def test_ツール名の matcher を SessionStart の配線として数えない() -> None:
+def test_ツール名の_matcher_を_SessionStart_の配線として数えない() -> None:
     """PreToolUse の述語を使い回すと Bash が全一致して配線済みに見える。"""
     settings = _settings_with_hooks(
         {
@@ -935,7 +935,7 @@ def test_ツール名の matcher を SessionStart の配線として数えない
     assert any("guard-health.py" in f.detail for f in findings)
 
 
-def test_PreToolUse の必須フックは引き続き検出される() -> None:
+def test_PreToolUse_の必須フックは引き続き検出される() -> None:
     """イベント軸へ一般化しても既存の検査が緩まないことを見る。"""
     settings = _settings_with_hooks(
         {
@@ -1210,7 +1210,7 @@ def test_どのイベントに現れてもよい(tmp_path: Path) -> None:
     assert check_hook_wiring(str(root)) == []
 
 
-def test_settings_json が読めなければ検査できないと告げる(tmp_path: Path) -> None:
+def test_settings_json_が読めなければ検査できないと告げる(tmp_path: Path) -> None:
     """読めないことを「孤児なし」へ潰さない。"""
     root = _repo(tmp_path, {"a.py": 0o755}, _WIRED)
     (root / "home" / ".claude" / "settings.json").write_text("{ broken", encoding="utf-8")
@@ -1357,7 +1357,7 @@ from config_guard.hook_wiring import check_hook_wiring
 テストが使っている使い捨てリポジトリの組み立て方に合わせること。
 
 ```python
-def test_scan は孤児検出を含む(tmp_path: Path) -> None:
+def test_scan_は孤児検出を含む(tmp_path: Path) -> None:
     """cli への取り付けを外すと本体スキャンから孤児検出が消える。単体テストは通り続ける。"""
     root = tmp_path / "repo"
     root.mkdir()
@@ -1413,19 +1413,19 @@ pin が実際に効いていることを確かめ、この層が覆わない範�
 
 | # | 種別 | 変異 | 赤くなるはずのもの |
 | --- | --- | --- | --- |
-| 1 | 検査対象 | `guard_probes.shim_resolves` の `samefile` を文字列比較 (`==`) へ変える | `test_shim へ解決すれば健全` (symlink 経由で偽になる) |
-| 2 | 検査対象 | `probe_tirith` の `result.returncode != 0` を `False` へ変える | `test_clean なコマンドに clean を返さなければ沈黙` |
-| 3 | 検査対象 | `probe_tirith` の FileNotFoundError 分岐で `TIRITH_BIN` の有無を見ずに常に沈黙の文面を返す | `test_TIRITH_BIN のパスが無ければ全 Bash が止まると告げる` |
-| 4 | 検査対象 | `guard_probes.DEFAULT_SHIM_PATH` を別のパスへ変える | `test_shim の置き場が配布先と一致する` (bootstrap.sh との cross-pin) |
+| 1 | 検査対象 | `guard_probes.shim_resolves` の `samefile` を文字列比較 (`==`) へ変える | `test_shim_へ解決すれば健全` (symlink 経由で偽になる) |
+| 2 | 検査対象 | `probe_tirith` の `result.returncode != 0` を `False` へ変える | `test_clean_なコマンドに_clean_を返さなければ沈黙` |
+| 3 | 検査対象 | `probe_tirith` の FileNotFoundError 分岐で `TIRITH_BIN` の有無を見ずに常に沈黙の文面を返す | `test_TIRITH_BIN_のパスが無ければ全_Bash_が止まると告げる` |
+| 4 | 検査対象 | `guard_probes.DEFAULT_SHIM_PATH` を別のパスへ変える | `test_shim_の置き場が配布先と一致する` (bootstrap.sh との cross-pin) |
 | 5 | 検査機構 | `guard-health.py` の `collect` から try/except を外す | `test_プローブが落ちても他は走り落ちたことを報告する` |
 | 6 | 検査機構 | `guard-health.py` の `emit` から `systemMessage` を落とす | `test_沈黙を両方の経路へ載せる` |
 | 7 | 検査機構 | `guard-health.py` の `emit` から `hookSpecificOutput` を落とす | 同上 |
-| 8 | 検査機構 | `_matcher_covers_all_sources` を `_matcher_covers_guarded_tool` の別名にする | `test_ツール名の matcher を SessionStart の配線として数えない` |
+| 8 | 検査機構 | `_matcher_covers_all_sources` を `_matcher_covers_guarded_tool` の別名にする | `test_ツール名の_matcher_を_SessionStart_の配線として数えない` |
 | 9 | 検査機構 | `hook_wiring._EXECUTABLE_MODE` を `100644` へ変える | `test_実行ビットの無いファイルは共有モジュールとして除く` |
-| 10 | 検査機構 | `_REQUIRED_HOOKS` から SessionStart のエントリを削除する | `test_SessionStart の必須フックが無ければ検出する` |
-| 11 | 検査機構 | `_REQUIRED_HOOKS` の PreToolUse から `apm-install-guard.py` を削除する | `test_PreToolUse の必須フックは引き続き検出される` (イベント軸への一般化で既存の検査が緩んでいないか) |
+| 10 | 検査機構 | `_REQUIRED_HOOKS` から SessionStart のエントリを削除する | `test_SessionStart_の必須フックが無ければ検出する` |
+| 11 | 検査機構 | `_REQUIRED_HOOKS` の PreToolUse から `apm-install-guard.py` を削除する | `test_PreToolUse_の必須フックは引き続き検出される` (イベント軸への一般化で既存の検査が緩んでいないか) |
 | 12 | 取り付け | 実ファイル `home/.claude/settings.json` から `guard-health.py` のグループを削除する | 本体スキャン (`config-guard .`) が必須フック欠落と孤児の 2 件を出す。単体テストは自前の dict を組むので届かない |
-| 13 | 取り付け | `cli.scan()` から `check_hook_wiring` の呼び出しを削除する | `test_scan は孤児検出を含む` (Task 5 Step 6 で足したもの) |
+| 13 | 取り付け | `cli.scan()` から `check_hook_wiring` の呼び出しを削除する | `test_scan_は孤児検出を含む` (Task 5 Step 6 で足したもの) |
 | 14 | 取り付け | `guard-health.py` の実行ビットを落とす (`chmod 644`) | 何も赤くならない。これは既知の穴で、射程の表へ記録する |
 
 変異 14 は赤くならないことが期待値である。実行ビットを落とすと孤児検出の母集団から静かに
