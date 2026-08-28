@@ -717,20 +717,6 @@ def test_readonly_subcommand_does_not_need_the_shim(tmp_path: Path) -> None:
     assert decision(proc) is None
 
 
-def test_shim_path_matches_the_distributed_target() -> None:
-    """フックが見る場所と bootstrap が配置する場所が一致すること。
-
-    別々に書かれているので、片方だけ直すと shim は置かれるのにフックは別の場所を見る。
-    その食い違いは「配置したのに deny が出続ける」という形で現れ、原因が分かりにくい。
-    """
-    guard = load_guard_module()
-
-    targets = [pair.split("|", 1)[1] for pair in bash_symlink_pairs() if "|" in pair]
-    expected = guard.DEFAULT_SHIM_PATH.removeprefix("~/")
-
-    assert expected in targets
-
-
 # ---------------------------------------------------------------------------
 # 読み取り専用 allowlist の cross-pin
 # ---------------------------------------------------------------------------

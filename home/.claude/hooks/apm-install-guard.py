@@ -54,6 +54,7 @@ import shlex
 import sys
 from typing import TYPE_CHECKING, NoReturn
 
+import guard_probes
 import pretooluse
 
 if TYPE_CHECKING:
@@ -79,12 +80,6 @@ READONLY_COMMANDS: tuple[tuple[str, ...], ...] = (
 # apm install の入出力なので、これらだけが変更された状態は正常な中間状態として許可する。
 # 例外が無いと pin を更新するたびにガードが手順を止める。
 ALLOWED_DIRTY_BASENAMES = frozenset({"apm.yml", "apm.lock.yaml"})
-
-# 配布した shim の置き場。bootstrap.sh の SYMLINK_PAIRS が張る target と同じ値で、
-# 一致は test_apm_install_guard.py の cross-pin テストが見る。
-# 存在ではなく「PATH 上の apm がここへ解決されるか」を見る。ファイルがあっても PATH に
-# 載っていなければ shim は一度も横取りしないので、存在検査は緑のまま守っていない状態を作る。
-DEFAULT_SHIM_PATH = "~/.local/libexec/apm-guard/apm"
 
 # 診断に並べるパスの上限。長大な一覧は読まれないので頭だけ出して残りは件数で示す。
 MAX_LISTED_PATHS = 20
@@ -147,36 +142,6 @@ def deny(reason: str) -> NoReturn:
 def allow_silently() -> NoReturn:
     """判定を出さずに通す。stdout が空なので通常の権限フローがそのまま続く。"""
     sys.exit(0)
-
-
-def shim_path() -> str:
-    """検査する shim の置き場。テストで実在の shim を指すために上書きできる。
-
-    無効化フラグ (APM_INSTALL_GUARD_DISABLE) と同じ接頭辞を使う。テストヘルパは基底環境から
-    この接頭辞をまとめて落としてから必要なものだけ足すので、実行環境の設定がテストへ
-    染み出さない。
-    """
-    return os.environ.get("APM_INSTALL_GUARD_SHIM") or DEFAULT_SHIM_PATH
-
-
-def shim_resolves() -> bool:
-    """PATH 上の apm が配布した shim へ解決されるか。
-
-    パス文字列ではなく実体で比べる。shim は symlink として配置されるので、文字列比較では
-    「解決先が symlink 自身か実体か」で結果が変わり、環境によって判定が揺れる。
-    """
-    # import を関数内へ置く理由は run_git と同じ (そちらのコメント参照)。ここは
-    # guarded_command が非 None を返した後にしか呼ばれない。
-    import shutil
-
-    resolved = shutil.which("apm")
-    if resolved is None:
-        return False
-    try:
-        return os.path.samefile(resolved, os.path.expanduser(shim_path()))
-    except OSError:
-        # どちらかが消えている / 辿れない。守れていないので偽を返す。
-        return False
 
 
 def is_operator(token: str) -> bool:
@@ -423,10 +388,11 @@ def main() -> None:
     # この判定へ来るのは guarded_command がパースできた形だけなので、shim だけが担当する
     # 包み込み・変数展開・xargs の形では、配置漏れは無音の素通りのまま残る (実測)。
     # 配置漏れそのものを検出する層は、コマンド単位ではなくセッション単位に置く必要がある。
-    if not shim_resolves():
+    if not guard_probes.shim_resolves():
         deny(
             f"apm-install-guard: apm ガードの shim が PATH 上に見つからないため apm {subcommand} を"
-            f"許可できません。{shim_path()} が配置され、PATH の先頭にあることを確認してください "
+            "許可できません。"
+            f"{guard_probes.shim_path()} が配置され、PATH の先頭にあることを確認してください "
             "(bootstrap.sh が SYMLINK_PAIRS で張り、.zshrc が mise activate の直後で PATH へ"
             "足します)。"
         )
