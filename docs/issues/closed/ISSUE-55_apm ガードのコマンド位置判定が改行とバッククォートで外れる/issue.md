@@ -1,5 +1,5 @@
 ---
-status: open
+status: closed
 ---
 
 # fix(hooks): apm ガードのコマンド位置判定が改行とバッククォートで外れる
