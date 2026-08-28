@@ -185,7 +185,7 @@ shim を起動する PATH の組み立てを間違えており、shim が一度�
 
 ## 関連
 
-- ISSUE-26 が PreToolUse フックの共通基盤を扱う。位置判定は `apm-install-guard.py` 固有で
+- Issue 26 が PreToolUse フックの共通基盤を扱う。位置判定は `apm-install-guard.py` 固有で
   共有層 (`pretooluse.py`) には無いため、集約とは独立して直せる
 - ISSUE-56 が同じ PreToolUse 層のもう 1 本のフックを扱う。起票時は「両者の穴は相補的ではなく
   包み込みの形が 2 層を同時にすり抜ける」ことを理由に、両 Issue を並べて方針を決めるとした。

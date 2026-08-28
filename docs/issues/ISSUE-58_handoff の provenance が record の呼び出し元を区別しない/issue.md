@@ -45,7 +45,7 @@ skill も Bash 経由で `record` を呼ぶので、現在の設計では両者�
 
 ## 位置づけの食い違い
 
-ISSUE-26 は必須フック検査の一般化を論じる中で、`handoff-sentinel` を必須に入れるかを
+Issue 26 は必須フック検査の一般化を論じる中で、`handoff-sentinel` を必須に入れるかを
 「個人ツールであり security guard ではない」として据え置いてよいとしている。
 
 一方で現物のコードは provenance 照合を prompt injection 防御として実装し、fail-closed で
@@ -58,19 +58,19 @@ SessionStart 側は配線を外しても config-guard は緑になる。
 ## タスク
 
 - [ ] `handoff-sentinel` を security guard として扱うかを決める
-      (ISSUE-26 の据え置き判断を維持するか、改めるか)
+      (Issue 26 の据え置き判断を維持するか、改めるか)
 - [ ] 上の判断に応じて、`record` の呼び出し元を skill に限定する機構を持つか決める。
       案としては skill が one-time の nonce を state へ置き、`record` がそれを消費する形。
       ただし nonce を置く経路も Bash なので、どこまで塞げるかを先に見積もる
 - [ ] 注入時の文面を見直す。現在は「前セッションからの引き継ぎ」と名乗るが、
       内容の正しさは誰も保証していない。信頼の度合いを文面へ反映するか決める
 - [ ] `settings_invariants.py` の必須フック検査をイベント軸へ一般化し、SessionStart の
-      配線を pin するか決める (ISSUE-26 の未完タスクと重なるので、着手はそちらへ寄せてよい)
+      配線を pin するか決める (Issue 26 の未完タスクと重なるので、着手はそちらへ寄せてよい)
 - [ ] 決めた方針を変異注入 3 種で pin する
 
 ## 関連
 
-- ISSUE-26 が Claude Code フックの共通基盤を扱う。本 Issue が指摘する位置づけの食い違いは
+- Issue 26 が Claude Code フックの共通基盤を扱う。本 Issue が指摘する位置づけの食い違いは
   同 Issue の「必須フック検査をイベント軸で一般化する」タスクの前提にあたる。
   同 Issue の未完タスクには観測フックの allowlist 廃止も含まれており、そちらは本レビューでも
   同じ箇所 (未知フィールドを丸ごとログへ書く形) が挙がったが、既に記録済みなので重複させない
