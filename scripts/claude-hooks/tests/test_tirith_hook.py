@@ -156,33 +156,64 @@ def test_japanese_reason_is_emitted_unescaped(tmp_path: Path) -> None:
     assert "\\u" not in proc.stdout
 
 
-def test_warn_allows_by_default_with_context(tmp_path: Path) -> None:
+def test_warn_reports_context_without_a_decision(tmp_path: Path) -> None:
+    """warn は判定を出さず警告文だけを載せる。
+
+    ここで allow を明示すると permission プロンプトが飛び、tirith が「怪しい」と言った
+    コマンドの方が、何も言わなかったコマンド (無出力 = 通常の権限フロー) より弱い審査で
+    通ることになる。warn は稀ではない (finding の最大 severity が MEDIUM のときに返る)。
+    """
     fake = make_fake_tirith(tmp_path, stdout=WARN_JSON, exit_code=2)
     proc = run_hook(bash_input("curl http://1.2.3.4"), extra_env={"TIRITH_BIN": str(fake)})
     assert proc.returncode == 0
-    assert permission(proc) == "allow"
+    assert permission(proc) is None
     assert "suspicious URL" in context_text(proc)
     assert "MEDIUM" in context_text(proc)
 
 
-def test_warn_denies_when_warn_action_deny(tmp_path: Path) -> None:
+def test_removed_warn_knob_no_longer_changes_the_outcome(tmp_path: Path) -> None:
+    """判定の強さを選ぶノブは廃止した。設定が残っていても振る舞いは変わらない。
+
+    ノブを読む経路が復活すると、warn の扱いが環境変数ひとつで allow へ戻せてしまう。
+    閾値を動かしたいときは tirith 側の policy を使う。
+    """
     fake = make_fake_tirith(tmp_path, stdout=WARN_JSON, exit_code=2)
-    proc = run_hook(
-        bash_input("curl http://1.2.3.4"),
-        extra_env={"TIRITH_BIN": str(fake), "TIRITH_HOOK_WARN_ACTION": "deny"},
-    )
-    assert permission(proc) == "deny"
-    assert "suspicious URL" in reason_text(proc)
+    for value in ("deny", "allow", "bogus"):
+        proc = run_hook(
+            bash_input("curl http://1.2.3.4"),
+            extra_env={"TIRITH_BIN": str(fake), "TIRITH_HOOK_WARN_ACTION": value},
+        )
+        assert permission(proc) is None, value
+        assert "suspicious URL" in context_text(proc), value
 
 
-def test_warn_action_unrecognized_defaults_to_allow(tmp_path: Path) -> None:
-    fake = make_fake_tirith(tmp_path, stdout=WARN_JSON, exit_code=2)
-    proc = run_hook(
-        bash_input("curl http://1.2.3.4"),
-        extra_env={"TIRITH_BIN": str(fake), "TIRITH_HOOK_WARN_ACTION": "bogus"},
+def test_tirith_prefixed_variables_are_not_forwarded(tmp_path: Path) -> None:
+    """tirith の子プロセスへ TIRITH_ 接頭辞を渡さない。
+
+    tirith は検査の基礎を外から動かせる変数を持つ。フックが受け取った環境をそのまま渡すと
+    それが検査を弱める経路になる。渡すのは TIRITH_INTEGRATION だけ。
+    落ちたことは「エラー」ではなく「弱い判定」として返るので、実際に渡った集合を見る。
+    """
+    env_log = tmp_path / "forwarded-env.txt"
+    fake = tmp_path / "fake-env-tirith.sh"
+    # hook-event の fire-and-forget が同じファイルを上書きする race を避けるため check に絞る
+    fake.write_text(
+        '#!/bin/sh\n[ "$1" = check ] && env | grep "^TIRITH_" | sort > "$ENV_LOG"\nexit 0\n'
     )
-    assert permission(proc) == "allow"
-    assert "unrecognized TIRITH_HOOK_WARN_ACTION" in proc.stderr
+    fake.chmod(0o755)
+
+    run_hook(
+        bash_input("echo hi"),
+        extra_env={
+            "TIRITH_BIN": str(fake),
+            "TIRITH_POLICY_ROOT": str(tmp_path / "weakened"),
+            "TIRITH_THREATDB_PATH": str(tmp_path / "empty-db"),
+            "ENV_LOG": str(env_log),
+        },
+    )
+
+    forwarded = env_log.read_text().split()
+    assert forwarded == ["TIRITH_INTEGRATION=claude-code"]
 
 
 # ---------------------------------------------------------------------------
@@ -295,16 +326,21 @@ def test_tirith_bin_set_but_missing_respects_fail_open() -> None:
     assert proc.stdout.strip() == ""
 
 
-def test_binary_not_found_fails_open(tmp_path: Path) -> None:
-    # TIRITH_BIN 未指定かつ PATH/shim に tirith 不在 = インフラ未整備 → 意図的 fail-open。
-    # HOME を空ディレクトリに向け mise shim を解決不能にし、PATH からも tirith を除く。
+def test_binary_not_found_fails_open_but_says_so(tmp_path: Path) -> None:
+    """バイナリ不在の fail-open は残すが、沈黙したことを文脈へ載せる。
+
+    stderr 1 行だけだと、検査が消えたことがモデルの文脈に入らない。判定は出さないので
+    通常の権限フローは壊れない。tirith 自身のテレメトリはここでは使えない (tirith が
+    不在の状態なので、記録の呼び出しも同じ理由で失敗して握り潰される)。
+    """
     proc = run_hook(
         bash_input(),
         extra_env={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin"},
     )
     assert proc.returncode == 0
-    assert proc.stdout.strip() == ""
-    assert "not found" in proc.stderr
+    assert permission(proc) is None
+    assert "検査されていません" in context_text(proc)
+    assert "見つからない" in proc.stderr
 
 
 # ---------------------------------------------------------------------------

@@ -209,17 +209,24 @@ repos:
         pass_filenames: false
         files: ^scripts/(windows-vm/|ci/run-pester\.ps1$)
 
-      # .sh の静的解析。CLAUDE.md の「警告0/ノイズ0」を prose でなくツールで担保する。
-      # .bats は bats 構文 (@test) を shellcheck がパースできないため対象外 (files で .sh のみ)。
+      # シェルスクリプトの静的解析。CLAUDE.md の「警告0/ノイズ0」を prose でなくツールで担保する。
+      # .bats は bats 構文 (@test) を shellcheck がパースできないため対象外。
       # CI (.github/workflows/test.yml の shellcheck job) でもミラーし --no-verify を backstop する。
       # local hook は language:system で dev の brew shellcheck を使う。CI 側は同 version を
       # download+verify で pin し (test.yml, gitleaks と同じ「開発機と揃える」)、ubuntu 同梱の
       # 古い版との警告集合 drift (SC2120 の FP 等) を防ぐ。
+      #
+      # 拡張子だけで選ぶと、拡張子を持てないファイルが「エラー」ではなく無検査として黙って
+      # 外れる。scripts/apm-guard/apm は PATH 横取りのため apm という名前でなければならず、
+      # 拡張子を付けられない。他にも追跡下の拡張子無しスクリプトが残っているが、それらは
+      # 今回の変更で触っていないため別 Issue で扱う。
+      # -x は source 先を追う指定で、-P SCRIPTDIR がその探索起点をスクリプトの位置にする
+      # (既定は cwd なので、shim が隣の lib.sh を source する形が解決できない)。
       - id: shellcheck
-        name: shellcheck (.sh static analysis)
+        name: shellcheck (shell static analysis)
         language: system
-        entry: shellcheck
-        files: \.sh$
+        entry: shellcheck -x -P SCRIPTDIR
+        files: (\.sh$|\.bash$|^scripts/apm-guard/apm$)
 
   # 標準 hook。CLAUDE.md の「末尾は改行1つ」「行末空白なし/ノイズ0」を prose でなくツールで担保する。
   # この2 hook は cosmetic (機能に無影響) ゆえ pre-commit-only とし CI ミラーは張らない (--no-verify で main に

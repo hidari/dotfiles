@@ -63,7 +63,7 @@ jobs:
         run: ast-grep scan --no-ignore hidden
 
   shellcheck:
-    name: shellcheck (.sh static analysis)
+    name: shellcheck (shell static analysis)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -81,10 +81,11 @@ jobs:
           tar -xJ -C "$RUNNER_TEMP" --strip-components=1 -f "$archive" "shellcheck-v${shellcheck_version}/shellcheck"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
 
-      # pre-commit の shellcheck hook の CI ミラー (backstop)。
+      # pre-commit の shellcheck hook の CI ミラー (backstop)。対象集合とオプションを
+      # .pre-commit-config.yaml の shellcheck hook と揃える (理由は向こうのコメント)。
       # -z/-0 でファイル名を null 区切りにし空白安全化、-r で0件時の空実行を防ぐ。
       - name: Run shellcheck
-        run: git ls-files -z '*.sh' | xargs -0 -r shellcheck
+        run: git ls-files -z '*.sh' '*.bash' 'scripts/apm-guard/apm' | xargs -0 -r shellcheck -x -P SCRIPTDIR
 
   pester:
     name: Pester (PowerShell)

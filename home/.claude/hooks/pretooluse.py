@@ -28,7 +28,10 @@ _HOOK_EVENT_NAME = "PreToolUse"
 # 介在する対象のツール。これ以外は判定を出さずに通す。
 _GUARDED_TOOL = "Bash"
 
-Decision = Literal["allow", "deny"]
+# この層は deny しか出さない。allow は permission プロンプトを飛ばすため、検査が「通した」
+# ことが他の検査の省略に化ける。文脈だけを載せたいときは notice_payload を使う。
+# 型で閉じているのは、規律をコメントに置くと引数 1 つで復活してしまうため。
+Decision = Literal["deny"]
 
 
 class InputProblem(enum.Enum):
@@ -101,9 +104,22 @@ def bash_command(payload: dict[str, Any]) -> str | None:
     return command
 
 
-def decision_payload(
-    decision: Decision, reason: str, *, additional_context: str | None = None
-) -> str:
+def notice_payload(context: str) -> str:
+    """判定を出さずに文脈だけを載せる JSON を組み立てる。
+
+    permissionDecision を持たないので、通常の権限フローがそのまま続く。allow を明示すると
+    permission プロンプトを飛ばしてしまい、「検査が何か言った」ことが「検査を省く」に化ける。
+
+    この形を harness が受理し additionalContext が実際に届くことは live で確認済み
+    (判定を持たない hookSpecificOutput を返して、セッションへ文脈が入ることを見た)。
+    """
+    return json.dumps(
+        {"hookSpecificOutput": {"hookEventName": _HOOK_EVENT_NAME, "additionalContext": context}},
+        ensure_ascii=False,
+    )
+
+
+def decision_payload(decision: Decision, reason: str) -> str:
     """権限判定の JSON 文字列を組み立てる。stdout へ出すのは呼び出し側の役目。
 
     ensure_ascii=False は判定理由をログでそのまま読むため。JSON としての意味は変わらない
@@ -114,6 +130,4 @@ def decision_payload(
         "permissionDecision": decision,
         "permissionDecisionReason": reason,
     }
-    if additional_context is not None:
-        output["additionalContext"] = additional_context
     return json.dumps({"hookSpecificOutput": output}, ensure_ascii=False)

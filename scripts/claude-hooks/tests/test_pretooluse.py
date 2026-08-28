@@ -152,15 +152,13 @@ def test_deny_の判定は_hookSpecificOutput_の形で返る() -> None:
     }
 
 
-def test_additional_context_を渡すと_allow_の判定に付く() -> None:
-    assert json.loads(decision_payload("allow", "警告", additional_context="警告")) == {
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "allow",
-            "permissionDecisionReason": "警告",
-            "additionalContext": "警告",
-        }
-    }
+def test_判定に文脈は相乗りしない() -> None:
+    # additionalContext を判定へ足せると、警告を載せたいだけの経路が allow を出す形へ
+    # 戻ってしまう。文脈の出口は notice_payload だけに保つ。
+    assert (
+        "additionalContext"
+        not in json.loads(decision_payload("deny", "理由"))["hookSpecificOutput"]
+    )
 
 
 def test_日本語の理由文はエスケープせず生のまま出す() -> None:

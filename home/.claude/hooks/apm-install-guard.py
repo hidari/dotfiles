@@ -23,14 +23,27 @@ apm の破壊性はどのリポジトリでも同じなので特定のリポジ�
 settings.json の env に置くか Claude Code の起動環境に入れること。ターミナルから直接 apm を
 叩く場合はそもそもフックを通らない。
 
-deny のときだけ JSON を出し、それ以外は無出力の exit 0 とする。複数の PreToolUse フックが deny と
-allow を同時に返したときの合成規則は公式ドキュメントに記載が無いため (「All matching hooks run in
-parallel」までしか書かれていない)、allow を出さないことで既存フックの判定を打ち消す経路を
-原理的に無くしている。
+deny のときだけ JSON を出し、それ以外は無出力の exit 0 とする。複数の PreToolUse フックの合成は
+precedence が deny > defer > ask > allow と公式ドキュメントに定められているので、allow を出しても
+他フックの deny が消えることはない。それでも allow は出さない。フックの allow は permission
+プロンプトを飛ばすため、このガードが「通した」ことが他の検査の省略に化ける。
 
-bootstrap.sh の install_apm_packages にも同じ判定がある。あちらは自動実行経路を、こちらは手打ちと
-エージェント経由を塞ぐ。プロセスが別なので実装は共有できない。両者の判定が一致していることは
-scripts/tests/bootstrap.bats の cross-pin テストが見る。
+判定の網はこの層ではなく PATH shim (scripts/apm-guard/apm) が持つ。shim は apm が exec される
+瞬間に立つので、コマンド文字列がどう書かれていたかに依存しない。このフックが受け持つのは、shim を
+迂回できる 2 形 (絶対パスでの起動、PATH の一時差し替え) と、それらを判定する過程で shim の
+配置漏れに気づくことである。配置漏れの検出はこの層がパースできる形にしか効かない (下の
+shim_resolves の呼び出し位置を参照)。
+
+したがってここでのトークン化の射程は「トップレベルのトークンとして apm が現れる形」までとする。
+包み込み (sh -c / バッククォート / eval) と変数展開は追わない。追ってもシェル文法の近似は
+終わらないことを実測で確かめた (26 ケース中 7 件が残り、区切りの集合を広げるたびに新しい形が
+出た)。絶対パスを変数やコピー経由で叩く形は shim とこの層のどちらにも掛からないが、事故としては
+発生しない形なので受容している。
+
+未コミット変更の判定そのものは scripts/apm-guard/lib.sh にあり、bootstrap.sh の
+install_apm_packages と shim の両方がそれを source する。この Python 側の判定と bash 側の判定が
+一致していることは scripts/claude-hooks/tests/test_apm_install_guard.py の cross-pin テストが
+見る (bats 側にはこの一致を見るテストは無い)。
 """
 
 from __future__ import annotations
@@ -66,6 +79,12 @@ READONLY_COMMANDS: tuple[tuple[str, ...], ...] = (
 # apm install の入出力なので、これらだけが変更された状態は正常な中間状態として許可する。
 # 例外が無いと pin を更新するたびにガードが手順を止める。
 ALLOWED_DIRTY_BASENAMES = frozenset({"apm.yml", "apm.lock.yaml"})
+
+# 配布した shim の置き場。bootstrap.sh の SYMLINK_PAIRS が張る target と同じ値で、
+# 一致は test_apm_install_guard.py の cross-pin テストが見る。
+# 存在ではなく「PATH 上の apm がここへ解決されるか」を見る。ファイルがあっても PATH に
+# 載っていなければ shim は一度も横取りしないので、存在検査は緑のまま守っていない状態を作る。
+DEFAULT_SHIM_PATH = "~/.local/libexec/apm-guard/apm"
 
 # 診断に並べるパスの上限。長大な一覧は読まれないので頭だけ出して残りは件数で示す。
 MAX_LISTED_PATHS = 20
@@ -130,9 +149,50 @@ def allow_silently() -> NoReturn:
     sys.exit(0)
 
 
+def shim_path() -> str:
+    """検査する shim の置き場。テストで実在の shim を指すために上書きできる。
+
+    無効化フラグ (APM_INSTALL_GUARD_DISABLE) と同じ接頭辞を使う。テストヘルパは基底環境から
+    この接頭辞をまとめて落としてから必要なものだけ足すので、実行環境の設定がテストへ
+    染み出さない。
+    """
+    return os.environ.get("APM_INSTALL_GUARD_SHIM") or DEFAULT_SHIM_PATH
+
+
+def shim_resolves() -> bool:
+    """PATH 上の apm が配布した shim へ解決されるか。
+
+    パス文字列ではなく実体で比べる。shim は symlink として配置されるので、文字列比較では
+    「解決先が symlink 自身か実体か」で結果が変わり、環境によって判定が揺れる。
+    """
+    # import を関数内へ置く理由は run_git と同じ (そちらのコメント参照)。ここは
+    # guarded_command が非 None を返した後にしか呼ばれない。
+    import shutil
+
+    resolved = shutil.which("apm")
+    if resolved is None:
+        return False
+    try:
+        return os.path.samefile(resolved, os.path.expanduser(shim_path()))
+    except OSError:
+        # どちらかが消えている / 辿れない。守れていないので偽を返す。
+        return False
+
+
 def is_operator(token: str) -> bool:
     """トークンがシェル演算子か。"""
     return bool(token) and all(char in _PUNCTUATION_CHARS for char in token)
+
+
+def is_redirect(token: str) -> bool:
+    """トークンがリダイレクト演算子か。
+
+    制御演算子 (; | && || 括弧) の直後はコマンド位置だが、リダイレクト演算子の直後は
+    出力先のファイル名でコマンドではない。両者を区別しないと
+    `printf x >> scripts/apm-guard/apm` が apm の呼び出しに化ける (実測)。
+    リダイレクトは必ず < か > を含み、制御演算子はどちらも含まない。
+    """
+    return is_operator(token) and ("<" in token or ">" in token)
 
 
 def tokenize(command: str) -> list[str] | None:
@@ -158,10 +218,13 @@ def is_command_position(tokens: list[str], index: int) -> bool:
     allowlist 方式では「読み取り専用一覧に無い語」が全て止まるので、位置の判定が要る。
     `sudo -u other apm install` のように wrapper が引数を取る形は検出できないが、apm は
     ユーザー権限のツールでその形を採る理由が無く、自動実行経路は層 1 が塞いでいる。
+
+    誤検知の側も同じだけ重い。apm と無関係のコマンドが止まると、ガードが日常の操作を壊す。
+    リダイレクト先と環境変数代入はどちらもコマンドではないので、コマンド位置から外す。
     """
     for previous in reversed(tokens[:index]):
         if is_operator(previous):
-            return True
+            return not is_redirect(previous)
         if previous.startswith("-"):
             continue
         if _ENV_ASSIGNMENT.match(previous):
@@ -191,6 +254,12 @@ def guarded_command(tokens: list[str]) -> str | None:
     なので対象外。読み取り専用と確認できたサブコマンドも対象外。
     """
     for index, token in enumerate(tokens):
+        # VAR=... は代入であってコマンドではない。basename だけで見ると
+        # FOO=/opt/homebrew/bin/apm が apm の呼び出しに化ける。代入かどうかの規則は
+        # is_command_position が手前のトークンに対して既に持っており、判定する側の
+        # トークンにも同じ規則が要る。
+        if _ENV_ASSIGNMENT.match(token):
+            continue
         if token.rsplit("/", 1)[-1] != "apm" or not is_command_position(tokens, index):
             continue
         args = invocation_args(tokens, index)
@@ -348,6 +417,19 @@ def main() -> None:
     subcommand = guarded_command(tokens)
     if subcommand is None:
         allow_silently()
+
+    # shim が PATH 上に無ければ、包み込みや変数展開の形はどこにも掛からない。ここで倒すのは
+    # そのことに気づける形を 1 つでも残すためで、配置漏れ全体を捕まえる検査ではない。
+    # この判定へ来るのは guarded_command がパースできた形だけなので、shim だけが担当する
+    # 包み込み・変数展開・xargs の形では、配置漏れは無音の素通りのまま残る (実測)。
+    # 配置漏れそのものを検出する層は、コマンド単位ではなくセッション単位に置く必要がある。
+    if not shim_resolves():
+        deny(
+            f"apm-install-guard: apm ガードの shim が PATH 上に見つからないため apm {subcommand} を"
+            f"許可できません。{shim_path()} が配置され、PATH の先頭にあることを確認してください "
+            "(bootstrap.sh が SYMLINK_PAIRS で張り、.zshrc が mise activate の直後で PATH へ"
+            "足します)。"
+        )
 
     cwd = pretooluse.get(payload, "cwd")
     if not isinstance(cwd, str) or not cwd:

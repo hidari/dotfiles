@@ -12,10 +12,14 @@ Exit code:
   deny の場合:
     {"hookSpecificOutput": {"hookEventName": "PreToolUse",
       "permissionDecision": "deny", "permissionDecisionReason": "..."}}
-  warn-allow の場合:
+  warn とバイナリ未検出の場合（判定を出さず文脈だけ載せる）:
     {"hookSpecificOutput": {"hookEventName": "PreToolUse",
-      "permissionDecision": "allow", "permissionDecisionReason": "...",
       "additionalContext": "..."}}
+
+  allow は出さない。この層は tirith のパーサの射程までしか見ておらず、包み込み
+  (bash -c '...' / バッククォート / eval '...') の中身は tirith が解析しないため素通りする
+  (実測)。完全になれない検査層が許可を出すと、その許可が permission プロンプトを飛ばし、
+  「検査が何か言った」ことが「検査を省く」に化ける。差し控えることだけができる。
 
 Fail ポリシー:
   ほとんどのエラー経路（空/不正な stdin、timeout、想定外 exit code 等）は fail-closed
@@ -24,9 +28,8 @@ Fail ポリシー:
   効く本フックがシェルを全死にさせないよう意図的に fail-open する。ただし TIRITH_BIN を明示
   指定したのにそのパスが存在しない場合は設定ミス（typo 等）とみなし fail-closed に倒す。
 
-環境変数:
+環境変数（いずれもフック自身が読む。tirith の子プロセスへは TIRITH_ 接頭辞を渡さない）:
   TIRITH_BIN              — tirith バイナリのパス（既定: "tirith"）
-  TIRITH_HOOK_WARN_ACTION — "allow"（既定）または "deny"
   TIRITH_FAIL_OPEN        — "1" でエラー時 fail-open（既定は fail-closed）
   TIRITH_TIMEOUT          — tirith check のタイムアウト秒（既定 10、不正値は既定にフォールバック）
 """
@@ -42,6 +45,19 @@ import pretooluse
 
 # tirith check のタイムアウト秒（既定値）。
 DEFAULT_TIMEOUT = 10.0
+
+# tirith の子プロセスへ渡す環境から落とす変数の接頭辞。tirith は検査の基礎を外から動かせる
+# 変数を持つ（policy の所在、脅威 DB の所在、warn の扱い等がバイナリの文字列から確認できる）。
+# フックが受け取った環境をそのまま渡すと、それらが検査を弱める経路になる。
+#
+# 危険なものを列挙する形は採らない。上流が変数を増やすたびに黙って穴が開き、漏れは検査でも
+# 見えないためである。ここで tirith へ渡したい TIRITH_ 変数は 1 つも無い（この後に足す
+# TIRITH_INTEGRATION だけが要る）ので、接頭辞ごと落として漏れを原理的に無くす。
+# apm-install-guard.py が git へ GIT_ 接頭辞を渡さないのと同じ規則。
+#
+# なおフック自身が読む変数（TIRITH_BIN / TIRITH_FAIL_OPEN / TIRITH_TIMEOUT）はこのフィルタの
+# 対象外である。os.environ から直接読むため、ここで落としても届き方は変わらない。
+_DROPPED_ENV_PREFIX = "TIRITH_"
 
 # 入力を解釈できなかったときの deny 理由。共有層は理由を problem で返すだけで文面を持たない。
 # 倒し方（このフックは環境変数の逃げ道つき fail-closed）と併せてフック側の判断だからである。
@@ -177,7 +193,9 @@ def main() -> None:
 
     tirith_bin = _resolve_tirith_bin()
 
-    env = os.environ.copy()
+    env = {
+        key: value for key, value in os.environ.items() if not key.startswith(_DROPPED_ENV_PREFIX)
+    }
     env["TIRITH_INTEGRATION"] = "claude-code"
 
     try:
@@ -209,10 +227,17 @@ def main() -> None:
         # TIRITH_BIN 未指定での未検出は tirith 未インストール = インフラ未整備。User スコープで
         # 全プロジェクトに効くため、ここだけ意図的に fail-open し、tirith 不在がシェルを全死に
         # させないようにする（docstring の Fail ポリシー参照）。
-        print(
-            f"tirith: {tirith_bin} not found — skipping check (install tirith to re-enable)",
-            file=sys.stderr,
+        # stderr だけだと、検査が沈黙したことがモデルの文脈へ入らない。判定は出さずに
+        # 文脈だけ載せる。ここで tirith のテレメトリは使えない（tirith 自体が不在なので
+        # Popen が FileNotFoundError で失敗し、_hook_event が握り潰す）。
+        # 「tirith が入っていない」はセッション単位の事実なのに、ここはコマンド単位で告げる
+        # ため同じ文が積み上がる。これは暫定で、恒久策は SessionStart で 1 回だけ告げる層。
+        notice = (
+            f"tirith: {tirith_bin} が見つからないため、このコマンドは検査されていません。"
+            "以降のコマンドも同じ状態です。mise で tirith を入れ直すと検査が戻ります。"
         )
+        print(notice, file=sys.stderr)
+        print(pretooluse.notice_payload(notice))
         sys.exit(0)
     except subprocess.TimeoutExpired:
         _hook_event("timeout")
@@ -234,31 +259,27 @@ def main() -> None:
         _hook_event("check_ok")
         sys.exit(0)
 
-    # exit 2 = warn。TIRITH_HOOK_WARN_ACTION に従う
+    # exit 2 = warn。判定は出さず、警告文だけを文脈へ載せる。
+    #
+    # ここで permissionDecision: "allow" を出してはならない。allow は permission プロンプトを
+    # 飛ばすため、tirith が「怪しい」と判断したコマンドの方が、何も言わなかったコマンド
+    # （無出力の exit 0 = 通常の権限フローへ）より弱い審査で通ることになる。warn は稀ではなく、
+    # finding の最大 severity が MEDIUM のときに返る（実測で 30 検体中 23 件）。
+    #
+    # ただし差し控えは「審査を強める」ことではない。settings.json の permissions.allow に
+    # 載っているコマンドでは、判定を出さないことがそのまま自動承認になる。強めるには ask が
+    # 要るが、warn の頻度からすると通知が過大になるため採っていない。
+    #
+    # 判定の強さを選べるノブは置かない。severity の閾値を動かしたいときは tirith 側の
+    # policy を使う。
     if result.returncode == 2:
-        warn_action = os.environ.get("TIRITH_HOOK_WARN_ACTION", "allow").lower()
-        if warn_action not in ("allow", "deny"):
-            print(
-                f"tirith: warning: unrecognized TIRITH_HOOK_WARN_ACTION='{warn_action}', "
-                "defaulting to 'allow'",
-                file=sys.stderr,
-            )
-            warn_action = "allow"
-        if warn_action != "deny":
-            _hook_event("warn_allowed")
-            warning_text = _build_warning_text(result.stdout)
-            print(
-                pretooluse.decision_payload("allow", warning_text, additional_context=warning_text)
-            )
-            sys.exit(0)
+        _hook_event("warn_noticed")
+        print(pretooluse.notice_payload(_build_warning_text(result.stdout)))
+        sys.exit(0)
 
-    # exit 1 = block、exit 2 + deny = block
-    if result.returncode == 1:
-        _hook_event("check_block")
-    else:
-        _hook_event("warn_denied")
-    reason = _build_warning_text(result.stdout)
-    deny(reason)
+    # exit 1 = block
+    _hook_event("check_block")
+    deny(_build_warning_text(result.stdout))
 
 
 if __name__ == "__main__":

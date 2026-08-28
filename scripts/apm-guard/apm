@@ -1,0 +1,87 @@
+#!/bin/bash
+# PATH の先頭に置く apm の shim。実物へ委譲する前に、ツリーが汚れていないかを見る。
+#
+# なぜ PreToolUse フックではなくここで判定するのか。フックはコマンド文字列をパースするので、
+# `bash -c 'apm install'` や変数展開の中にある apm へ届かない。シェル文法を Python で
+# 近似し続ける限り穴は出続ける（実測で 26 ケース中 7 件が残り、集合を広げるたびに新しい形が
+# 出た）。ここは apm が exec される瞬間に立つので、文字列がどう書かれていたかに依存しない。
+#
+# 逆に shim を迂回できる形が 2 つある（絶対パスでの起動と PATH の一時差し替え）。どちらも
+# コマンド文字列に apm が literal で現れるのでフックが捕まえる。2 層はこの向きで相補的になる。
+# ただし絶対パスを変数やコピー経由で叩く形はどちらにも掛からない。事故としては発生しない形
+# なので受容している。
+#
+# bash 専用。source する lib.sh が read -d '' とプロセス置換を使うため、/bin/sh では
+# read -d が黙って効かず、dirty な木でブロッカー 0 件という正常に見える結果が返る。
+
+set -u
+
+# 一覧に並べるパスの上限。長大な一覧は読まれないので頭だけ出して残りは件数で示す。
+MAX_LISTED_PATHS=20
+
+self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# PATH から自分のディレクトリを取り除く。sed で消さないのは、パスに正規表現のメタ文字が
+# 入ると置換が壊れ、しかも壊れ方が「消えなかった」= 無限再帰として現れるため。
+strip_self_from_path() {
+    local entry result=""
+    local IFS=:
+    for entry in $PATH; do
+        [ "$entry" = "$self_dir" ] && continue
+        result="${result:+$result:}$entry"
+    done
+    printf '%s' "$result"
+}
+
+# 実物の apm へ委譲する。自分自身へ戻らないことを確かめてから exec する。
+delegate() {
+    local real
+    PATH="$(strip_self_from_path)"
+    export PATH
+
+    if ! real="$(command -v apm)"; then
+        echo "apm-guard: apm not found after removing the guard from PATH" >&2
+        exit 127
+    fi
+    # -ef は symlink を追って inode を比べる。パス文字列の比較では、shim が別名でも
+    # PATH に残っていたときに一致せず、無限再帰へ落ちる。
+    if [ "$real" -ef "${BASH_SOURCE[0]}" ]; then
+        echo "apm-guard: refusing to re-exec the guard itself (PATH still resolves to $real)" >&2
+        exit 1
+    fi
+    exec "$real" "$@"
+}
+
+# 緊急時の逃げ道。フックと同じ変数名を使う（無効化のノブを 1 つに保つため）。
+# フック側と違い、ここはコマンドへ前置しても届く（shim は同じシェルの子プロセスなので）。
+if [ "${APM_INSTALL_GUARD_DISABLE:-}" = "1" ]; then
+    delegate "$@"
+fi
+
+# shellcheck source=./lib.sh
+. "$self_dir/lib.sh"
+
+if apm_is_readonly_invocation "$@"; then
+    delegate "$@"
+fi
+
+if ! blockers="$(apm_install_blockers "$PWD")"; then
+    echo "apm-guard: failed to inspect the working tree; refusing to run apm" >&2
+    echo "apm-guard: set APM_INSTALL_GUARD_DISABLE=1 to bypass this check" >&2
+    exit 1
+fi
+
+if [ -n "$blockers" ]; then
+    count="$(printf '%s\n' "$blockers" | wc -l | tr -d ' ')"
+    echo "apm-guard: apm overwrites deploy targets and deletes files not in the package." >&2
+    echo "apm-guard: $PWD has $count uncommitted change(s); refusing to run apm." >&2
+    printf '%s\n' "$blockers" | head -n "$MAX_LISTED_PATHS" | sed 's/^/  /' >&2
+    if [ "$count" -gt "$MAX_LISTED_PATHS" ]; then
+        echo "  ... and $((count - MAX_LISTED_PATHS)) more" >&2
+    fi
+    echo "apm-guard: commit or stash your work, then retry." >&2
+    echo "apm-guard: set APM_INSTALL_GUARD_DISABLE=1 to bypass this check." >&2
+    exit 1
+fi
+
+delegate "$@"
