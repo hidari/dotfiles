@@ -101,6 +101,21 @@ def bash_command(payload: dict[str, Any]) -> str | None:
     return command
 
 
+def notice_payload(context: str) -> str:
+    """判定を出さずに文脈だけを載せる JSON を組み立てる。
+
+    permissionDecision を持たないので、通常の権限フローがそのまま続く。allow を明示すると
+    permission プロンプトを飛ばしてしまい、「検査が何か言った」ことが「検査を省く」に化ける。
+
+    この形を harness が受理し additionalContext が実際に届くことは live で確認済み
+    (判定を持たない hookSpecificOutput を返して、セッションへ文脈が入ることを見た)。
+    """
+    return json.dumps(
+        {"hookSpecificOutput": {"hookEventName": _HOOK_EVENT_NAME, "additionalContext": context}},
+        ensure_ascii=False,
+    )
+
+
 def decision_payload(
     decision: Decision, reason: str, *, additional_context: str | None = None
 ) -> str:
