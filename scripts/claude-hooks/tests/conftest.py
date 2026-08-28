@@ -45,9 +45,9 @@ def bash_symlink_pairs() -> list[str]:
     引用規約をテスト側へ二重実装して drift させる。BASH_SOURCE ガードがあるので source
     しても main は走らない。
 
-    test_apm_install_guard.py と test_guard_probes.py の両方が同じ SYMLINK_PAIRS を
-    読むため、ここに 1 つだけ置く。片方だけが直接 source すると、bash の解釈規則が
-    変わったときにもう片方が古い読み方のまま食い違う。
+    conftest.py に置くのは、SYMLINK_PAIRS を bash に source させて読む実装をテスト
+    全体で 1 つに保つため。現在呼んでいるのは test_guard_probes.py の cross-pin
+    テストのみ。
     """
     script = f"source {shlex.quote(str(BOOTSTRAP))}; printf '%s\\n' \"${{SYMLINK_PAIRS[@]}}\""
     proc = subprocess.run(

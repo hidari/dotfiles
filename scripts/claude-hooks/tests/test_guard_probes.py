@@ -61,8 +61,8 @@ def test_shim_の置き場が配布先と一致する() -> None:
     """bootstrap.sh の SYMLINK_PAIRS を bash 自身に解釈させて読み、定数と突き合わせる。
 
     どちらか片方を直しても、もう片方が古いまま実配置と食い違う。bash に解釈させる読み方は
-    conftest の bash_symlink_pairs に 1 つだけ置き、test_apm_install_guard.py とここが
-    両方それを使う。読み方自体が 2 実装になると、そちらが食い違う側になる。
+    conftest.bash_symlink_pairs に 1 つだけ置いてあり、ここではそれを呼ぶだけで
+    インライン実装を持たない。
     """
     pairs = bash_symlink_pairs()
     assert pairs, "SYMLINK_PAIRS を 1 件も読めていない"
