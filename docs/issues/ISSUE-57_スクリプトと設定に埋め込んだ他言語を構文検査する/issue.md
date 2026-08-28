@@ -71,13 +71,13 @@ config-guard はこの文字列を読んでいる (`settings_invariants.py` が 
 
 ## 関連
 
-- ISSUE-30 が「Markdown 内のシェルスニペットを構文検査する」を扱う。根は同じ
+- Issue 30 が「Markdown 内のシェルスニペットを構文検査する」を扱う。根は同じ
   「埋め込み言語が検査網の外」だが、対象が逆向き (Markdown 内のシェル vs スクリプトと設定内の
-  他言語) で、必要な機構も違う。ISSUE-30 はフェンス走査の規約を要求するため ISSUE-39 に
+  他言語) で、必要な機構も違う。Issue 30 はフェンス走査の規約を要求するため Issue 39 に
   依存するが、本 Issue はヒアドキュメントの切り出しと JSON の読み取りで足りるので独立して
   着手できる
-- ISSUE-39 が config-guard の Markdown フェンス走査を 1 実装へ寄せる。本 Issue は
+- Issue 39 が config-guard の Markdown フェンス走査を 1 実装へ寄せる。本 Issue は
   フェンスを扱わないので依存しない
-- ISSUE-26 が Claude Code フックの共通基盤を扱う。`herdr-agent-state.sh` は
+- Issue 26 が Claude Code フックの共通基盤を扱う。`herdr-agent-state.sh` は
   `scripts/claude-hooks/` の対象に入っておらず (Python フック 4 本のみ)、
   取り込むかどうかは同 Issue の範囲と重なる
