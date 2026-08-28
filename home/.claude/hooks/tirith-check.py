@@ -36,11 +36,11 @@ Fail ポリシー:
 
 import json
 import os
-import shutil
 import subprocess
 import sys
 from typing import NoReturn
 
+import guard_probes
 import pretooluse
 
 # tirith check のタイムアウト秒（既定値）。
@@ -76,19 +76,6 @@ _INPUT_PROBLEM_REASONS: dict[pretooluse.InputProblem, str] = {
 }
 
 
-def _resolve_tirith_bin() -> str:
-    """tirith バイナリのパスを解決する: TIRITH_BIN → PATH → mise shim (home 相対)。
-    どれも無ければ "tirith" を返す（subprocess が FileNotFoundError を投げ fail-open）。
-    machine 固有パスを settings に焼かず .py 側で実行時解決する（全プロジェクト共有のため）。"""
-    mise_shim = os.path.expanduser("~/.local/share/mise/shims/tirith")
-    return (
-        os.environ.get("TIRITH_BIN")
-        or shutil.which("tirith")
-        or (mise_shim if os.path.exists(mise_shim) else None)
-        or "tirith"
-    )
-
-
 def _timeout_seconds() -> float:
     """TIRITH_TIMEOUT を秒として解釈する。未設定/不正値/非正値は既定値にフォールバック。"""
     raw = os.environ.get("TIRITH_TIMEOUT")
@@ -116,7 +103,7 @@ def fail_closed(reason: str) -> NoReturn:
 
 def _hook_event(event: str, detail: str | None = None) -> None:
     """tirith hook-event でフックのテレメトリイベントを記録する（fire-and-forget）。"""
-    tirith_bin = _resolve_tirith_bin()
+    tirith_bin = guard_probes.resolve_tirith_bin()
     try:
         cmd = [
             tirith_bin,
@@ -191,7 +178,7 @@ def main() -> None:
     if command is None:
         sys.exit(0)
 
-    tirith_bin = _resolve_tirith_bin()
+    tirith_bin = guard_probes.resolve_tirith_bin()
 
     env = {
         key: value for key, value in os.environ.items() if not key.startswith(_DROPPED_ENV_PREFIX)

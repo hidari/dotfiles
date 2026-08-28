@@ -70,3 +70,59 @@ def test_shim_の置き場が配布先と一致する() -> None:
     expected = guard_probes.DEFAULT_SHIM_PATH.removeprefix("~/")
     targets = [line.split("|", 1)[1] for line in pairs if "|" in line]
     assert expected in targets
+
+
+def _fake_tirith(path: Path, exit_code: int) -> Path:
+    """指定の exit code を返す偽 tirith を作る。"""
+    path.write_text(f"#!/bin/sh\nexit {exit_code}\n", encoding="utf-8")
+    path.chmod(0o755)
+    return path
+
+
+def test_tirith_が_clean_へ応答すれば健全(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = _fake_tirith(tmp_path / "tirith", 0)
+    monkeypatch.setenv("TIRITH_BIN", str(fake))
+    assert guard_probes.probe_tirith().healthy is True
+
+
+def test_TIRITH_BIN_未設定で解決しなければ沈黙(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    monkeypatch.delenv("TIRITH_BIN", raising=False)
+    monkeypatch.setenv("PATH", str(empty))
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    result = guard_probes.probe_tirith()
+    assert result.healthy is False
+    assert "沈黙" in result.detail
+
+
+def test_TIRITH_BIN_のパスが無ければ全_Bash_が止まると告げる(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TIRITH_BIN", str(tmp_path / "nonexistent" / "tirith"))
+
+    result = guard_probes.probe_tirith()
+    assert result.healthy is False
+    assert "Bash" in result.detail
+
+
+def test_clean_なコマンドに_clean_を返さなければ沈黙(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """応答はするが clean を clean と判定しない状態。フックは fail-closed に倒れる。"""
+    fake = _fake_tirith(tmp_path / "tirith", 1)
+    monkeypatch.setenv("TIRITH_BIN", str(fake))
+
+    result = guard_probes.probe_tirith()
+    assert result.healthy is False
+
+
+def test_登録簿は名前と関数の組を持つ() -> None:
+    """呼び出し自体が例外で落ちたときにも名前が要るので、名前は結果ではなく登録簿が持つ。"""
+    names = [name for name, _ in guard_probes.PROBES]
+    assert names == ["apm", "tirith"]
+    for _, probe in guard_probes.PROBES:
+        assert callable(probe)

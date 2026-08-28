@@ -7,7 +7,7 @@ PreToolUse の 2 つのガードは、どちらも自分が機能していない
 ためである。それはこの層が扱っている欠陥そのものなので、canonical を 1 つにする。
 
 print と sys.exit は持たない。副作用を持ち込むとこの層だけを直接テストできなくなる
-(pretooluse.py と同じ規則)。
+(pretooluse.py と同じ規則)。subprocess は持つので純関数ではない。
 
 フックからは sys.path[0] (スクリプトのディレクトリ) 経由で解決される。
 """
@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
 
 # 配布した shim の置き場。bootstrap.sh の SYMLINK_PAIRS が張る target と同じ値で、
@@ -98,3 +100,105 @@ def probe_apm() -> ProbeResult:
             "PATH は起動時に snapshot されるので、シェルの再読み込みでは足りない。"
         ),
     )
+
+
+def resolve_tirith_bin() -> str:
+    """tirith バイナリのパスを解決する: TIRITH_BIN → PATH → mise shim (home 相対)。
+
+    どれも無ければ "tirith" を返す。呼び出し側の subprocess が FileNotFoundError を投げ、
+    そこで不在を判定する。machine 固有パスを settings に焼かず実行時に解決するのは、
+    この設定が全プロジェクトで共有されるためである。
+    """
+    mise_shim = os.path.expanduser(_MISE_TIRITH_SHIM)
+    return (
+        os.environ.get("TIRITH_BIN")
+        or shutil.which("tirith")
+        or (mise_shim if os.path.exists(mise_shim) else None)
+        or "tirith"
+    )
+
+
+def probe_tirith() -> ProbeResult:
+    """tirith が解決し、clean なコマンドへ clean と応答するか。
+
+    フックと同一のフラグと環境で呼ぶ。呼び方が違うとデーモンを経由するかどうかが変わり、
+    フックが通る経路とは別のものを測ることになる。
+
+    「起動するが何も検出しない」状態はここでは覆わない。覆うには検出される文字列を流す
+    陰性対照が要るが、それは監査カウンタの blocked を呼び出しごとに 1 増やし、tirith が
+    働いているかを判断する材料そのものを壊す (測定は ISSUE-59-spec.md)。
+    """
+    tirith_bin = resolve_tirith_bin()
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith(_DROPPED_TIRITH_PREFIX)
+    }
+    env["TIRITH_INTEGRATION"] = "claude-code"
+
+    try:
+        result = subprocess.run(
+            [
+                tirith_bin,
+                "check",
+                "--json",
+                "--non-interactive",
+                "--shell",
+                "posix",
+                "--",
+                TIRITH_PROBE_COMMAND,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=TIRITH_PROBE_TIMEOUT,
+            env=env,
+        )
+    except FileNotFoundError:
+        if os.environ.get("TIRITH_BIN"):
+            # 明示したパスが無い = 設定ミス。フックは fail-closed に倒れるので静かではないが、
+            # 原因をここで名指しできる。
+            return ProbeResult(
+                healthy=False,
+                detail=(
+                    f"TIRITH_BIN={tirith_bin} が存在しないため、すべての Bash 呼び出しが "
+                    "ブロックされる。パスを直すか TIRITH_BIN を解除する。"
+                ),
+            )
+        return ProbeResult(
+            healthy=False,
+            detail=(
+                f"{tirith_bin} が見つからないため、tirith の検査は沈黙している。"
+                "コマンドは検査されないまま通る。mise で tirith を入れ直すと検査が戻る。"
+            ),
+        )
+    except subprocess.TimeoutExpired:
+        return ProbeResult(
+            healthy=False,
+            detail=(
+                f"{tirith_bin} が {TIRITH_PROBE_TIMEOUT} 秒以内に応答しないため、"
+                "すべての Bash 呼び出しがブロックされる。"
+            ),
+        )
+    except OSError as exc:
+        return ProbeResult(
+            healthy=False,
+            detail=f"{tirith_bin} を起動できない ({exc})。すべての Bash 呼び出しがブロックされる。",
+        )
+
+    if result.returncode != 0:
+        return ProbeResult(
+            healthy=False,
+            detail=(
+                f"{tirith_bin} が無害なコマンドを clean と判定しない (exit {result.returncode})。"
+                "この状態ではすべての Bash 呼び出しがブロックされる。"
+            ),
+        )
+    return ProbeResult(healthy=True)
+
+
+# プローブの登録簿。名前を結果ではなくここが持つのは、プローブの呼び出し自体が例外で
+# 落ちたときにも名前が要るためである。名前が無いと「検査できなかった」を報告できない。
+PROBES: tuple[tuple[str, Callable[[], ProbeResult]], ...] = (
+    ("apm", probe_apm),
+    ("tirith", probe_tirith),
+)
