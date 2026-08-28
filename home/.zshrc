@@ -418,6 +418,12 @@ eval "$(/opt/homebrew/bin/brew shellenv)"
 # miseのやつ
 eval "$(mise activate zsh)"
 
+# apm ガードの shim を PATH の先頭へ置く。
+# path 配列 (このファイル上部) 側へ書いてはならない。mise activate が PATH を再構成する
+# ため、配列へ足すと実物の apm より後ろへ落ちて一度も横取りできない (実測で 31 番目)。
+# 実体は scripts/apm-guard/apm で、bootstrap の SYMLINK_PAIRS が張る。
+export PATH="$HOME/.local/libexec/apm-guard:$PATH"
+
 # tirith (ターミナルのセキュリティツール)
 # tirith は mise 提供のため mise activate より後に置く。未インストールのマシンで
 # command not found を出さないよう、command -v で存在確認してから init する。

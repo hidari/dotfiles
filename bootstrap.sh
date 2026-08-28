@@ -45,6 +45,8 @@ SYMLINK_PAIRS=(
     # claude_mirror_pairs が claude-config-dirs から生成する (名前をリポジトリへ書かないため)。
     "scripts/backup-tool/backup|.local/bin/backup"
     "scripts/util-tools/small-id-gen/small-id-gen.sh|.local/bin/small-id-gen"
+    "scripts/apm-guard/apm|.local/libexec/apm-guard/apm"
+    "scripts/apm-guard/lib.sh|.local/libexec/apm-guard/lib.sh"
 )
 
 # apm が deploy した成果物を source とするシンボリックリンク定義（ソース|ターゲット）。
@@ -348,62 +350,14 @@ install_mise_tools() {
     mise install
 }
 
-# apm install を阻む未コミットの変更を列挙する（1 行 1 パス。無ければ何も出さない）。
-# apm install は deploy 先を rsync --delete 相当で書き換え、tracked file も黙って上書きし、
-# パッケージに含まれないファイルを削除する。しかもログには (files unchanged) と出るため
-# 差分に気づけない。ツリーが clean なら apm が何を壊しても git から戻せるので、目的は
-# 破壊の防止ではなく復旧可能性の確保になる。この整理から検査範囲は deploy 先ではなく
-# リポジトリ全体になる。
-# apm.yml と apm.lock.yaml は apm install の入出力であり、これらだけが変更された状態は
-# 正常な中間状態なので許可する。例外が無いと pin を更新するたびにガードが手順を止める。
-# git リポジトリでなければ「git から戻す」前提そのものが無いので検査しない。
-# パスは NUL 区切りで受け取る。空白や日本語を含むパスを空白分割すると分断され、落ちた分は
-# 「エラー」ではなく「短い正常な結果」として返るため出力を見ても気づけない。
-# 検査できなかったときは 1 を返す。git の失敗を空出力へ潰すと clean と区別できず、
-# bootstrap が新規マシン（git が壊れやすい環境）で無防備に apm install を走らせる。
-
-# パスが apm install の入出力なら真。これらだけが変更された状態は正常な中間状態であり、
-# 例外が無いと pin を更新するたびにガードが手順を止める。
-apm_io_path() {
-    case "${1##*/}" in
-        apm.yml | apm.lock.yaml) return 0 ;;
-    esac
-    return 1
-}
-
-apm_install_blockers() {
-    local repo="$1"
-    local entry status path from
-
-    # リポジトリ外は検査対象外。この判定を先に置かないと、下の status 失敗検査が
-    # 「リポジトリ外」を「検査できなかった」と取り違える。
-    if ! git -C "$repo" rev-parse --show-toplevel > /dev/null 2>&1; then
-        return 0
-    fi
-    # NUL 区切りの出力はコマンド置換では失われる（bash が NUL を捨てる）ためプロセス置換で
-    # 読む。その形では git の exit code を受け取れないので、成否だけを別呼び出しで確かめる。
-    if ! git -C "$repo" status --porcelain -z > /dev/null 2>&1; then
-        return 1
-    fi
-
-    while IFS= read -r -d '' entry; do
-        # porcelain の各エントリは "XY <path>" 形式。先頭 3 文字が状態フィールド
-        status="${entry:0:2}"
-        path="${entry:3}"
-        from=""
-        # rename と copy だけは "XY <to>\0<from>\0" の 2 チャンクで返る。from 側は状態
-        # フィールドを持たないので、同じ規則で切ると実在しないパスになる。
-        case "$status" in
-            *R* | *C*) IFS= read -r -d '' from || from="" ;;
-        esac
-        # 1 つの記録が指すパスがすべて apm の入出力のときだけ許可する。移動先が apm.yml でも
-        # 移動元が違えば、それは失われうる変更である。
-        if apm_io_path "$path" && { [ -z "$from" ] || apm_io_path "$from"; }; then
-            continue
-        fi
-        printf '%s\n' "$path"
-    done < <(git -C "$repo" status --porcelain -z)
-}
+# apm install の可否判定は scripts/apm-guard/lib.sh が canonical。PATH shim
+# (scripts/apm-guard/apm) も同じファイルを source するので、判定は 1 箇所にある。
+# 置き場を環境変数で上書きできるようにしているのは、この行を含むブロックが
+# テストでは一時ファイルへ切り出されて source されるため。その形では BASH_SOURCE が
+# 一時ファイルを指し、自分の位置からの相対解決が効かない。変異注入でコピーを
+# 読ませる用途も兼ねる (BOOTSTRAP_SCRIPT / ZSHRC_FILE と同じ作法)。
+# shellcheck source=scripts/apm-guard/lib.sh
+. "${APM_GUARD_LIB:-$(dirname "${BASH_SOURCE[0]}")/scripts/apm-guard/lib.sh}"
 
 # apm.yml (home/) が宣言する skill と plugin を apm.lock.yaml の pin 通りに実体化する（冪等）。
 # apm は cwd の apm.yml/apm.lock.yaml を基準に展開先を決めるため、必ず home/ で実行する。

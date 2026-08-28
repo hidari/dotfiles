@@ -7,11 +7,14 @@ test_tirith_hook.py と同じ流儀 (subprocess + 実物の代替物) で書い�
 
 from __future__ import annotations
 
+import atexit
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +22,16 @@ from conftest import HOOKS_DIR, REPO_ROOT, git_scope_free_env
 
 HOOK = HOOKS_DIR / "apm-install-guard.py"
 BOOTSTRAP = REPO_ROOT / "bootstrap.sh"
+
+# フックは PATH 上の apm が配布した shim へ解決されることを要求する。テストは shim が
+# 配置されていないマシンでも走るので、実在する代役をここで 1 度だけ用意する。
+# 代役を置かないと全テストが「shim が無い」理由の deny になり、dirty 判定を見るテストが
+# 判定へ到達しないまま緑にも赤にもなる。
+_SHIM_DIR = Path(tempfile.mkdtemp(prefix="apm-guard-shim-"))
+_SHIM = _SHIM_DIR / "apm"
+_SHIM.write_text("#!/bin/sh\nexit 0\n")
+_SHIM.chmod(0o755)
+atexit.register(shutil.rmtree, _SHIM_DIR, True)
 
 
 def run_hook_raw(
@@ -31,6 +44,10 @@ def run_hook_raw(
     書き写した経路を作らないため、JSON を送る場合も生文字列を送る場合もここを通す。
     """
     env = {k: v for k, v in os.environ.items() if not k.startswith("APM_INSTALL_GUARD_")}
+    # shim の代役を PATH の先頭と検査対象の両方へ据える。extra_env を後から当てるので、
+    # shim が無い状態を作りたいテストは同じキーを渡して上書きできる。
+    env["PATH"] = f"{_SHIM_DIR}{os.pathsep}{env.get('PATH', '')}"
+    env["APM_INSTALL_GUARD_SHIM"] = str(_SHIM)
     env.update(extra_env or {})
     return subprocess.run(
         [sys.executable, str(HOOK)],
@@ -620,3 +637,87 @@ def test_missing_cwd_denies() -> None:
     proc = run_hook(payload)
 
     assert decision(proc) == "deny"
+
+
+# ---------------------------------------------------------------------------
+# shim の配置検出
+# ---------------------------------------------------------------------------
+
+
+def bash_symlink_pairs() -> list[str]:
+    """bootstrap.sh の SYMLINK_PAIRS を bash 自身に解釈させて読む。
+
+    text-parse せずに source する。regex で拾うと、配列内のコメント行を要素と誤読したり
+    引用規約をテスト側へ二重実装して drift させる。BASH_SOURCE ガードがあるので source
+    しても main は走らない。
+    """
+    script = f"source {shlex.quote(str(BOOTSTRAP))}; printf '%s\\n' \"${{SYMLINK_PAIRS[@]}}\""
+    proc = subprocess.run(
+        ["bash", "-c", script],
+        capture_output=True,
+        text=True,
+        env=git_scope_free_env(),
+        check=True,
+    )
+    return [line for line in proc.stdout.splitlines() if line]
+
+
+def test_a_missing_shim_is_refused(tmp_path: Path) -> None:
+    """shim が PATH 上に無いとき止める。
+
+    ここが素通りすると、包み込みや変数展開の形はどの層にも掛からないまま「ガードがある」
+    という前提だけが残る。配置漏れは静かに起きるので、見える拒否として返す。
+    """
+    repo = init_repo(tmp_path)
+    proc = run_hook(
+        body("apm install", str(repo)),
+        extra_env={"APM_INSTALL_GUARD_SHIM": str(tmp_path / "nonexistent" / "apm")},
+    )
+
+    assert decision(proc) == "deny"
+
+
+def test_the_missing_shim_reason_names_the_expected_location(tmp_path: Path) -> None:
+    """理由文だけを読んで復旧できること。パスが無いと何を直せばよいか分からない。"""
+    repo = init_repo(tmp_path)
+    missing = tmp_path / "nonexistent" / "apm"
+    proc = run_hook(
+        body("apm install", str(repo)),
+        extra_env={"APM_INSTALL_GUARD_SHIM": str(missing)},
+    )
+
+    assert str(missing) in reason(proc)
+
+
+def test_a_readonly_subcommand_does_not_need_the_shim(tmp_path: Path) -> None:
+    """shim の検査は止める対象を見つけた後に行う。
+
+    順序が逆になると、読み取り専用のサブコマンドまで shim の有無で止まり、ガードが
+    日常の操作を壊す。
+    """
+    repo = init_repo(tmp_path)
+    proc = run_hook(
+        body("apm view", str(repo)),
+        extra_env={"APM_INSTALL_GUARD_SHIM": str(tmp_path / "nonexistent" / "apm")},
+    )
+
+    assert decision(proc) is None
+
+
+def test_the_shim_path_matches_the_distributed_target() -> None:
+    """フックが見る場所と bootstrap が配置する場所が一致すること。
+
+    別々に書かれているので、片方だけ直すと shim は置かれるのにフックは別の場所を見る。
+    その食い違いは「配置したのに deny が出続ける」という形で現れ、原因が分かりにくい。
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("guard", HOOK)
+    assert spec is not None and spec.loader is not None
+    guard = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(guard)
+
+    targets = [pair.split("|", 1)[1] for pair in bash_symlink_pairs() if "|" in pair]
+    expected = guard.DEFAULT_SHIM_PATH.removeprefix("~/")
+
+    assert expected in targets

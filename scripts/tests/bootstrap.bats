@@ -345,17 +345,6 @@ teardown() {
 # apm install ガード tests (未コミット変更の列挙と、それを受けた中止)
 # =============================================================================
 
-# コミットを 1 つ持つテスト用リポジトリを作る。
-# setup_test_repo はコミットを作らないが、status --porcelain の比較には
-# 「追跡されている既存ファイル」が要るのでここで用意する。
-init_committed_repo() {
-    local repo="$1"
-    setup_test_repo "$repo"
-    echo hello > "$repo/a.txt"
-    git -C "$repo" add a.txt
-    git -C "$repo" commit -qm init
-}
-
 @test "apm_install_blockers: a clean tree yields no blockers" {
     local repo="$TEST_HOME/repo"
     init_committed_repo "$repo"

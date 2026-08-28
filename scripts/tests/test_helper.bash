@@ -17,6 +17,14 @@ BOOTSTRAP_SCRIPT="${BOOTSTRAP_SCRIPT:-$REPO_ROOT/bootstrap.sh}"
 STATUSLINE_SCRIPT="${STATUSLINE_SCRIPT:-$REPO_ROOT/home/.claude/statusline-command.sh}"
 ZSHRC_FILE="${ZSHRC_FILE:-$REPO_ROOT/home/.zshrc}"
 
+# apm ガードの判定を持つ共有シェル層。bootstrap.sh と PATH shim の両方が source する。
+# bootstrap.sh はブロック切り出しで source されるため自分の位置から解決できず、
+# ここが指す先が唯一の入口になる。export しているのは切り出したブロックが
+# 別プロセスではなく同じシェルで source されるため実際には不要だが、
+# bats の run が起こす副シェルでも同じ値を見せるために揃えておく。
+APM_GUARD_LIB="${APM_GUARD_LIB:-$REPO_ROOT/scripts/apm-guard/lib.sh}"
+export APM_GUARD_LIB
+
 # .zshrc のセクション区切り。ブロック切り出しの終端マーカーとして複数の入口が使う
 ZSHRC_SECTION_END='^########################################$'
 
@@ -151,6 +159,17 @@ load_marker_block() {
     # shellcheck source=/dev/null
     source "$temp_file"
     rm -f "$temp_file"
+}
+
+# コミットを 1 つ持つテスト用リポジトリを作る。
+# setup_test_repo はコミットを作らないが、status --porcelain の比較には
+# 「追跡されている既存ファイル」が要るのでここで用意する。
+init_committed_repo() {
+    local repo="$1"
+    setup_test_repo "$repo"
+    echo hello > "$repo/a.txt"
+    git -C "$repo" add a.txt
+    git -C "$repo" commit -qm init
 }
 
 # statusline-command.sh のヘルパー関数ブロックを読み込む。
