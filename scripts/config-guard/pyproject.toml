@@ -42,6 +42,11 @@ ignore = ["RUF002", "RUF003"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101"]
+# N802: pytest メソッド名を日本語の仕様文（テスト＝仕様）にするため、非ASCII識別子を
+# 小文字判定できない ruff の誤検知を許容する。現行 pin の ruff でも再現する
+# (scripts/claude-hooks/pyproject.toml で先に踏んだのと同じ現象)。
+# 日本語名を持つファイルだけに限る。tests/* へ広げると ASCII の camelCase を見逃す。
+"tests/test_settings_invariants.py" = ["N802"]
 
 [tool.mypy]
 strict = true

@@ -15,19 +15,25 @@ from config_guard.instruction_budget import (
 )
 from tests.conftest import (
     APM_GUARD_HOOK_COMMAND,
+    GUARD_HEALTH_HOOK_COMMAND,
     TIRITH_HOOK_COMMAND,
     hook_group,
     init_repo,
     pretooluse,
     run_git,
+    session_start,
     write_file,
 )
 
 GOOD_SETTINGS = {
     "permissions": {"allow": ["Bash(cat:*)"], "deny": ["NotebookRead"], "ask": []},
     "enabledPlugins": {"feature-dev@claude-plugins-official": True},
-    # 必須フックの配線。欠けていると他の検査の統合テストにも findings が混ざる
-    "hooks": pretooluse(hook_group(TIRITH_HOOK_COMMAND, APM_GUARD_HOOK_COMMAND)),
+    # 必須フックの配線。欠けていると他の検査の統合テストにも findings が混ざる。
+    # SessionStart の matcher は開始理由を見るので "*" を明示する
+    "hooks": {
+        **pretooluse(hook_group(TIRITH_HOOK_COMMAND, APM_GUARD_HOOK_COMMAND)),
+        **session_start(hook_group(GUARD_HEALTH_HOOK_COMMAND, matcher="*")),
+    },
     # nested traversal の除外。フックの配線と同じ理由でここへ置く
     "claudeMdExcludes": ["**/home/.claude/CLAUDE.md"],
 }

@@ -28,6 +28,7 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 # clean フィクスチャが常に検査を満たし、pin が自己参照で空虚になる。
 TIRITH_HOOK_COMMAND = 'python3 "$HOME/.claude/hooks/tirith-check.py"'
 APM_GUARD_HOOK_COMMAND = 'python3 "$HOME/.claude/hooks/apm-install-guard.py"'
+GUARD_HEALTH_HOOK_COMMAND = 'python3 "$HOME/.claude/hooks/guard-health.py"'
 
 
 def hook_group(*commands: str, matcher: str | None = "Bash") -> dict[str, Any]:
@@ -41,6 +42,15 @@ def hook_group(*commands: str, matcher: str | None = "Bash") -> dict[str, Any]:
 def pretooluse(*groups: dict[str, Any]) -> dict[str, Any]:
     """hooks セクションを作る。グループの分け方は配線の自由度なので呼び出し側が決める。"""
     return {"PreToolUse": list(groups)}
+
+
+def session_start(*groups: dict[str, Any]) -> dict[str, Any]:
+    """hooks セクションの SessionStart 部分を作る。
+
+    matcher の既定を持たせないのは、SessionStart の matcher が開始理由を見るためである。
+    hook_group の既定 (Bash) はツール名なので、呼び出し側が matcher を明示する。
+    """
+    return {"SessionStart": list(groups)}
 
 
 def run_git(repo: Path, *args: str) -> None:

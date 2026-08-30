@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from typing import Any
 
 from config_guard.extractors import extract_settings_permission_tokens
@@ -23,11 +24,18 @@ _USER_PATH = re.compile(r"/(Users|home)/[a-z_][a-z0-9._-]*")
 # path 付き Glob(...)/Grep(...) permission 規則の検出パターン（bare は対象外）。
 _INEFFECTIVE_PATH_RULE = re.compile(r"^(?:Glob|Grep)\((.+)\)$")
 
-# PreToolUse に必ず配線されていなければならないフック（本体のファイル名で照合する）。
+# 必ず配線されていなければならないフック（本体のファイル名で照合する）。
 # フック本体が存在しても settings.json から外れれば何も守らないため、取り付け自体を
 # 不変条件にする。これが無いと検査機構の 3 種変異のうち「取り付けを外す」をテストで
 # 捕まえられない（実際この検査を足すまで、tirith-check.py の配線を外しても全テストが緑だった）。
-_REQUIRED_PRETOOLUSE_HOOKS: tuple[str, ...] = ("tirith-check.py", "apm-install-guard.py")
+#
+# 名前で宣言するのは、存在するファイルの集合から必須集合を導くと、本体を消せば要求も
+# 消えて緑になるためである。それは検査が必要な状況でだけ検査が動かない自己敗北にあたる。
+# 配線漏れの検出は逆向きなので導出でよく、hook_wiring が持つ。
+_REQUIRED_HOOKS: dict[str, tuple[str, ...]] = {
+    "PreToolUse": ("tirith-check.py", "apm-install-guard.py"),
+    "SessionStart": ("guard-health.py",),
+}
 
 # 必須フックが守るツール。matcher がこれに一致しないグループは配線として数えない。
 _GUARDED_TOOL = "Bash"
@@ -83,18 +91,41 @@ def _matcher_covers_guarded_tool(matcher: Any) -> bool:
         return False
 
 
-def _pretooluse_commands(settings: dict[str, Any]) -> list[str]:
-    """hooks.PreToolUse で対象ツールに配線された command 文字列を集める。
+def _matcher_covers_all_sources(matcher: Any) -> bool:
+    """SessionStart のグループが全開始理由を覆うか。
+
+    SessionStart の matcher はツール名ではなく開始理由 (startup / resume / clear /
+    compact / fork) を見る。PreToolUse の述語を使い回すと、ツール名を書いたグループが
+    全一致して配線済みに見える。
+
+    全理由に一致する書き方 (省略・空文字・"*") だけを配線として数える。個々の理由を
+    列挙する形は数えない。理由の一覧を literal で持つと、Claude Code が理由を増やした
+    ときに検査側だけが古くなるためである。この向きの誤りは「動いている配線を咎める」
+    可視で安価な失敗で済み、逆向きに緩めると発火しない配線を配線済みと読む。
+    """
+    return matcher is None or matcher in ("", "*")
+
+
+# イベントごとの matcher 述語。matcher の意味がイベントで違うので、1 つの述語を
+# 使い回さない。使い回すと SessionStart にツール名を書いた配線が全一致で通る。
+_MATCHER_PREDICATES: dict[str, Callable[[Any], bool]] = {
+    "PreToolUse": _matcher_covers_guarded_tool,
+    "SessionStart": _matcher_covers_all_sources,
+}
+
+
+def _wired_commands(settings: dict[str, Any], event: str) -> list[str]:
+    """hooks[event] で、そのイベントの述語を満たすグループの command 文字列を集める。
 
     グループを分けるか 1 グループに複数要素を置くかは配線の自由度なので、両方を平らに集める。
-    イベントは PreToolUse だけを見る。PostToolUse に置いても呼び出し前には走らないため。
-    matcher が対象ツールに一致しないグループは数えない。本体が残っていても起動しないので、
+    述語を満たさないグループは数えない。本体が残っていても起動しないので、
     それは配線を外したのと同じである。
     """
+    covers = _MATCHER_PREDICATES[event]
     hooks = settings.get("hooks")
     if not isinstance(hooks, dict):
         return []
-    groups = hooks.get("PreToolUse")
+    groups = hooks.get(event)
     if not isinstance(groups, list):
         return []
 
@@ -102,7 +133,7 @@ def _pretooluse_commands(settings: dict[str, Any]) -> list[str]:
     for group in groups:
         if not isinstance(group, dict):
             continue
-        if not _matcher_covers_guarded_tool(group.get("matcher")):
+        if not covers(group.get("matcher")):
             continue
         entries = group.get("hooks")
         if not isinstance(entries, list):
@@ -168,13 +199,14 @@ def check_settings_invariants(settings: dict[str, Any]) -> list[Finding]:
             if reason is not None:
                 findings.append(Finding(_SRC, token, reason))
 
-    # 6. 必須フックが PreToolUse に配線されているか
-    commands = _pretooluse_commands(settings)
-    for script in _REQUIRED_PRETOOLUSE_HOOKS:
-        if not any(script in command for command in commands):
-            findings.append(
-                Finding(_SRC, script, f"PreToolUse に必須フックが配線されていません: {script}")
-            )
+    # 6. 必須フックが各イベントへ配線されているか
+    for event, scripts in _REQUIRED_HOOKS.items():
+        commands = _wired_commands(settings, event)
+        for script in scripts:
+            if not any(script in command for command in commands):
+                findings.append(
+                    Finding(_SRC, script, f"{event} に必須フックが配線されていません: {script}")
+                )
 
     # 7. nested traversal の除外が配線されているか。
     #    型を間違えた値は Claude Code 側では無警告で無視される。加えて文字列を渡されると

@@ -7,9 +7,11 @@ from typing import Any
 from config_guard.settings_invariants import check_settings_invariants
 from tests.conftest import (
     APM_GUARD_HOOK_COMMAND,
+    GUARD_HEALTH_HOOK_COMMAND,
     TIRITH_HOOK_COMMAND,
     hook_group,
     pretooluse,
+    session_start,
 )
 
 GOOD: dict[str, Any] = {
@@ -28,8 +30,12 @@ GOOD: dict[str, Any] = {
         "superpowers@superpowers-marketplace": True,
     },
     # 必須フックの配線。欠けていると他の検査のテストにも findings が混ざるため、
-    # 「狙った検査だけが落とす」最小の差分を保つ意味でも clean な形をここに置く
-    "hooks": pretooluse(hook_group(TIRITH_HOOK_COMMAND), hook_group(APM_GUARD_HOOK_COMMAND)),
+    # 「狙った検査だけが落とす」最小の差分を保つ意味でも clean な形をここに置く。
+    # SessionStart の matcher は開始理由を見るので "*" を明示する
+    "hooks": {
+        **pretooluse(hook_group(TIRITH_HOOK_COMMAND), hook_group(APM_GUARD_HOOK_COMMAND)),
+        **session_start(hook_group(GUARD_HEALTH_HOOK_COMMAND, matcher="*")),
+    },
     # nested traversal の除外。フックの配線と同じ理由でここへ置く
     "claudeMdExcludes": ["**/home/.claude/CLAUDE.md"],
 }
@@ -112,19 +118,36 @@ class TestRequiredHooks:
     """
 
     def test_missing_apm_install_guard_is_flagged(self) -> None:
-        settings = {**GOOD, "hooks": pretooluse(hook_group(TIRITH_HOOK_COMMAND))}
+        settings = {
+            **GOOD,
+            "hooks": {
+                **pretooluse(hook_group(TIRITH_HOOK_COMMAND)),
+                **session_start(hook_group(GUARD_HEALTH_HOOK_COMMAND, matcher="*")),
+            },
+        }
         findings = check_settings_invariants(settings)
         assert [f.detail for f in findings] == ["apm-install-guard.py"]
 
     def test_missing_tirith_check_is_flagged(self) -> None:
-        settings = {**GOOD, "hooks": pretooluse(hook_group(APM_GUARD_HOOK_COMMAND))}
+        settings = {
+            **GOOD,
+            "hooks": {
+                **pretooluse(hook_group(APM_GUARD_HOOK_COMMAND)),
+                **session_start(hook_group(GUARD_HEALTH_HOOK_COMMAND, matcher="*")),
+            },
+        }
         findings = check_settings_invariants(settings)
         assert [f.detail for f in findings] == ["tirith-check.py"]
 
     def test_missing_hooks_section_flags_every_required_hook(self) -> None:
+        # hooks キーを丸ごと外すので、PreToolUse と SessionStart の両方が空になる
         settings = {k: v for k, v in GOOD.items() if k != "hooks"}
         findings = check_settings_invariants(settings)
-        assert {f.detail for f in findings} == {"tirith-check.py", "apm-install-guard.py"}
+        assert {f.detail for f in findings} == {
+            "tirith-check.py",
+            "apm-install-guard.py",
+            "guard-health.py",
+        }
 
     def test_hook_wired_to_another_event_does_not_count(self) -> None:
         # PostToolUse に置いても PreToolUse の呼び出しは守られない。
@@ -133,6 +156,7 @@ class TestRequiredHooks:
             **GOOD,
             "hooks": {
                 **pretooluse(hook_group(TIRITH_HOOK_COMMAND)),
+                **session_start(hook_group(GUARD_HEALTH_HOOK_COMMAND, matcher="*")),
                 "PostToolUse": [hook_group(APM_GUARD_HOOK_COMMAND, matcher="*")],
             },
         }
@@ -144,10 +168,13 @@ class TestRequiredHooks:
         # フック本体は残ったまま Bash 呼び出しで一切起動しなくなる。実測で確認した穴
         settings = {
             **GOOD,
-            "hooks": pretooluse(
-                hook_group(TIRITH_HOOK_COMMAND),
-                hook_group(APM_GUARD_HOOK_COMMAND, matcher="Read"),
-            ),
+            "hooks": {
+                **pretooluse(
+                    hook_group(TIRITH_HOOK_COMMAND),
+                    hook_group(APM_GUARD_HOOK_COMMAND, matcher="Read"),
+                ),
+                **session_start(hook_group(GUARD_HEALTH_HOOK_COMMAND, matcher="*")),
+            },
         }
         findings = check_settings_invariants(settings)
         assert [f.detail for f in findings] == ["apm-install-guard.py"]
@@ -156,10 +183,13 @@ class TestRequiredHooks:
         # 正規表現として壊れた matcher は「一致するかもしれない」と楽観しない
         settings = {
             **GOOD,
-            "hooks": pretooluse(
-                hook_group(TIRITH_HOOK_COMMAND),
-                hook_group(APM_GUARD_HOOK_COMMAND, matcher="[Bash"),
-            ),
+            "hooks": {
+                **pretooluse(
+                    hook_group(TIRITH_HOOK_COMMAND),
+                    hook_group(APM_GUARD_HOOK_COMMAND, matcher="[Bash"),
+                ),
+                **session_start(hook_group(GUARD_HEALTH_HOOK_COMMAND, matcher="*")),
+            },
         }
         findings = check_settings_invariants(settings)
         assert [f.detail for f in findings] == ["apm-install-guard.py"]
@@ -170,7 +200,13 @@ class TestRequiredHooks:
         # 形ではなく「Bash の PreToolUse から呼ばれること」を仕様にする
         for matcher in (None, "", "*", "Bash", "Bash|Read"):
             group = hook_group(TIRITH_HOOK_COMMAND, APM_GUARD_HOOK_COMMAND, matcher=matcher)
-            settings = {**GOOD, "hooks": pretooluse(group)}
+            settings = {
+                **GOOD,
+                "hooks": {
+                    **pretooluse(group),
+                    **session_start(hook_group(GUARD_HEALTH_HOOK_COMMAND, matcher="*")),
+                },
+            }
             assert check_settings_invariants(settings) == [], matcher
 
 
@@ -207,3 +243,71 @@ class TestClaudeMdExcludes:
         # 必須パターンを含んでいれば追加の除外は自由（negative case）
         settings = {**GOOD, "claudeMdExcludes": ["**/home/.claude/CLAUDE.md", "**/vendor/**"]}
         assert check_settings_invariants(settings) == []
+
+
+def _settings_with_hooks(hooks: dict[str, Any]) -> dict[str, Any]:
+    """必須の除外だけを満たした最小 settings に、渡された hooks を載せる。"""
+    return {
+        "claudeMdExcludes": ["**/home/.claude/CLAUDE.md"],
+        "hooks": hooks,
+    }
+
+
+def _pretooluse_group() -> dict[str, Any]:
+    """PreToolUse の必須フックを 1 グループにまとめたもの。"""
+    return hook_group(TIRITH_HOOK_COMMAND, APM_GUARD_HOOK_COMMAND)
+
+
+def _guard_health_group(matcher: str = "*") -> dict[str, Any]:
+    """SessionStart の必須フックを 1 グループにまとめたもの。"""
+    return hook_group(GUARD_HEALTH_HOOK_COMMAND, matcher=matcher)
+
+
+def test_SessionStart_の必須フックが無ければ検出する() -> None:
+    settings = _settings_with_hooks(pretooluse(_pretooluse_group()))
+    findings = check_settings_invariants(settings)
+    assert [f.detail for f in findings] == ["guard-health.py"]
+
+
+def test_SessionStart_に配線されていれば検出しない() -> None:
+    settings = _settings_with_hooks(
+        {**pretooluse(_pretooluse_group()), **session_start(_guard_health_group())}
+    )
+    findings = check_settings_invariants(settings)
+    assert findings == []
+
+
+def test_開始理由を絞った_matcher_は配線として数えない() -> None:
+    """SessionStart の matcher は開始理由を見る。startup だけでは compact で発火しない。"""
+    settings = _settings_with_hooks(
+        {
+            **pretooluse(_pretooluse_group()),
+            **session_start(_guard_health_group(matcher="startup")),
+        }
+    )
+    findings = check_settings_invariants(settings)
+    assert [f.detail for f in findings] == ["guard-health.py"]
+
+
+def test_ツール名の_matcher_を_SessionStart_の配線として数えない() -> None:
+    """PreToolUse の述語を使い回すと Bash が全一致して配線済みに見える。"""
+    settings = _settings_with_hooks(
+        {
+            **pretooluse(_pretooluse_group()),
+            **session_start(_guard_health_group(matcher="Bash")),
+        }
+    )
+    findings = check_settings_invariants(settings)
+    assert [f.detail for f in findings] == ["guard-health.py"]
+
+
+def test_PreToolUse_の必須フックは引き続き検出される() -> None:
+    """イベント軸へ一般化しても既存の検査が緩まないことを見る。"""
+    settings = _settings_with_hooks(
+        {
+            **pretooluse(hook_group(TIRITH_HOOK_COMMAND)),
+            **session_start(_guard_health_group()),
+        }
+    )
+    findings = check_settings_invariants(settings)
+    assert [f.detail for f in findings] == ["apm-install-guard.py"]
