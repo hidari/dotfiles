@@ -18,10 +18,9 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from conftest import HOOKS_DIR, REPO_ROOT, git_scope_free_env
+from conftest import BOOTSTRAP, HOOKS_DIR, REPO_ROOT, git_scope_free_env
 
 HOOK = HOOKS_DIR / "apm-install-guard.py"
-BOOTSTRAP = REPO_ROOT / "bootstrap.sh"
 GUARD_LIB = REPO_ROOT / "scripts" / "apm-guard" / "lib.sh"
 
 
@@ -657,24 +656,6 @@ def test_missing_cwd_denies() -> None:
 # ---------------------------------------------------------------------------
 
 
-def bash_symlink_pairs() -> list[str]:
-    """bootstrap.sh の SYMLINK_PAIRS を bash 自身に解釈させて読む。
-
-    text-parse せずに source する。regex で拾うと、配列内のコメント行を要素と誤読したり
-    引用規約をテスト側へ二重実装して drift させる。BASH_SOURCE ガードがあるので source
-    しても main は走らない。
-    """
-    script = f"source {shlex.quote(str(BOOTSTRAP))}; printf '%s\\n' \"${{SYMLINK_PAIRS[@]}}\""
-    proc = subprocess.run(
-        ["bash", "-c", script],
-        capture_output=True,
-        text=True,
-        env=git_scope_free_env(),
-        check=True,
-    )
-    return [line for line in proc.stdout.splitlines() if line]
-
-
 def test_missing_shim_is_refused(tmp_path: Path) -> None:
     """shim が PATH 上に無いとき止める。
 
@@ -715,20 +696,6 @@ def test_readonly_subcommand_does_not_need_the_shim(tmp_path: Path) -> None:
     )
 
     assert decision(proc) is None
-
-
-def test_shim_path_matches_the_distributed_target() -> None:
-    """フックが見る場所と bootstrap が配置する場所が一致すること。
-
-    別々に書かれているので、片方だけ直すと shim は置かれるのにフックは別の場所を見る。
-    その食い違いは「配置したのに deny が出続ける」という形で現れ、原因が分かりにくい。
-    """
-    guard = load_guard_module()
-
-    targets = [pair.split("|", 1)[1] for pair in bash_symlink_pairs() if "|" in pair]
-    expected = guard.DEFAULT_SHIM_PATH.removeprefix("~/")
-
-    assert expected in targets
 
 
 # ---------------------------------------------------------------------------

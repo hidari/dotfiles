@@ -21,6 +21,26 @@ def _unquote(value: str) -> str:
     return value
 
 
+def iter_strings(obj: Any) -> list[str]:
+    """オブジェクトを再帰的に走査してすべての文字列を返す。
+
+    settings.json のような入れ子の dict/list から文字列だけを集める純関数。
+    hook_wiring と settings_invariants の両方がこれを使う。分割の実装をここへ
+    1 つだけ置くのは、モジュールごとに書くと片方だけが振る舞いを変えても他方が
+    気づかず両方緑のまま通るためである (git_run.tracked_files の前例に揃える)。
+    """
+    out: list[str] = []
+    if isinstance(obj, str):
+        out.append(obj)
+    elif isinstance(obj, dict):
+        for value in obj.values():
+            out.extend(iter_strings(value))
+    elif isinstance(obj, list):
+        for value in obj:
+            out.extend(iter_strings(value))
+    return out
+
+
 def extract_skill_tokens(skill_md: str) -> list[str]:
     """SKILL.md の frontmatter から allowed-tools のツール名を抽出する。無ければ空。"""
     lines = skill_md.splitlines()

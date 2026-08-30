@@ -15,19 +15,25 @@ from config_guard.instruction_budget import (
 )
 from tests.conftest import (
     APM_GUARD_HOOK_COMMAND,
+    GUARD_HEALTH_HOOK_COMMAND,
     TIRITH_HOOK_COMMAND,
     hook_group,
     init_repo,
     pretooluse,
     run_git,
+    session_start,
     write_file,
 )
 
 GOOD_SETTINGS = {
     "permissions": {"allow": ["Bash(cat:*)"], "deny": ["NotebookRead"], "ask": []},
     "enabledPlugins": {"feature-dev@claude-plugins-official": True},
-    # 必須フックの配線。欠けていると他の検査の統合テストにも findings が混ざる
-    "hooks": pretooluse(hook_group(TIRITH_HOOK_COMMAND, APM_GUARD_HOOK_COMMAND)),
+    # 必須フックの配線。欠けていると他の検査の統合テストにも findings が混ざる。
+    # SessionStart の matcher は開始理由を見るので "*" を明示する
+    "hooks": {
+        **pretooluse(hook_group(TIRITH_HOOK_COMMAND, APM_GUARD_HOOK_COMMAND)),
+        **session_start(hook_group(GUARD_HEALTH_HOOK_COMMAND, matcher="*")),
+    },
     # nested traversal の除外。フックの配線と同じ理由でここへ置く
     "claudeMdExcludes": ["**/home/.claude/CLAUDE.md"],
 }
@@ -197,6 +203,66 @@ def test_unresolvable_related_ref_is_detected(tmp_path: Path) -> None:
     findings = scan(str(repo))
 
     assert any(f.detail == "Issue 99" for f in findings)
+
+
+def test_scan_は孤児検出を含む(tmp_path: Path) -> None:
+    """cli への取り付けを外すと本体スキャンから孤児検出が消える。単体テストは通り続ける。"""
+    root = tmp_path / "repo"
+    root.mkdir()
+    init_repo(root)
+    write_file(root, "home/.claude/settings.json", "{}")
+    path = write_file(root, "home/.claude/hooks/orphan.py", "#!/usr/bin/env python3\n")
+    path.chmod(0o755)
+    run_git(root, "add", "-A")
+    run_git(root, "commit", "-qm", "init")
+
+    findings = scan(str(root))
+    assert any("orphan.py" in f.detail for f in findings)
+
+
+def test_scan_は配線済みフックを孤児と誤検出しない(tmp_path: Path) -> None:
+    """孤児検出は「出る」側だけでなく「配線済みなら出ない」側も見る。
+
+    cli への取り付けが settings を渡し忘れて空 dict 相当になると、配線済みの
+    フックまで孤児として報告される。上のテストは孤児が出る側しか見ておらず、
+    この誤検出は捕まえられない。
+    """
+    settings = {
+        "hooks": {
+            "PreToolUse": [
+                {
+                    "matcher": "Bash",
+                    "hooks": [
+                        {"type": "command", "command": 'python3 "$HOME/.claude/hooks/wired.py"'}
+                    ],
+                }
+            ]
+        }
+    }
+    root = tmp_path / "repo"
+    root.mkdir()
+    init_repo(root)
+    write_file(root, "home/.claude/settings.json", json.dumps(settings))
+    path = write_file(root, "home/.claude/hooks/wired.py", "#!/usr/bin/env python3\n")
+    path.chmod(0o755)
+    run_git(root, "add", "-A")
+    run_git(root, "commit", "-qm", "init")
+
+    findings = scan(str(root))
+    assert not any("wired.py" in f.detail for f in findings)
+
+
+def test_hook_mode_shebang_mismatch_is_detected(tmp_path: Path) -> None:
+    # shebang/実行ビット対応検査が scan に配線されていること。配線を忘れると、実行ビットを
+    # 落として孤児検出の母集団から静かに外れたフックを誰も検出できない (M14 の穴)
+    repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
+    path = write_file(repo, "home/.claude/hooks/guard-health.py", "#!/usr/bin/env python3\n")
+    path.chmod(0o644)
+    run_git(repo, "add", "-A")
+
+    findings = scan(str(repo))
+
+    assert any("shebang があるのに実行ビットがありません" in f.message for f in findings)
 
 
 def test_main_prints_the_budget_summary(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

@@ -1,8 +1,10 @@
 """リポジトリをスキャンして構造逸脱を検出する。
 
-stale なツール名参照 / committed settings.json の不変条件 / 追跡ファイルに変更を隠す index の
-bit が立っていないか / apm.lock.yaml の deployed_files が gitignore されているか(新しい deploy
-root の検出) / mise の global ツール pin が exact か / apm.yml の依存 pin が commit SHA で固定され
+stale なツール名参照 / committed settings.json の不変条件 / フック本体が settings.json の
+どこにも配線されていないか / フックファイルの shebang の有無と実行ビットが食い違わないか /
+追跡ファイルに変更を隠す index の bit が立っていないか /
+apm.lock.yaml の deployed_files が gitignore されているか(新しい deploy root の検出) /
+mise の global ツール pin が exact か / apm.yml の依存 pin が commit SHA で固定され
 宣言どうしと実配置で揃っているか / herdr keybinding の方向整合と chord 重複 / 追跡下の
 Markdown の相対リンクが実在するか / 常時ロードされる指示ファイルの総バイト数が予算内か /
 その予算そのものが main から無音で上がっていないか / rules の paths 宣言が pin と
@@ -23,6 +25,7 @@ from config_guard.budget_ratchet import check_budget_ratchet
 from config_guard.extractors import extract_skill_tokens
 from config_guard.git_source import read_committed_settings
 from config_guard.herdr_keys import check_herdr_keys, read_default_config
+from config_guard.hook_wiring import check_hook_mode_shebang, check_hook_wiring
 from config_guard.index_flags import check_index_flags
 from config_guard.instruction_budget import (
     ALWAYS_LOADED_BUDGET_BYTES,
@@ -60,6 +63,16 @@ def scan(repo_root: str) -> list[Finding]:
     # committed settings.json の不変条件（permissions のツール名検証を含む）
     settings = read_committed_settings(str(root))
     findings.extend(check_settings_invariants(settings))
+
+    # フック本体が settings.json のどこにも配線されていないもの (孤児) を検出する。
+    # 必須の宣言は settings_invariants が名前で持ち、こちらは導出で漏れを拾う。
+    # 新しいフックを足して配線を忘れると、本体はあるのに一度も起動しない状態になる
+    findings.extend(check_hook_wiring(str(root), settings))
+
+    # 孤児検出は mode 100755 だけを母集団に入れるので、実行ビットを落とすとフック本体が
+    # 母集団から静かに外れる。shebang の有無を独立の手掛かりに mode との対応を検査し、
+    # その穴を塞ぐ
+    findings.extend(check_hook_mode_shebang(str(root)))
 
     # 追跡ファイルに変更を隠す index の bit (skip-worktree / assume-unchanged) が
     # 立っていないか。立つと live 側の変更が git から見えず、CI が捕捉できない drift へ戻る

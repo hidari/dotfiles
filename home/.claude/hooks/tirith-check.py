@@ -36,28 +36,20 @@ Fail ポリシー:
 
 import json
 import os
-import shutil
 import subprocess
 import sys
 from typing import NoReturn
 
+import guard_resolve
 import pretooluse
 
 # tirith check のタイムアウト秒（既定値）。
 DEFAULT_TIMEOUT = 10.0
 
-# tirith の子プロセスへ渡す環境から落とす変数の接頭辞。tirith は検査の基礎を外から動かせる
-# 変数を持つ（policy の所在、脅威 DB の所在、warn の扱い等がバイナリの文字列から確認できる）。
-# フックが受け取った環境をそのまま渡すと、それらが検査を弱める経路になる。
-#
-# 危険なものを列挙する形は採らない。上流が変数を増やすたびに黙って穴が開き、漏れは検査でも
-# 見えないためである。ここで tirith へ渡したい TIRITH_ 変数は 1 つも無い（この後に足す
-# TIRITH_INTEGRATION だけが要る）ので、接頭辞ごと落として漏れを原理的に無くす。
-# apm-install-guard.py が git へ GIT_ 接頭辞を渡さないのと同じ規則。
-#
-# なおフック自身が読む変数（TIRITH_BIN / TIRITH_FAIL_OPEN / TIRITH_TIMEOUT）はこのフィルタの
-# 対象外である。os.environ から直接読むため、ここで落としても届き方は変わらない。
-_DROPPED_ENV_PREFIX = "TIRITH_"
+# tirith の子プロセスへ渡す環境と argv の組み立ては guard_resolve.tirith_child_env /
+# tirith_check_argv が持つ。probe_tirith と同じフラグ・同じ環境で呼ぶことを保証するためで、
+# フック自身が読む変数（TIRITH_BIN / TIRITH_FAIL_OPEN / TIRITH_TIMEOUT）は os.environ から
+# 直接読むためこのフィルタの対象外である。
 
 # 入力を解釈できなかったときの deny 理由。共有層は理由を problem で返すだけで文面を持たない。
 # 倒し方（このフックは環境変数の逃げ道つき fail-closed）と併せてフック側の判断だからである。
@@ -74,19 +66,6 @@ _INPUT_PROBLEM_REASONS: dict[pretooluse.InputProblem, str] = {
         "tirith: no command found in hook input — blocked for safety"
     ),
 }
-
-
-def _resolve_tirith_bin() -> str:
-    """tirith バイナリのパスを解決する: TIRITH_BIN → PATH → mise shim (home 相対)。
-    どれも無ければ "tirith" を返す（subprocess が FileNotFoundError を投げ fail-open）。
-    machine 固有パスを settings に焼かず .py 側で実行時解決する（全プロジェクト共有のため）。"""
-    mise_shim = os.path.expanduser("~/.local/share/mise/shims/tirith")
-    return (
-        os.environ.get("TIRITH_BIN")
-        or shutil.which("tirith")
-        or (mise_shim if os.path.exists(mise_shim) else None)
-        or "tirith"
-    )
 
 
 def _timeout_seconds() -> float:
@@ -116,7 +95,7 @@ def fail_closed(reason: str) -> NoReturn:
 
 def _hook_event(event: str, detail: str | None = None) -> None:
     """tirith hook-event でフックのテレメトリイベントを記録する（fire-and-forget）。"""
-    tirith_bin = _resolve_tirith_bin()
+    tirith_bin = guard_resolve.resolve_tirith_bin()
     try:
         cmd = [
             tirith_bin,
@@ -191,29 +170,15 @@ def main() -> None:
     if command is None:
         sys.exit(0)
 
-    tirith_bin = _resolve_tirith_bin()
-
-    env = {
-        key: value for key, value in os.environ.items() if not key.startswith(_DROPPED_ENV_PREFIX)
-    }
-    env["TIRITH_INTEGRATION"] = "claude-code"
+    tirith_bin = guard_resolve.resolve_tirith_bin()
 
     try:
         result = subprocess.run(
-            [
-                tirith_bin,
-                "check",
-                "--json",
-                "--non-interactive",
-                "--shell",
-                "posix",
-                "--",
-                command,
-            ],
+            guard_resolve.tirith_check_argv(tirith_bin, command),
             capture_output=True,
             text=True,
             timeout=_timeout_seconds(),
-            env=env,
+            env=guard_resolve.tirith_child_env(),
         )
     except FileNotFoundError:
         # TIRITH_BIN を明示したのにパス不在 = 設定ミス（typo 等）。インフラ未整備ではなく
@@ -230,8 +195,10 @@ def main() -> None:
         # stderr だけだと、検査が沈黙したことがモデルの文脈へ入らない。判定は出さずに
         # 文脈だけ載せる。ここで tirith のテレメトリは使えない（tirith 自体が不在なので
         # Popen が FileNotFoundError で失敗し、_hook_event が握り潰す）。
-        # 「tirith が入っていない」はセッション単位の事実なのに、ここはコマンド単位で告げる
-        # ため同じ文が積み上がる。これは暫定で、恒久策は SessionStart で 1 回だけ告げる層。
+        # 「tirith が入っていない」はセッション単位の事実だが、ここはコマンド単位で告げる
+        # ため同じ文が積み上がる。SessionStart 側の guard-health.py がセッション頭で
+        # 1 回だけ告げる層を持つが、ここでの逐次通知は意図して残している (畳まない理由は
+        # issue.md にある)。
         notice = (
             f"tirith: {tirith_bin} が見つからないため、このコマンドは検査されていません。"
             "以降のコマンドも同じ状態です。mise で tirith を入れ直すと検査が戻ります。"

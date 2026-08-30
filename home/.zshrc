@@ -420,7 +420,7 @@ eval "$(mise activate zsh)"
 
 # apm ガードの shim を PATH の先頭へ置く。
 # path 配列 (このファイル上部) 側へ書いてはならない。mise activate が PATH を再構成する
-# ため、配列へ足すと実物の apm より後ろへ落ちて一度も横取りできない (実測で 31 番目)。
+# ため、配列へ足すと実物の apm より後ろへ落ちて一度も横取りできない。
 # 実体は scripts/apm-guard/apm で、bootstrap の SYMLINK_PAIRS が張る。
 export PATH="$HOME/.local/libexec/apm-guard:$PATH"
 

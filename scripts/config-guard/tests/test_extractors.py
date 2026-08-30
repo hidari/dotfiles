@@ -5,6 +5,7 @@ from __future__ import annotations
 from config_guard.extractors import (
     extract_settings_permission_tokens,
     extract_skill_tokens,
+    iter_strings,
 )
 
 SKILL_WITH_TOOLS = """\
@@ -76,3 +77,21 @@ class TestExtractSettingsPermissionTokens:
 
     def test_empty_when_no_permissions(self) -> None:
         assert extract_settings_permission_tokens({}) == []
+
+
+class TestIterStrings:
+    """hook_wiring と settings_invariants が共有する走査。両方の呼び出し元が使う形を pin する。"""
+
+    def test_collects_from_nested_dict_and_list(self) -> None:
+        obj = {"a": "x", "b": ["y", {"c": "z"}]}
+        assert iter_strings(obj) == ["x", "y", "z"]
+
+    def test_bare_string_is_wrapped(self) -> None:
+        assert iter_strings("solo") == ["solo"]
+
+    def test_non_string_scalars_are_ignored(self) -> None:
+        assert iter_strings({"a": 1, "b": None, "c": True, "d": "kept"}) == ["kept"]
+
+    def test_empty_containers_yield_empty(self) -> None:
+        assert iter_strings({}) == []
+        assert iter_strings([]) == []
