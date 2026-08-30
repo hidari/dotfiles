@@ -33,6 +33,7 @@ ignore = ["RUF002", "RUF003"]
 # N802: pytest メソッド名を日本語の仕様文（テスト＝仕様）にするため、非ASCII識別子を
 # 小文字判定できない ruff の誤検知を許容する。現行 pin の ruff でも再現する。
 # 日本語名を持つファイルだけに限る。tests/* へ広げると ASCII の camelCase を見逃す。
+"tests/test_guard_health.py" = ["N802"]
 "tests/test_guard_probes.py" = ["N802"]
 "tests/test_handoff_sentinel.py" = ["N802"]
 "tests/test_instructions_loaded_log.py" = ["N802"]
