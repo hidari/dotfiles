@@ -65,3 +65,6 @@ git hook や CI から呼ぶ」という土俵そのものを疑うところか�
   型 3 の写しの drift と型 6 の配布層自体がこの Issue の対象
 - agentic-coding-tools の ISSUE-13: 両取り付けの同時撤去を機構で検出できない
 - ISSUE-46: マイルストーン M2 の担当。この Issue が M2 の先頭になる
+- ISSUE-64: relay と studio-Hamiltonian へ pre-commit と gitleaks を入れる作業。
+  この Issue が「pre-commit 自体を持たないリポジトリには載せる土台が無い」と書いた、
+  その土台を作る側。着手はあちらが先
