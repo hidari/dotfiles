@@ -220,6 +220,38 @@ def test_scan_は孤児検出を含む(tmp_path: Path) -> None:
     assert any("orphan.py" in f.detail for f in findings)
 
 
+def test_scan_は配線済みフックを孤児と誤検出しない(tmp_path: Path) -> None:
+    """孤児検出は「出る」側だけでなく「配線済みなら出ない」側も見る。
+
+    cli への取り付けが settings を渡し忘れて空 dict 相当になると、配線済みの
+    フックまで孤児として報告される。上のテストは孤児が出る側しか見ておらず、
+    この誤検出は捕まえられない。
+    """
+    settings = {
+        "hooks": {
+            "PreToolUse": [
+                {
+                    "matcher": "Bash",
+                    "hooks": [
+                        {"type": "command", "command": 'python3 "$HOME/.claude/hooks/wired.py"'}
+                    ],
+                }
+            ]
+        }
+    }
+    root = tmp_path / "repo"
+    root.mkdir()
+    init_repo(root)
+    write_file(root, "home/.claude/settings.json", json.dumps(settings))
+    path = write_file(root, "home/.claude/hooks/wired.py", "#!/usr/bin/env python3\n")
+    path.chmod(0o755)
+    run_git(root, "add", "-A")
+    run_git(root, "commit", "-qm", "init")
+
+    findings = scan(str(root))
+    assert not any("wired.py" in f.detail for f in findings)
+
+
 def test_main_prints_the_budget_summary(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     # 問題が無いときも出す。移設の効果は「赤くならなかった」では見えない
     repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
