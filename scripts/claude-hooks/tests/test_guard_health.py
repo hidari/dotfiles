@@ -105,6 +105,39 @@ def test_沈黙を両方の経路へ載せる(capsys: pytest.CaptureFixture[str]
     assert payload["hookSpecificOutput"]["additionalContext"] == "テスト文面"
 
 
+def test_全て健全なら_main_は何も出さない(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """『健全なときは何も出さない』(guard-health.py の docstring) を main() 経由で pin する。
+
+    collect / format_message / emit を個別に見るだけでは、main() 内の
+    `if not silent: return 0` 分岐そのものは検査を経由しない。ここでは main() を
+    直接呼び、健全なら emit が一度も呼ばれず出力が空であることを見る。
+    """
+    hook = _load_hook()
+    monkeypatch.setattr(guard_probes, "PROBES", (("apm", _ok), ("tirith", _ok)))
+    assert hook.main() == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_沈黙があれば_main_は文面を出す(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """健全なら何も出さない分岐の対照。沈黙があるときは main() が実際に出力することを見る。"""
+    hook = _load_hook()
+    monkeypatch.setattr(
+        guard_probes,
+        "PROBES",
+        (("apm", lambda: _silent("shim が横取りしていない")), ("tirith", _ok)),
+    )
+    assert hook.main() == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert "[apm]" in payload["systemMessage"]
+    assert "shim が横取りしていない" in payload["systemMessage"]
+    assert payload["hookSpecificOutput"]["hookEventName"] == "SessionStart"
+    assert payload["hookSpecificOutput"]["additionalContext"] == payload["systemMessage"]
+
+
 def test_起動形が壊れていない() -> None:
     """実際の起動形で走り、exit 0 で、出力が空か妥当な JSON であること。
 
