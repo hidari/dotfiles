@@ -252,6 +252,19 @@ def test_scan_は配線済みフックを孤児と誤検出しない(tmp_path: P
     assert not any("wired.py" in f.detail for f in findings)
 
 
+def test_hook_mode_shebang_mismatch_is_detected(tmp_path: Path) -> None:
+    # shebang/実行ビット対応検査が scan に配線されていること。配線を忘れると、実行ビットを
+    # 落として孤児検出の母集団から静かに外れたフックを誰も検出できない (M14 の穴)
+    repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
+    path = write_file(repo, "home/.claude/hooks/guard-health.py", "#!/usr/bin/env python3\n")
+    path.chmod(0o644)
+    run_git(repo, "add", "-A")
+
+    findings = scan(str(repo))
+
+    assert any("shebang があるのに実行ビットがありません" in f.message for f in findings)
+
+
 def test_main_prints_the_budget_summary(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     # 問題が無いときも出す。移設の効果は「赤くならなかった」では見えない
     repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)

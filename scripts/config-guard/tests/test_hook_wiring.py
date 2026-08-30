@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from config_guard.hook_wiring import check_hook_wiring
+from config_guard.hook_wiring import check_hook_mode_shebang, check_hook_wiring
 from tests.conftest import init_repo, run_git, write_file
 
 _WIRED: dict[str, Any] = {
@@ -75,3 +75,47 @@ def test_どのイベントに現れてもよい(tmp_path: Path) -> None:
     }
     root = _repo(tmp_path, {"a.py": 0o755})
     assert check_hook_wiring(str(root), settings) == []
+
+
+def _repo_with_content(tmp_path: Path, files: dict[str, tuple[str, int]]) -> Path:
+    """content と mode の組でフックを持つ使い捨てリポジトリを作って commit する。
+
+    `_repo` は shebang を常に足すので shebang 無しのケースを表現できない。
+    check_hook_mode_shebang の検証には両方の組み合わせが要る。
+    """
+    root = tmp_path / "repo"
+    root.mkdir()
+    init_repo(root)
+    for name, (content, mode) in files.items():
+        path = write_file(root, f"home/.claude/hooks/{name}", content)
+        path.chmod(mode)
+    run_git(root, "add", "-A")
+    run_git(root, "commit", "-qm", "init")
+    return root
+
+
+def test_shebang_があり実行ビットが無ければ検出する(tmp_path: Path) -> None:
+    """実行ビットを落とすフック本体を、孤児検出の母集団から漏れても shebang 側で拾う (M14)。"""
+    root = _repo_with_content(tmp_path, {"guard-health.py": ("#!/usr/bin/env python3\n", 0o644)})
+    findings = check_hook_mode_shebang(str(root))
+    assert [f.detail for f in findings] == ["home/.claude/hooks/guard-health.py"]
+    assert "shebang があるのに実行ビットがありません" in findings[0].message
+
+
+def test_実行ビットがあり_shebang_が無ければ検出する(tmp_path: Path) -> None:
+    """共有モジュールに誤って実行ビットが付いた形も逆向きに検出する。"""
+    root = _repo_with_content(tmp_path, {"leaf.py": ('"""docstring"""\n', 0o755)})
+    findings = check_hook_mode_shebang(str(root))
+    assert [f.detail for f in findings] == ["home/.claude/hooks/leaf.py"]
+    assert "実行ビットがあるのに shebang がありません" in findings[0].message
+
+
+def test_shebang_と実行ビットが一致していれば検出しない(tmp_path: Path) -> None:
+    root = _repo_with_content(
+        tmp_path,
+        {
+            "a.py": ("#!/usr/bin/env python3\n", 0o755),
+            "shared.py": ('"""docstring"""\n', 0o644),
+        },
+    )
+    assert check_hook_mode_shebang(str(root)) == []

@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
-from typing import Any
+from typing import Any, NamedTuple
 
-from config_guard.extractors import extract_settings_permission_tokens
+from config_guard.extractors import extract_settings_permission_tokens, iter_strings
 from config_guard.models import Finding
 from config_guard.tool_refs import validate_tool_token
 
@@ -24,53 +24,8 @@ _USER_PATH = re.compile(r"/(Users|home)/[a-z_][a-z0-9._-]*")
 # path 付き Glob(...)/Grep(...) permission 規則の検出パターン（bare は対象外）。
 _INEFFECTIVE_PATH_RULE = re.compile(r"^(?:Glob|Grep)\((.+)\)$")
 
-# 必ず配線されていなければならないフック（本体のファイル名で照合する）。
-# フック本体が存在しても settings.json から外れれば何も守らないため、取り付け自体を
-# 不変条件にする。これが無いと検査機構の 3 種変異のうち「取り付けを外す」をテストで
-# 捕まえられない（実際この検査を足すまで、tirith-check.py の配線を外しても全テストが緑だった）。
-#
-# 名前で宣言するのは、存在するファイルの集合から必須集合を導くと、本体を消せば要求も
-# 消えて緑になるためである。それは検査が必要な状況でだけ検査が動かない自己敗北にあたる。
-# 配線漏れの検出は逆向きなので導出でよく、hook_wiring が持つ。
-_REQUIRED_HOOKS: dict[str, tuple[str, ...]] = {
-    "PreToolUse": ("tirith-check.py", "apm-install-guard.py"),
-    "SessionStart": ("guard-health.py",),
-}
-
 # 必須フックが守るツール。matcher がこれに一致しないグループは配線として数えない。
 _GUARDED_TOOL = "Bash"
-
-# nested traversal から必ず除外しなければならない CLAUDE.md（glob 値を完全一致で照合する）。
-# home/.claude/CLAUDE.md は ~/.claude/CLAUDE.md の symlink 実体なので、この配置のまま
-# home/.claude/ 配下のファイルを Read すると、User memory として既にロード済みの同一内容が
-# もう一度コンテキストへ入る。subagent は起動ごとに新鮮なコンテキストを持つため、
-# 起動した本数だけ二重化する（2026-08-20 に除外あり/なしの対照で実測）。
-# 外しても例外は出ず静かに二重化するだけなので、フックの配線と同じく取り付けを pin する。
-_REQUIRED_CLAUDE_MD_EXCLUDES: tuple[str, ...] = ("**/home/.claude/CLAUDE.md",)
-
-# committed に許可する公開 marketplace。ここに無い marketplace を参照する plugin は弾く。
-_PUBLIC_MARKETPLACES: frozenset[str] = frozenset(
-    {
-        "claude-plugins-official",
-        "superpowers-marketplace",
-        "googlechrome",
-        "chrome-devtools-plugins",
-    }
-)
-
-
-def _iter_strings(obj: Any) -> list[str]:
-    """オブジェクトを再帰的に走査してすべての文字列を返す。"""
-    out: list[str] = []
-    if isinstance(obj, str):
-        out.append(obj)
-    elif isinstance(obj, dict):
-        for value in obj.values():
-            out.extend(_iter_strings(value))
-    elif isinstance(obj, list):
-        for value in obj:
-            out.extend(_iter_strings(value))
-    return out
 
 
 def _matcher_covers_guarded_tool(matcher: Any) -> bool:
@@ -106,12 +61,54 @@ def _matcher_covers_all_sources(matcher: Any) -> bool:
     return matcher is None or matcher in ("", "*")
 
 
-# イベントごとの matcher 述語。matcher の意味がイベントで違うので、1 つの述語を
-# 使い回さない。使い回すと SessionStart にツール名を書いた配線が全一致で通る。
-_MATCHER_PREDICATES: dict[str, Callable[[Any], bool]] = {
-    "PreToolUse": _matcher_covers_guarded_tool,
-    "SessionStart": _matcher_covers_all_sources,
+class _EventRequirement(NamedTuple):
+    """イベントごとの必須フックの組と matcher 述語をまとめる。
+
+    2 つの並列 dict (スクリプトの組 / matcher 述語) を手で同期させると、イベントを
+    足すとき片方の編集を忘れても気づけない (`_wired_commands` は `.get` 無しで
+    引くため、欠けていれば scan 時に KeyError で落ちる)。1 つの表にすれば
+    同期漏れが構造的に起こらない。
+    """
+
+    scripts: tuple[str, ...]
+    matcher_covers: Callable[[Any], bool]
+
+
+# 必ず配線されていなければならないフック（本体のファイル名で照合する）。
+# フック本体が存在しても settings.json から外れれば何も守らないため、取り付け自体を
+# 不変条件にする。これが無いと検査機構の 3 種変異のうち「取り付けを外す」をテストで
+# 捕まえられない（実際この検査を足すまで、tirith-check.py の配線を外しても全テストが緑だった）。
+#
+# 名前で宣言するのは、存在するファイルの集合から必須集合を導くと、本体を消せば要求も
+# 消えて緑になるためである。それは検査が必要な状況でだけ検査が動かない自己敗北にあたる。
+# 配線漏れの検出は逆向きなので導出でよく、hook_wiring が持つ。
+#
+# matcher の意味はイベントで違うので述語を使い回さない (使い回すと SessionStart に
+# ツール名を書いた配線が全一致で通る)。
+_REQUIRED_HOOKS: dict[str, _EventRequirement] = {
+    "PreToolUse": _EventRequirement(
+        ("tirith-check.py", "apm-install-guard.py"), _matcher_covers_guarded_tool
+    ),
+    "SessionStart": _EventRequirement(("guard-health.py",), _matcher_covers_all_sources),
 }
+
+# nested traversal から必ず除外しなければならない CLAUDE.md（glob 値を完全一致で照合する）。
+# home/.claude/CLAUDE.md は ~/.claude/CLAUDE.md の symlink 実体なので、この配置のまま
+# home/.claude/ 配下のファイルを Read すると、User memory として既にロード済みの同一内容が
+# もう一度コンテキストへ入る。subagent は起動ごとに新鮮なコンテキストを持つため、
+# 起動した本数だけ二重化する（2026-08-20 に除外あり/なしの対照で実測）。
+# 外しても例外は出ず静かに二重化するだけなので、フックの配線と同じく取り付けを pin する。
+_REQUIRED_CLAUDE_MD_EXCLUDES: tuple[str, ...] = ("**/home/.claude/CLAUDE.md",)
+
+# committed に許可する公開 marketplace。ここに無い marketplace を参照する plugin は弾く。
+_PUBLIC_MARKETPLACES: frozenset[str] = frozenset(
+    {
+        "claude-plugins-official",
+        "superpowers-marketplace",
+        "googlechrome",
+        "chrome-devtools-plugins",
+    }
+)
 
 
 def _wired_commands(settings: dict[str, Any], event: str) -> list[str]:
@@ -121,7 +118,7 @@ def _wired_commands(settings: dict[str, Any], event: str) -> list[str]:
     述語を満たさないグループは数えない。本体が残っていても起動しないので、
     それは配線を外したのと同じである。
     """
-    covers = _MATCHER_PREDICATES[event]
+    covers = _REQUIRED_HOOKS[event].matcher_covers
     hooks = settings.get("hooks")
     if not isinstance(hooks, dict):
         return []
@@ -170,7 +167,7 @@ def check_settings_invariants(settings: dict[str, Any]) -> list[Finding]:
             findings.append(Finding(_SRC, key, f"committed に含めてはならないキー: {key}"))
 
     # 2. ユーザー絶対パス
-    for text in _iter_strings(settings):
+    for text in iter_strings(settings):
         if _USER_PATH.search(text):
             findings.append(Finding(_SRC, text, "ユーザーのローカル絶対パスを含む"))
 
@@ -200,9 +197,9 @@ def check_settings_invariants(settings: dict[str, Any]) -> list[Finding]:
                 findings.append(Finding(_SRC, token, reason))
 
     # 6. 必須フックが各イベントへ配線されているか
-    for event, scripts in _REQUIRED_HOOKS.items():
+    for event, requirement in _REQUIRED_HOOKS.items():
         commands = _wired_commands(settings, event)
-        for script in scripts:
+        for script in requirement.scripts:
             if not any(script in command for command in commands):
                 findings.append(
                     Finding(_SRC, script, f"{event} に必須フックが配線されていません: {script}")
