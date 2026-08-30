@@ -106,7 +106,9 @@ def test_TIRITH_BIN_のパスが無ければ全_Bash_が止まると告げる(
 
     result = guard_probes.probe_tirith()
     assert result.healthy is False
-    assert "Bash" in result.detail
+    # "Bash" だけでは駄目: tmp_path 名がこの関数名から作られ "_Bash0" で終わるため、
+    # フォールバック分岐の文面 (tirith_bin をそのまま埋め込む) にも偶然 "Bash" が含まれる。
+    assert "TIRITH_BIN=" in result.detail
 
 
 def test_clean_なコマンドに_clean_を返さなければ沈黙(
