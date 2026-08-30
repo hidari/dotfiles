@@ -46,6 +46,8 @@ ignore = ["RUF002", "RUF003"]
 # 小文字判定できない ruff の誤検知を許容する。現行 pin の ruff でも再現する
 # (scripts/claude-hooks/pyproject.toml で先に踏んだのと同じ現象)。
 # 日本語名を持つファイルだけに限る。tests/* へ広げると ASCII の camelCase を見逃す。
+"tests/test_cli.py" = ["N802"]
+"tests/test_hook_wiring.py" = ["N802"]
 "tests/test_settings_invariants.py" = ["N802"]
 
 [tool.mypy]

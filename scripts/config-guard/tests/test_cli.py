@@ -205,6 +205,21 @@ def test_unresolvable_related_ref_is_detected(tmp_path: Path) -> None:
     assert any(f.detail == "Issue 99" for f in findings)
 
 
+def test_scan_は孤児検出を含む(tmp_path: Path) -> None:
+    """cli への取り付けを外すと本体スキャンから孤児検出が消える。単体テストは通り続ける。"""
+    root = tmp_path / "repo"
+    root.mkdir()
+    init_repo(root)
+    write_file(root, "home/.claude/settings.json", "{}")
+    path = write_file(root, "home/.claude/hooks/orphan.py", "#!/usr/bin/env python3\n")
+    path.chmod(0o755)
+    run_git(root, "add", "-A")
+    run_git(root, "commit", "-qm", "init")
+
+    findings = scan(str(root))
+    assert any("orphan.py" in f.detail for f in findings)
+
+
 def test_main_prints_the_budget_summary(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     # 問題が無いときも出す。移設の効果は「赤くならなかった」では見えない
     repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)

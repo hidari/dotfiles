@@ -31,6 +31,7 @@ _INEFFECTIVE_PATH_RULE = re.compile(r"^(?:Glob|Grep)\((.+)\)$")
 #
 # 名前で宣言するのは、存在するファイルの集合から必須集合を導くと、本体を消せば要求も
 # 消えて緑になるためである。それは検査が必要な状況でだけ検査が動かない自己敗北にあたる。
+# 配線漏れの検出は逆向きなので導出でよく、hook_wiring が持つ。
 _REQUIRED_HOOKS: dict[str, tuple[str, ...]] = {
     "PreToolUse": ("tirith-check.py", "apm-install-guard.py"),
     "SessionStart": ("guard-health.py",),
