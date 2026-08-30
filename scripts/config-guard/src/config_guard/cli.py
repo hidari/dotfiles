@@ -66,7 +66,7 @@ def scan(repo_root: str) -> list[Finding]:
     # フック本体が settings.json のどこにも配線されていないもの (孤児) を検出する。
     # 必須の宣言は settings_invariants が名前で持ち、こちらは導出で漏れを拾う。
     # 新しいフックを足して配線を忘れると、本体はあるのに一度も起動しない状態になる
-    findings.extend(check_hook_wiring(str(root)))
+    findings.extend(check_hook_wiring(str(root), settings))
 
     # 追跡ファイルに変更を隠す index の bit (skip-worktree / assume-unchanged) が
     # 立っていないか。立つと live 側の変更が git から見えず、CI が捕捉できない drift へ戻る

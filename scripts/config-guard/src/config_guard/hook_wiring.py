@@ -8,14 +8,18 @@
 共有モジュールが 100644 で既に分かれており、新しい規約を作らずに済む。実行ビットを
 落とすと検出から外れるので、その形は変異注入で確認する。
 
-配線されているかはコマンド文字列に basename が現れるかで見る。イベントも matcher も
-問わない。どのイベントへ配線するのが正しいかは名前で宣言する層の担当で、ここは
-「どこにも無い」だけを見る。
+settings.json 全体を走査して、どこかの文字列にフック本体の basename が現れるかで見る。
+イベントも matcher も問わない。どのイベントへ配線するのが正しいかは名前で宣言する層の
+担当で、ここは「どこにも無い」だけを見る。
+
+settings は呼び出し側が渡す。committed scope で読むか working tree で読むかを
+このモジュールが決めると、他の検査 (settings_invariants 等) が read_committed_settings
+経由で守っている「working tree の書き換えを検査対象にしない」規約から外れうる。
+引数で受け取れば、settings.json の読み方はここで選べなくなる。
 """
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -29,9 +33,6 @@ _EXECUTABLE_MODE = "100755"
 
 # 走査する pathspec。
 _HOOKS_PATHSPEC = "home/.claude/hooks"
-
-# 配線の宣言を読む先。
-_SETTINGS_PATH = "home/.claude/settings.json"
 
 
 def _executable_hooks(repo_root: str) -> list[str]:
@@ -67,18 +68,12 @@ def _iter_strings(obj: Any) -> list[str]:
     return out
 
 
-def check_hook_wiring(repo_root: str) -> list[Finding]:
-    """フック本体で settings.json に一度も現れないものを Finding で返す。"""
-    settings_file = Path(repo_root) / _SETTINGS_PATH
-    if not settings_file.exists():
-        return []
-    try:
-        settings = json.loads(settings_file.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        # 読めないことを「孤児なし」へ潰さない。settings.json の構造は
-        # settings_invariants が別途見るので、ここは検査できなかったことだけを告げる。
-        return [Finding(_SRC, _SETTINGS_PATH, "settings.json を読めないため配線を検査できません")]
+def check_hook_wiring(repo_root: str, settings: dict[str, Any]) -> list[Finding]:
+    """フック本体で settings に一度も現れないものを Finding で返す。
 
+    settings は呼び出し側が読んだものをそのまま渡す (モジュール docstring 参照)。
+    settings.json を読めない場合の扱いは呼び出し側の責務であり、ここでは扱わない。
+    """
     wired = _iter_strings(settings)
     findings: list[Finding] = []
     for name in sorted(_executable_hooks(repo_root)):

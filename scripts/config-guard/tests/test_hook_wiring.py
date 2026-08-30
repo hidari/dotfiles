@@ -1,12 +1,13 @@
 """hook_wiring の仕様。
 
-使い捨てリポジトリを作り、実行ビットと settings.json の組み合わせを変えて検査する。
+使い捨てリポジトリを作り、実行ビットと settings dict の組み合わせを変えて検査する。
 本体リポジトリを対象にすると、実装の変更ではなく本体の状態でテストの意味が変わる。
+settings.json の読み方 (committed か working tree か) は呼び出し側の責務なので、
+ここでは settings を dict で直接渡す。
 """
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -25,15 +26,16 @@ _WIRED: dict[str, Any] = {
 }
 
 
-def _repo(tmp_path: Path, hooks: dict[str, int], settings: dict[str, Any]) -> Path:
-    """フックと settings.json を持つ使い捨てリポジトリを作って commit する。
+def _repo(tmp_path: Path, hooks: dict[str, int]) -> Path:
+    """フックを持つ使い捨てリポジトリを作って commit する。
 
     hooks は「ファイル名 -> mode」。mode は 0o755 か 0o644 を渡す。
+    check_hook_wiring は _executable_hooks で git ls-files を使うため、
+    フック本体の commit 自体は settings の受け渡し方を変えても引き続き要る。
     """
     root = tmp_path / "repo"
     root.mkdir()
     init_repo(root)
-    write_file(root, "home/.claude/settings.json", json.dumps(settings, ensure_ascii=False))
     for name, mode in hooks.items():
         path = write_file(root, f"home/.claude/hooks/{name}", "#!/usr/bin/env python3\n")
         path.chmod(mode)
@@ -43,20 +45,20 @@ def _repo(tmp_path: Path, hooks: dict[str, int], settings: dict[str, Any]) -> Pa
 
 
 def test_配線されたフックは孤児にしない(tmp_path: Path) -> None:
-    root = _repo(tmp_path, {"a.py": 0o755}, _WIRED)
-    assert check_hook_wiring(str(root)) == []
+    root = _repo(tmp_path, {"a.py": 0o755})
+    assert check_hook_wiring(str(root), _WIRED) == []
 
 
 def test_どこにも現れないフックを孤児として検出する(tmp_path: Path) -> None:
-    root = _repo(tmp_path, {"a.py": 0o755, "orphan.py": 0o755}, _WIRED)
-    findings = check_hook_wiring(str(root))
+    root = _repo(tmp_path, {"a.py": 0o755, "orphan.py": 0o755})
+    findings = check_hook_wiring(str(root), _WIRED)
     assert [f.detail for f in findings] == ["orphan.py"]
 
 
 def test_実行ビットの無いファイルは共有モジュールとして除く(tmp_path: Path) -> None:
     """共有モジュールは配線されないのが正しい。実行ビットが本体と分けている。"""
-    root = _repo(tmp_path, {"a.py": 0o755, "shared.py": 0o644}, _WIRED)
-    assert check_hook_wiring(str(root)) == []
+    root = _repo(tmp_path, {"a.py": 0o755, "shared.py": 0o644})
+    assert check_hook_wiring(str(root), _WIRED) == []
 
 
 def test_どのイベントに現れてもよい(tmp_path: Path) -> None:
@@ -71,14 +73,5 @@ def test_どのイベントに現れてもよい(tmp_path: Path) -> None:
             ]
         }
     }
-    root = _repo(tmp_path, {"a.py": 0o755}, settings)
-    assert check_hook_wiring(str(root)) == []
-
-
-def test_settings_json_が読めなければ検査できないと告げる(tmp_path: Path) -> None:
-    """読めないことを「孤児なし」へ潰さない。"""
-    root = _repo(tmp_path, {"a.py": 0o755}, _WIRED)
-    (root / "home" / ".claude" / "settings.json").write_text("{ broken", encoding="utf-8")
-    findings = check_hook_wiring(str(root))
-    assert len(findings) == 1
-    assert "settings.json" in findings[0].detail
+    root = _repo(tmp_path, {"a.py": 0o755})
+    assert check_hook_wiring(str(root), settings) == []
