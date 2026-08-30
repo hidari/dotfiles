@@ -81,6 +81,41 @@ def test_プローブが落ちても他は走り落ちたことを報告する(
     assert "boom" in silent[0][1].detail
 
 
+def test_guard_probes_の_import_は_collect_呼び出しまで遅延する(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """import はモジュール直下ではなく collect() の中で行う。
+
+    直下にあると import 失敗が未捕捉例外でモジュールロードごと落ち、main() を呼ぶ側の
+    try/except (実運用では `if __name__` ブロック) に届く前に死ぬ。ここへ動かせば
+    失敗は collect() 呼び出し時まで遅延し、呼び出し側が拾える。
+    """
+    import builtins
+    from collections.abc import Mapping, Sequence
+
+    real_import = builtins.__import__
+
+    def broken_import(
+        name: str,
+        globals: Mapping[str, object] | None = None,
+        locals: Mapping[str, object] | None = None,
+        fromlist: Sequence[str] = (),
+        level: int = 0,
+    ) -> ModuleType:
+        if name == "guard_probes":
+            raise ImportError("boom")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", broken_import)
+
+    # モジュールのロード自体は guard_probes の import を必要としない
+    # (直下に import があれば、ここで ImportError が起きるはず)。
+    hook = _load_hook()
+
+    with pytest.raises(ImportError, match="boom"):
+        hook.collect()
+
+
 def test_文面は名前と件数と_detail_を持つ() -> None:
     hook = _load_hook()
     message = hook.format_message(

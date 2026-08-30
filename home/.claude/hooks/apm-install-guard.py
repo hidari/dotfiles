@@ -54,7 +54,7 @@ import shlex
 import sys
 from typing import TYPE_CHECKING, NoReturn
 
-import guard_probes
+import guard_resolve
 import pretooluse
 
 if TYPE_CHECKING:
@@ -388,11 +388,11 @@ def main() -> None:
     # この判定へ来るのは guarded_command がパースできた形だけなので、shim だけが担当する
     # 包み込み・変数展開・xargs の形では、配置漏れは無音の素通りのまま残る (実測)。
     # 配置漏れそのものを検出する層は、コマンド単位ではなくセッション単位に置く必要がある。
-    if not guard_probes.shim_resolves():
+    if not guard_resolve.shim_resolves():
         deny(
             f"apm-install-guard: apm ガードの shim が PATH 上に見つからないため apm {subcommand} を"
             "許可できません。"
-            f"{guard_probes.shim_path()} が配置され、PATH の先頭にあることを確認してください "
+            f"{guard_resolve.shim_path()} が配置され、PATH の先頭にあることを確認してください "
             "(bootstrap.sh が SYMLINK_PAIRS で張り、.zshrc が mise activate の直後で PATH へ"
             "足します)。"
         )

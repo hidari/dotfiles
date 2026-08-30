@@ -21,8 +21,10 @@ from __future__ import annotations
 import contextlib
 import json
 import sys
+from typing import TYPE_CHECKING
 
-import guard_probes
+if TYPE_CHECKING:
+    import guard_probes
 
 _HOOK_EVENT_NAME = "SessionStart"
 
@@ -32,7 +34,15 @@ def collect() -> list[tuple[str, guard_probes.ProbeResult]]:
 
     1 件が例外を投げても他は走らせる。落ちたプローブは沈黙として報告する。検査できな
     かったことを健全へ潰すと、この層自身が沈黙する側へ回る。
+
+    import はここで行う (モジュール直下ではない)。guard_probes は subprocess /
+    dataclasses を import する重い依存で、それ自体が壊れて import に失敗する経路も
+    ある。ここへ置けば main() の呼び出し元 try/except がその失敗も「沈黙」として拾う。
+    直下に置くと import 失敗が未捕捉例外のまま死に、沈黙を検出するために作った層が
+    自分自身の沈黙 (stderr のみ = モデルへ届かない) を起こす。
     """
+    import guard_probes
+
     silent: list[tuple[str, guard_probes.ProbeResult]] = []
     for name, probe in guard_probes.PROBES:
         try:

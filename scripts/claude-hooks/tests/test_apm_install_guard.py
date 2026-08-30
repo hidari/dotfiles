@@ -18,10 +18,9 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from conftest import HOOKS_DIR, REPO_ROOT, git_scope_free_env
+from conftest import BOOTSTRAP, HOOKS_DIR, REPO_ROOT, git_scope_free_env
 
 HOOK = HOOKS_DIR / "apm-install-guard.py"
-BOOTSTRAP = REPO_ROOT / "bootstrap.sh"
 GUARD_LIB = REPO_ROOT / "scripts" / "apm-guard" / "lib.sh"
 
 

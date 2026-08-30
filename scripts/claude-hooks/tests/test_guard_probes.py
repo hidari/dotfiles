@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import guard_probes
+import guard_resolve
 import pytest
 from conftest import bash_symlink_pairs
 
@@ -25,7 +26,7 @@ def test_shim_へ解決すれば健全(tmp_path: Path, monkeypatch: pytest.Monke
     monkeypatch.setenv("PATH", str(bin_dir))
     monkeypatch.setenv("APM_INSTALL_GUARD_SHIM", str(shim))
 
-    assert guard_probes.shim_resolves() is True
+    assert guard_resolve.shim_resolves() is True
     assert guard_probes.probe_apm().healthy is True
 
 
@@ -41,7 +42,7 @@ def test_別の実体へ解決すれば沈黙(tmp_path: Path, monkeypatch: pytes
     monkeypatch.setenv("PATH", str(other.parent))
     monkeypatch.setenv("APM_INSTALL_GUARD_SHIM", str(shim))
 
-    assert guard_probes.shim_resolves() is False
+    assert guard_resolve.shim_resolves() is False
     result = guard_probes.probe_apm()
     assert result.healthy is False
     assert "bootstrap" in result.detail
@@ -53,7 +54,7 @@ def test_PATH_に_apm_が無ければ沈黙(tmp_path: Path, monkeypatch: pytest.
     monkeypatch.setenv("PATH", str(empty))
     monkeypatch.setenv("APM_INSTALL_GUARD_SHIM", str(tmp_path / "nonexistent" / "apm"))
 
-    assert guard_probes.shim_resolves() is False
+    assert guard_resolve.shim_resolves() is False
     assert guard_probes.probe_apm().healthy is False
 
 
@@ -67,7 +68,7 @@ def test_shim_の置き場が配布先と一致する() -> None:
     pairs = bash_symlink_pairs()
     assert pairs, "SYMLINK_PAIRS を 1 件も読めていない"
 
-    expected = guard_probes.DEFAULT_SHIM_PATH.removeprefix("~/")
+    expected = guard_resolve.DEFAULT_SHIM_PATH.removeprefix("~/")
     targets = [line.split("|", 1)[1] for line in pairs if "|" in line]
     assert expected in targets
 
