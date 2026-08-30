@@ -14,6 +14,7 @@ import importlib.util
 import json
 import subprocess
 import sys
+from pathlib import Path
 from types import ModuleType
 
 import guard_probes
@@ -190,3 +191,32 @@ def test_起動形が壊れていない() -> None:
         payload = json.loads(proc.stdout)
         assert "systemMessage" in payload
         assert payload["hookSpecificOutput"]["hookEventName"] == "SessionStart"
+
+
+def test_guard_probes_が_import_できなくても文面として告げる(tmp_path: Path) -> None:
+    """起動形で走らせ、guard_probes の import 失敗が JSON として届くことを見る。
+
+    この層が消すために作られた失敗 (無音で無効化される) は、この層自身にも起こりうる。
+    import が失敗するとモジュールロードごと死に、traceback は stderr へ出るだけで
+    モデルの文脈へは入らない。collect() 内へ import を遅らせ、外側の try/except が
+    拾って emit する形で塞いである。
+
+    in-process では pin できない。ここで見たいのは「呼び出し元の try/except が例外を
+    文面へ変換する」ことで、その try/except は `if __name__` ブロックにあるため
+    起動形でしか通らない。フックは sys.path[0] (スクリプトの置き場) から guard_probes を
+    解決するので、壊した guard_probes と一緒に隔離ディレクトリへ複製して走らせる。
+    """
+    (tmp_path / HOOK.name).write_bytes(HOOK.read_bytes())
+    (tmp_path / "guard_probes.py").write_text("これは有効な Python ではない(\n", encoding="utf-8")
+
+    proc = subprocess.run(
+        [sys.executable, str(tmp_path / HOOK.name)],
+        input=SESSION_INPUT,
+        capture_output=True,
+        text=True,
+    )
+
+    assert proc.returncode == 0
+    payload = json.loads(proc.stdout)
+    assert "検査層の健全性チェック自体が失敗した" in payload["systemMessage"]
+    assert payload["hookSpecificOutput"]["additionalContext"] == payload["systemMessage"]
