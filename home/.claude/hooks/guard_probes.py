@@ -53,7 +53,13 @@ def probe_apm() -> ProbeResult:
 
     フックが見る PATH を測っている。フックは Claude Code のプロセスから起動されるので、
     対話シェルの PATH に載っていても Claude Code の PATH に載っていなければ守っていない。
-    Claude Code は起動時に PATH を snapshot するため、配置しただけでは反映されない。
+
+    Claude Code は PATH を自分で作らず、起動元のシェルから継承する。shim を PATH へ足す行が
+    入るより前から生きているシェルから起動すると載らず、Claude Code だけを起動し直しても
+    継承元が同じなので直らない (2026-08-31 に ps で祖先を辿って実測)。
+
+    手当ての文面と、原因 2 通りのどちらを選ぶかは guard_resolve が持つ。強制層の deny も同じ
+    ものを使う。
     """
     if guard_resolve.shim_resolves():
         return ProbeResult(healthy=True)
@@ -63,8 +69,7 @@ def probe_apm() -> ProbeResult:
             f"PATH 上の apm が {guard_resolve.shim_path()} へ解決されないため、apm ガードは"
             "横取りしていない。フックが自力で捕まえる形 (素の apm / 絶対パス / PATH の一時"
             "差し替え) は deny されるが、包み込みや変数間接や xargs の形は無音で素通りする。"
-            "直すには bootstrap.sh を実行し、そのあと Claude Code を再起動する。"
-            "PATH は起動時に snapshot されるので、シェルの再読み込みでは足りない。"
+            f"{guard_resolve.apm_remedy()}"
         ),
     )
 
@@ -105,7 +110,8 @@ def probe_tirith() -> ProbeResult:
             healthy=False,
             detail=(
                 f"{tirith_bin} が見つからないため、tirith の検査は沈黙している。"
-                "コマンドは検査されないまま通る。brew install tirith で検査が戻る。"
+                "コマンドは検査されないまま通る。"
+                f"{guard_resolve.TIRITH_REMEDY_UNRESOLVED}"
             ),
         )
     except subprocess.TimeoutExpired:

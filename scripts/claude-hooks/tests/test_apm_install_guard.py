@@ -18,6 +18,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+import guard_resolve
 from conftest import BOOTSTRAP, HOOKS_DIR, REPO_ROOT, git_scope_free_env
 
 HOOK = HOOKS_DIR / "apm-install-guard.py"
@@ -681,6 +682,33 @@ def test_missing_shim_reason_names_the_expected_location(tmp_path: Path) -> None
     )
 
     assert str(missing) in reason(proc)
+    assert guard_resolve.APM_REMEDY_MISSING_SHIM in reason(proc)
+    assert guard_resolve.APM_REMEDY_STALE_SHELL not in reason(proc)
+
+
+def test_placed_shim_reason_points_at_the_launching_shell(tmp_path: Path) -> None:
+    """配置漏れと起動元シェルの古さでは手当てが正反対になるので、deny の理由も出し分ける。
+
+    診断層 (guard_probes) だけを直しても、実際に apm を打った人が読むのはこちらの理由文で
+    ある。上の test_missing_shim_reason_names_the_expected_location が「理由文だけを読んで
+    復旧できること」を仕様として宣言しているため、覆っていない原因が残るとその宣言が偽になる。
+
+    2026-08-31 に踏んだのはこちらの状態で、当時の理由文は配置と PATH 先頭の確認だけを求めて
+    いた。対話シェルで確かめると両方満たされているので、読んだ側は問題なしと判断してしまう。
+    """
+    repo = init_repo(tmp_path)
+    placed = tmp_path / "elsewhere" / "apm"
+    placed.parent.mkdir(parents=True)
+    placed.write_text("#!/bin/sh\n", encoding="utf-8")
+
+    proc = run_hook(
+        body("apm install", str(repo)),
+        extra_env={"APM_INSTALL_GUARD_SHIM": str(placed)},
+    )
+
+    assert decision(proc) == "deny"
+    assert guard_resolve.APM_REMEDY_STALE_SHELL in reason(proc)
+    assert guard_resolve.APM_REMEDY_MISSING_SHIM not in reason(proc)
 
 
 def test_readonly_subcommand_does_not_need_the_shim(tmp_path: Path) -> None:

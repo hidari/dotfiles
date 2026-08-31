@@ -31,6 +31,24 @@ DEFAULT_SHIM_PATH = "~/.local/libexec/apm-guard/apm"
 # 同じ規則を共有する (tirith_child_env 参照)。検査の基礎を外から動かせる変数を渡さないため。
 _DROPPED_TIRITH_PREFIX = "TIRITH_"
 
+# tirith が PATH 上で解決しないときの手当て。原因は 2 通りある。入っていない場合と、入っている
+# のに PATH へ載っていない場合である。
+#
+# apm の shim と違って原因を区別しない。区別するには tirith の置き場を決め打つ必要があり、それは
+# Homebrew が持つ事実の写しになって drift する。shim の置き場は bootstrap.sh が配置するので
+# こちらが canonical を持てるが、tirith の置き場は持てない。
+#
+# 区別できないからこそ片方だけを勧めてはならない。2026-08-31 に PATH から /opt/homebrew/bin を
+# 外して実測したところ、tirith は brew で入っているのに brew install tirith だけを勧めた。
+#
+# leaf のここに置くのは、強制層 (tirith-check.py) と診断層 (guard_probes.py) の両方が使うため。
+# 強制層はホットパスで診断層を import しないので、診断層側へ置くと同じ文面を 2 箇所が literal で
+# 持つことになる。その形は片方だけを直したときに黙って食い違う。
+TIRITH_REMEDY_UNRESOLVED = (
+    "入っていないなら brew install tirith で戻る。入っているなら PATH に載っていないだけで、"
+    "Claude Code を起動し直しても直らない。PATH を整えた新しいシェルから起動する。"
+)
+
 
 def shim_path() -> str:
     """検査する shim の置き場。テストで実在の shim を指すために上書きできる。
@@ -56,6 +74,55 @@ def shim_resolves() -> bool:
     except OSError:
         # どちらかが消えている / 辿れない。守れていないので偽を返す。
         return False
+
+
+def shim_exists() -> bool:
+    """shim の実体が置かれているか。健全性ではなく手当ての出し分けにだけ使う。
+
+    健全かどうかを決めるのは shim_resolves であって、この述語ではない (DEFAULT_SHIM_PATH の
+    コメント参照)。置かれていても PATH に載っていなければ一度も横取りしないので、これを
+    健全性の判定へ使うと守っていない状態が緑で通る。
+
+    それでも存在を別に測るのは、沈黙の原因が 2 通りあって手当てが正反対になるためである。
+    置かれていないなら配置のやり直しが要り、置かれているなら配置は正しくて起動元のシェルが
+    古い。
+
+    symlink は辿った先で見る。shim は symlink として配置されるので、辿れない symlink は
+    配置済みではなく張り直しが要る側にあたる。
+    """
+    return os.path.exists(os.path.expanduser(shim_path()))
+
+
+# apm ガードが横取りしていないときの手当て。原因が 2 通りあり、それぞれ正反対の作業になるので
+# 分けて持つ。どちらを選ぶかは shim_exists が決める。
+#
+# leaf のここに置くのは、強制層 (apm-install-guard.py の deny) と診断層 (guard_probes.py) の
+# 両方が使うためである。実際に apm を打った人が読むのは強制層の理由文なので、診断層だけを
+# 直しても踏んだ人には届かない。
+#
+# 文面を定数へ出してあるのは、どちらが選ばれたかをテストが exact に pin するためである。
+# 散文そのものの正しさはどの検査も見ないので、せめて分岐の選択だけは機械に見せる。
+APM_REMEDY_MISSING_SHIM = (
+    "shim が配置されていない。bootstrap.sh を実行し、そのあと Claude Code を起動し直す。"
+)
+
+# 2026-08-31 に実際に踏んだ側。当時の文面は bootstrap.sh と Claude Code の再起動を勧めており、
+# どちらもこの原因には効かないため 1 往復を空振りさせた。
+APM_REMEDY_STALE_SHELL = (
+    "shim は配置済みで、Claude Code の PATH に載っていないだけである。Claude Code は PATH を"
+    "起動元のシェルから継承するので、Claude Code だけを起動し直しても直らない。shim を PATH へ"
+    "足す行を読んだ新しいシェル (端末のタブを開き直すか exec zsh) から起動する。"
+    "bootstrap.sh は要らない。"
+)
+
+
+def apm_remedy() -> str:
+    """apm ガードが横取りしていない状態に対する手当てを 1 つ選ぶ。
+
+    選択の規則を関数へ出すのは、強制層と診断層が同じ分岐を書くと片方だけが古びるためである。
+    定数を共有しても、どちらを選ぶかを 2 箇所に書けば同じ二重管理が残る。
+    """
+    return APM_REMEDY_STALE_SHELL if shim_exists() else APM_REMEDY_MISSING_SHIM
 
 
 def resolve_tirith_bin() -> str:
