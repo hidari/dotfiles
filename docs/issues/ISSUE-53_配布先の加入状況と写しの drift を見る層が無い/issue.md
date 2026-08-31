@@ -68,3 +68,5 @@ git hook や CI から呼ぶ」という土俵そのものを疑うところか�
 - ISSUE-64: relay と studio-Hamiltonian へ pre-commit と gitleaks を入れる作業。
   この Issue が「pre-commit 自体を持たないリポジトリには載せる土台が無い」と書いた、
   その土台を作る側。着手はあちらが先
+- agentic-coding-tools の ISSUE-48: 保護ブランチの判定手順へ Issue クローズ以外の文脈から
+  辿る経路が無い。配布した手順が消費側の必要な文脈から読まれるかという問いを共有する
