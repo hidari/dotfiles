@@ -31,6 +31,24 @@ DEFAULT_SHIM_PATH = "~/.local/libexec/apm-guard/apm"
 # 同じ規則を共有する (tirith_child_env 参照)。検査の基礎を外から動かせる変数を渡さないため。
 _DROPPED_TIRITH_PREFIX = "TIRITH_"
 
+# tirith が PATH 上で解決しないときの手当て。原因は 2 通りある。入っていない場合と、入っている
+# のに PATH へ載っていない場合である。
+#
+# apm の shim と違って原因を区別しない。区別するには tirith の置き場を決め打つ必要があり、それは
+# Homebrew が持つ事実の写しになって drift する。shim の置き場は bootstrap.sh が配置するので
+# こちらが canonical を持てるが、tirith の置き場は持てない。
+#
+# 区別できないからこそ片方だけを勧めてはならない。2026-08-31 に PATH から /opt/homebrew/bin を
+# 外して実測したところ、tirith は brew で入っているのに brew install tirith だけを勧めた。
+#
+# leaf のここに置くのは、強制層 (tirith-check.py) と診断層 (guard_probes.py) の両方が使うため。
+# 強制層はホットパスで診断層を import しないので、診断層側へ置くと同じ文面を 2 箇所が literal で
+# 持つことになる。実際にそうなっていて、既に食い違っていた。
+TIRITH_REMEDY_UNRESOLVED = (
+    "入っていないなら brew install tirith で戻る。入っているなら PATH に載っていないだけで、"
+    "Claude Code を起動し直しても直らない。PATH を整えた新しいシェルから起動する。"
+)
+
 
 def shim_path() -> str:
     """検査する shim の置き場。テストで実在の shim を指すために上書きできる。

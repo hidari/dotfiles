@@ -196,13 +196,18 @@ def main() -> None:
         # 文脈だけ載せる。ここで tirith のテレメトリは使えない（tirith 自体が不在なので
         # Popen が FileNotFoundError で失敗し、_hook_event が握り潰す）。
         # 「tirith が入っていない」はセッション単位の事実だが、ここはコマンド単位で告げる
-        # ため同じ文が積み上がる。SessionStart 側の guard-health.py がセッション頭で
-        # 1 回だけ告げる層を持つが、ここでの逐次通知は意図して残している。その 1 回で
-        # 足りるかは実運用でセッションをまたぐまで判断できず、先に畳んでから足りないと
-        # 分かると「セッション頭で見落とした」を後から復元する形になって高くつくためである。
+        # ため同じ文が積み上がる。SessionStart 側の guard-health.py も同じ事実をセッション頭で
+        # 1 回告げるが、この逐次通知は残す (ISSUE-68 の判断)。理由は「暫定だから」ではなく、
+        # 2 層が測っている時刻が違うためである。下の resolve_tirith_bin は Bash 呼び出しごとに
+        # 解決し直すのでここは連続監視だが、あちらはセッション頭の 1 点測定で、セッション中に
+        # 検査が死ぬ経路を見ない。
+        #
+        # 手当ての文面は guard_resolve が持つ。ここと guard_probes が同じ手当てを literal で
+        # 別々に持っていた頃、こちらだけが未インストールを決めつける形で食い違っていた。
         notice = (
-            f"tirith: {tirith_bin} が見つからないため、このコマンドは検査されていません。"
-            "以降のコマンドも同じ状態です。brew install tirith で検査が戻ります。"
+            f"tirith: {tirith_bin} が見つからないため、このコマンドは検査されていない。"
+            "以降のコマンドも同じ状態である。"
+            f"{guard_resolve.TIRITH_REMEDY_UNRESOLVED}"
         )
         print(notice, file=sys.stderr)
         print(pretooluse.notice_payload(notice))
