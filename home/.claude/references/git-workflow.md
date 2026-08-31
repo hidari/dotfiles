@@ -34,7 +34,7 @@
 ## 保護ブランチの判定に classic API だけを使わない
 
 repository ruleset は classic API とは別系統で、
-`gh api repos/<owner>/<repo>/branches/main/protection` は 404 を返す。
+`gh api repos/<owner>/<repo>/branches/<default-branch>/protection` は 404 を返す。
 
 classic 404 を「保護なし」と誤判定すると、
 ruleset 保護 (pull_request / required_status_checks 等) を bypass 特権で素通り push し、
@@ -42,10 +42,14 @@ required checks / PR レビューを欠落させる。
 
 実際 classic 404 でも ruleset で保護されているリポジトリが存在する。
 
-確認するのは次の 2 つ。
+ruleset 側を `gh api repos/<owner>/<repo>/rulesets` で見ても判定はできない。
+このエンドポイントは ruleset の一覧を返すだけで `rules` キーを持たず、
+何が強制されているかを答えないためである (2026-08-31 に dotfiles で実測)。
+branch に実効している rule を返すのは
+`gh api repos/<owner>/<repo>/rules/branches/<branch>` の方である。
 
-- `gh api repos/<owner>/<repo>/rulesets`
-- 必要なら `gh api repos/<owner>/<repo>/rules/branches/<branch>`
+判定式と、空出力・branch 名・終了コードの罠は skill
+`dev-workflow:in-repo-issue` の「クローズ経路: feature PR 同梱を優先」節が持つ。
 
 ## 日本語の散文をファイル経由で渡す理由
 

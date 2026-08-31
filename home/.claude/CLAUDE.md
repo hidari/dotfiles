@@ -146,7 +146,7 @@
   - Simplify、レビュー、ボーイスカウトルール全てを適用後のPush
   - その他の調整が完了後のPush
 - 保護ブランチ（main 等）へ直 push する前の保護判定を、classic API (`gh api repos/<owner>/<repo>/branches/main/protection`) の 404 だけで「保護なし」と結論しないこと
-  - repository ruleset は別系統で classic API に出ず 404 になるため、`gh api repos/<owner>/<repo>/rulesets` も確認する
+  - repository ruleset は別系統で classic API に出ず 404 になるため ruleset 側も確認する。使う endpoint の選び方は参照先が持つ
   - classic 404 を「保護なし」と誤判定すると、ruleset 保護を bypass 特権で素通り push し、required checks / PR レビューを欠落させる
 
 ### コミットメッセージのプレフィックスと本文の渡し方
