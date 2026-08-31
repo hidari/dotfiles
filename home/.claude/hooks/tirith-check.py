@@ -201,7 +201,7 @@ def main() -> None:
         # issue.md にある)。
         notice = (
             f"tirith: {tirith_bin} が見つからないため、このコマンドは検査されていません。"
-            "以降のコマンドも同じ状態です。mise で tirith を入れ直すと検査が戻ります。"
+            "以降のコマンドも同じ状態です。brew install tirith で検査が戻ります。"
         )
         print(notice, file=sys.stderr)
         print(pretooluse.notice_payload(notice))

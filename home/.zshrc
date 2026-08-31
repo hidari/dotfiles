@@ -23,9 +23,6 @@ export HOMEBREW_NO_ENV_HINTS=1
 # Go言語の設定
 export GOPATH="$HOME/.go"
 
-# pnpmの設定
-export PNPM_HOME="$HOME/Library/pnpm"
-
 # Android開発の設定
 export ANDROID_HOME="$HOME/Library/Android/sdk"
 
@@ -33,7 +30,6 @@ export ANDROID_HOME="$HOME/Library/Android/sdk"
 path=(
     /opt/homebrew/bin(N-/)
     $path
-    $PNPM_HOME(N-/)
     $HOME/.bun/bin(N-/)
     $HOME/.cargo/bin(N-/)
     $HOME/.cargo/env(N-/)
@@ -425,6 +421,8 @@ eval "$(mise activate zsh)"
 export PATH="$HOME/.local/libexec/apm-guard:$PATH"
 
 # tirith (ターミナルのセキュリティツール)
-# tirith は mise 提供のため mise activate より後に置く。未インストールのマシンで
+# init が返すのは PATH ではなく zsh フックの source なので、path 配列 (このファイル上部)
+# には入らない。tirith 本体は Homebrew 管理で /opt/homebrew/bin に入り、そこは path 配列の
+# 先頭にあるため mise activate との前後は問わない。未インストールのマシンで
 # command not found を出さないよう、command -v で存在確認してから init する。
 command -v tirith >/dev/null 2>&1 && eval "$(tirith init --shell zsh)"

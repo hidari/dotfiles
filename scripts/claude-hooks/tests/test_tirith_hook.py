@@ -341,6 +341,8 @@ def test_binary_not_found_fails_open_but_says_so(tmp_path: Path) -> None:
     assert permission(proc) is None
     assert "検査されていません" in context_text(proc)
     assert "見つからない" in proc.stderr
+    # 復旧手順を pin する (guard_probes 側の同名の pin と対。理由はそちらのコメント)
+    assert "brew install tirith" in context_text(proc)
 
 
 # ---------------------------------------------------------------------------

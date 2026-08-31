@@ -12,9 +12,12 @@ brew "go"                                 # Go言語
 brew "deno"                               # Denoランタイム
 brew "gh"                                 # GitHub CLI
 brew "libpq"                              # PostgreSQL通信するクライアントライブラリ
-brew "mise"                               # ランタイム/ツールバージョン管理 (node, pnpm)
+brew "mise"                               # ランタイム/ツールバージョン管理 (pin は .config/mise/config.toml)
 brew "microsoft/apm/apm"                  # Agent Package Manager (skill/plugin の宣言的配信)
 brew "powershell"                         # Windows 検証 VM 向け .ps1 の Pester テスト実行に使う
+brew "pnpm"                               # Node.js パッケージマネージャ (npm/npx は使わない)
+brew "uv"                                 # Python パッケージ/実行管理 (pre-commit の local hook が依存)
+brew "just"                               # コマンドランナー (justfile)
 
 # --- Platform CLI
 brew "stripe/stripe-cli/stripe"           # Stripe決済プラットフォームCLI
@@ -42,6 +45,8 @@ brew "pre-commit"                         # git pre-commit フック管理
 brew "gitleaks"                           # secret / ユーザー名パス漏洩スキャナ
 brew "ast-grep"                           # 構文木ベースの lint (rules/ で管理)
 brew "shellcheck"                         # .sh の静的解析 (pre-commit local hook)
+brew "tirith"                             # URL/コマンドセキュリティ CLI (zsh と Claude Code の二層で使う)
+brew "bats-core"                          # bash のテストフレームワーク (scripts/tests/ をローカルで回す)
 
 # --- フォント ---
 cask "font-hackgen-nerd"                  # ターミナル用 日本語プログラミングフォント (Hack + 源柔ゴシック, Nerd Font 内蔵)

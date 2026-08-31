@@ -93,7 +93,7 @@ bootstrap は既存の `projects/` を移行しない。実体を持つ設定デ
 
 ## tirith によるコマンドセキュリティ
 
-`tirith`（URL/コマンドセキュリティ CLI, mise 管理）で実行前チェックを二層に張る。
+`tirith`（URL/コマンドセキュリティ CLI, 導入は `home/.Brewfile`）で実行前チェックを二層に張る。
 
 - 対話シェル: `home/.zshrc` の `tirith init` が zsh のコマンド実行前に検査する。
 - Claude Code: `home/.claude/hooks/tirith-check.py` を PreToolUse(Bash) フックに登録し、エージェントの Bash 実行前に `tirith check` へ委譲する。判定ロジックは本体、テストは `scripts/claude-hooks` を参照。

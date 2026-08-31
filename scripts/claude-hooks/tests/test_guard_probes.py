@@ -98,6 +98,9 @@ def test_TIRITH_BIN_未設定で解決しなければ沈黙(
     result = guard_probes.probe_tirith()
     assert result.healthy is False
     assert "沈黙" in result.detail
+    # 復旧手順を pin する。apm 側は "bootstrap" を pin していたが tirith 側は無く、
+    # 実体化経路が mise から brew へ移ったとき案内だけが古びて誰も赤くならなかった。
+    assert "brew install tirith" in result.detail
 
 
 def test_TIRITH_BIN_のパスが無ければ全_Bash_が止まると告げる(

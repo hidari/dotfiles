@@ -1,6 +1,3 @@
 # mise が管理する global ツールの pin。exact 指定で全マシンを完全再現する。
 [tools]
-just = "1.56.0"
 node = "24.18.0"
-pnpm = "10.34.5"
-tirith = "0.3.3"
