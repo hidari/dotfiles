@@ -22,6 +22,9 @@ from config_guard.models import Finding
 # 各 rules が宣言する paths。測定の詳細は Issue #36 の「paths は測ってから決めた」節と
 # 「corpus 問題を数字で決着させた」節。前者が 8 パターン時代、後者が testing の現在のリスト。
 # markdown の 1 パターンは「Markdown の規範を scoped へ移した」節が持つ。
+# rust の 2 パターンは、規範の一部 (crate の feature 選択) を書く場所が .rs ではなく
+# Cargo.toml であるため両方を載せた。どちらも管理下のリポジトリに実体があり、
+# DELIBERATELY_EXCLUDED が除外の根拠にする「限界カバレッジ 0」には当たらない。
 EXPECTED_PATHS: dict[str, list[str]] = {
     "frontend-practices.md": [
         "**/*.tsx",
@@ -31,6 +34,10 @@ EXPECTED_PATHS: dict[str, list[str]] = {
     ],
     "markdown-practices.md": [
         "**/*.md",
+    ],
+    "rust-practices.md": [
+        "**/*.rs",
+        "**/Cargo.toml",
     ],
     "testing-practices.md": [
         "**/*.test.*",

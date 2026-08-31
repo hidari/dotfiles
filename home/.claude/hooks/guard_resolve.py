@@ -22,13 +22,10 @@ import os
 import shutil
 
 # 配布した shim の置き場。bootstrap.sh の SYMLINK_PAIRS が張る target と同じ値で、
-# 一致は test_guard_resolve.py の cross-pin テストが見る。
+# 一致は test_guard_probes.py の cross-pin テストが見る。
 # 存在ではなく「PATH 上の apm がここへ解決されるか」を見る。ファイルがあっても PATH に
 # 載っていなければ shim は一度も横取りしないので、存在検査は緑のまま守っていない状態を作る。
 DEFAULT_SHIM_PATH = "~/.local/libexec/apm-guard/apm"
-
-# tirith が mise 経由で入っているときの shim。tirith-check.py と同じ探索順を保つ。
-_MISE_TIRITH_SHIM = "~/.local/share/mise/shims/tirith"
 
 # tirith の子プロセスへ渡す環境から落とす接頭辞。tirith-check.py 本体と probe_tirith が
 # 同じ規則を共有する (tirith_child_env 参照)。検査の基礎を外から動かせる変数を渡さないため。
@@ -62,19 +59,16 @@ def shim_resolves() -> bool:
 
 
 def resolve_tirith_bin() -> str:
-    """tirith バイナリのパスを解決する: TIRITH_BIN → PATH → mise shim (home 相対)。
+    """tirith バイナリのパスを解決する: TIRITH_BIN → PATH。
 
-    どれも無ければ "tirith" を返す。呼び出し側の subprocess が FileNotFoundError を投げ、
-    そこで不在を判定する。machine 固有パスを settings に焼かず実行時に解決するのは、
-    この設定が全プロジェクトで共有されるためである。
+    どちらでも見つからなければ "tirith" を返す。呼び出し側の subprocess が
+    FileNotFoundError を投げ、そこで不在を判定する。machine 固有パスを settings に
+    焼かず実行時に解決するのは、この設定が全プロジェクトで共有されるためである。
+
+    tirith は Homebrew 管理 (home/.Brewfile) で /opt/homebrew/bin へ入るため PATH で拾える。
+    mise 管理だった頃の shim 探索段は、実体化経路が brew へ移った時点で到達しなくなった。
     """
-    mise_shim = os.path.expanduser(_MISE_TIRITH_SHIM)
-    return (
-        os.environ.get("TIRITH_BIN")
-        or shutil.which("tirith")
-        or (mise_shim if os.path.exists(mise_shim) else None)
-        or "tirith"
-    )
+    return os.environ.get("TIRITH_BIN") or shutil.which("tirith") or "tirith"
 
 
 def tirith_child_env() -> dict[str, str]:

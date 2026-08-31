@@ -13,6 +13,7 @@ from config_guard.instruction_budget import (
     ALWAYS_LOADED_BUDGET_BYTES,
     CLAUDE_MD_PATH,
 )
+from config_guard.tool_provisioning import BREWFILE_PATH, PRECOMMIT_CONFIG_PATH
 from tests.conftest import (
     APM_GUARD_HOOK_COMMAND,
     GUARD_HEALTH_HOOK_COMMAND,
@@ -203,6 +204,30 @@ def test_unresolvable_related_ref_is_detected(tmp_path: Path) -> None:
     findings = scan(str(repo))
 
     assert any(f.detail == "Issue 99" for f in findings)
+
+
+def test_unprovisioned_tool_is_detected(tmp_path: Path) -> None:
+    # 供給の検査が scan に配線されていること。配線を忘れると、要求されるコマンドが
+    # どの実体化経路からも外れても誰も赤くならない状態へ戻る。手元には実体が残るので
+    # 壊れるのは新しいマシンの再現性だけで、既存のどの検査もエラーを返さない
+    repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
+    write_file(
+        repo,
+        PRECOMMIT_CONFIG_PATH,
+        "repos:\n"
+        "  - repo: local\n"
+        "    hooks:\n"
+        "      - id: orphan\n"
+        "        name: orphan\n"
+        "        language: system\n"
+        "        entry: orphan-tool check\n",
+    )
+    # 供給側の宣言が 1 つも無いと検査自体が対象外で沈黙する。要求だけを孤児にする
+    write_file(repo, BREWFILE_PATH, 'brew "tirith"\nbrew "bats-core"\nbrew "pre-commit"\n')
+
+    findings = scan(str(repo))
+
+    assert any(f.detail == "orphan-tool" for f in findings)
 
 
 def test_scan_は孤児検出を含む(tmp_path: Path) -> None:

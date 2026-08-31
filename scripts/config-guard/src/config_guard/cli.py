@@ -4,7 +4,8 @@ stale なツール名参照 / committed settings.json の不変条件 / フッ�
 どこにも配線されていないか / フックファイルの shebang の有無と実行ビットが食い違わないか /
 追跡ファイルに変更を隠す index の bit が立っていないか /
 apm.lock.yaml の deployed_files が gitignore されているか(新しい deploy root の検出) /
-mise の global ツール pin が exact か / apm.yml の依存 pin が commit SHA で固定され
+mise の global ツール pin が exact か / 要求されるコマンドが brew bundle か mise install の
+どちらかで供給されるか / apm.yml の依存 pin が commit SHA で固定され
 宣言どうしと実配置で揃っているか / herdr keybinding の方向整合と chord 重複 / 追跡下の
 Markdown の相対リンクが実在するか / 常時ロードされる指示ファイルの総バイト数が予算内か /
 その予算そのものが main から無音で上がっていないか / rules の paths 宣言が pin と
@@ -41,6 +42,7 @@ from config_guard.related_refs import check_related_refs, related_refs_summary
 from config_guard.rules_paths import check_rules_paths
 from config_guard.settings_invariants import check_settings_invariants
 from config_guard.term_definitions import check_term_definitions
+from config_guard.tool_provisioning import check_tool_provisioning
 from config_guard.tool_refs import validate_tool_token
 
 SKILLS_GLOB = "home/.claude/skills/*/SKILL.md"
@@ -83,6 +85,11 @@ def scan(repo_root: str) -> list[Finding]:
 
     # mise の global ツール pin が exact か（浮動 pin はマシン間で解決版がずれる）
     findings.extend(check_mise_pins(str(root)))
+
+    # 要求されるコマンドが brew bundle / mise install のどちらかで供給されるか。
+    # 供給側の宣言から外れても手元には実体が残るので、壊れるのは新しいマシンの
+    # 再現性だけで、既存のどの検査もエラーを返さない
+    findings.extend(check_tool_provisioning(str(root)))
 
     # apm.yml の依存 pin が浮動せず同一リポジトリで揃っているか（1 行の更新漏れは
     # install が成功したまま、そのパッケージだけ古い版が配られる形で壊れる）

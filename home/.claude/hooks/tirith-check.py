@@ -197,11 +197,12 @@ def main() -> None:
         # Popen が FileNotFoundError で失敗し、_hook_event が握り潰す）。
         # 「tirith が入っていない」はセッション単位の事実だが、ここはコマンド単位で告げる
         # ため同じ文が積み上がる。SessionStart 側の guard-health.py がセッション頭で
-        # 1 回だけ告げる層を持つが、ここでの逐次通知は意図して残している (畳まない理由は
-        # issue.md にある)。
+        # 1 回だけ告げる層を持つが、ここでの逐次通知は意図して残している。その 1 回で
+        # 足りるかは実運用でセッションをまたぐまで判断できず、先に畳んでから足りないと
+        # 分かると「セッション頭で見落とした」を後から復元する形になって高くつくためである。
         notice = (
             f"tirith: {tirith_bin} が見つからないため、このコマンドは検査されていません。"
-            "以降のコマンドも同じ状態です。mise で tirith を入れ直すと検査が戻ります。"
+            "以降のコマンドも同じ状態です。brew install tirith で検査が戻ります。"
         )
         print(notice, file=sys.stderr)
         print(pretooluse.notice_payload(notice))

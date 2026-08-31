@@ -105,7 +105,7 @@ def probe_tirith() -> ProbeResult:
             healthy=False,
             detail=(
                 f"{tirith_bin} が見つからないため、tirith の検査は沈黙している。"
-                "コマンドは検査されないまま通る。mise で tirith を入れ直すと検査が戻る。"
+                "コマンドは検査されないまま通る。brew install tirith で検査が戻る。"
             ),
         )
     except subprocess.TimeoutExpired:

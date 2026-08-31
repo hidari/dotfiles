@@ -35,20 +35,33 @@ def is_exact_version(spec: str) -> bool:
     return EXACT_VERSION_PATTERN.fullmatch(spec) is not None
 
 
+def load_mise_tools(repo_root: str) -> object | None:
+    """mise config の [tools] をそのまま返す。config が無ければ None、節が無ければ空の dict。
+
+    型の妥当性はここで判定しない。この検査はテーブルでなければ Finding にして
+    fail-closed へ倒し、tool_provisioning の供給側はテーブルでなければ数えずに通す。
+    どちらが正しいかは用途で決まるので、読む手順だけを共有して判断は呼び出し側に残す。
+    同じ config を 2 箇所が別々の手順で読むと、片方だけ読み方を変えたときに
+    「同じファイルを違う解釈で読む」状態が無音で生まれる。
+    """
+    config_path = Path(repo_root) / MISE_CONFIG_PATH
+    if not config_path.is_file():
+        return None
+    with config_path.open("rb") as handle:
+        config: dict[str, object] = tomllib.load(handle)
+    return config.get("tools", {})
+
+
 def check_mise_pins(repo_root: str) -> list[Finding]:
     """mise config の [tools] が全て exact 指定か検査する。
 
     config が無い(mise 未使用)場合は検査対象なしで空を返す。判定できない形は素通り
     させず Finding にする(fail-closed。素通りは浮動 pin の見逃しに直結する)。
     """
-    config_path = Path(repo_root) / MISE_CONFIG_PATH
-    if not config_path.is_file():
+    tools = load_mise_tools(repo_root)
+    if tools is None:
         return []
 
-    with config_path.open("rb") as handle:
-        config = tomllib.load(handle)
-
-    tools = config.get("tools", {})
     if not isinstance(tools, dict):
         return [
             Finding(
