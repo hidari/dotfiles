@@ -78,3 +78,6 @@ classic だけを見ると今も 404 なので、上の判定手順を使わな�
   既に入らない」は実測と食い違う (2026-08-28 に確認したところ `allow_merge_commit` は true の
   ままで、履歴にも merge commit が 2 件ある)。上のタスクが未完なのと整合しているので、
   表の側を訂正する必要がある
+- agentic-coding-tools の ISSUE-48: 保護ブランチの判定手順が in-repo-issue skill の
+  ライフサイクル節の内側にあり、Issue を扱っていない文脈からは到達しない。この Issue が
+  ruleset を足すほど classic API だけの判定は外れるので、手順へ入る辺はあちらが作る
