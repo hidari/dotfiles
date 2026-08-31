@@ -10,8 +10,7 @@ status: closed
 `additionalContext` の両方へ 1 通を載せる。両方へ載せるのは、ユーザーの UI とモデルの文脈で
 届く相手が違うためである。
 
-2026-09-01 に、この告知が subagent の文脈へ届いていない可能性を示す観測が出た。確定して
-いないので、まず測る Issue である。
+2026-09-01 に、この告知が subagent の文脈へ届いていない可能性を示す観測が出た。
 
 ## 結論 (2026-09-01 実測)
 
@@ -37,6 +36,10 @@ status: closed
 | PostToolUse | 36 | 同上 |
 
 subagent は観測期間中に 5 本走ったが、SessionStart はそのどれでも発火しなかった。
+
+SubagentStart だけ件数が SubagentStop と食い違うのは、そのプローブを観測の後半で登録したため
+である。登録より後に起動した subagent は 1 本で、その 1 本では発火した。毎回発火するかは
+n=1 なので確かめていない。
 
 0 件を「発火しない」と読むために対照を 2 つ置いた。1 つは同じプローブスクリプトが
 PreToolUse / PostToolUse / SubagentStop で非空を返すことで、スクリプトとパス解決の故障という
@@ -69,11 +72,8 @@ subagent の文脈に無かったものは、いずれも SessionStart hook の�
 
 ## 確度と、根拠にならなかった読み
 
-当初に確かめたのは subagent の自己申告と配線の読みだけだった。今回はそこへ hook のログという
-客観的な観測を足して確定させている。
-
-`handoff-sentinel.py` の `agent_id` ゲートとの非対称を根拠に挙げる読みは、当時も今も成立
-しない。あの行は `main()` に置かれた全 action 共通のガードで、SessionStart 固有ではなく
+`handoff-sentinel.py` の `agent_id` ゲートとの非対称を根拠に挙げる読みは成立しない。
+あの行は `main()` に置かれた全 action 共通のガードで、SessionStart 固有ではなく
 PostToolUse と Stop も通る。ゲートの存在は「payload に `agent_id` が入りうる」ことしか
 意味せず、どのイベントで入るかは区別しない。
 
@@ -86,8 +86,7 @@ design ドキュメント (`docs/superpowers/archive/2026-07-03-session-handoff-
 この非対称は仕様の取り違えではない。ただし pin の一部は到達しない条件を守っている。
 SessionStart は subagent で発火しないので、そのゲートが効く場面が実環境に無い。PostToolUse と
 Stop 側のゲートは到達する。`guard-health.py` にゲートが無いことは、SessionStart に配線されて
-いる限り実害を持たない。ISSUE-71 で SubagentStart へ配線するときは、同じゲートを足すと告知が
-全部消えるので足さないこと。
+いる限り実害を持たない。
 
 ## 副産物
 
