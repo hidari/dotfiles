@@ -19,13 +19,7 @@ from config_guard.tool_provisioning import (
     required_commands,
     uses_provisioning_manifests,
 )
-from tests.conftest import REPO_ROOT
-
-
-def _write(root: Path, rel: str, body: str) -> None:
-    path = root / rel
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(body, encoding="utf-8")
+from tests.conftest import REPO_ROOT, write_file
 
 
 def _precommit(*entries: str) -> str:
@@ -45,13 +39,13 @@ def _precommit(*entries: str) -> str:
 
 
 def test_required_takes_the_first_token_of_entry(tmp_path: Path) -> None:
-    _write(tmp_path, PRECOMMIT_CONFIG_PATH, _precommit("ruff check src", "mypy src tests"))
+    write_file(tmp_path, PRECOMMIT_CONFIG_PATH, _precommit("ruff check src", "mypy src tests"))
     assert set(required_commands(str(tmp_path))) == {"ruff", "mypy"}
 
 
 def test_required_reports_the_hook_id_as_origin(tmp_path: Path) -> None:
     # 報告に由来が無いと、どのフックのために足すのかが読み手に伝わらない
-    _write(tmp_path, PRECOMMIT_CONFIG_PATH, _precommit("ruff check src"))
+    write_file(tmp_path, PRECOMMIT_CONFIG_PATH, _precommit("ruff check src"))
     assert required_commands(str(tmp_path))["ruff"] == "hook-0"
 
 
@@ -59,7 +53,7 @@ def test_required_unwraps_the_shell_dash_c_body(tmp_path: Path) -> None:
     # ここを見ないと `bash -c '<tool> ...'` の形で要求が隠れる。実リポジトリでは
     # 本体の uv が他の entry からも入るため、この経路を壊しても結果が変わらない
     # (下流で吸収される)。独立に pin する
-    _write(tmp_path, PRECOMMIT_CONFIG_PATH, _precommit("bash -c 'hidden-tool --flag'"))
+    write_file(tmp_path, PRECOMMIT_CONFIG_PATH, _precommit("bash -c 'hidden-tool --flag'"))
     assert set(required_commands(str(tmp_path))) == {"bash", "hidden-tool"}
 
 
@@ -67,7 +61,7 @@ def test_required_sees_commands_after_shell_operators(tmp_path: Path) -> None:
     # shlex.split は ; & | ( ) を区切らないので、素で使うと連結した 2 つ目以降が
     # コマンド位置として見えず、要求が静かに落ちる。今の .pre-commit-config.yaml に
     # 連結する entry は無いため実リポジトリでは差が出ない。独立に pin する
-    _write(
+    write_file(
         tmp_path,
         PRECOMMIT_CONFIG_PATH,
         _precommit("first-tool a && second-tool b", "third-tool; fourth-tool", "fifth | sixth"),
@@ -85,7 +79,7 @@ def test_required_sees_commands_after_shell_operators(tmp_path: Path) -> None:
 def test_required_does_not_read_substitutions_as_commands(tmp_path: Path) -> None:
     # 演算子を独立トークンにすると `(` `)` も区切りになる。引数のクォートが効かないと
     # $(...) の中身をコマンド位置と誤読し、要求していないものを要求として報告する
-    _write(tmp_path, PRECOMMIT_CONFIG_PATH, _precommit('outer-tool "$(inner-tool --flag)"'))
+    write_file(tmp_path, PRECOMMIT_CONFIG_PATH, _precommit('outer-tool "$(inner-tool --flag)"'))
     assert set(required_commands(str(tmp_path))) == {"outer-tool"}
 
 
@@ -100,13 +94,13 @@ def test_non_system_hooks_are_not_required(tmp_path: Path) -> None:
         "        language: fail\n"
         "        entry: このファイルはここへ置く\n"
     )
-    _write(tmp_path, PRECOMMIT_CONFIG_PATH, body)
+    write_file(tmp_path, PRECOMMIT_CONFIG_PATH, body)
     assert required_commands(str(tmp_path)) == {}
 
 
 def test_unterminated_quote_yields_no_requirement(tmp_path: Path) -> None:
     # 解釈できない形から要求をでっち上げると、存在しないコマンドを報告する
-    _write(tmp_path, PRECOMMIT_CONFIG_PATH, _precommit("bash -c 'unterminated"))
+    write_file(tmp_path, PRECOMMIT_CONFIG_PATH, _precommit("bash -c 'unterminated"))
     assert required_commands(str(tmp_path)) == {}
 
 
@@ -120,47 +114,47 @@ def test_missing_precommit_config_yields_no_requirement(tmp_path: Path) -> None:
 
 
 def test_both_brew_and_cask_lines_provide(tmp_path: Path) -> None:
-    _write(tmp_path, BREWFILE_PATH, 'brew "jq"\ncask "1password-cli"\n')
+    write_file(tmp_path, BREWFILE_PATH, 'brew "jq"\ncask "1password-cli"\n')
     assert provided_commands(str(tmp_path)) == {"jq", "1password-cli"}
 
 
 def test_tap_qualified_names_are_reduced_to_the_command(tmp_path: Path) -> None:
-    _write(tmp_path, BREWFILE_PATH, 'brew "microsoft/apm/apm"\n')
+    write_file(tmp_path, BREWFILE_PATH, 'brew "microsoft/apm/apm"\n')
     assert provided_commands(str(tmp_path)) == {"apm"}
 
 
 def test_trailing_options_are_not_part_of_the_name(tmp_path: Path) -> None:
-    _write(tmp_path, BREWFILE_PATH, 'brew "yusukebe/tap/ax", trusted: true\n')
+    write_file(tmp_path, BREWFILE_PATH, 'brew "yusukebe/tap/ax", trusted: true\n')
     assert provided_commands(str(tmp_path)) == {"ax"}
 
 
 def test_commented_out_lines_do_not_provide(tmp_path: Path) -> None:
     # 行で読む以上、コメントの誤読 (phantom entry) がこのパーサ固有の壊れ方になる。
     # 供給側の phantom は「足したつもり」で検査を黙らせるので、要求側の漏れより悪い
-    _write(tmp_path, BREWFILE_PATH, '# brew "ghost"\n  # brew "ghost2"\nbrew "jq"\n')
+    write_file(tmp_path, BREWFILE_PATH, '# brew "ghost"\n  # brew "ghost2"\nbrew "jq"\n')
     assert provided_commands(str(tmp_path)) == {"jq"}
 
 
 def test_go_lines_do_not_provide(tmp_path: Path) -> None:
     # brew bundle がこの型を実体化するか未確認。数えると未検証の主張を検査が持つ
-    _write(tmp_path, BREWFILE_PATH, 'go "golang.org/x/tools/gopls"\nbrew "jq"\n')
+    write_file(tmp_path, BREWFILE_PATH, 'go "golang.org/x/tools/gopls"\nbrew "jq"\n')
     assert provided_commands(str(tmp_path)) == {"jq"}
 
 
 def test_formula_names_map_to_their_commands(tmp_path: Path) -> None:
     # powershell は pwsh を、bats-core は bats を提供する。名前をそのまま使うと
     # 供給済みのものを「無い」と誤報する
-    _write(tmp_path, BREWFILE_PATH, 'brew "powershell"\nbrew "bats-core"\n')
+    write_file(tmp_path, BREWFILE_PATH, 'brew "powershell"\nbrew "bats-core"\n')
     assert provided_commands(str(tmp_path)) == {"pwsh", "bats"}
 
 
 def test_mise_tools_also_provide(tmp_path: Path) -> None:
-    _write(tmp_path, MISE_CONFIG_PATH, '[tools]\nnode = "24.18.0"\n')
+    write_file(tmp_path, MISE_CONFIG_PATH, '[tools]\nnode = "24.18.0"\n')
     assert provided_commands(str(tmp_path)) == {"node"}
 
 
 def test_mise_backend_prefix_is_reduced_to_the_command(tmp_path: Path) -> None:
-    _write(tmp_path, MISE_CONFIG_PATH, '[tools]\n"cargo:sqlx-cli" = "0.8.6"\n')
+    write_file(tmp_path, MISE_CONFIG_PATH, '[tools]\n"cargo:sqlx-cli" = "0.8.6"\n')
     assert provided_commands(str(tmp_path)) == {"sqlx-cli"}
 
 
@@ -175,8 +169,8 @@ _ALSO_REQUIRED_FORMULAE = 'brew "tirith"\nbrew "bats-core"\nbrew "pre-commit"\n'
 
 
 def _repo_with_required(root: Path, entry: str, brewfile: str) -> None:
-    _write(root, PRECOMMIT_CONFIG_PATH, _precommit(entry))
-    _write(root, BREWFILE_PATH, brewfile + _ALSO_REQUIRED_FORMULAE)
+    write_file(root, PRECOMMIT_CONFIG_PATH, _precommit(entry))
+    write_file(root, BREWFILE_PATH, brewfile + _ALSO_REQUIRED_FORMULAE)
 
 
 def test_unprovisioned_requirement_is_reported(tmp_path: Path) -> None:
@@ -192,9 +186,9 @@ def test_provisioned_requirement_is_not_reported(tmp_path: Path) -> None:
 
 def test_provisioning_from_mise_is_accepted(tmp_path: Path) -> None:
     # 供給経路は 2 つある。片方だけを見ると、もう片方にあるものを誤報する
-    _write(tmp_path, PRECOMMIT_CONFIG_PATH, _precommit("node --version"))
-    _write(tmp_path, BREWFILE_PATH, _ALSO_REQUIRED_FORMULAE)
-    _write(tmp_path, MISE_CONFIG_PATH, '[tools]\nnode = "24.18.0"\n')
+    write_file(tmp_path, PRECOMMIT_CONFIG_PATH, _precommit("node --version"))
+    write_file(tmp_path, BREWFILE_PATH, _ALSO_REQUIRED_FORMULAE)
+    write_file(tmp_path, MISE_CONFIG_PATH, '[tools]\nnode = "24.18.0"\n')
     assert [f.detail for f in check_tool_provisioning(str(tmp_path))] == []
 
 
@@ -206,23 +200,23 @@ def test_os_provided_commands_are_not_required(tmp_path: Path) -> None:
 def test_pinned_extra_requirements_are_checked(tmp_path: Path) -> None:
     # pre-commit の entry には現れないが、欠けると検査層が無音になるもの。
     # 供給側に置かないリポジトリでは ALSO_REQUIRED の全件が報告されるはず
-    _write(tmp_path, PRECOMMIT_CONFIG_PATH, _precommit("jq --version"))
-    _write(tmp_path, BREWFILE_PATH, 'brew "jq"\n')
+    write_file(tmp_path, PRECOMMIT_CONFIG_PATH, _precommit("jq --version"))
+    write_file(tmp_path, BREWFILE_PATH, 'brew "jq"\n')
     reported = {f.detail.split(" ", 1)[0] for f in check_tool_provisioning(str(tmp_path))}
     assert reported == set(ALSO_REQUIRED)
 
 
 def test_pinned_extra_findings_carry_their_reason(tmp_path: Path) -> None:
     # 理由が無いと、読み手が「要らないから消す」を選べてしまう
-    _write(tmp_path, PRECOMMIT_CONFIG_PATH, _precommit("jq --version"))
-    _write(tmp_path, BREWFILE_PATH, 'brew "jq"\n')
+    write_file(tmp_path, PRECOMMIT_CONFIG_PATH, _precommit("jq --version"))
+    write_file(tmp_path, BREWFILE_PATH, 'brew "jq"\n')
     for finding in check_tool_provisioning(str(tmp_path)):
         assert ALSO_REQUIRED[finding.detail.split(" ", 1)[0]] in finding.detail
 
 
 def test_repo_without_provisioning_manifests_is_skipped(tmp_path: Path) -> None:
     # brew も mise も使わないリポジトリでこの供給モデルを要求すると誤報になる
-    _write(tmp_path, PRECOMMIT_CONFIG_PATH, _precommit("orphan-tool check"))
+    write_file(tmp_path, PRECOMMIT_CONFIG_PATH, _precommit("orphan-tool check"))
     assert check_tool_provisioning(str(tmp_path)) == []
 
 

@@ -11,6 +11,7 @@ from config_guard.mise_pins import (
     MISE_CONFIG_PATH,
     check_mise_pins,
     is_exact_version,
+    load_mise_tools,
 )
 from tests.conftest import REPO_ROOT
 
@@ -127,3 +128,28 @@ def test_repo_mise_config_pins_every_tool_exactly() -> None:
     assert (REPO_ROOT / MISE_CONFIG_PATH).is_file(), "mise config が想定パスに無い"
 
     assert check_mise_pins(str(REPO_ROOT)) == []
+
+
+# -----------------------------------------------------------------------------
+# load_mise_tools: tool_provisioning と共有する読み出し
+# -----------------------------------------------------------------------------
+
+
+def test_load_mise_tools_distinguishes_missing_file_from_missing_table(tmp_path: Path) -> None:
+    # 「config が無い」と「[tools] 節が無い」を同じ値へ潰すと、共有先の
+    # tool_provisioning が「mise を使っていない」と「mise は使うが何も pin していない」を
+    # 区別できなくなる。読み出しを共有できるのはこの区別を保っているからである
+    assert load_mise_tools(str(tmp_path)) is None
+
+    _write_config(tmp_path, "[settings]\nexperimental = true\n")
+    assert load_mise_tools(str(tmp_path)) == {}
+
+
+def test_load_mise_tools_returns_the_table_verbatim(tmp_path: Path) -> None:
+    # 型の妥当性はここで判定しない。テーブルでないときに Finding へ倒すか黙って通すかは
+    # 呼び出し側の判断で、読み出し側が先に潰すとその選択肢を奪う
+    _write_config(tmp_path, '[tools]\nnode = "24.18.0"\n')
+    assert load_mise_tools(str(tmp_path)) == {"node": "24.18.0"}
+
+    _write_config(tmp_path, 'tools = "not-a-table"\n')
+    assert load_mise_tools(str(tmp_path)) == "not-a-table"

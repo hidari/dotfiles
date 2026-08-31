@@ -7,6 +7,10 @@ Brewfile へ足し忘れ、pre-commit も CI も素通りした。uv と bats �
 無かった。手元のマシンには手で入れた実体があるので、壊れているのは再現性だけであり
 エラーとしては一度も現れない。
 
+**ただし、この検査が覆うのはその 3 つのうち tirith だけである。** pnpm と just は下の射程の
+とおり要求側に入らないので、同じ事故がもう一度起きても緑のまま通る。動機に挙げた事故が
+まるごと再発防止されたと読まないこと。
+
 要求側は .pre-commit-config.yaml から導出する。手で維持する一覧にすると、足し忘れが
 この検査自身の穴になるためである。pre-commit の外で要る分だけを ALSO_REQUIRED が理由を
 添えて持つ。
@@ -33,12 +37,11 @@ from __future__ import annotations
 
 import re
 import shlex
-import tomllib
 from pathlib import Path
 
 import yaml
 
-from config_guard.mise_pins import MISE_CONFIG_PATH
+from config_guard.mise_pins import MISE_CONFIG_PATH, load_mise_tools
 from config_guard.models import Finding
 
 PRECOMMIT_CONFIG_PATH = ".pre-commit-config.yaml"
@@ -60,6 +63,9 @@ SHELLS = frozenset({"bash", "sh", "zsh"})
 _PUNCTUATION_CHARS = "();<>|&"
 
 # formula 名と、それが提供するコマンド名が違うもの。既定は名前の最後の `/` 区切り。
+# `brew info --json=v2 <formula>` を引けば正確に導出できるが、Brewfile を行で読む判断と
+# 同じ理由 (外部 CLI とネットワークへの依存で CI から外れる) で pin にした。例外は少ないので
+# 列挙で足りる。新しい formula を足すときは、コマンド名が formula 名と違う場合だけここへ書く。
 FORMULA_COMMANDS: dict[str, tuple[str, ...]] = {
     "powershell": ("pwsh",),
     "bats-core": ("bats",),
@@ -79,6 +85,10 @@ ALSO_REQUIRED: dict[str, str] = {
 }
 
 # 供給を要求しないコマンドと、その理由。
+# 今のところ SHELLS と同じ 3 つだが、SHELLS から導出してはいけない。SHELLS は「-c の本体を
+# 展開する対象」、こちらは「OS が同梱するので供給を求めない」で、概念が違う。たまたま
+# 一致しているだけである。`fish -c` を展開したくなって SHELLS へ fish を足すと、導出形は
+# fish を「OS が同梱する」と偽って免除する (macOS も Linux も同梱しない)。
 NOT_PROVISIONED: dict[str, str] = {
     "bash": "OS が同梱する。pre-commit が起動するのも PATH 上の実体で Brewfile 版ではない",
     "sh": "bash と同じ理由",
@@ -168,13 +178,10 @@ def provided_commands(repo_root: str) -> set[str]:
             formula = matched.group(1)
             provided.update(FORMULA_COMMANDS.get(formula, (formula.rsplit("/", 1)[-1],)))
 
-    mise_config = Path(repo_root) / MISE_CONFIG_PATH
-    if mise_config.is_file():
-        with mise_config.open("rb") as handle:
-            tools = tomllib.load(handle).get("tools")
-        if isinstance(tools, dict):
-            # mise の backend 修飾 ("cargo:sqlx-cli") は最後の区切りがコマンド名になる
-            provided.update(str(tool).rsplit(":", 1)[-1] for tool in tools)
+    tools = load_mise_tools(repo_root)
+    if isinstance(tools, dict):
+        # mise の backend 修飾 ("cargo:sqlx-cli") は最後の区切りがコマンド名になる
+        provided.update(str(tool).rsplit(":", 1)[-1] for tool in tools)
 
     return provided
 
