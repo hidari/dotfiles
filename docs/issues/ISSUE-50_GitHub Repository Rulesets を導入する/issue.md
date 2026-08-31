@@ -32,8 +32,15 @@ status: open
 classic の branch protection API は 404 を返す。ruleset は別系統で classic に出ないため、
 classic だけで判定すると「保護なし」と誤読する。
 
-展開先の候補として実測した agentic-coding-tools は、ruleset が空で classic も 404 だった。
-あちらは差分ではなく新規導入になる。
+展開先の候補として 2026-08-27 に実測した agentic-coding-tools は、ruleset が空で classic も
+404 だった。あちらは差分ではなく新規導入になる。
+
+2026-09-01 に測り直したところ、この記述は既に古い。classic は今も 404 (rc 1) だが、
+`rules/branches/main` は `deletion` / `non_fast_forward` / `pull_request` /
+`required_status_checks` の 4 rule を返す。あちら側の作業で `protect-main` が入ったためで、
+下のタスク「agentic-coding-tools へ展開する」は展開ではなく既に入っているものの確認になる。
+classic だけを見ると今も 404 なので、上の判定手順を使わないと「まだ空」に見える点も同じ形で
+ある。
 
 ## 着手前に確認すること
 
