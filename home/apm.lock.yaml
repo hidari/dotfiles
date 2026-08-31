@@ -1,12 +1,12 @@
 lockfile_version: '1'
-generated_at: '2026-08-27T17:22:17.602504+00:00'
+generated_at: '2026-08-31T13:35:18.841648+00:00'
 apm_version: 0.28.0
 dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: dev-workflow
   host: github.com
-  resolved_commit: 96875bcfdba7b5cd426b8164ab27dfdd4a4098f4
-  resolved_ref: 96875bcfdba7b5cd426b8164ab27dfdd4a4098f4
+  resolved_commit: e88098b4835cffdeea9a95b406924ec923eb8062
+  resolved_ref: e88098b4835cffdeea9a95b406924ec923eb8062
   version: 0.2.0
   virtual_path: plugins/dev-workflow
   is_virtual: true
@@ -33,19 +33,19 @@ dependencies:
     .claude/skills/dev-workflow/skills/commit-and-pr-message/SKILL.md: sha256:235a73386a4e8be8b53551538f0d2b52dcff3c2ec43b37a26ff385c0a078487e
     .claude/skills/dev-workflow/skills/e2e-scenario-impact-check/SKILL.md: sha256:bd62fea1b6782838c6458063e77b0e24fe8a579f88892b01b52375ad4a4c5201
     .claude/skills/dev-workflow/skills/git-branch-switcher/SKILL.md: sha256:3f501bbd9155e61312e14cbf5fbd78e189860a1a88a2f996e429bc9c50025649
-    .claude/skills/dev-workflow/skills/in-repo-issue/SKILL.md: sha256:87c438dc62914d8b2e04e2cfc7dc2e5f3ace8f9c4e45d01a6bd910572652c5ae
+    .claude/skills/dev-workflow/skills/in-repo-issue/SKILL.md: sha256:bb59486cae46bf27f348fb8e909dcf3e5ea3e3607b252b7c2f6a768bebec47b5
     .claude/skills/dev-workflow/skills/in-repo-issue/scripts/issue-id.py: sha256:e7c184afb5dbd142fc5eb647266420d137ceb7396034072b66d048f7d9eb1a26
-    .claude/skills/dev-workflow/skills/in-repo-issue/scripts/test_issue_id.py: sha256:c78d06e994826922a52a38f366670cbfe45ce57553a67d7ed7c02a720509c5ac
+    .claude/skills/dev-workflow/skills/in-repo-issue/scripts/test_issue_id.py: sha256:50b6955e20ae77714ac3ca11e19cd4b204c96f1b990607415f6da9bd8bcff514
     .claude/skills/dev-workflow/skills/in-repo-issue/templates/issue.md: sha256:00e88d65690b43fbf34a735a12aa581da9f000cb8030452368bae8e9dbbde948
     .claude/skills/dev-workflow/skills/issue-scoped-artifacts/SKILL.md: sha256:2df7f15317e59958ccc923d45fb9fe2e6bd60c34c195f64cc7a1b15076579695
-    .claude/skills/dev-workflow/skills/pre-merge-quality-gate/SKILL.md: sha256:5abfafc0555c000d34575e33e703479b6ebf021cc83f17e109883c86c069f6bd
+    .claude/skills/dev-workflow/skills/pre-merge-quality-gate/SKILL.md: sha256:8c8c6c7509381bc5c277248fcc18d23cfe2eff468aff169fb72afb1c55bf9b06
     .claude/skills/dev-workflow/skills/retrospective-codify/SKILL.md: sha256:0de6cf497cf6d71db3430b83990f646d4e585a275601820b82ca00ddc0d4e419
-  content_hash: sha256:8be751de3ca76b15b8d785f92d9339fa6c422651aba1d83329e09bdb75d0836d
+  content_hash: sha256:502175f955f0bfb190c4a7b1799e92bbd6880c4fb68615bfc4f5dc252e4b3e9c
 - repo_url: hidari/agentic-coding-tools
   name: security-blue-red-team
   host: github.com
-  resolved_commit: 96875bcfdba7b5cd426b8164ab27dfdd4a4098f4
-  resolved_ref: 96875bcfdba7b5cd426b8164ab27dfdd4a4098f4
+  resolved_commit: e88098b4835cffdeea9a95b406924ec923eb8062
+  resolved_ref: e88098b4835cffdeea9a95b406924ec923eb8062
   version: 0.5.0
   virtual_path: plugins/security-blue-red-team
   is_virtual: true
@@ -99,8 +99,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: web-monkey-qa
   host: github.com
-  resolved_commit: 96875bcfdba7b5cd426b8164ab27dfdd4a4098f4
-  resolved_ref: 96875bcfdba7b5cd426b8164ab27dfdd4a4098f4
+  resolved_commit: e88098b4835cffdeea9a95b406924ec923eb8062
+  resolved_ref: e88098b4835cffdeea9a95b406924ec923eb8062
   version: 0.2.0
   virtual_path: plugins/web-monkey-qa
   is_virtual: true
@@ -120,24 +120,24 @@ dependencies:
   - .claude/skills/web-monkey-qa/schemas/monkey-qa-profile.template.yml
   - .claude/skills/web-monkey-qa/schemas/tests/findings.schema.test.mjs
   deployed_file_hashes:
-    .claude/agents/monkey-explorer-agent.md: sha256:2813076feb403d0c63ed186bb80ed166652043040928959b410b4f29df746766
-    .claude/commands/monkey-qa.md: sha256:9ff634ee411330b0b863cc968358286239943fd36807d8670b8461ac3317304d
+    .claude/agents/monkey-explorer-agent.md: sha256:dcf537a720d338ac1ab19af742962bc876f9f2dca2a5a5845b7d0a467c2ff1ef
+    .claude/commands/monkey-qa.md: sha256:358d172190d967f279ca20798e4b7b9b5a06e83344a8d55c863a9a978e2c861f
     .claude/skills/web-monkey-qa/.claude-plugin/plugin.json: sha256:0ebd66dd8a9616c07f75efd1f69295923967dc3eb5a76cca19370f0198d77611
     .claude/skills/web-monkey-qa/README.md: sha256:8f42e00fcb2fcf8fffdee65d7950b26fef39073325f18672c0487a3c06279576
     .claude/skills/web-monkey-qa/SKILL.md: sha256:5fe9b76d7c84b53aead01657b4577c5812694aab800bc91bf2a1750b42e45c67
-    .claude/skills/web-monkey-qa/agents/monkey-explorer-agent.md: sha256:2813076feb403d0c63ed186bb80ed166652043040928959b410b4f29df746766
+    .claude/skills/web-monkey-qa/agents/monkey-explorer-agent.md: sha256:dcf537a720d338ac1ab19af742962bc876f9f2dca2a5a5845b7d0a467c2ff1ef
     .claude/skills/web-monkey-qa/apm.yml: sha256:acc25c179fd5ed433170d0565111dc3e908446d974cbb826f13578ef432fc51c
-    .claude/skills/web-monkey-qa/commands/monkey-qa.md: sha256:74730febb07bfdef704c828472c26fe173d3a3a54db40df1e57ae57f74964b83
+    .claude/skills/web-monkey-qa/commands/monkey-qa.md: sha256:9c9bb370703c9174af215a4be94aae716c02b19eaeacafaa564e3cf6f321cade
     .claude/skills/web-monkey-qa/schemas/findings.schema.json: sha256:922bcb7bd0ddcf75678171aae6e2b949c018fb3f6b6e96ebc31f57f1ea04202e
     .claude/skills/web-monkey-qa/schemas/monkey-qa-profile.schema.yml: sha256:4f4ea6234c7eb7ede3620b8ad73ea8825e4fe97fe668959a884a52c7d431e7b1
     .claude/skills/web-monkey-qa/schemas/monkey-qa-profile.template.yml: sha256:a412dbf03e8b453e890a51bd8b0b8b3969d03108579387a512b9c2ec3e64279e
     .claude/skills/web-monkey-qa/schemas/tests/findings.schema.test.mjs: sha256:5760b824beb04ea069807b5c671db59f7c9bda207c3a178344e4245ec682b457
-  content_hash: sha256:5ad117ed8601b69915ba10c4930434c4916ffcdbc2a035d772083e46d9e717bc
+  content_hash: sha256:2bb7aaf23aeb555b02e6f939c73bbef7f79a9db0406d6bb2b6160ad2f05783ae
 - repo_url: hidari/agentic-coding-tools
   name: windows-vm-verification
   host: github.com
-  resolved_commit: 96875bcfdba7b5cd426b8164ab27dfdd4a4098f4
-  resolved_ref: 96875bcfdba7b5cd426b8164ab27dfdd4a4098f4
+  resolved_commit: e88098b4835cffdeea9a95b406924ec923eb8062
+  resolved_ref: e88098b4835cffdeea9a95b406924ec923eb8062
   version: unknown
   virtual_path: skills/devops/windows-vm-verification
   is_virtual: true
@@ -153,18 +153,18 @@ dependencies:
   - .claude/skills/windows-vm-verification/winvm.py
   deployed_file_hashes:
     .claude/skills/windows-vm-verification/.gitignore: sha256:862263fa1f46c20f0d1e4dac5ffcc75abd55c08211b2c3864c5f8764b9d87793
-    .claude/skills/windows-vm-verification/SKILL.md: sha256:07a41fb61863f9392b966e2378d27d748f3c635d4d685641588951cc6603e1ce
+    .claude/skills/windows-vm-verification/SKILL.md: sha256:0c9dc3282593894cbdd64c09be0547b3b2fa4245774dcbfe6020af49fb5dc881
     .claude/skills/windows-vm-verification/references/ssh-config.template: sha256:e59e6b62a6a686b4c3b3d826894775453d6830d13a8210f4ca9cb4e90b2744f5
-    .claude/skills/windows-vm-verification/references/troubleshooting.md: sha256:bcfcd116a6660ccc66ce20fea8bb2eedfece2b7c9b7b407f35638febecf543d6
+    .claude/skills/windows-vm-verification/references/troubleshooting.md: sha256:1c8302d2f15143d76274b1adb8da638b679fbd335824a22dd09a81c4a0715990
     .claude/skills/windows-vm-verification/references/windows-bootstrap.md: sha256:33fda13f549c909e4a2d34b58846105cab3c4949423a0a4ef60df93c5be2e96e
-    .claude/skills/windows-vm-verification/test_winvm.py: sha256:a49ce94990901f37e9d97c716f29d4de3e91fff29e55f7d8a67ab527d10fc5ab
-    .claude/skills/windows-vm-verification/winvm.py: sha256:6e363079f1a8de3044945d216b218b4b623d0b6c929b72b9e054b02b6f011a59
-  content_hash: sha256:a71f2db8c2546d6e48e2597e896468e229ddf587eb6301dd57a36d234aa65495
+    .claude/skills/windows-vm-verification/test_winvm.py: sha256:53e228bf4287f9a78beba2261d2e7855105964dcbca6f4657510a526c9c3fe25
+    .claude/skills/windows-vm-verification/winvm.py: sha256:f3bb0ddc79f223506906e658ebabf458677da87f6cebbc3effd45995abc49a7a
+  content_hash: sha256:ff8a61efa4c0319c86208ce473873e4e5ff9931e77aba794ff748b8ff683fece
 - repo_url: hidari/agentic-coding-tools
   name: context-loading-mechanics
   host: github.com
-  resolved_commit: 96875bcfdba7b5cd426b8164ab27dfdd4a4098f4
-  resolved_ref: 96875bcfdba7b5cd426b8164ab27dfdd4a4098f4
+  resolved_commit: e88098b4835cffdeea9a95b406924ec923eb8062
+  resolved_ref: e88098b4835cffdeea9a95b406924ec923eb8062
   version: unknown
   virtual_path: skills/meta/context-loading-mechanics
   is_virtual: true
@@ -178,8 +178,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: session-handoff
   host: github.com
-  resolved_commit: 96875bcfdba7b5cd426b8164ab27dfdd4a4098f4
-  resolved_ref: 96875bcfdba7b5cd426b8164ab27dfdd4a4098f4
+  resolved_commit: e88098b4835cffdeea9a95b406924ec923eb8062
+  resolved_ref: e88098b4835cffdeea9a95b406924ec923eb8062
   version: unknown
   virtual_path: skills/meta/session-handoff
   is_virtual: true
@@ -195,8 +195,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: chrome-devtools-debugger
   host: github.com
-  resolved_commit: 96875bcfdba7b5cd426b8164ab27dfdd4a4098f4
-  resolved_ref: 96875bcfdba7b5cd426b8164ab27dfdd4a4098f4
+  resolved_commit: e88098b4835cffdeea9a95b406924ec923eb8062
+  resolved_ref: e88098b4835cffdeea9a95b406924ec923eb8062
   version: unknown
   virtual_path: skills/tooling/chrome-devtools-debugger
   is_virtual: true
@@ -210,8 +210,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: herdr
   host: github.com
-  resolved_commit: 96875bcfdba7b5cd426b8164ab27dfdd4a4098f4
-  resolved_ref: 96875bcfdba7b5cd426b8164ab27dfdd4a4098f4
+  resolved_commit: e88098b4835cffdeea9a95b406924ec923eb8062
+  resolved_ref: e88098b4835cffdeea9a95b406924ec923eb8062
   version: unknown
   virtual_path: skills/tooling/herdr
   is_virtual: true
@@ -225,8 +225,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: markdown-to-pdf
   host: github.com
-  resolved_commit: 96875bcfdba7b5cd426b8164ab27dfdd4a4098f4
-  resolved_ref: 96875bcfdba7b5cd426b8164ab27dfdd4a4098f4
+  resolved_commit: e88098b4835cffdeea9a95b406924ec923eb8062
+  resolved_ref: e88098b4835cffdeea9a95b406924ec923eb8062
   version: unknown
   virtual_path: skills/tooling/markdown-to-pdf
   is_virtual: true
@@ -404,7 +404,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/web-monkey-qa
   active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
-  content_hash: sha256:2813076feb403d0c63ed186bb80ed166652043040928959b410b4f29df746766
+  content_hash: sha256:dcf537a720d338ac1ab19af742962bc876f9f2dca2a5a5845b7d0a467c2ff1ef
 - kind: project-relative
   target: claude
   value: .claude/agents/red-team-agent.md
@@ -422,7 +422,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/web-monkey-qa
   active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
-  content_hash: sha256:9ff634ee411330b0b863cc968358286239943fd36807d8670b8461ac3317304d
+  content_hash: sha256:358d172190d967f279ca20798e4b7b9b5a06e83344a8d55c863a9a978e2c861f
 - kind: project-relative
   target: claude
   value: .claude/commands/security-blueteam.md
@@ -710,7 +710,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/dev-workflow
   active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
-  content_hash: sha256:87c438dc62914d8b2e04e2cfc7dc2e5f3ace8f9c4e45d01a6bd910572652c5ae
+  content_hash: sha256:bb59486cae46bf27f348fb8e909dcf3e5ea3e3607b252b7c2f6a768bebec47b5
 - kind: project-relative
   target: claude
   value: .claude/skills/dev-workflow/skills/in-repo-issue/scripts/issue-id.py
@@ -728,7 +728,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/dev-workflow
   active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
-  content_hash: sha256:c78d06e994826922a52a38f366670cbfe45ce57553a67d7ed7c02a720509c5ac
+  content_hash: sha256:50b6955e20ae77714ac3ca11e19cd4b204c96f1b990607415f6da9bd8bcff514
 - kind: project-relative
   target: claude
   value: .claude/skills/dev-workflow/skills/in-repo-issue/templates/issue.md
@@ -755,7 +755,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/dev-workflow
   active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
-  content_hash: sha256:5abfafc0555c000d34575e33e703479b6ebf021cc83f17e109883c86c069f6bd
+  content_hash: sha256:8c8c6c7509381bc5c277248fcc18d23cfe2eff468aff169fb72afb1c55bf9b06
 - kind: project-relative
   target: claude
   value: .claude/skills/dev-workflow/skills/retrospective-codify/SKILL.md
@@ -1196,7 +1196,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/web-monkey-qa
   active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
-  content_hash: sha256:2813076feb403d0c63ed186bb80ed166652043040928959b410b4f29df746766
+  content_hash: sha256:dcf537a720d338ac1ab19af742962bc876f9f2dca2a5a5845b7d0a467c2ff1ef
 - kind: project-relative
   target: claude
   value: .claude/skills/web-monkey-qa/apm.yml
@@ -1214,7 +1214,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/web-monkey-qa
   active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
-  content_hash: sha256:74730febb07bfdef704c828472c26fe173d3a3a54db40df1e57ae57f74964b83
+  content_hash: sha256:9c9bb370703c9174af215a4be94aae716c02b19eaeacafaa564e3cf6f321cade
 - kind: project-relative
   target: claude
   value: .claude/skills/web-monkey-qa/schemas/findings.schema.json
@@ -1277,7 +1277,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/skills/devops/windows-vm-verification
   active_owner: hidari/agentic-coding-tools/skills/devops/windows-vm-verification
-  content_hash: sha256:07a41fb61863f9392b966e2378d27d748f3c635d4d685641588951cc6603e1ce
+  content_hash: sha256:0c9dc3282593894cbdd64c09be0547b3b2fa4245774dcbfe6020af49fb5dc881
 - kind: project-relative
   target: claude
   value: .claude/skills/windows-vm-verification/references/ssh-config.template
@@ -1295,7 +1295,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/skills/devops/windows-vm-verification
   active_owner: hidari/agentic-coding-tools/skills/devops/windows-vm-verification
-  content_hash: sha256:bcfcd116a6660ccc66ce20fea8bb2eedfece2b7c9b7b407f35638febecf543d6
+  content_hash: sha256:1c8302d2f15143d76274b1adb8da638b679fbd335824a22dd09a81c4a0715990
 - kind: project-relative
   target: claude
   value: .claude/skills/windows-vm-verification/references/windows-bootstrap.md
@@ -1313,7 +1313,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/skills/devops/windows-vm-verification
   active_owner: hidari/agentic-coding-tools/skills/devops/windows-vm-verification
-  content_hash: sha256:a49ce94990901f37e9d97c716f29d4de3e91fff29e55f7d8a67ab527d10fc5ab
+  content_hash: sha256:53e228bf4287f9a78beba2261d2e7855105964dcbca6f4657510a526c9c3fe25
 - kind: project-relative
   target: claude
   value: .claude/skills/windows-vm-verification/winvm.py
@@ -1322,4 +1322,4 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/skills/devops/windows-vm-verification
   active_owner: hidari/agentic-coding-tools/skills/devops/windows-vm-verification
-  content_hash: sha256:6e363079f1a8de3044945d216b218b4b623d0b6c929b72b9e054b02b6f011a59
+  content_hash: sha256:f3bb0ddc79f223506906e658ebabf458677da87f6cebbc3effd45995abc49a7a
