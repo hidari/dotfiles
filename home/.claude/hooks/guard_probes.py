@@ -89,6 +89,21 @@ def probe_apm() -> ProbeResult:
     )
 
 
+# tirith が PATH 上で解決しないときの手当て。原因は apm 側と同じく 2 通りある。入っていない
+# 場合と、入っているのに PATH へ載っていない場合である。
+#
+# apm と違ってここでは区別しない。区別するには tirith の置き場を決め打つ必要があり、それは
+# Homebrew が持つ事実の写しになって drift する。shim の置き場は bootstrap.sh が配置するので
+# こちらが canonical を持てるが、tirith の置き場は持てない。
+#
+# 区別できないからこそ片方だけを勧めてはならない。2026-08-31 に PATH から /opt/homebrew/bin を
+# 外して実測したところ、tirith は brew で入っているのに brew install tirith だけを勧めた。
+TIRITH_REMEDY_UNRESOLVED = (
+    "入っていないなら brew install tirith で戻る。入っているなら PATH に載っていないだけで、"
+    "Claude Code を起動し直しても直らない。PATH を整えた新しいシェルから起動する。"
+)
+
+
 def probe_tirith() -> ProbeResult:
     """tirith が解決し、clean なコマンドへ clean と応答するか。
 
@@ -125,7 +140,8 @@ def probe_tirith() -> ProbeResult:
             healthy=False,
             detail=(
                 f"{tirith_bin} が見つからないため、tirith の検査は沈黙している。"
-                "コマンドは検査されないまま通る。brew install tirith で検査が戻る。"
+                "コマンドは検査されないまま通る。"
+                f"{TIRITH_REMEDY_UNRESOLVED}"
             ),
         )
     except subprocess.TimeoutExpired:

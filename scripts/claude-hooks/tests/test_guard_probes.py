@@ -155,6 +155,11 @@ def test_TIRITH_BIN_未設定で解決しなければ沈黙(
     # 復旧手順を pin する。apm 側は "bootstrap" を pin していたが tirith 側は無く、
     # 実体化経路が mise から brew へ移ったとき案内だけが古びて誰も赤くならなかった。
     assert "brew install tirith" in result.detail
+    # この分岐は「入っていない」と「入っているが PATH に載っていない」の両方で通る。
+    # この層は区別できないので、片方だけを勧めてはならない。2026-08-31 に PATH から
+    # /opt/homebrew/bin を外して実測したところ、tirith は brew で入っているのに
+    # brew install tirith だけを勧めた。apm 側で同じ形が空振りを生んでいる。
+    assert "PATH に載っていない" in result.detail
 
 
 def test_TIRITH_BIN_のパスが無ければ全_Bash_が止まると告げる(
