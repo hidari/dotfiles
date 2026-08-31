@@ -52,6 +52,13 @@ BREW_ENTRY = re.compile(r'^\s*(?:brew|cask)\s+"([^"]+)"')
 # `bash -c '<tool> ...'` の形で要求が隠れ、検査が静かに取りこぼす。
 SHELLS = frozenset({"bash", "sh", "zsh"})
 
+# shlex が punctuation_chars モードで独立トークンにする文字。これだけで構成された
+# トークンをシェル演算子とみなす。`;;` や `>&` のような組み合わせを列挙せずに済む。
+# 素の shlex.split は演算子を区切らないので `foo && bar` の bar がコマンド位置として
+# 見えなくなる。同じ判断を home/.claude/hooks/apm-install-guard.py の tokenize が持つが、
+# あちらは別のデプロイ単位 (フックは ~/.claude へ配られる) なので共有していない。
+_PUNCTUATION_CHARS = "();<>|&"
+
 # formula 名と、それが提供するコマンド名が違うもの。既定は名前の最後の `/` 区切り。
 FORMULA_COMMANDS: dict[str, tuple[str, ...]] = {
     "powershell": ("pwsh",),
@@ -104,21 +111,47 @@ def required_commands(repo_root: str) -> dict[str, str]:
     return found
 
 
+def _tokenize(command: str) -> list[str] | None:
+    """演算子を独立トークンにしてコマンド文字列を分解する。解釈できなければ None。
+
+    クォートされた文字列は 1 トークンのままなので、引数に現れる `$(...)` を
+    コマンド位置と誤読しない。
+    """
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    try:
+        return list(lexer)
+    except ValueError:
+        return None
+
+
+def _split_on_operators(tokens: list[str]) -> list[list[str]]:
+    """演算子トークンで区切る。各区間の先頭がコマンド位置になる。"""
+    segments: list[list[str]] = [[]]
+    for token in tokens:
+        if token and all(char in _PUNCTUATION_CHARS for char in token):
+            segments.append([])
+        else:
+            segments[-1].append(token)
+    return segments
+
+
 def _entry_commands(entry: str) -> list[str]:
     """entry から起動されるコマンド名を取り出す。shell の -c 本体まで 1 段だけ潜る。"""
-    try:
-        tokens = shlex.split(entry)
-    except ValueError:
+    tokens = _tokenize(entry)
+    if tokens is None:
         # 引用符が閉じていない entry。解釈できないので要求を推測せず空で返す
         return []
-    if not tokens:
-        return []
 
-    commands = [tokens[0]]
-    if tokens[0] in SHELLS and "-c" in tokens:
-        body_index = tokens.index("-c") + 1
-        if body_index < len(tokens):
-            commands.extend(_entry_commands(tokens[body_index])[:1])
+    commands: list[str] = []
+    for segment in _split_on_operators(tokens):
+        if not segment:
+            continue
+        commands.append(segment[0])
+        if segment[0] in SHELLS and "-c" in segment:
+            body_index = segment.index("-c") + 1
+            if body_index < len(segment):
+                commands.extend(_entry_commands(segment[body_index]))
     return commands
 
 

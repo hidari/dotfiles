@@ -63,6 +63,32 @@ def test_required_unwraps_the_shell_dash_c_body(tmp_path: Path) -> None:
     assert set(required_commands(str(tmp_path))) == {"bash", "hidden-tool"}
 
 
+def test_required_sees_commands_after_shell_operators(tmp_path: Path) -> None:
+    # shlex.split は ; & | ( ) を区切らないので、素で使うと連結した 2 つ目以降が
+    # コマンド位置として見えず、要求が静かに落ちる。今の .pre-commit-config.yaml に
+    # 連結する entry は無いため実リポジトリでは差が出ない。独立に pin する
+    _write(
+        tmp_path,
+        PRECOMMIT_CONFIG_PATH,
+        _precommit("first-tool a && second-tool b", "third-tool; fourth-tool", "fifth | sixth"),
+    )
+    assert set(required_commands(str(tmp_path))) == {
+        "first-tool",
+        "second-tool",
+        "third-tool",
+        "fourth-tool",
+        "fifth",
+        "sixth",
+    }
+
+
+def test_required_does_not_read_substitutions_as_commands(tmp_path: Path) -> None:
+    # 演算子を独立トークンにすると `(` `)` も区切りになる。引数のクォートが効かないと
+    # $(...) の中身をコマンド位置と誤読し、要求していないものを要求として報告する
+    _write(tmp_path, PRECOMMIT_CONFIG_PATH, _precommit('outer-tool "$(inner-tool --flag)"'))
+    assert set(required_commands(str(tmp_path))) == {"outer-tool"}
+
+
 def test_non_system_hooks_are_not_required(tmp_path: Path) -> None:
     # language: fail の entry は散文で、コマンドではない
     body = (
@@ -208,6 +234,15 @@ def test_repo_without_provisioning_manifests_is_skipped(tmp_path: Path) -> None:
 def test_exemptions_and_extra_requirements_are_disjoint() -> None:
     # 同じ名前が両方にあると、要求しておきながら免除する矛盾になる
     assert not set(ALSO_REQUIRED) & set(NOT_PROVISIONED)
+
+
+def test_silently_failing_extras_are_pinned_by_name() -> None:
+    # ALSO_REQUIRED から名前が消えても、他のテストは期待値をこの dict 自身から導出して
+    # いるため両辺が同時に縮んで緑のままになる (実測: tirith を消して 413 passed / rc 0)。
+    # 欠けても実行時にエラーが出ない 3 つだけを literal で縛る。増やす分は自由。
+    # とくに tirith は、不在時にフックが意図した fail-open へ倒れて検査そのものが
+    # 無音になるので、この検査から外れると気づく手段が一つも残らない。
+    assert {"tirith", "bats", "pre-commit"} <= set(ALSO_REQUIRED)
 
 
 def test_real_repo_has_provisioning_manifests() -> None:

@@ -50,6 +50,7 @@ brew "bats-core"                          # bash のテストフレームワー�
 
 # --- フォント ---
 cask "font-hackgen-nerd"                  # ターミナル用 日本語プログラミングフォント (Hack + 源柔ゴシック, Nerd Font 内蔵)
+cask "font-plemol-jp-nf"                  # ターミナル用 日本語プログラミングフォント (IBM Plex Mono + IBM Plex Sans JP, Nerd Font 内蔵)
 
 # --- Go言語ツール ---
 go "golang.org/x/tools/gopls"             # Go言語サーバー（LSP）
