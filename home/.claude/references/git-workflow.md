@@ -37,19 +37,30 @@ repository ruleset は classic API とは別系統で、
 `gh api repos/<owner>/<repo>/branches/<default-branch>/protection` は 404 を返す。
 
 classic 404 を「保護なし」と誤判定すると、
-ruleset 保護 (pull_request / required_status_checks 等) を bypass 特権で素通り push し、
+ruleset が強制する保護 (PR の必須化や required checks) を bypass 特権で素通り push し、
 required checks / PR レビューを欠落させる。
 
 実際 classic 404 でも ruleset で保護されているリポジトリが存在する。
 
-ruleset 側を `gh api repos/<owner>/<repo>/rulesets` で見ても判定はできない。
-このエンドポイントは ruleset の一覧を返すだけで `rules` キーを持たず、
+ruleset 側は list endpoint (`gh api repos/<owner>/<repo>/rulesets`) では判定できない。
+返るのは ruleset の id と name と target と enforcement だけで `rules` を持たず、
 何が強制されているかを答えないためである (2026-08-31 に dotfiles で実測)。
-branch に実効している rule を返すのは
-`gh api repos/<owner>/<repo>/rules/branches/<branch>` の方である。
+`rules` を持つのは detail endpoint (`/rulesets/{id}`) と、branch に実効している rule を
+直接返す `/rules/branches/<default-branch>` で、判定には後者を使う。
+判定式は出力に `pull_request` が含まれるか。
 
-判定式と、空出力・branch 名・終了コードの罠は skill
-`dev-workflow:in-repo-issue` の「クローズ経路: feature PR 同梱を優先」節が持つ。
+この判定を静かに壊す形が 3 つある。
+
+- endpoint は branch 名が空でも実在しなくても rc 0 と空を返す。空を「保護なし」と読むと、
+  branch 名を間違えただけの状態が否定側の結論になる
+- branch 名を literal で書かない。保護の対象は default branch でその名前はプロジェクト
+  ごとに違うので、`gh repo view --json defaultBranchRef` から取る
+- 終了コードを見るときはパイプへ繋がない。`| head` のように別コマンドで終端すると `$?`
+  はその終端コマンドの rc になり、`gh` 自身の失敗が消える
+
+同じ手順を skill `dev-workflow:in-repo-issue` も持つ。あちらのトリガは Issue の起票と
+クローズで、この規範のトリガ (保護ブランチへ直 push する前) とは交わらない。canonical を
+どちらか一方へ寄せると寄せなかった側の経路から到達できなくなるので、重複は意図して残す。
 
 ## 日本語の散文をファイル経由で渡す理由
 
