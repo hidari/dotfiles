@@ -58,6 +58,23 @@ def shim_resolves() -> bool:
         return False
 
 
+def shim_exists() -> bool:
+    """shim の実体が置かれているか。健全性ではなく手当ての出し分けにだけ使う。
+
+    健全かどうかを決めるのは shim_resolves であって、この述語ではない (DEFAULT_SHIM_PATH の
+    コメント参照)。置かれていても PATH に載っていなければ一度も横取りしないので、これを
+    健全性の判定へ使うと守っていない状態が緑で通る。
+
+    それでも存在を別に測るのは、沈黙の原因が 2 通りあって手当てが正反対になるためである。
+    置かれていないなら配置のやり直しが要り、置かれているなら配置は正しくて起動元のシェルが
+    古い。
+
+    symlink は辿った先で見る。shim は symlink として配置されるので、辿れない symlink は
+    配置済みではなく張り直しが要る側にあたる。
+    """
+    return os.path.exists(os.path.expanduser(shim_path()))
+
+
 def resolve_tirith_bin() -> str:
     """tirith バイナリのパスを解決する: TIRITH_BIN → PATH。
 

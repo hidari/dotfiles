@@ -26,26 +26,80 @@ def test_shim_へ解決すれば健全(tmp_path: Path, monkeypatch: pytest.Monke
     monkeypatch.setenv("PATH", str(bin_dir))
     monkeypatch.setenv("APM_INSTALL_GUARD_SHIM", str(shim))
 
+    result = guard_probes.probe_apm()
+
     assert guard_resolve.shim_resolves() is True
-    assert guard_probes.probe_apm().healthy is True
+    assert result.healthy is True
+    assert result.detail == ""
 
 
-def test_別の実体へ解決すれば沈黙(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    shim = tmp_path / "libexec" / "apm"
-    shim.parent.mkdir(parents=True)
-    shim.write_text("#!/bin/sh\n", encoding="utf-8")
+def _apm_elsewhere(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """shim ではない実体の apm だけが PATH に載っている状態を作る。
+
+    沈黙の理由を「shim があるか」の 1 点だけに絞るための共通の土台。PATH 側を各テストで
+    作り分けると、落ちたときにどちらの条件が効いたのか読めなくなる。
+    """
     other = tmp_path / "bin" / "apm"
     other.parent.mkdir(parents=True)
     other.write_text("#!/bin/sh\n", encoding="utf-8")
     other.chmod(0o755)
-
     monkeypatch.setenv("PATH", str(other.parent))
+
+
+def test_shim_は配置済みで_PATH_に載っていなければ起動元のシェルを告げる(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """今日 (2026-08-31) 実際に起きた状態。bootstrap.sh を勧めてはならない。
+
+    shim は配置されているのに Claude Code の PATH へ載っていない。原因は起動元のシェルが
+    古いことで、bootstrap.sh は何も直さない。実際にこの状態で bootstrap.sh と Claude Code
+    の再起動を勧める文面に従い、1 往復を空振りさせた。
+    """
+    shim = tmp_path / "libexec" / "apm"
+    shim.parent.mkdir(parents=True)
+    shim.write_text("#!/bin/sh\n", encoding="utf-8")
+    _apm_elsewhere(tmp_path, monkeypatch)
     monkeypatch.setenv("APM_INSTALL_GUARD_SHIM", str(shim))
 
+    assert guard_resolve.shim_exists() is True
     assert guard_resolve.shim_resolves() is False
     result = guard_probes.probe_apm()
     assert result.healthy is False
-    assert "bootstrap" in result.detail
+    assert guard_probes.APM_REMEDY_STALE_SHELL in result.detail
+    assert guard_probes.APM_REMEDY_MISSING_SHIM not in result.detail
+
+
+def test_shim_が未配置なら配置からやり直すよう告げる(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """shim の実体が無い状態。ここでだけ bootstrap.sh が手当てになる。"""
+    _apm_elsewhere(tmp_path, monkeypatch)
+    monkeypatch.setenv("APM_INSTALL_GUARD_SHIM", str(tmp_path / "nonexistent" / "apm"))
+
+    assert guard_resolve.shim_exists() is False
+    result = guard_probes.probe_apm()
+    assert result.healthy is False
+    assert guard_probes.APM_REMEDY_MISSING_SHIM in result.detail
+    assert guard_probes.APM_REMEDY_STALE_SHELL not in result.detail
+
+
+def test_辿れない_symlink_の_shim_は未配置として扱う(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """symlink はあるが実体が無い状態。shim は symlink として配置されるので実際に起きうる。
+
+    リポジトリを移動したあとや bootstrap.sh を通す前がこれにあたる。symlink の存在だけを
+    見ると配置済みと読めてしまい、起動元のシェルを疑わせる誤った手当てへ倒れる。
+    """
+    shim = tmp_path / "libexec" / "apm"
+    shim.parent.mkdir(parents=True)
+    shim.symlink_to(tmp_path / "nonexistent" / "apm")
+    _apm_elsewhere(tmp_path, monkeypatch)
+    monkeypatch.setenv("APM_INSTALL_GUARD_SHIM", str(shim))
+
+    assert shim.is_symlink()
+    assert guard_resolve.shim_exists() is False
+    assert guard_probes.APM_REMEDY_MISSING_SHIM in guard_probes.probe_apm().detail
 
 
 def test_PATH_に_apm_が無ければ沈黙(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
