@@ -49,7 +49,7 @@ def _apm_elsewhere(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 def test_shim_は配置済みで_PATH_に載っていなければ起動元のシェルを告げる(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """今日 (2026-08-31) 実際に起きた状態。bootstrap.sh を勧めてはならない。
+    """2026-08-31 に実際に起きた状態。bootstrap.sh を勧めてはならない。
 
     shim は配置されているのに Claude Code の PATH へ載っていない。原因は起動元のシェルが
     古いことで、bootstrap.sh は何も直さない。実際にこの状態で bootstrap.sh と Claude Code
@@ -65,8 +65,8 @@ def test_shim_は配置済みで_PATH_に載っていなければ起動元のシ
     assert guard_resolve.shim_resolves() is False
     result = guard_probes.probe_apm()
     assert result.healthy is False
-    assert guard_probes.APM_REMEDY_STALE_SHELL in result.detail
-    assert guard_probes.APM_REMEDY_MISSING_SHIM not in result.detail
+    assert guard_resolve.APM_REMEDY_STALE_SHELL in result.detail
+    assert guard_resolve.APM_REMEDY_MISSING_SHIM not in result.detail
 
 
 def test_shim_が未配置なら配置からやり直すよう告げる(
@@ -79,8 +79,8 @@ def test_shim_が未配置なら配置からやり直すよう告げる(
     assert guard_resolve.shim_exists() is False
     result = guard_probes.probe_apm()
     assert result.healthy is False
-    assert guard_probes.APM_REMEDY_MISSING_SHIM in result.detail
-    assert guard_probes.APM_REMEDY_STALE_SHELL not in result.detail
+    assert guard_resolve.APM_REMEDY_MISSING_SHIM in result.detail
+    assert guard_resolve.APM_REMEDY_STALE_SHELL not in result.detail
 
 
 def test_辿れない_symlink_の_shim_は未配置として扱う(
@@ -99,7 +99,7 @@ def test_辿れない_symlink_の_shim_は未配置として扱う(
 
     assert shim.is_symlink()
     assert guard_resolve.shim_exists() is False
-    assert guard_probes.APM_REMEDY_MISSING_SHIM in guard_probes.probe_apm().detail
+    assert guard_resolve.APM_REMEDY_MISSING_SHIM in guard_probes.probe_apm().detail
 
 
 def test_PATH_に_apm_が無ければ沈黙(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -152,14 +152,17 @@ def test_TIRITH_BIN_未設定で解決しなければ沈黙(
     result = guard_probes.probe_tirith()
     assert result.healthy is False
     assert "沈黙" in result.detail
-    # 復旧手順を pin する。apm 側は "bootstrap" を pin していたが tirith 側は無く、
-    # 実体化経路が mise から brew へ移ったとき案内だけが古びて誰も赤くならなかった。
+    # 復旧手順を pin する。実体化経路が mise から brew へ移ったとき、案内だけが古びて誰も
+    # 赤くならなかった。
     assert "brew install tirith" in result.detail
-    # この分岐は「入っていない」と「入っているが PATH に載っていない」の両方で通る。
-    # この層は区別できないので、片方だけを勧めてはならない。2026-08-31 に PATH から
-    # /opt/homebrew/bin を外して実測したところ、tirith は brew で入っているのに
-    # brew install tirith だけを勧めた。apm 側で同じ形が空振りを生んでいる。
+    # この分岐は「入っていない」と「入っているが PATH に載っていない」の両方で通る。この層は
+    # 区別できないので、片方だけを勧めてはならない。2026-08-31 に PATH から /opt/homebrew/bin を
+    # 外して実測したところ、tirith は brew で入っているのに brew install tirith だけを勧めた。
+    # apm 側でも同じ形が空振りを生んだ (この PR で修正済み)。
     assert "PATH に載っていない" in result.detail
+    # 強制層と同じ定数を使うことも pin する。上の 2 つは部分文字列しか見ないので、この層へ
+    # 文面を literal で書き戻す変異が緑のまま通り、寄せた二重管理が静かに戻せてしまう。
+    assert guard_resolve.TIRITH_REMEDY_UNRESOLVED in result.detail
 
 
 def test_TIRITH_BIN_のパスが無ければ全_Bash_が止まると告げる(

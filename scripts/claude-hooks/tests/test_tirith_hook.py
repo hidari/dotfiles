@@ -344,9 +344,8 @@ def test_binary_not_found_fails_open_but_says_so(tmp_path: Path) -> None:
     assert "見つからない" in proc.stderr
     # 復旧手順を pin する (guard_probes 側の同名の pin と対。理由はそちらのコメント)
     assert "brew install tirith" in context_text(proc)
-    # 強制層と診断層が同じ定数を使うことを pin する。以前はここと guard_probes が同じ手当てを
-    # literal で別々に持ち、実際に食い違っていた (こちらだけが未インストールを決めつけていた)。
-    # 文面そのものの pin は test_guard_probes 側が literal で持つ。
+    # 強制層と診断層が同じ定数を使うことを pin する。文面そのものの pin は test_guard_probes 側が
+    # literal で持つ。
     assert guard_resolve.TIRITH_REMEDY_UNRESOLVED in context_text(proc)
 
 

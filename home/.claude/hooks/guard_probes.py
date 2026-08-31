@@ -48,23 +48,6 @@ class ProbeResult:
     detail: str = ""
 
 
-# apm ガードが沈黙しているときの手当て。原因が 2 通りあり、それぞれ正反対の作業になるので
-# 分けて持つ。文面を定数へ出してあるのは、どちらが選ばれたかをテストが exact に pin する
-# ためである。散文の正しさ自体はどの検査も見ないので、せめて分岐の選択だけは機械に見せる。
-APM_REMEDY_MISSING_SHIM = (
-    "shim が配置されていない。bootstrap.sh を実行し、そのあと Claude Code を起動し直す。"
-)
-
-# 2026-08-31 に実際に踏んだ側。当時の文面は bootstrap.sh と Claude Code の再起動を勧めて
-# おり、どちらもこの原因には効かないため 1 往復を空振りさせた。
-APM_REMEDY_STALE_SHELL = (
-    "shim は配置済みで、Claude Code の PATH に載っていないだけである。Claude Code は PATH を"
-    "起動元のシェルから継承するので、Claude Code だけを起動し直しても直らない。shim を PATH へ"
-    "足す行を読んだ新しいシェル (端末のタブを開き直すか exec zsh) から起動すること。"
-    "bootstrap.sh は要らない。"
-)
-
-
 def probe_apm() -> ProbeResult:
     """apm ガードの shim が実際に横取りする位置にあるか。
 
@@ -74,17 +57,19 @@ def probe_apm() -> ProbeResult:
     Claude Code は PATH を自分で作らず、起動元のシェルから継承する。shim を PATH へ足す行が
     入るより前から生きているシェルから起動すると載らず、Claude Code だけを起動し直しても
     継承元が同じなので直らない (2026-08-31 に ps で祖先を辿って実測)。
+
+    手当ての文面と、原因 2 通りのどちらを選ぶかは guard_resolve が持つ。強制層の deny も同じ
+    ものを使う。
     """
     if guard_resolve.shim_resolves():
         return ProbeResult(healthy=True)
-    remedy = APM_REMEDY_STALE_SHELL if guard_resolve.shim_exists() else APM_REMEDY_MISSING_SHIM
     return ProbeResult(
         healthy=False,
         detail=(
             f"PATH 上の apm が {guard_resolve.shim_path()} へ解決されないため、apm ガードは"
             "横取りしていない。フックが自力で捕まえる形 (素の apm / 絶対パス / PATH の一時"
             "差し替え) は deny されるが、包み込みや変数間接や xargs の形は無音で素通りする。"
-            f"{remedy}"
+            f"{guard_resolve.apm_remedy()}"
         ),
     )
 

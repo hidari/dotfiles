@@ -389,12 +389,17 @@ def main() -> None:
     # 包み込み・変数展開・xargs の形では、配置漏れは無音の素通りのまま残る (実測)。
     # 配置漏れそのものを検出する層は、コマンド単位ではなくセッション単位に置く必要がある。
     if not guard_resolve.shim_resolves():
+        # 手当ては原因によって正反対になるので、この層でも guard_resolve に選ばせる。
+        # 実際に apm を打った人が読むのはこの理由文なので、診断層 (guard_probes) だけを
+        # 直しても踏んだ人には届かない。以前の文面は「配置され PATH の先頭にあることを
+        # 確認してください」だけを求めており、起動元シェルが古いときは対話シェルで確かめると
+        # 両方満たされているため、読んだ側が問題なしと判断してしまう形だった。
         deny(
-            f"apm-install-guard: apm ガードの shim が PATH 上に見つからないため apm {subcommand} を"
-            "許可できません。"
-            f"{guard_resolve.shim_path()} が配置され、PATH の先頭にあることを確認してください "
-            "(bootstrap.sh が SYMLINK_PAIRS で張り、.zshrc が mise activate の直後で PATH へ"
-            "足します)。"
+            f"apm-install-guard: apm ガードの shim が PATH 上に見つからないため apm {subcommand} は"
+            "許可しない。"
+            f"期待する置き場は {guard_resolve.shim_path()} で、bootstrap.sh が SYMLINK_PAIRS で"
+            "張り、.zshrc が mise activate の直後で PATH へ足す。"
+            f"{guard_resolve.apm_remedy()}"
         )
 
     cwd = pretooluse.get(payload, "cwd")
