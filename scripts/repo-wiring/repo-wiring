@@ -55,6 +55,44 @@ fi
 # 直すのも 1 箇所で済む。
 is_git_repo() { [ -d "$1/.git" ]; }
 
+# 取り付けで exclude へ書くパターン。書く側・取り付け時に実効を確かめる側・
+# --check で出所を見る側が同じ集合を使う。並べて持つと 1 箇所を足し忘れたときに
+# 「書くが確かめない」という静かな穴が開く。
+# exclude へ書く表記そのものを持つ。ディレクトリ名で持つと使う側が末尾スラッシュを
+# 付け直すことになり、その導出が利用箇所の数だけ増える。
+WIRED_PATTERNS=('.hidari/' '.cache/')
+
+# ignore がマシンローカルの設定に依存せず成立しているか。check-ignore -v は一致した
+# パターンの出所を「<file>:<line>:<pattern>\t<path>」で返す。出所がリポジトリの中
+# (.git/info/exclude か追跡下の .gitignore) なら、そのリポジトリを clone したどの
+# マシンでも効く。global の excludesfile が出所なら bootstrap を通したマシンでしか効かない。
+#
+# 「守りたいのは何か」を出所で表す。exclude へ書く理由は そのファイルを増やすこと
+# ではなく、bootstrap を通していないマシンでも守ることだった。
+# 判定を「出所が exclude か」にすると、per-repo の .gitignore で除外しているリポを
+# 欠落と誤報する (実測で 14 リポが該当した)。
+#
+# 出所で見ることが、綴りと実効の両方を同時に満たす:
+#   実効だけを見る -> global で成立してしまい、マシン依存の状態を健全と答える
+#   綴りを照合する -> git が受ける表記の幅 (末尾空白・CR の除去、ルート固定、グロブ) を
+#                    取りこぼし、効いている状態を欠落と誤報する
+#   行の存在を見る -> 後続の否定や再包含で無効化された状態を健全と答える
+is_ignored_without_global() {
+    local pattern origin
+    # 集合が空ならループが 0 回で回り、関数は健全を返す。集合は literal なので
+    # 入力からは到達しないが、倒れ方が fail-open になるのは残さない。
+    [ "${#WIRED_PATTERNS[@]}" -gt 0 ] || return 1
+    for pattern in "${WIRED_PATTERNS[@]}"; do
+        # ignore されないときは check-ignore が非 0 で空を返す。空は下の case で
+        # 弾かれるので、ここで終了ステータスを見ると同じ判定が 2 箇所になる。
+        origin=$(git -C "$1" check-ignore -v "${pattern}probe" 2>/dev/null || true)
+        case "$origin" in
+            .git/info/exclude:* | .gitignore:* | */.gitignore:*) ;;
+            *) return 1 ;;
+        esac
+    done
+}
+
 # 取り付け済みかどうか。-e は通常ファイルでも、まったく別の場所を指す symlink でも真に
 # なるので、symlink であることと解決先が $2 と一致することの両方を見る。
 # readlink の literal 比較なのは、取り付け側も ln -sfn "$OPS" で literal を書くため。
@@ -91,11 +129,14 @@ if [ "$CHECK" = true ]; then
         if ! is_git_repo "$repo"; then
             echo "vanished: $line が git リポジトリとして見つかりません"
             problems=$((problems + 1))
-        elif is_wired "$repo" "$OPS"; then
-            echo "ok: $line"
-        else
+        elif ! is_wired "$repo" "$OPS"; then
             echo "missing: $line に運用指示が取り付けられていません"
             problems=$((problems + 1))
+        elif ! is_ignored_without_global "$repo"; then
+            echo "partial: $line の ignore が global の設定に依存しています"
+            problems=$((problems + 1))
+        else
+            echo "ok: $line"
         fi
     done < "$list"
 
@@ -108,9 +149,9 @@ fi
 is_git_repo "$TARGET" || fail "git リポジトリではありません: $TARGET"
 
 # 1. exclude へ書く。symlink を作る前に置くことで、ignore されない瞬間を作らない。
-#    .cache/ も併せて書く。全数で数えると 8 リポが global の excludesfile だけに
-#    依存しており、per-repo の .gitignore を持たない。global は bootstrap が配る
-#    ものなので、bootstrap を通していないマシンでは効かない。
+#    .cache/ も併せて書く。per-repo の .gitignore を持たず global の excludesfile
+#    だけに依存しているリポが複数ある。global は bootstrap が配るものなので、
+#    bootstrap を通していないマシンでは効かない。
 exclude="$TARGET/.git/info/exclude"
 mkdir -p "$(dirname "$exclude")"
 # 追記先が末尾改行を欠くと、最初の追記行が最終行と融合する。融合した既存パターンは
@@ -119,17 +160,18 @@ mkdir -p "$(dirname "$exclude")"
 if [ -s "$exclude" ] && [ -n "$(tail -c 1 "$exclude")" ]; then
     printf '\n' >> "$exclude"
 fi
-for pattern in '.hidari/' '.cache/'; do
+for pattern in "${WIRED_PATTERNS[@]}"; do
     if ! grep -qxF "$pattern" "$exclude" 2>/dev/null; then
         printf '%s\n' "$pattern" >> "$exclude"
     fi
 done
 
 # 2. ignore を確かめる。配下パスで引くのは、末尾スラッシュ付きのパターンが
-#    ディレクトリパスで問い合わせたときだけ実体を要求するためである。
-for probe in '.hidari/private-ops' '.cache/probe'; do
-    if ! git -C "$TARGET" check-ignore -q "$probe"; then
-        fail "$TARGET で ${probe%%/*}/ が ignore されません。.gitignore の再包含を確認してください"
+#    ディレクトリパスで問い合わせたときだけ実体を要求するためである。probe の名前は
+#    何でもよい (末尾スラッシュのパターンは配下のどのパスにも一致する。実測で確認)。
+for pattern in "${WIRED_PATTERNS[@]}"; do
+    if ! git -C "$TARGET" check-ignore -q "${pattern}probe"; then
+        fail "$TARGET で $pattern が ignore されません。.gitignore の再包含を確認してください"
     fi
 done
 

@@ -219,6 +219,122 @@ teardown() {
     refute_contains "$output" "$TEST_HOME"
 }
 
+@test "check reports a repo whose ignore is missing entirely" {
+    # symlink だけを見ていると、取り付けの 2 つの書き込みのうち 1 つしか検査しない。
+    # symlink はあるが exclude が空、という取りこぼしをここで pin する。
+    mkdir -p "$TARGET/.hidari"
+    ln -sfn "$OPS" "$TARGET/.hidari/private-ops"
+    : > "$TARGET/.git/info/exclude"
+    printf 'repo\n' > "$TEST_HOME/repos.txt"
+
+    run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "partial: repo"
+    assert_contains "$output" "listed=1 problems=1"
+}
+
+@test "check does not accept a global ignore" {
+    # 実効だけを見ると global の excludesfile で成立してしまい、マシンローカルの
+    # 設定に依存した状態を健全と答える。出所まで見るのはこのため。
+    mkdir -p "$TARGET/.hidari" "$TEST_HOME/.config/git"
+    ln -sfn "$OPS" "$TARGET/.hidari/private-ops"
+    : > "$TARGET/.git/info/exclude"
+    printf '.hidari/\n.cache/\n' > "$TEST_HOME/.config/git/ignore"
+    printf 'repo\n' > "$TEST_HOME/repos.txt"
+    # global ignore の既定は $XDG_CONFIG_HOME/git/ignore で、未設定のときだけ
+    # $HOME/.config/git/ignore へ落ちる。開発機は未設定だが CI では設定されており、
+    # 明示しないと別の場所を見て global が効かない。効かないと本体のアサーションは
+    # 「global を拒否したから」ではなく「global がそもそも無いから」通ってしまう。
+    export XDG_CONFIG_HOME="$TEST_HOME/.config"
+
+    # 対照: global 側が実際に効いていること (効いていなければこのテストは何も測らない)
+    git -C "$TARGET" check-ignore -q .hidari/private-ops
+
+    run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "partial: repo"
+}
+
+@test "check requires every wired pattern, not just the first" {
+    # 一覧の全要素を見ていることを pin する。片方だけ置いた状態を作らないと、
+    # ループを先頭要素へ落とす変異が全テスト緑のまま生存する (実測で確認した)。
+    # 取り付け側の書き込みを測るテストは、この変異では壊れないので届かない。
+    mkdir -p "$TARGET/.hidari"
+    ln -sfn "$OPS" "$TARGET/.hidari/private-ops"
+    printf '.hidari/\n' > "$TARGET/.git/info/exclude"
+    printf 'repo\n' > "$TEST_HOME/repos.txt"
+
+    run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "partial: repo"
+}
+
+@test "check accepts a tracked gitignore as the source" {
+    # 守りたいのは「マシンローカルの設定に依存しないこと」であって、exclude という
+    # ファイルの存在ではない。追跡下の .gitignore で除外していればどのマシンでも効く。
+    # 実測ではこの分岐に 14 リポが該当した。
+    mkdir -p "$TARGET/.hidari"
+    ln -sfn "$OPS" "$TARGET/.hidari/private-ops"
+    : > "$TARGET/.git/info/exclude"
+    printf '.hidari/\n.cache/\n' > "$TARGET/.gitignore"
+    printf 'repo\n' > "$TEST_HOME/repos.txt"
+
+    run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "ok: repo"
+}
+
+@test "check accepts spellings that git honours" {
+    # git は末尾空白と CR を落としてからパターン化し、ルート固定やグロブも効かせる。
+    # 綴りをバイト単位で照合すると、実際に効いている ignore を partial と誤報する。
+    mkdir -p "$TARGET/.hidari"
+    ln -sfn "$OPS" "$TARGET/.hidari/private-ops"
+    printf '/.hidari/ \r\n.cache/*\n' > "$TARGET/.git/info/exclude"
+    printf 'repo\n' > "$TEST_HOME/repos.txt"
+
+    # 対照: この綴りで実際に ignore が効いていること
+    git -C "$TARGET" check-ignore -q .hidari/private-ops
+
+    run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "ok: repo"
+}
+
+@test "check reports an ignore defeated by a later negation" {
+    # exclude に書いてあっても後続の否定で無効化される。行の存在だけを見ると
+    # ok と答えるが、実際には symlink が追跡の射程に出ている。
+    mkdir -p "$TARGET/.hidari"
+    ln -sfn "$OPS" "$TARGET/.hidari/private-ops"
+    printf '.hidari/\n.cache/\n!.hidari/\n!.cache/\n' > "$TARGET/.git/info/exclude"
+    printf 'repo\n' > "$TEST_HOME/repos.txt"
+
+    # 対照: 実際に追跡の射程へ出ていること
+    assert_contains "$(git -C "$TARGET" status --porcelain)" ".hidari/"
+
+    run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "partial: repo"
+}
+
+@test "check reports an ignore defeated by gitignore re-inclusion" {
+    # .gitignore は exclude より優先される。取り付け時は fail-closed で拒むが、
+    # 取り付けた後に置かれると --check だけが気づける位置にある。
+    "$WIRING" --ops "$OPS" "$TARGET"
+    printf '!.hidari/\n!.cache/\n' > "$TARGET/.gitignore"
+    printf 'repo\n' > "$TEST_HOME/repos.txt"
+
+    run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "partial: repo"
+}
+
 @test "check always prints the population count" {
     printf 'repo\n' > "$TEST_HOME/repos.txt"
 
