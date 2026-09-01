@@ -111,7 +111,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cat \"$(git rev-parse --show-toplevel)/.hidari/private-ops/PRIVATE_CLAUDE.md\" 2>/dev/null"
+            "command": "cat \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.hidari/private-ops/PRIVATE_CLAUDE.md\" 2>/dev/null"
           }
         ]
       }
