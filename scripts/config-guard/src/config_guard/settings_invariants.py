@@ -222,11 +222,12 @@ def check_settings_invariants(settings: dict[str, Any]) -> list[Finding]:
                 Finding(_SRC, pattern, f"claudeMdExcludes に必須の除外がありません: {pattern}")
             )
 
-    # 8. SessionStart に運用指示 (PRIVATE_CLAUDE.md) を読むコマンドが配線されているか
-    session_start = settings.get("hooks", {}).get("SessionStart", [])
-    commands = [
-        hook.get("command", "") for group in session_start for hook in group.get("hooks", [])
-    ]
+    # 8. SessionStart に運用指示 (PRIVATE_CLAUDE.md) を読むコマンドが配線されているか。
+    #    _wired_commands を再利用する。手書きでよく壊れる settings.json に対する型ガード
+    #    (isinstance の多段チェック) と、matcher が全開始理由を覆うかの判定
+    #    (_matcher_covers_all_sources) の両方に、独自実装せずただ乗りできる。
+    #    自前でループを書き直すと、この 2 つを両方また落とす回帰になりやすい。
+    commands = _wired_commands(settings, "SessionStart")
     if not any(_REQUIRED_SESSION_START_SUBSTRING in c for c in commands):
         findings.append(
             Finding(

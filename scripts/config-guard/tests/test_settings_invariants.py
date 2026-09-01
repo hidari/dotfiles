@@ -238,7 +238,11 @@ class TestRequiredHooks:
         assert findings == []
 
     def test_開始理由を絞った_matcher_は配線として数えない(self) -> None:
-        """SessionStart の matcher は開始理由を見る。startup だけでは compact で発火しない。"""
+        """SessionStart の matcher は開始理由を見る。startup だけでは compact で発火しない。
+
+        グループが matcher で絞られ数えられなくなると、同じグループに載っている
+        guard-health.py と運用指示 (PRIVATE_CLAUDE.md) の両方が配線から外れる。
+        """
         settings = _settings_with_hooks(
             {
                 **pretooluse(_pretooluse_group()),
@@ -246,10 +250,13 @@ class TestRequiredHooks:
             }
         )
         findings = check_settings_invariants(settings)
-        assert [f.detail for f in findings] == ["guard-health.py"]
+        assert {f.detail for f in findings} == {"guard-health.py", "hooks.SessionStart"}
 
     def test_ツール名の_matcher_を_SessionStart_の配線として数えない(self) -> None:
-        """PreToolUse の述語を使い回すと Bash が全一致して配線済みに見える。"""
+        """PreToolUse の述語を使い回すと Bash が全一致して配線済みに見える。
+
+        こちらも同じグループに載る guard-health.py と運用指示の両方が配線から外れる。
+        """
         settings = _settings_with_hooks(
             {
                 **pretooluse(_pretooluse_group()),
@@ -257,7 +264,7 @@ class TestRequiredHooks:
             }
         )
         findings = check_settings_invariants(settings)
-        assert [f.detail for f in findings] == ["guard-health.py"]
+        assert {f.detail for f in findings} == {"guard-health.py", "hooks.SessionStart"}
 
 
 class TestClaudeMdExcludes:
@@ -346,3 +353,65 @@ def test_SessionStart_に運用指示の読み出しがあれば通る() -> None
     findings = check_settings_invariants(settings)
 
     assert not any("PRIVATE_CLAUDE.md" in f.message for f in findings)
+
+
+def test_SessionStart_の運用指示コマンドも_matcher_を絞ると配線として数えない() -> None:
+    """check 6 (guard-health.py) と同じ理由で、運用指示の読み出しも matcher の全開始理由
+    カバレッジを要求する。startup だけでは resume/compact/clear/fork で発火しないため、
+    その状態を配線済みと読んではならない。
+    """
+    settings = {
+        "hooks": {
+            "SessionStart": [
+                {
+                    "matcher": "startup",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": (
+                                'cat "$(git rev-parse --show-toplevel)'
+                                '/.hidari/private-ops/PRIVATE_CLAUDE.md" 2>/dev/null'
+                            ),
+                        }
+                    ],
+                }
+            ]
+        },
+        "claudeMdExcludes": ["**/home/.claude/CLAUDE.md"],
+    }
+
+    findings = check_settings_invariants(settings)
+
+    assert any("PRIVATE_CLAUDE.md" in f.message for f in findings)
+
+
+class TestSessionStartMalformedShapesDoNotCrash:
+    """settings.json は手編集されるため、型の壊れた形でも例外を投げず findings を返すこと。
+
+    check 8 はかつて settings["hooks"]["SessionStart"] を isinstance ガード無しで辿っており、
+    壊れた形を渡すと AttributeError で check_settings_invariants ごと落ちていた。例外は
+    `return findings` の手前で発生するため、その時点まで checks 1-7 が積んだ findings
+    (禁止キー・ユーザーパス漏洩・非公開 marketplace 等) も道連れに失われる。壊れた
+    settings.json 自体を報告できない自己敗北になるため、ここで固定する。
+    """
+
+    def test_hooks_が_list_だと例外を投げず_finding_を返す(self) -> None:
+        settings = {"hooks": [], "claudeMdExcludes": ["**/home/.claude/CLAUDE.md"]}
+        findings = check_settings_invariants(settings)
+        assert "hooks.SessionStart" in {f.detail for f in findings}
+
+    def test_SessionStart_の要素が_None_でも例外を投げず_finding_を返す(self) -> None:
+        settings = {
+            "hooks": {"SessionStart": [None]},
+            "claudeMdExcludes": ["**/home/.claude/CLAUDE.md"],
+        }
+        findings = check_settings_invariants(settings)
+        assert "hooks.SessionStart" in {f.detail for f in findings}
+
+    def test_hooks_の要素が文字列でも例外を投げず_finding_を返す(self) -> None:
+        settings = {
+            "hooks": {"SessionStart": [{"matcher": "*", "hooks": ["x"]}]},
+            "claudeMdExcludes": ["**/home/.claude/CLAUDE.md"],
+        }
+        findings = check_settings_invariants(settings)
+        assert "hooks.SessionStart" in {f.detail for f in findings}
