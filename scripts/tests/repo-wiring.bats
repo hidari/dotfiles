@@ -242,6 +242,11 @@ teardown() {
     : > "$TARGET/.git/info/exclude"
     printf '.hidari/\n.cache/\n' > "$TEST_HOME/.config/git/ignore"
     printf 'repo\n' > "$TEST_HOME/repos.txt"
+    # global ignore の既定は $XDG_CONFIG_HOME/git/ignore で、未設定のときだけ
+    # $HOME/.config/git/ignore へ落ちる。開発機は未設定だが CI では設定されており、
+    # 明示しないと別の場所を見て global が効かない。効かないと本体のアサーションは
+    # 「global を拒否したから」ではなく「global がそもそも無いから」通ってしまう。
+    export XDG_CONFIG_HOME="$TEST_HOME/.config"
 
     # 対照: global 側が実際に効いていること (効いていなければこのテストは何も測らない)
     git -C "$TARGET" check-ignore -q .hidari/private-ops
