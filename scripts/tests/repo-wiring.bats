@@ -24,23 +24,40 @@ teardown() {
     teardown_test_home
 }
 
-@test "repo-wiring requires the ops option" {
-    # 非 0 終了だけを見ると、guard を外しても後段の -d "" が偽になって
-    # fail() が exit 1 で落ちるため区別できない (dead pin)。
-    # usage の終了コード 2 と、usage にしか出ない文字列の両方を見る。
+@test "repo-wiring derives the ops path from the current repository" {
+    # 導出が壊れても --ops を明示する他のテストは全部緑のままなので、省略する経路を
+    # 正の側で pin する。ここだけが「導出した値が実際に使われる」ことを測る。
+    "$WIRING" --ops "$OPS" "$TARGET"
+    other="$TEST_HOME/other"
+    mkdir -p "$other"
+    git -C "$other" init -q .
+
+    cd "$TARGET"
+    run "$WIRING" "$other"
+
+    [ "$status" -eq 0 ]
+    [ "$(readlink "$other/.hidari/private-ops")" = "$OPS" ]
+}
+
+@test "repo-wiring refuses when the ops path cannot be derived" {
+    # 導出元が無い場所で省略したとき、空の OPS のまま進まないこと。
+    cd "$TEST_HOME"
+
     run "$WIRING" "$TARGET"
 
-    [ "$status" -eq 2 ]
+    [ "$status" -ne 0 ]
     assert_contains "$output" "--ops"
 }
 
-@test "check requires the ops option" {
-    printf '%s\n' "$TARGET" > "$TEST_HOME/repos.txt"
+@test "check derives the ops path from the current repository" {
+    "$WIRING" --ops "$OPS" "$TARGET"
+    printf 'repo\n' > "$TEST_HOME/repos.txt"
 
+    cd "$TARGET"
     run "$WIRING" --check --list "$TEST_HOME/repos.txt"
 
-    [ "$status" -eq 2 ]
-    assert_contains "$output" "--ops"
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "ok: repo"
 }
 
 @test "repo-wiring creates the hidari directory and the symlink" {
@@ -94,7 +111,7 @@ teardown() {
     run "$WIRING" --ops "$OPS" "$TARGET"
 
     [ "$status" -eq 0 ]
-    grep -qx '\.cache/' "$TARGET/.git/info/exclude"
+    grep -q '^\.cache/$' "$TARGET/.git/info/exclude"
 }
 
 @test "repo-wiring is idempotent for the cache exclude entry" {
@@ -141,8 +158,8 @@ teardown() {
 @test "repo-wiring refuses when the target is not a git repository" {
     # 単に非 0 終了と .hidari 不在だけを見ると、この guard を外しても後段の
     # check-ignore が別経路で fail-closed するため区別できない (dead pin)。
-    # このテスト固有の fail メッセージと、guard を通れば作られるはずの
-    # .git/info/exclude が作られていないことまで見て、この guard 自体を pin する。
+    # このテスト固有の fail メッセージと、guard を通れば exclude を置くための
+    # mkdir -p が作るはずの .git が無いことまで見て、この guard 自体を pin する。
     local not_a_repo="$TEST_HOME/not-a-repo"
     mkdir -p "$not_a_repo"
 
@@ -155,18 +172,18 @@ teardown() {
 }
 
 @test "check reports a repo listed but not wired" {
-    printf '%s\n' "$TARGET" > "$TEST_HOME/repos.txt"
+    printf 'repo\n' > "$TEST_HOME/repos.txt"
 
     run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
 
     [ "$status" -ne 0 ]
-    assert_contains "$output" "$TARGET"
+    assert_contains "$output" "repo"
     assert_contains "$output" "missing"
 }
 
 @test "check stays silent for a wired repo" {
     "$WIRING" --ops "$OPS" "$TARGET"
-    printf '%s\n' "$TARGET" > "$TEST_HOME/repos.txt"
+    printf 'repo\n' > "$TEST_HOME/repos.txt"
 
     run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
 
@@ -174,8 +191,36 @@ teardown() {
     assert_contains "$output" "ok"
 }
 
+@test "check resolves a listed line against HOME" {
+    # 相対形をそのまま渡すと現在位置基準で解決され、実行場所によって結果が変わる。
+    # 一覧の基準が $HOME であることを、別の場所から実行して pin する。
+    "$WIRING" --ops "$OPS" "$TARGET"
+    printf 'repo\n' > "$TEST_HOME/repos.txt"
+    mkdir -p "$TEST_HOME/elsewhere"
+
+    cd "$TEST_HOME/elsewhere"
+    run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "ok: repo"
+}
+
+@test "check never prints an absolute path" {
+    # 出力を貼っても露出面を作らないことが一覧を相対形にした理由なので、
+    # 解決先ではなく一覧の綴りを出していることを ok と vanished の両分岐で見る。
+    "$WIRING" --ops "$OPS" "$TARGET"
+    printf 'repo\ngone\n' > "$TEST_HOME/repos.txt"
+
+    run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "ok: repo"
+    assert_contains "$output" "vanished: gone"
+    refute_contains "$output" "$TEST_HOME"
+}
+
 @test "check always prints the population count" {
-    printf '%s\n' "$TARGET" > "$TEST_HOME/repos.txt"
+    printf 'repo\n' > "$TEST_HOME/repos.txt"
 
     run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
 
@@ -183,8 +228,10 @@ teardown() {
     assert_contains "$output" "listed=1"
 }
 
-@test "check rejects a malformed line instead of ignoring it" {
-    printf 'relative/path\n' > "$TEST_HOME/repos.txt"
+@test "check rejects an absolute line instead of ignoring it" {
+    # 一覧は $HOME からの相対パスで書く。絶対パスを黙って受けると、出力へ
+    # ユーザー名が載る経路が復活する。
+    printf '%s\n' "$TARGET" > "$TEST_HOME/repos.txt"
 
     run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
 
@@ -196,7 +243,7 @@ teardown() {
 }
 
 @test "check skips comments and blank lines" {
-    printf '# comment\n\n%s\n' "$TARGET" > "$TEST_HOME/repos.txt"
+    printf '# comment\n\nrepo\n' > "$TEST_HOME/repos.txt"
     "$WIRING" --ops "$OPS" "$TARGET"
 
     run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
@@ -206,7 +253,7 @@ teardown() {
 }
 
 @test "check reports a vanished repo" {
-    printf '%s\n' "$TEST_HOME/gone" > "$TEST_HOME/repos.txt"
+    printf 'gone\n' > "$TEST_HOME/repos.txt"
 
     run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
 
@@ -214,13 +261,13 @@ teardown() {
     assert_contains "$output" "vanished"
 }
 
-# --- 以下 3 件は既定値の分岐と取り付け判定 (-e の甘さ) を pin する。省略しないこと ---
+# --- 以下は既定値の分岐と取り付け判定 (-e の甘さ) を pin する。省略しないこと ---
 
 @test "check falls back to the list inside the ops directory" {
     # --list を省略する唯一のテスト。これが無いと既定値の導出行を壊しても
     # 全テストが緑のままになる (毎回明示で上書きされる値は pin されない)。
     "$WIRING" --ops "$OPS" "$TARGET"
-    printf '%s\n' "$TARGET" > "$OPS/repos.txt"
+    printf 'repo\n' > "$OPS/repos.txt"
 
     run "$WIRING" --check --ops "$OPS"
 
@@ -232,7 +279,7 @@ teardown() {
     # -e は通常ファイルでも真になるので、それだけでは取り付け済みと区別できない。
     mkdir -p "$TARGET/.hidari"
     : > "$TARGET/.hidari/private-ops"
-    printf '%s\n' "$TARGET" > "$TEST_HOME/repos.txt"
+    printf 'repo\n' > "$TEST_HOME/repos.txt"
 
     run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
 
@@ -245,7 +292,7 @@ teardown() {
     local other="$TEST_HOME/other-ops"
     mkdir -p "$TARGET/.hidari" "$other"
     ln -sfn "$other" "$TARGET/.hidari/private-ops"
-    printf '%s\n' "$TARGET" > "$TEST_HOME/repos.txt"
+    printf 'repo\n' > "$TEST_HOME/repos.txt"
 
     run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
 

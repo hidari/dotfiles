@@ -9,8 +9,8 @@
 set -euo pipefail
 
 usage() {
-    echo "repo-wiring: 使い方: repo-wiring --ops <path> <repo-path>" >&2
-    echo "       repo-wiring --check --ops <path> [--list <path>]" >&2
+    echo "repo-wiring: 使い方: repo-wiring [--ops <path>] <repo-path>" >&2
+    echo "       repo-wiring --check [--ops <path>] [--list <path>]" >&2
     exit 2
 }
 
@@ -27,7 +27,6 @@ while [ $# -gt 0 ]; do
         *) [ -z "$TARGET" ] || usage; TARGET="$1"; shift ;;
     esac
 done
-[ -n "$OPS" ] || usage
 if [ "$CHECK" = false ]; then
     [ -n "$TARGET" ] || usage
 fi
@@ -37,9 +36,23 @@ fail() {
     exit 1
 }
 
-# git リポジトリかどうか。Task 3 の guard と --check の両方が同じ判定をするので
+# --ops を省略したときは、実行しているリポジトリ自身の取り付けから導出する。
+# 実体パスは PUBLIC リポへ書けないので既定値としては持てないが、実行時に自分の
+# symlink を読む形ならリポジトリへ何も書かずに済む。導出できないときは空のまま
+# 進まずに落ちる。空の $OPS で進むと、取り付け済みのリポが軒並み missing に見える。
+if [ -z "$OPS" ]; then
+    self="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+    if [ -n "$self" ] && [ -L "$self/.hidari/private-ops" ]; then
+        OPS="$(readlink "$self/.hidari/private-ops")"
+    else
+        fail "--ops を省略できるのは、取り付け済みのリポジトリの中で実行したときだけです"
+    fi
+fi
+
+# git リポジトリかどうか。取り付け側の guard と --check の両方が同じ判定をするので
 # ここへ寄せる。worktree / submodule では .git がファイルになりこの式は誤判定するが、
-# その手当ては deferred の minor として別に記録済み。1 箇所にしておけば直すのも 1 箇所で済む。
+# 誤判定の向きは「取り付けを拒む」側なので取りこぼしにはならない。1 箇所にしておけば
+# 直すのも 1 箇所で済む。
 is_git_repo() { [ -d "$1/.git" ]; }
 
 # 取り付け済みかどうか。-e は通常ファイルでも、まったく別の場所を指す symlink でも真に
@@ -66,17 +79,19 @@ if [ "$CHECK" = true ]; then
         # 「一覧が空」と「文法違反しか無い」が同じ listed=0 になって区別できない。
         listed=$((listed + 1))
         case "$line" in
-            /*) ;;                              # 有効 (絶対パスのみ)
-            *)
-                echo "rejected: $line は絶対パスではありません"
+            /*)                                 # 却下 (絶対パス)
+                echo "rejected: $line は \$HOME からの相対パスではありません"
                 problems=$((problems + 1))
                 continue
                 ;;
         esac
-        if ! is_git_repo "$line"; then
+        # 解決先ではなく一覧の綴りを出す。一覧を相対形にした理由が「出力を貼っても
+        # 露出面を作らない」ことなので、報告で絶対パスへ戻すと目的を失う。
+        repo="$HOME/$line"
+        if ! is_git_repo "$repo"; then
             echo "vanished: $line が git リポジトリとして見つかりません"
             problems=$((problems + 1))
-        elif is_wired "$line" "$OPS"; then
+        elif is_wired "$repo" "$OPS"; then
             echo "ok: $line"
         else
             echo "missing: $line に運用指示が取り付けられていません"
@@ -93,8 +108,9 @@ fi
 is_git_repo "$TARGET" || fail "git リポジトリではありません: $TARGET"
 
 # 1. exclude へ書く。symlink を作る前に置くことで、ignore されない瞬間を作らない。
-#    .cache/ も併せて書く。21 リポを実測すると 8 リポが global だけに依存しており、
-#    マシンローカル設定を外すと ignore されなくなる。
+#    .cache/ も併せて書く。全数で数えると 8 リポが global の excludesfile だけに
+#    依存しており、per-repo の .gitignore を持たない。global は bootstrap が配る
+#    ものなので、bootstrap を通していないマシンでは効かない。
 exclude="$TARGET/.git/info/exclude"
 mkdir -p "$(dirname "$exclude")"
 # 追記先が末尾改行を欠くと、最初の追記行が最終行と融合する。融合した既存パターンは
