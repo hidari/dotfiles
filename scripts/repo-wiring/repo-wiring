@@ -8,15 +8,13 @@
 
 set -euo pipefail
 
-OPS_DEFAULT="$HOME/.hidari/private-ops"
-
 usage() {
-    echo "repo-wiring: 使い方: repo-wiring [--ops <path>] <repo-path>" >&2
-    echo "       repo-wiring --check [--ops <path>] [--list <path>]" >&2
+    echo "repo-wiring: 使い方: repo-wiring --ops <path> <repo-path>" >&2
+    echo "       repo-wiring --check --ops <path> [--list <path>]" >&2
     exit 2
 }
 
-OPS="$OPS_DEFAULT"
+OPS=""
 TARGET=""
 CHECK=false
 LIST=""
@@ -29,6 +27,7 @@ while [ $# -gt 0 ]; do
         *) [ -z "$TARGET" ] || usage; TARGET="$1"; shift ;;
     esac
 done
+[ -n "$OPS" ] || usage
 if [ "$CHECK" = false ]; then
     [ -n "$TARGET" ] || usage
 fi

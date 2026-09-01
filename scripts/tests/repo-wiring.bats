@@ -24,6 +24,25 @@ teardown() {
     teardown_test_home
 }
 
+@test "repo-wiring requires the ops option" {
+    # 非 0 終了だけを見ると、guard を外しても後段の -d "" が偽になって
+    # fail() が exit 1 で落ちるため区別できない (dead pin)。
+    # usage の終了コード 2 と、usage にしか出ない文字列の両方を見る。
+    run "$WIRING" "$TARGET"
+
+    [ "$status" -eq 2 ]
+    assert_contains "$output" "--ops"
+}
+
+@test "check requires the ops option" {
+    printf '%s\n' "$TARGET" > "$TEST_HOME/repos.txt"
+
+    run "$WIRING" --check --list "$TEST_HOME/repos.txt"
+
+    [ "$status" -eq 2 ]
+    assert_contains "$output" "--ops"
+}
+
 @test "repo-wiring creates the hidari directory and the symlink" {
     run "$WIRING" --ops "$OPS" "$TARGET"
 
@@ -129,6 +148,9 @@ teardown() {
 
     [ "$status" -ne 0 ]
     assert_contains "$output" "rejected"
+    # 却下した行も母数に数える。この行が無いと、加算を却下判定の後ろへ動かす
+    # 変異が生存する (実測で確認済み)。
+    assert_contains "$output" "listed=1"
 }
 
 @test "check skips comments and blank lines" {
