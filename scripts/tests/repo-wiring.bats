@@ -90,6 +90,35 @@ teardown() {
     [ ! -e "$TARGET/.hidari/private-ops" ]
 }
 
+@test "repo-wiring writes the cache exclude entry too" {
+    run "$WIRING" --ops "$OPS" "$TARGET"
+
+    [ "$status" -eq 0 ]
+    grep -qx '\.cache/' "$TARGET/.git/info/exclude"
+}
+
+@test "repo-wiring is idempotent for the cache exclude entry" {
+    run "$WIRING" --ops "$OPS" "$TARGET"
+    [ "$status" -eq 0 ]
+
+    run "$WIRING" --ops "$OPS" "$TARGET"
+
+    [ "$status" -eq 0 ]
+    [ "$(grep -c '^\.cache/$' "$TARGET/.git/info/exclude")" -eq 1 ]
+}
+
+@test "repo-wiring refuses when the cache path is still not ignored" {
+    # .hidari/ 側は通り .cache/ 側だけが塞がれる状態を作る。両方を塞ぐと
+    # どちらの guard で落ちたのか区別できない。
+    printf '!.cache/\n' > "$TARGET/.gitignore"
+
+    run "$WIRING" --ops "$OPS" "$TARGET"
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" ".cache/"
+    [ ! -e "$TARGET/.hidari/private-ops" ]
+}
+
 @test "repo-wiring refuses when the ops directory does not exist" {
     run "$WIRING" --ops "$TEST_HOME/missing" "$TARGET"
 

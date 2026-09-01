@@ -93,17 +93,23 @@ fi
 is_git_repo "$TARGET" || fail "git リポジトリではありません: $TARGET"
 
 # 1. exclude へ書く。symlink を作る前に置くことで、ignore されない瞬間を作らない。
+#    .cache/ も併せて書く。21 リポを実測すると 8 リポが global だけに依存しており、
+#    マシンローカル設定を外すと ignore されなくなる。
 exclude="$TARGET/.git/info/exclude"
 mkdir -p "$(dirname "$exclude")"
-if ! grep -qx '\.hidari/' "$exclude" 2>/dev/null; then
-    printf '.hidari/\n' >> "$exclude"
-fi
+for pattern in '.hidari/' '.cache/'; do
+    if ! grep -qxF "$pattern" "$exclude" 2>/dev/null; then
+        printf '%s\n' "$pattern" >> "$exclude"
+    fi
+done
 
 # 2. ignore を確かめる。配下パスで引くのは、末尾スラッシュ付きのパターンが
 #    ディレクトリパスで問い合わせたときだけ実体を要求するためである。
-if ! git -C "$TARGET" check-ignore -q .hidari/private-ops; then
-    fail "$TARGET で .hidari/ が ignore されません。.gitignore の再包含を確認してください"
-fi
+for probe in '.hidari/private-ops' '.cache/probe'; do
+    if ! git -C "$TARGET" check-ignore -q "$probe"; then
+        fail "$TARGET で ${probe%%/*}/ が ignore されません。.gitignore の再包含を確認してください"
+    fi
+done
 
 # 3. 作る。ln -sfn は既存の symlink を張り直すので、切れたリンクの修復も同じ経路で済む。
 mkdir -p "$TARGET/.hidari"
