@@ -43,16 +43,41 @@ issue.md が書いたとおり bootstrap はマシンのセットアップであ
 
 ### 2. ignore の保証 (issue.md の論点 2 への答え)
 
-`.hidari/` を ignore しているのは `~/.config/git/.gitignore_global` で、これはマシンローカル
-設定である。bootstrap 前のマシンや `core.excludesfile` を持たない環境では ignore されない。
+実測すると、28 リポすべてで `.hidari/` は ignore されている。ただし対照を取ると層の薄さが出る。
+`core.excludesfile` を無効にして測り直すと **26 リポが ignore されなくなった**。
+per-repo の `.gitignore` に記述を持つのは 2 リポだけで、残りは global が唯一の層である。
+allowlist 方式 (`.claude/*` で閉じて `!` で開ける) のリポでも再包含の穴は無かった。
 
-スクリプトは symlink を作る前に `git check-ignore` で対象パスが ignore されることを確かめ、
-されていなければ**作らずに落ちる**。symlink の中身は絶対パスなので、追跡候補になった時点で
-`macos-user-path` と `email-address` の露出面ができる。gitleaks は 2 層目であり、
-1 層目をここで機構化する。
+対照が無ければ「28 リポ全部で ignore 済み」という緑だけが見え、層が 1 つしかないことは
+見えなかった。
 
-問い合わせは `.hidari/` ではなく `.hidari/private-ops` の形で行う。末尾スラッシュ付きの
-ディレクトリパターンは実体が無いと一致しないため、実体を作る前の問い合わせは配下パスで行う。
+2 層目は `.git/info/exclude` に置く。scratch repo で確かめたところ、global を無効にしても
+この記述だけで ignore が効き `git status` にも現れない。
+
+| 案 | 層 | コミット | 外部リポを汚すか | clone に travel するか |
+| --- | --- | --- | --- | --- |
+| global のみ (現状) | 1 | 不要 | しない | しない |
+| per-repo `.gitignore` | 2 | 要 | する | する |
+| **`.git/info/exclude`** | **2** | **不要** | **しない** | しない |
+
+per-repo `.gitignore` を採らないのは、その唯一の利点である travel が実質的に効かないためである。
+`.hidari/private-ops` の symlink 自体が travel しないので、clone しただけでは `.hidari/` が
+存在せず、ignore だけ先回りしても守る対象が無い。どのみちスクリプトを走らせる必要がある。
+
+スクリプトの順序は次のとおり。
+
+1. `.git/info/exclude` に記述が無ければ書く
+2. `git check-ignore` を**配下パス**で引いて ignore を確かめる
+3. それでも ignore されなければ **symlink を作らずに落ちる** (再包含などの異常)
+4. `.hidari/` を作り symlink を張る
+
+3 を残すのは、スクリプト自身が ignore を用意しても穴が残る経路があるため。fail-closed に倒す。
+symlink の中身は絶対パスなので、追跡候補になった時点で `macos-user-path` と `email-address` の
+露出面ができる。gitleaks は 3 層目にあたる。
+
+問い合わせを `.hidari/` ではなく `.hidari/private-ops` の形で行うのは、末尾スラッシュ付きの
+ディレクトリパターンがディレクトリパスで問い合わせたときだけ実体を要求するためである。
+配下パスなら実体が無くても一致することは scratch repo で確認した。
 
 論点 2 のもう一方である `.cache/` は状態が違う。実測すると、調べた 8 リポはすべて自前の
 `.gitignore` でも ignore しており、`check-ignore` が指すのは per-repo 側だった。
