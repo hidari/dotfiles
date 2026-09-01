@@ -92,3 +92,99 @@ teardown() {
     [ ! -e "$not_a_repo/.git" ]
     [ ! -e "$not_a_repo/.hidari" ]
 }
+
+@test "check reports a repo listed but not wired" {
+    printf '%s\n' "$TARGET" > "$TEST_HOME/repos.txt"
+
+    run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "$TARGET"
+    assert_contains "$output" "missing"
+}
+
+@test "check stays silent for a wired repo" {
+    "$WIRING" --ops "$OPS" "$TARGET"
+    printf '%s\n' "$TARGET" > "$TEST_HOME/repos.txt"
+
+    run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "ok"
+}
+
+@test "check always prints the population count" {
+    printf '%s\n' "$TARGET" > "$TEST_HOME/repos.txt"
+
+    run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
+
+    # 0 件と見ていないを区別するため、問題の有無にかかわらず母数を出す
+    assert_contains "$output" "listed=1"
+}
+
+@test "check rejects a malformed line instead of ignoring it" {
+    printf 'relative/path\n' > "$TEST_HOME/repos.txt"
+
+    run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "rejected"
+}
+
+@test "check skips comments and blank lines" {
+    printf '# comment\n\n%s\n' "$TARGET" > "$TEST_HOME/repos.txt"
+    "$WIRING" --ops "$OPS" "$TARGET"
+
+    run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "listed=1"
+}
+
+@test "check reports a vanished repo" {
+    printf '%s\n' "$TEST_HOME/gone" > "$TEST_HOME/repos.txt"
+
+    run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "vanished"
+}
+
+# --- 以下 3 件は既定値の分岐と取り付け判定 (-e の甘さ) を pin する。省略しないこと ---
+
+@test "check falls back to the list inside the ops directory" {
+    # --list を省略する唯一のテスト。これが無いと既定値の導出行を壊しても
+    # 全テストが緑のままになる (毎回明示で上書きされる値は pin されない)。
+    "$WIRING" --ops "$OPS" "$TARGET"
+    printf '%s\n' "$TARGET" > "$OPS/repos.txt"
+
+    run "$WIRING" --check --ops "$OPS"
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "listed=1"
+}
+
+@test "check rejects a plain file standing in for the symlink" {
+    # -e は通常ファイルでも真になるので、それだけでは取り付け済みと区別できない。
+    mkdir -p "$TARGET/.hidari"
+    : > "$TARGET/.hidari/private-ops"
+    printf '%s\n' "$TARGET" > "$TEST_HOME/repos.txt"
+
+    run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "missing"
+}
+
+@test "check rejects a symlink pointing elsewhere" {
+    # 解決先を見ないと、別の場所を指す symlink が取り付け済みとして通る。
+    local other="$TEST_HOME/other-ops"
+    mkdir -p "$TARGET/.hidari" "$other"
+    ln -sfn "$other" "$TARGET/.hidari/private-ops"
+    printf '%s\n' "$TARGET" > "$TEST_HOME/repos.txt"
+
+    run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "missing"
+}

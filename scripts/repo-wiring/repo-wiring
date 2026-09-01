@@ -12,27 +12,86 @@ OPS_DEFAULT="$HOME/.hidari/private-ops"
 
 usage() {
     echo "repo-wiring: 使い方: repo-wiring [--ops <path>] <repo-path>" >&2
+    echo "       repo-wiring --check [--ops <path>] [--list <path>]" >&2
     exit 2
 }
 
 OPS="$OPS_DEFAULT"
 TARGET=""
+CHECK=false
+LIST=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --ops) [ $# -ge 2 ] || usage; OPS="$2"; shift 2 ;;
+        --check) CHECK=true; shift ;;
+        --list) [ $# -ge 2 ] || usage; LIST="$2"; shift 2 ;;
         -*) usage ;;
         *) [ -z "$TARGET" ] || usage; TARGET="$1"; shift ;;
     esac
 done
-[ -n "$TARGET" ] || usage
+if [ "$CHECK" = false ]; then
+    [ -n "$TARGET" ] || usage
+fi
 
 fail() {
     echo "repo-wiring: $*" >&2
     exit 1
 }
 
+# git リポジトリかどうか。Task 3 の guard と --check の両方が同じ判定をするので
+# ここへ寄せる。worktree / submodule では .git がファイルになりこの式は誤判定するが、
+# その手当ては deferred の minor として別に記録済み。1 箇所にしておけば直すのも 1 箇所で済む。
+is_git_repo() { [ -d "$1/.git" ]; }
+
+# 取り付け済みかどうか。-e は通常ファイルでも、まったく別の場所を指す symlink でも真に
+# なるので、symlink であることと解決先が $2 と一致することの両方を見る。
+# readlink の literal 比較なのは、取り付け側も ln -sfn "$OPS" で literal を書くため。
+# 取り付け時と --check 時で違う表記の ops を渡せば不一致になるが、それは報告されるのが正しい。
+is_wired() {
+    [ -L "$1/.hidari/private-ops" ] && [ "$(readlink "$1/.hidari/private-ops")" = "$2" ]
+}
+
 [ -d "$OPS" ] || fail "運用指示の実体がありません: $OPS"
-[ -d "$TARGET/.git" ] || fail "git リポジトリではありません: $TARGET"
+
+if [ "$CHECK" = true ]; then
+    list="${LIST:-$OPS/repos.txt}"
+    [ -f "$list" ] || fail "一覧がありません: $list"
+
+    listed=0
+    problems=0
+    while IFS= read -r line || [ -n "$line" ]; do
+        case "$line" in
+            '' | '#'*) continue ;;              # 無視
+        esac
+        # 却下も母数に数える。listed が「判定を試みた行数」でないと、
+        # 「一覧が空」と「文法違反しか無い」が同じ listed=0 になって区別できない。
+        listed=$((listed + 1))
+        case "$line" in
+            /*) ;;                              # 有効 (絶対パスのみ)
+            *)
+                echo "rejected: $line は絶対パスではありません"
+                problems=$((problems + 1))
+                continue
+                ;;
+        esac
+        if ! is_git_repo "$line"; then
+            echo "vanished: $line が git リポジトリとして見つかりません"
+            problems=$((problems + 1))
+        elif is_wired "$line" "$OPS"; then
+            echo "ok: $line"
+        else
+            echo "missing: $line に運用指示が取り付けられていません"
+            problems=$((problems + 1))
+        fi
+    done < "$list"
+
+    # 問題の有無にかかわらず母数を出す。0 件と「見ていない」を区別するため。
+    echo "listed=$listed problems=$problems"
+    [ "$problems" -eq 0 ] || exit 1
+    exit 0
+fi
+
+is_git_repo "$TARGET" || fail "git リポジトリではありません: $TARGET"
 
 # 1. exclude へ書く。symlink を作る前に置くことで、ignore されない瞬間を作らない。
 exclude="$TARGET/.git/info/exclude"
