@@ -302,6 +302,43 @@ class TestClaudeMdExcludes:
         assert check_settings_invariants(settings) == []
 
 
+def test_運用指示の読み出しに_CLAUDE_PROJECT_DIR_が無ければ検出する() -> None:
+    """フックの cwd がリポジトリ外のとき、git 由来の解決は別のリポジトリを指す。
+
+    project スコープ側の配線は user スコープ側の上位互換ではなく、この
+    フォールバックを持つぶんだけ広かった。移設でそれを落とすと、指示が
+    静かに載らなくなるか、別のリポジトリの指示が載る。
+    綴りではなく変数名だけを見るのは、パスの参照の形を変えても落ちないようにするため。
+    """
+    settings = {
+        "hooks": {
+            "SessionStart": [
+                {
+                    "matcher": "*",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": GUARD_HEALTH_HOOK_COMMAND,
+                        },
+                        {
+                            "type": "command",
+                            "command": (
+                                'cat "$(git rev-parse --show-toplevel)"'
+                                "/.hidari/private-ops/PRIVATE_CLAUDE.md 2>/dev/null"
+                            ),
+                        },
+                    ],
+                }
+            ]
+        },
+        "claudeMdExcludes": ["**/home/.claude/CLAUDE.md"],
+    }
+
+    findings = check_settings_invariants(settings)
+
+    assert any("CLAUDE_PROJECT_DIR" in f.message for f in findings)
+
+
 def test_SessionStart_に運用指示の読み出しが無ければ検出する() -> None:
     settings = {
         "hooks": {
@@ -338,10 +375,7 @@ def test_SessionStart_に運用指示の読み出しがあれば通る() -> None
                         },
                         {
                             "type": "command",
-                            "command": (
-                                'cat "$(git rev-parse --show-toplevel)'
-                                '/.hidari/private-ops/PRIVATE_CLAUDE.md" 2>/dev/null'
-                            ),
+                            "command": PRIVATE_OPS_HOOK_COMMAND,
                         },
                     ],
                 }
@@ -368,10 +402,7 @@ def test_SessionStart_の運用指示コマンドも_matcher_を絞ると配線�
                     "hooks": [
                         {
                             "type": "command",
-                            "command": (
-                                'cat "$(git rev-parse --show-toplevel)'
-                                '/.hidari/private-ops/PRIVATE_CLAUDE.md" 2>/dev/null'
-                            ),
+                            "command": PRIVATE_OPS_HOOK_COMMAND,
                         }
                     ],
                 }
@@ -388,11 +419,11 @@ def test_SessionStart_の運用指示コマンドも_matcher_を絞ると配線�
 class TestSessionStartMalformedShapesDoNotCrash:
     """settings.json は手編集されるため、型の壊れた形でも例外を投げず findings を返すこと。
 
-    check 8 はかつて settings["hooks"]["SessionStart"] を isinstance ガード無しで辿っており、
-    壊れた形を渡すと AttributeError で check_settings_invariants ごと落ちていた。例外は
-    `return findings` の手前で発生するため、その時点まで checks 1-7 が積んだ findings
-    (禁止キー・ユーザーパス漏洩・非公開 marketplace 等) も道連れに失われる。壊れた
-    settings.json 自体を報告できない自己敗北になるため、ここで固定する。
+    settings["hooks"]["SessionStart"] を isinstance ガード無しで辿ると、壊れた形で
+    AttributeError が出て check_settings_invariants ごと落ちる。例外は `return findings`
+    の手前で発生するため、その時点まで checks 1-7 が積んだ findings (禁止キー・
+    ユーザーパス漏洩・非公開 marketplace 等) も道連れに失われる。壊れた settings.json
+    自体を報告できない自己敗北になるため、ここで固定する。
     """
 
     def test_hooks_が_list_だと例外を投げず_finding_を返す(self) -> None:

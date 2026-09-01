@@ -33,7 +33,8 @@ GUARD_HEALTH_HOOK_COMMAND = 'python3 "$HOME/.claude/hooks/guard-health.py"'
 # 運用指示 (PRIVATE_CLAUDE.md) を読む SessionStart コマンド。理由は上と同じで
 # settings_invariants の定数から生成しない。
 PRIVATE_OPS_HOOK_COMMAND = (
-    'cat "$(git rev-parse --show-toplevel)/.hidari/private-ops/PRIVATE_CLAUDE.md" 2>/dev/null'
+    'cat "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}'
+    '/.hidari/private-ops/PRIVATE_CLAUDE.md" 2>/dev/null'
 )
 
 

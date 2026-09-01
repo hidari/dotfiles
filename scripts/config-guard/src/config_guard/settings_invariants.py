@@ -97,6 +97,12 @@ _REQUIRED_HOOKS: dict[str, _EventRequirement] = {
 # 参照の形を変えるたびにここが落ちるので、実体のファイル名だけを見る。
 _REQUIRED_SESSION_START_SUBSTRING = "PRIVATE_CLAUDE.md"
 
+# 運用指示を読むコマンドがリポジトリの根を求めるときに必ず経由する変数。project スコープ側の
+# 配線は user スコープ側の上位互換ではなく、このフォールバックを持つぶんだけ広かった。
+# 移設で落とすとフックの cwd がリポジトリ外のとき別のリポジトリの指示を読む。
+# 綴り全体ではなく変数名だけを見るのは、パスの参照の形を変えても落ちないようにするため。
+_REQUIRED_PROJECT_ROOT_VARIABLE = "CLAUDE_PROJECT_DIR"
+
 # nested traversal から必ず除外しなければならない CLAUDE.md（glob 値を完全一致で照合する）。
 # home/.claude/CLAUDE.md は ~/.claude/CLAUDE.md の symlink 実体なので、この配置のまま
 # home/.claude/ 配下のファイルを Read すると、User memory として既にロード済みの同一内容が
@@ -228,13 +234,23 @@ def check_settings_invariants(settings: dict[str, Any]) -> list[Finding]:
     #    (_matcher_covers_all_sources) の両方に、独自実装せずただ乗りできる。
     #    自前でループを書き直すと、この 2 つを両方また落とす回帰になりやすい。
     commands = _wired_commands(settings, "SessionStart")
-    if not any(_REQUIRED_SESSION_START_SUBSTRING in c for c in commands):
+    reading = [c for c in commands if _REQUIRED_SESSION_START_SUBSTRING in c]
+    if not reading:
         findings.append(
             Finding(
                 _SRC,
                 "hooks.SessionStart",
                 f"SessionStart に {_REQUIRED_SESSION_START_SUBSTRING} を読むコマンドがありません。"
                 "運用指示が全リポで載らなくなります",
+            )
+        )
+    elif not any(_REQUIRED_PROJECT_ROOT_VARIABLE in c for c in reading):
+        findings.append(
+            Finding(
+                _SRC,
+                "hooks.SessionStart",
+                f"運用指示を読むコマンドが {_REQUIRED_PROJECT_ROOT_VARIABLE} を参照していません。"
+                "フックの cwd がリポジトリ外のとき、別のリポジトリの指示を読みます",
             )
         )
 
