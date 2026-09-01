@@ -219,6 +219,54 @@ teardown() {
     refute_contains "$output" "$TEST_HOME"
 }
 
+@test "check reports a repo whose exclude lacks the second layer" {
+    # symlink だけを見ていると、取り付けの 2 つの書き込みのうち 1 つしか検査しない。
+    # 実測 (2026-09-02) では 21 リポ中 13 リポの exclude が手つかずの既定値のまま
+    # symlink だけあり、--check は problems=0 を返していた。
+    mkdir -p "$TARGET/.hidari"
+    ln -sfn "$OPS" "$TARGET/.hidari/private-ops"
+    : > "$TARGET/.git/info/exclude"
+    printf 'repo\n' > "$TEST_HOME/repos.txt"
+
+    run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "partial: repo"
+    assert_contains "$output" "listed=1 problems=1"
+}
+
+@test "check does not accept a global ignore as the second layer" {
+    # 実効 (check-ignore) だけを見ると global の excludesfile で成立してしまい、
+    # 二層目の欠落を検出できない。二層目を置いた理由が「global が効かないマシンでも
+    # 守る」ことなので、実効が緑でも二層目がある証拠にはならない。
+    mkdir -p "$TARGET/.hidari" "$TEST_HOME/.config/git"
+    ln -sfn "$OPS" "$TARGET/.hidari/private-ops"
+    : > "$TARGET/.git/info/exclude"
+    printf '.hidari/\n.cache/\n' > "$TEST_HOME/.config/git/ignore"
+    printf 'repo\n' > "$TEST_HOME/repos.txt"
+
+    # 対照: global 側が実際に効いていること (効いていなければこのテストは何も測らない)
+    git -C "$TARGET" check-ignore -q .hidari/private-ops
+
+    run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "partial: repo"
+}
+
+@test "check stays silent when both layers are in place" {
+    # 取り付け直後は二層目も入っているので、partial を出さないこと。
+    # これが無いと、常に partial を返す変異が上の 2 件だけで通る。
+    "$WIRING" --ops "$OPS" "$TARGET"
+    printf 'repo\n' > "$TEST_HOME/repos.txt"
+
+    run "$WIRING" --check --ops "$OPS" --list "$TEST_HOME/repos.txt"
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "ok: repo"
+    refute_contains "$output" "partial"
+}
+
 @test "check always prints the population count" {
     printf 'repo\n' > "$TEST_HOME/repos.txt"
 

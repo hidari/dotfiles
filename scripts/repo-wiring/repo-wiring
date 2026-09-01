@@ -55,6 +55,22 @@ fi
 # 直すのも 1 箇所で済む。
 is_git_repo() { [ -d "$1/.git" ]; }
 
+# 取り付けで exclude へ書くディレクトリ。書く側・実効を確かめる側・--check で二層目の
+# 存在を見る側の 3 箇所が同じ集合を使う。並べて持つと 1 箇所を足し忘れたときに
+# 「書くが確かめない」という静かな穴が開く。
+WIRED_DIRS=(.hidari .cache)
+
+# 二層目 (.git/info/exclude) が入っているか。実効ではなくパターンの存在を見るのは、
+# 実効だけを見ると global の excludesfile で成立してしまい、二層目の欠落を検出できない
+# ためである。二層目を置いた理由が「global が効かないマシンでも守る」ことなので、
+# global で ignore が成立していることは二層目がある証拠にならない。
+has_second_layer() {
+    local ex="$1/.git/info/exclude" dir
+    for dir in "${WIRED_DIRS[@]}"; do
+        grep -qxF "$dir/" "$ex" 2>/dev/null || return 1
+    done
+}
+
 # 取り付け済みかどうか。-e は通常ファイルでも、まったく別の場所を指す symlink でも真に
 # なるので、symlink であることと解決先が $2 と一致することの両方を見る。
 # readlink の literal 比較なのは、取り付け側も ln -sfn "$OPS" で literal を書くため。
@@ -91,11 +107,14 @@ if [ "$CHECK" = true ]; then
         if ! is_git_repo "$repo"; then
             echo "vanished: $line が git リポジトリとして見つかりません"
             problems=$((problems + 1))
-        elif is_wired "$repo" "$OPS"; then
-            echo "ok: $line"
-        else
+        elif ! is_wired "$repo" "$OPS"; then
             echo "missing: $line に運用指示が取り付けられていません"
             problems=$((problems + 1))
+        elif ! has_second_layer "$repo"; then
+            echo "partial: $line の exclude に二層目が入っていません"
+            problems=$((problems + 1))
+        else
+            echo "ok: $line"
         fi
     done < "$list"
 
@@ -119,17 +138,18 @@ mkdir -p "$(dirname "$exclude")"
 if [ -s "$exclude" ] && [ -n "$(tail -c 1 "$exclude")" ]; then
     printf '\n' >> "$exclude"
 fi
-for pattern in '.hidari/' '.cache/'; do
-    if ! grep -qxF "$pattern" "$exclude" 2>/dev/null; then
-        printf '%s\n' "$pattern" >> "$exclude"
+for dir in "${WIRED_DIRS[@]}"; do
+    if ! grep -qxF "$dir/" "$exclude" 2>/dev/null; then
+        printf '%s/\n' "$dir" >> "$exclude"
     fi
 done
 
 # 2. ignore を確かめる。配下パスで引くのは、末尾スラッシュ付きのパターンが
-#    ディレクトリパスで問い合わせたときだけ実体を要求するためである。
-for probe in '.hidari/private-ops' '.cache/probe'; do
-    if ! git -C "$TARGET" check-ignore -q "$probe"; then
-        fail "$TARGET で ${probe%%/*}/ が ignore されません。.gitignore の再包含を確認してください"
+#    ディレクトリパスで問い合わせたときだけ実体を要求するためである。probe の名前は
+#    何でもよい (末尾スラッシュのパターンは配下のどのパスにも一致する。実測で確認)。
+for dir in "${WIRED_DIRS[@]}"; do
+    if ! git -C "$TARGET" check-ignore -q "$dir/probe"; then
+        fail "$TARGET で $dir/ が ignore されません。.gitignore の再包含を確認してください"
     fi
 done
 
