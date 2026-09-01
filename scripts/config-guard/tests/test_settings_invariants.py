@@ -8,6 +8,7 @@ from config_guard.settings_invariants import check_settings_invariants
 from tests.conftest import (
     APM_GUARD_HOOK_COMMAND,
     GUARD_HEALTH_HOOK_COMMAND,
+    PRIVATE_OPS_HOOK_COMMAND,
     TIRITH_HOOK_COMMAND,
     hook_group,
     pretooluse,
@@ -29,8 +30,12 @@ def _pretooluse_group() -> dict[str, Any]:
 
 
 def _guard_health_group(matcher: str = "*") -> dict[str, Any]:
-    """SessionStart の必須フックを 1 グループにまとめたもの。"""
-    return hook_group(GUARD_HEALTH_HOOK_COMMAND, matcher=matcher)
+    """SessionStart の必須フックを 1 グループにまとめたもの。
+
+    運用指示 (PRIVATE_CLAUDE.md) を読むコマンドも同じグループへ載せる。外すと
+    PreToolUse の配線だけを狙ったテストにまで無関係な finding が混ざる。
+    """
+    return hook_group(GUARD_HEALTH_HOOK_COMMAND, PRIVATE_OPS_HOOK_COMMAND, matcher=matcher)
 
 
 GOOD: dict[str, Any] = {
@@ -53,7 +58,7 @@ GOOD: dict[str, Any] = {
     # SessionStart の matcher は開始理由を見るので "*" を明示する
     "hooks": {
         **pretooluse(hook_group(TIRITH_HOOK_COMMAND), hook_group(APM_GUARD_HOOK_COMMAND)),
-        **session_start(hook_group(GUARD_HEALTH_HOOK_COMMAND, matcher="*")),
+        **session_start(_guard_health_group()),
     },
     # nested traversal の除外。フックの配線と同じ理由でここへ置く
     "claudeMdExcludes": ["**/home/.claude/CLAUDE.md"],
@@ -155,13 +160,15 @@ class TestRequiredHooks:
         assert [f.detail for f in findings] == ["tirith-check.py"]
 
     def test_missing_hooks_section_flags_every_required_hook(self) -> None:
-        # hooks を空にするので、PreToolUse と SessionStart の両方が空になる
+        # hooks を空にするので、PreToolUse と SessionStart の両方が空になる。
+        # SessionStart が丸ごと無ければ運用指示の読み出しも当然無い
         settings = _settings_with_hooks({})
         findings = check_settings_invariants(settings)
         assert {f.detail for f in findings} == {
             "tirith-check.py",
             "apm-install-guard.py",
             "guard-health.py",
+            "hooks.SessionStart",
         }
 
     def test_hook_wired_to_another_event_does_not_count(self) -> None:
@@ -218,9 +225,10 @@ class TestRequiredHooks:
             assert check_settings_invariants(settings) == [], matcher
 
     def test_SessionStart_の必須フックが無ければ検出する(self) -> None:
+        # SessionStart 自体が無いので guard-health.py に加え運用指示の読み出しも無い
         settings = _settings_with_hooks(pretooluse(_pretooluse_group()))
         findings = check_settings_invariants(settings)
-        assert [f.detail for f in findings] == ["guard-health.py"]
+        assert {f.detail for f in findings} == {"guard-health.py", "hooks.SessionStart"}
 
     def test_SessionStart_に配線されていれば検出しない(self) -> None:
         settings = _settings_with_hooks(
@@ -285,3 +293,56 @@ class TestClaudeMdExcludes:
         # 必須パターンを含んでいれば追加の除外は自由（negative case）
         settings = {**GOOD, "claudeMdExcludes": ["**/home/.claude/CLAUDE.md", "**/vendor/**"]}
         assert check_settings_invariants(settings) == []
+
+
+def test_SessionStart_に運用指示の読み出しが無ければ検出する() -> None:
+    settings = {
+        "hooks": {
+            "SessionStart": [
+                {
+                    "matcher": "",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": 'python3 "$HOME/.claude/hooks/guard-health.py"',
+                        }
+                    ],
+                }
+            ]
+        },
+        "claudeMdExcludes": ["**/home/.claude/CLAUDE.md"],
+    }
+
+    findings = check_settings_invariants(settings)
+
+    assert any("PRIVATE_CLAUDE.md" in f.message for f in findings)
+
+
+def test_SessionStart_に運用指示の読み出しがあれば通る() -> None:
+    settings = {
+        "hooks": {
+            "SessionStart": [
+                {
+                    "matcher": "",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": 'python3 "$HOME/.claude/hooks/guard-health.py"',
+                        },
+                        {
+                            "type": "command",
+                            "command": (
+                                'cat "$(git rev-parse --show-toplevel)'
+                                '/.hidari/private-ops/PRIVATE_CLAUDE.md" 2>/dev/null'
+                            ),
+                        },
+                    ],
+                }
+            ]
+        },
+        "claudeMdExcludes": ["**/home/.claude/CLAUDE.md"],
+    }
+
+    findings = check_settings_invariants(settings)
+
+    assert not any("PRIVATE_CLAUDE.md" in f.message for f in findings)

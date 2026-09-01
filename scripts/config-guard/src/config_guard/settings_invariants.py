@@ -92,6 +92,11 @@ _REQUIRED_HOOKS: dict[str, _EventRequirement] = {
     "SessionStart": _EventRequirement(("guard-health.py",), _matcher_covers_all_sources),
 }
 
+# SessionStart に必ず載せるコマンドの目印。フック本体ではなく cat なのでファイル名では
+# 宣言できず、コマンド文字列に必ず現れる部分文字列で見る。パスの綴りごと pin すると
+# 参照の形を変えるたびにここが落ちるので、実体のファイル名だけを見る。
+_REQUIRED_SESSION_START_SUBSTRING = "PRIVATE_CLAUDE.md"
+
 # nested traversal から必ず除外しなければならない CLAUDE.md（glob 値を完全一致で照合する）。
 # home/.claude/CLAUDE.md は ~/.claude/CLAUDE.md の symlink 実体なので、この配置のまま
 # home/.claude/ 配下のファイルを Read すると、User memory として既にロード済みの同一内容が
@@ -216,5 +221,20 @@ def check_settings_invariants(settings: dict[str, Any]) -> list[Finding]:
             findings.append(
                 Finding(_SRC, pattern, f"claudeMdExcludes に必須の除外がありません: {pattern}")
             )
+
+    # 8. SessionStart に運用指示 (PRIVATE_CLAUDE.md) を読むコマンドが配線されているか
+    session_start = settings.get("hooks", {}).get("SessionStart", [])
+    commands = [
+        hook.get("command", "") for group in session_start for hook in group.get("hooks", [])
+    ]
+    if not any(_REQUIRED_SESSION_START_SUBSTRING in c for c in commands):
+        findings.append(
+            Finding(
+                _SRC,
+                "hooks.SessionStart",
+                f"SessionStart に {_REQUIRED_SESSION_START_SUBSTRING} を読むコマンドがありません。"
+                "運用指示が全リポで載らなくなります",
+            )
+        )
 
     return findings

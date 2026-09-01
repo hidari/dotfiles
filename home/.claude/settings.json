@@ -105,6 +105,15 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat \"$(git rev-parse --show-toplevel)/.hidari/private-ops/PRIVATE_CLAUDE.md\" 2>/dev/null"
+          }
+        ]
       }
     ],
     "PostToolUse": [

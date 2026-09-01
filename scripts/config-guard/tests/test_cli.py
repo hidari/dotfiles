@@ -17,6 +17,7 @@ from config_guard.tool_provisioning import BREWFILE_PATH, PRECOMMIT_CONFIG_PATH
 from tests.conftest import (
     APM_GUARD_HOOK_COMMAND,
     GUARD_HEALTH_HOOK_COMMAND,
+    PRIVATE_OPS_HOOK_COMMAND,
     TIRITH_HOOK_COMMAND,
     hook_group,
     init_repo,
@@ -33,7 +34,9 @@ GOOD_SETTINGS = {
     # SessionStart の matcher は開始理由を見るので "*" を明示する
     "hooks": {
         **pretooluse(hook_group(TIRITH_HOOK_COMMAND, APM_GUARD_HOOK_COMMAND)),
-        **session_start(hook_group(GUARD_HEALTH_HOOK_COMMAND, matcher="*")),
+        **session_start(
+            hook_group(GUARD_HEALTH_HOOK_COMMAND, PRIVATE_OPS_HOOK_COMMAND, matcher="*")
+        ),
     },
     # nested traversal の除外。フックの配線と同じ理由でここへ置く
     "claudeMdExcludes": ["**/home/.claude/CLAUDE.md"],
