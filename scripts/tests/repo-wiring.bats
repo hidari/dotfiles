@@ -107,6 +107,19 @@ teardown() {
     [ "$(grep -c '^\.cache/$' "$TARGET/.git/info/exclude")" -eq 1 ]
 }
 
+@test "repo-wiring keeps an existing pattern that lacks a trailing newline" {
+    # 追記先が末尾改行を欠くと、追記行が最終行と融合して既存パターンを壊す。
+    # 壊れた側は「ignore されていたものが ignore されなくなる」形で失われるので、
+    # 利用者が意図して除外していたファイルが追跡の射程へ戻る。
+    printf 'secrets.env' > "$TARGET/.git/info/exclude"
+
+    run "$WIRING" --ops "$OPS" "$TARGET"
+
+    [ "$status" -eq 0 ]
+    grep -q '^secrets\.env$' "$TARGET/.git/info/exclude"
+    grep -q '^\.hidari/$' "$TARGET/.git/info/exclude"
+}
+
 @test "repo-wiring refuses when the cache path is still not ignored" {
     # .hidari/ 側は通り .cache/ 側だけが塞がれる状態を作る。両方を塞ぐと
     # どちらの guard で落ちたのか区別できない。

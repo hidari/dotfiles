@@ -97,6 +97,12 @@ is_git_repo "$TARGET" || fail "git リポジトリではありません: $TARGET
 #    マシンローカル設定を外すと ignore されなくなる。
 exclude="$TARGET/.git/info/exclude"
 mkdir -p "$(dirname "$exclude")"
+# 追記先が末尾改行を欠くと、最初の追記行が最終行と融合する。融合した既存パターンは
+# ignore を失うので、利用者が意図して除外していたファイルが追跡の射程へ戻る。
+# コマンド置換は末尾の改行を落とすため、最終バイトが改行なら結果は空になる。
+if [ -s "$exclude" ] && [ -n "$(tail -c 1 "$exclude")" ]; then
+    printf '\n' >> "$exclude"
+fi
 for pattern in '.hidari/' '.cache/'; do
     if ! grep -qxF "$pattern" "$exclude" 2>/dev/null; then
         printf '%s\n' "$pattern" >> "$exclude"
