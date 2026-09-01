@@ -45,6 +45,7 @@ SYMLINK_PAIRS=(
     # claude_mirror_pairs が claude-config-dirs から生成する (名前をリポジトリへ書かないため)。
     "scripts/backup-tool/backup|.local/bin/backup"
     "scripts/util-tools/small-id-gen/small-id-gen.sh|.local/bin/small-id-gen"
+    "scripts/repo-wiring/repo-wiring|.local/bin/repo-wiring"
     "scripts/apm-guard/apm|.local/libexec/apm-guard/apm"
     "scripts/apm-guard/lib.sh|.local/libexec/apm-guard/lib.sh"
 )
