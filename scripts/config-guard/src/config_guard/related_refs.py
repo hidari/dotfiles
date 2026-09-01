@@ -117,7 +117,6 @@ _LINK_BASELINE_ENTRIES: dict[str, int] = {
     "39_config-guard の Markdown フェンス走査を 1 実装へ寄せる/issue.md": 2,
     "40_skill バンドルの command と agent の二重登録を止める/issue.md": 2,
     "41_語の検査の近似を減らし免除の粒度を上げる/issue.md": 1,
-    "42_リポジトリ固有の運用指示を外部ストレージから注入する仕組みを固める/issue.md": 3,
     "44_.zshrc が非対話シェルへ運ぶ設定をエイリアス以外にも絞る/issue.md": 1,
     "45_job が導入しないコマンドのテストが静かに全 skip する状態を解消する/issue.md": 2,
     "closed/10_タスクリスト ID を作業ディレクトリから自動導出する/issue.md": 1,
