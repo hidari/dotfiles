@@ -251,6 +251,21 @@ def test_symlink_が切れていれば沈黙(tmp_path: Path, monkeypatch: pytest
     assert result.healthy is False
 
 
+def test_CLAUDE_PROJECT_DIR_が無ければ対象外として健全(monkeypatch: pytest.MonkeyPatch) -> None:
+    """フックの cwd がリポ外のときの実運用状態。_project_root() が None を返す枝を測る。
+
+    他のテストはすべて _repo() 経由で CLAUDE_PROJECT_DIR を設定するため、これを欠いたまま
+    走らせないとこの枝は一度も実行されない。healthy=False へ変異させても全体が緑のまま
+    通り得る。
+    """
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+
+    result = guard_probes.probe_private_ops()
+
+    assert result.healthy is True
+    assert result.detail == ""
+
+
 def test_登録簿は名前の集合で_pin_する() -> None:
     """件数ではなく名前で見る。件数だけだと差し替えを見逃す。"""
     assert {name for name, _ in guard_probes.PROBES} == {"apm", "tirith", "private-ops"}
