@@ -76,3 +76,19 @@ teardown() {
 
     [ "$status" -ne 0 ]
 }
+
+@test "repo-wiring refuses when the target is not a git repository" {
+    # 単に非 0 終了と .hidari 不在だけを見ると、この guard を外しても後段の
+    # check-ignore が別経路で fail-closed するため区別できない (dead pin)。
+    # このテスト固有の fail メッセージと、guard を通れば作られるはずの
+    # .git/info/exclude が作られていないことまで見て、この guard 自体を pin する。
+    local not_a_repo="$TEST_HOME/not-a-repo"
+    mkdir -p "$not_a_repo"
+
+    run "$WIRING" --ops "$OPS" "$not_a_repo"
+
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "git リポジトリではありません"
+    [ ! -e "$not_a_repo/.git" ]
+    [ ! -e "$not_a_repo/.hidari" ]
+}

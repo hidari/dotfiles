@@ -11,7 +11,7 @@ set -euo pipefail
 OPS_DEFAULT="$HOME/.hidari/private-ops"
 
 usage() {
-    echo "usage: repo-wiring [--ops <path>] <repo-path>" >&2
+    echo "repo-wiring: 使い方: repo-wiring [--ops <path>] <repo-path>" >&2
     exit 2
 }
 
