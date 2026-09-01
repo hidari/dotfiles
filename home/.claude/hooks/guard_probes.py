@@ -162,7 +162,10 @@ def probe_private_ops() -> ProbeResult:
     リポで常に鳴ることになる。一覧との突き合わせは棚卸し側 (repo-wiring --check) が持つ。
 
     exists() は symlink を辿るので、切れたリンクは False になる。外部ストレージが
-    未マウントで実体へ届かない状態もここで捕まる。
+    未マウントで実体へ届かない状態もここで捕まる。ただし exists() だけでは通常
+    ファイルも真になるため、symlink であることも併せて見る。取り付け側
+    (repo-wiring の is_wired) が symlink を要求しているので、検出側だけが緩いと
+    「取り付けは拒むが検出は沈黙する」非対称ができる。
     """
     root = _project_root()
     if root is None:
@@ -173,7 +176,7 @@ def probe_private_ops() -> ProbeResult:
         return ProbeResult(healthy=True)
 
     link = hidari / "private-ops"
-    if link.exists():
+    if link.is_symlink() and link.exists():
         return ProbeResult(healthy=True)
 
     return ProbeResult(

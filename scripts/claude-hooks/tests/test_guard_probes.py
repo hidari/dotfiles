@@ -251,6 +251,25 @@ def test_symlink_が切れていれば沈黙(tmp_path: Path, monkeypatch: pytest
     assert result.healthy is False
 
 
+def test_通常ファイルが_symlink_の代わりに置かれていれば沈黙(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """exists() は通常ファイルでも真になるので、それだけでは取り付け済みと区別できない。
+
+    この状態では cat が指示のファイルへ到達できず、指示は載らない。probe が健全と
+    答えると、検出層が存在する意味を失う。取り付け側 (repo-wiring の is_wired) は
+    symlink であることを見ているので、検出側だけが緩いという非対称でもある。
+    """
+    root = _repo(tmp_path, monkeypatch)
+    (root / ".hidari").mkdir()
+    (root / ".hidari" / "private-ops").write_text("")
+
+    result = guard_probes.probe_private_ops()
+
+    assert result.healthy is False
+    assert "private-ops" in result.detail
+
+
 def test_CLAUDE_PROJECT_DIR_が無ければ対象外として健全(monkeypatch: pytest.MonkeyPatch) -> None:
     """フックの cwd がリポ外のときの実運用状態。_project_root() が None を返す枝を測る。
 
