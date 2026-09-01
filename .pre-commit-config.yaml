@@ -226,7 +226,7 @@ repos:
         name: shellcheck (shell static analysis)
         language: system
         entry: shellcheck -x -P SCRIPTDIR
-        files: (\.sh$|\.bash$|^scripts/apm-guard/apm$)
+        files: (\.sh$|\.bash$|^scripts/apm-guard/apm$|^scripts/repo-wiring/repo-wiring$)
 
   # 標準 hook。CLAUDE.md の「末尾は改行1つ」「行末空白なし/ノイズ0」を prose でなくツールで担保する。
   # この2 hook は cosmetic (機能に無影響) ゆえ pre-commit-only とし CI ミラーは張らない (--no-verify で main に

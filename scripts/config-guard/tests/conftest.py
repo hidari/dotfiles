@@ -30,6 +30,13 @@ TIRITH_HOOK_COMMAND = 'python3 "$HOME/.claude/hooks/tirith-check.py"'
 APM_GUARD_HOOK_COMMAND = 'python3 "$HOME/.claude/hooks/apm-install-guard.py"'
 GUARD_HEALTH_HOOK_COMMAND = 'python3 "$HOME/.claude/hooks/guard-health.py"'
 
+# 運用指示 (PRIVATE_CLAUDE.md) を読む SessionStart コマンド。理由は上と同じで
+# settings_invariants の定数から生成しない。
+PRIVATE_OPS_HOOK_COMMAND = (
+    'cat "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}'
+    '/.hidari/private-ops/PRIVATE_CLAUDE.md" 2>/dev/null'
+)
+
 
 def hook_group(*commands: str, matcher: str | None = "Bash") -> dict[str, Any]:
     """PreToolUse の 1 グループを作る。matcher=None で matcher キー自体を持たない形にする。"""

@@ -23,6 +23,7 @@ import os
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 import guard_resolve
 
@@ -139,9 +140,59 @@ def probe_tirith() -> ProbeResult:
     return ProbeResult(healthy=True)
 
 
+def _project_root() -> Path | None:
+    """フックから見た作業ツリーの根。決められなければ None。
+
+    git を呼ばず環境変数だけで決める。フックの cwd はリポ外のこともあり、そこで
+    git を呼ぶと「リポではない」と「指示が無い」が同じ失敗の形をとる。
+    """
+    root = os.environ.get("CLAUDE_PROJECT_DIR")
+    return Path(root) if root else None
+
+
+def probe_private_ops() -> ProbeResult:
+    """運用指示の実体へ到達できるか。
+
+    .hidari/ の存在を opt-in マーカーとして使う。このディレクトリはユーザーが個人の
+    メモを置く場所として全リポで運用しており、新しい状態を増やさずに「対象かどうか」を
+    表せる。無いリポは対象外なので健全として通す。
+
+    一覧は読まない。一覧は外部ストレージにあり到達経路がこの symlink なので、symlink が
+    無いリポでは一覧そのものが読めない。読めない状態を沈黙として報告すると、対象外の
+    リポで常に鳴ることになる。一覧との突き合わせは棚卸し側 (repo-wiring --check) が持つ。
+
+    exists() は symlink を辿るので、切れたリンクは False になる。外部ストレージが
+    未マウントで実体へ届かない状態もここで捕まる。ただし exists() だけでは通常
+    ファイルも真になるため、symlink であることも併せて見る。取り付け側
+    (repo-wiring の is_wired) が symlink を要求しているので、検出側だけが緩いと
+    「取り付けは拒むが検出は沈黙する」非対称ができる。
+    """
+    root = _project_root()
+    if root is None:
+        return ProbeResult(healthy=True)
+
+    hidari = root / ".hidari"
+    if not hidari.is_dir():
+        return ProbeResult(healthy=True)
+
+    link = hidari / "private-ops"
+    if link.is_symlink() and link.exists():
+        return ProbeResult(healthy=True)
+
+    return ProbeResult(
+        healthy=False,
+        detail=(
+            f"{link} が解決しないため、このリポジトリの運用指示は読み込まれていない。"
+            "外部ストレージが未マウントか、symlink が張られていない。"
+            "repo-wiring を実行すると張り直せる。"
+        ),
+    )
+
+
 # プローブの登録簿。名前を結果ではなくここが持つのは、プローブの呼び出し自体が例外で
 # 落ちたときにも名前が要るためである。名前が無いと「検査できなかった」を報告できない。
 PROBES: tuple[tuple[str, Callable[[], ProbeResult]], ...] = (
     ("apm", probe_apm),
     ("tirith", probe_tirith),
+    ("private-ops", probe_private_ops),
 )

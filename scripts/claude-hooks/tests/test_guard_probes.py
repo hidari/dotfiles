@@ -191,6 +191,100 @@ def test_clean_なコマンドに_clean_を返さなければ沈黙(
 def test_登録簿は名前と関数の組を持つ() -> None:
     """呼び出し自体が例外で落ちたときにも名前が要るので、名前は結果ではなく登録簿が持つ。"""
     names = [name for name, _ in guard_probes.PROBES]
-    assert names == ["apm", "tirith"]
+    assert names == ["apm", "tirith", "private-ops"]
     for _, probe in guard_probes.PROBES:
         assert callable(probe)
+
+
+def _repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """CLAUDE_PROJECT_DIR で指させる作業ツリーを 1 つ作る。
+
+    git init しないのは、probe が git を呼ばずに環境変数だけで根を決める規約だからである。
+    git を呼ぶ形にすると、フックの cwd がリポ外だったときの挙動がテストから見えなくなる。
+    """
+    root = tmp_path / "repo"
+    root.mkdir()
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(root))
+    return root
+
+
+def test_hidari_が無ければ対象外として健全(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _repo(tmp_path, monkeypatch)
+
+    result = guard_probes.probe_private_ops()
+
+    assert result.healthy is True
+    assert result.detail == ""
+
+
+def test_private_ops_が解決すれば健全(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = _repo(tmp_path, monkeypatch)
+    target = tmp_path / "cloud" / "private-ops"
+    target.mkdir(parents=True)
+    (root / ".hidari").mkdir()
+    (root / ".hidari" / "private-ops").symlink_to(target)
+
+    result = guard_probes.probe_private_ops()
+
+    assert result.healthy is True
+
+
+def test_hidari_はあるのに_private_ops_が無ければ沈黙(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _repo(tmp_path, monkeypatch)
+    (root / ".hidari").mkdir()
+
+    result = guard_probes.probe_private_ops()
+
+    assert result.healthy is False
+    assert "private-ops" in result.detail
+
+
+def test_symlink_が切れていれば沈黙(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = _repo(tmp_path, monkeypatch)
+    (root / ".hidari").mkdir()
+    (root / ".hidari" / "private-ops").symlink_to(tmp_path / "gone")
+
+    result = guard_probes.probe_private_ops()
+
+    assert result.healthy is False
+
+
+def test_通常ファイルが_symlink_の代わりに置かれていれば沈黙(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """exists() は通常ファイルでも真になるので、それだけでは取り付け済みと区別できない。
+
+    この状態では cat が指示のファイルへ到達できず、指示は載らない。probe が健全と
+    答えると、検出層が存在する意味を失う。取り付け側 (repo-wiring の is_wired) は
+    symlink であることを見ているので、検出側だけが緩いという非対称でもある。
+    """
+    root = _repo(tmp_path, monkeypatch)
+    (root / ".hidari").mkdir()
+    (root / ".hidari" / "private-ops").write_text("")
+
+    result = guard_probes.probe_private_ops()
+
+    assert result.healthy is False
+    assert "private-ops" in result.detail
+
+
+def test_CLAUDE_PROJECT_DIR_が無ければ対象外として健全(monkeypatch: pytest.MonkeyPatch) -> None:
+    """フックの cwd がリポ外のときの実運用状態。_project_root() が None を返す枝を測る。
+
+    他のテストはすべて _repo() 経由で CLAUDE_PROJECT_DIR を設定するため、これを欠いたまま
+    走らせないとこの枝は一度も実行されない。healthy=False へ変異させても全体が緑のまま
+    通り得る。
+    """
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+
+    result = guard_probes.probe_private_ops()
+
+    assert result.healthy is True
+    assert result.detail == ""
+
+
+def test_登録簿は名前の集合で_pin_する() -> None:
+    """件数ではなく名前で見る。件数だけだと差し替えを見逃す。"""
+    assert {name for name, _ in guard_probes.PROBES} == {"apm", "tirith", "private-ops"}
