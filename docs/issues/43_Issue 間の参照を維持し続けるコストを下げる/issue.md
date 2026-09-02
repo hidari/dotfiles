@@ -95,5 +95,5 @@ ISSUE-24 の実測から、こちらの裁定を支える材料が 1 つ出た�
   この Issue の裁定を持ち込む先
 - agentic-coding-tools の ISSUE-22: skill のグローバル配布で他リポジトリの Issue 記法が
   混在する。rename しない判断を持つ
-- ISSUE-46: 両リポジトリの Issue をマイルストーンへ整理し着手順を決める。この Issue が
-  そこで言う M1 の本体
+- ISSUE-46: 両リポジトリの Issue をマイルストーンへ整理し着手順を決める。所属の canonical は
+  あちらの表

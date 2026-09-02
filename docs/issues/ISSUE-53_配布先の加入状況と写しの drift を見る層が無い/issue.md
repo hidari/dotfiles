@@ -10,8 +10,8 @@ agentic-coding-tools の ISSUE-32 は、in-repo Issue の検査を配布先で�
 5 つの層へ分けている。そのうち層 3「横断スイープで加入状況と写しの drift を検出する」は
 担当リポをこのリポジトリと宣言しているが、こちら側に担当 Issue が無い。
 
-ISSUE-46 のマイルストーン表も M2 行に「新規起票が要る (担当 Issue が無い)」と書いたまま
-残っている。この Issue がその担当である。
+ISSUE-46 のマイルストーン表は M2 行に「新規起票が要る (担当 Issue が無い)」と書いたまま
+残っていた。この Issue がその担当である。
 
 ## 実測 (2026-08-28)
 
@@ -86,7 +86,8 @@ git hook や CI から呼ぶ」という土俵そのものを疑うところか�
 - agentic-coding-tools の ISSUE-36: skill と plugin が消費側へ要求する取り付けの棚卸し。
   型 3 の写しの drift と型 6 の配布層自体がこの Issue の対象
 - agentic-coding-tools の ISSUE-13: 両取り付けの同時撤去を機構で検出できない
-- ISSUE-46: マイルストーン M2 の担当。この Issue が M2 の先頭になる
+- ISSUE-46: 両リポジトリの Issue をマイルストーンへ整理し着手順を決める。所属と着手順の
+  canonical はあちらの表
 - ISSUE-42: リポジトリ固有の運用指示を外部ストレージから注入する仕組みを固める。
   一覧による母数の定義・probe と棚卸しの二層・母数を常に出す形の前例を作った側
 - ISSUE-64: relay と studio-Hamiltonian へ pre-commit と gitleaks を入れる作業。

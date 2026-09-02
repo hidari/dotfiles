@@ -25,3 +25,5 @@ PR #49 で見送った理由: `NVIM_BIN` / `CI` の skip ガードは `setup()` 
 - PR #49（pre-merge gate の efficiency レビューで検出、実測値の出典）
 - `scripts/tests/nvim-markdown.bats` / `scripts/tests/nvim-markdown-probe.lua`
 - `.github/actions/setup-bats/action.yml`（bats 1.13 pin）
+- Issue 45: job が導入しないコマンドのテストが静かに全 skip する状態を解消する。同じ
+  `scripts/tests/` を触るので、着手順によっては衝突する
