@@ -66,3 +66,5 @@ mise は exact pin で運用している。uv だけが action の pin だけで
   - 取得手順の重複を `scripts/ci/download-and-verify.sh` へ寄せた Issue。本 Issue は
     その取得が失敗したときの振る舞いを扱う
 - PR #115 と PR #116 の CI で観測 (どちらも該当 job の再実行で緑)
+- ISSUE-50: GitHub Repository Rulesets を導入する。必須ステータスチェックを入れると、この
+  Issue が扱う一時障害がそのままマージのブロックになる。あちらは本 Issue を先行に置いている

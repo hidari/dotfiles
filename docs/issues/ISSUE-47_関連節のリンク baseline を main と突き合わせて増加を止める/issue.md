@@ -41,5 +41,5 @@ config-guard の `related_refs` は `## 関連` 節に残るローカルリン�
 
 - Issue 43: Issue 間の参照を維持し続けるコストを下げる。`LINK_BASELINE` を作った側で、
   この Issue はそこで実装しなかった半分にあたる
-- ISSUE-46: 両リポジトリの Issue をマイルストーンへ整理し着手順を決める。M5 の
-  config-guard の検査基盤に属する
+- ISSUE-46: 両リポジトリの Issue をマイルストーンへ整理し着手順を決める。所属の canonical は
+  あちらの表

@@ -23,3 +23,6 @@ Issue #16 で導入した `issue-scoped-artifacts` hook は、上流 superpowers
 ## 関連
 
 [Issue #16](../closed/16_superpowers%20の成果物を%20Issue%20ディレクトリ配下へ寄せる/issue.md) の最終レビューで検出した既知の限界。`16-spec.md` と `16-plan.md` の「今回やらないこと」節を参照。
+
+Issue 18: closed 配下の Issue の status を config-guard で検査する。同種の検査で、片方を
+実装するときにもう片方も併せて入れる形が自然。

@@ -31,3 +31,6 @@ Issue #20 では内蔵ディスプレイのみの条件で live smoke を取っ�
 
 Issue #20 の pre-merge quality gate で code-reviewer が指摘した。
 現在はスクリプト冒頭のコメントに制約として明記しているだけで、検査は無い。
+
+Issue 22: リファレンスモード切り替えの UI 走査を 1 回に減らす。同じ
+`toggle-reference-mode.sh` の別の欠陥なので、着手が重なると衝突する。
