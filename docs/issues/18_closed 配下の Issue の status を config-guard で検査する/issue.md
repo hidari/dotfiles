@@ -27,3 +27,5 @@ skill 側では claude-plugins の PR #7 で D.4 の記述を「add しなけれ
 [Issue #16](../closed/16_superpowers%20の成果物を%20Issue%20ディレクトリ配下へ寄せる/issue.md) のクローズ作業で実測した挙動が出発点。
 
 [Issue #17](../17_Issue%20ディレクトリ配下の成果物ファイル名を%20config-guard%20で検査する/issue.md) と同種で、どちらも config-guard による Issue ディレクトリの検査強化にあたる。片方を実装するときにもう片方も併せて入れる形が自然。
+
+ISSUE-74 は同じ不整合を作る側 (skill の指示文) を直す提案で、本 Issue の検査はそちらを直しても要る。
