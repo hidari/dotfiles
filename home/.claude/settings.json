@@ -2,7 +2,8 @@
   "cleanupPeriodDays": 99999,
   "env": {
     "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR": "true",
-    "ENABLE_TOOL_SEARCH": "true"
+    "ENABLE_TOOL_SEARCH": "true",
+    "CLAUDE_CODE_THRIFTY_SONIC": "false"
   },
   "attribution": {
     "commit": "",
@@ -202,12 +203,12 @@
   "promptSuggestionEnabled": false,
   "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,
+  "claudeMdExcludes": [
+    "**/home/.claude/CLAUDE.md"
+  ],
   "editorMode": "normal",
   "remoteControlAtStartup": true,
   "crossSessionInbound": "accept",
   "inputNeededNotifEnabled": true,
-  "agentPushNotifEnabled": true,
-  "claudeMdExcludes": [
-    "**/home/.claude/CLAUDE.md"
-  ]
+  "agentPushNotifEnabled": true
 }
