@@ -55,6 +55,24 @@ def test_どこにも現れないフックを孤児として検出する(tmp_pat
     assert [f.detail for f in findings] == ["orphan.py"]
 
 
+def test_hooks_の外にある実行可能ファイルも母集団に入る(tmp_path: Path) -> None:
+    """母集団はディレクトリではなく「settings.json が参照すべき実行可能ファイル」。
+
+    statusline-command.sh は hooks/ の外にあるが、settings.json から外れると
+    レートリミットのフックへの供給が止まる。ディレクトリで区切ると、この種のファイルが
+    エラーにならず静かに検査の外へ出る。
+    """
+    root = _repo(tmp_path, {"a.py": 0o755})
+    outside = write_file(root, "home/.claude/outside.sh", "#!/usr/bin/env bash\n")
+    outside.chmod(0o755)
+    run_git(root, "add", "-A")
+    run_git(root, "commit", "-qm", "outside")
+
+    findings = check_hook_wiring(str(root), _WIRED)
+
+    assert [f.detail for f in findings] == ["outside.sh"]
+
+
 def test_実行ビットの無いファイルは共有モジュールとして除く(tmp_path: Path) -> None:
     """共有モジュールは配線されないのが正しい。実行ビットが本体と分けている。"""
     root = _repo(tmp_path, {"a.py": 0o755, "shared.py": 0o644})

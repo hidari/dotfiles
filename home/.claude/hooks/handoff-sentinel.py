@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Claude Code hook: セッション引き継ぎ検知器 (handoff-sentinel)。
 
-第1引数で分岐する: posttool (コンテキスト使用率の監視) / stop (ツール呼び出し破損の
-通算検知) / session (.cache/handoff.md の自動注入) / record (skill からの provenance 記録)。
+第1引数で分岐する: posttool (コンテキスト使用率とレートリミットの監視) / stop (ツール呼び出し
+破損の通算検知) / session (.cache/handoff.md の自動注入) / record (skill からの provenance 記録)。
 しきい値等の canonical はこのファイルの定数であり、HANDOFF_* 環境変数で上書きできる。
 検知機構の故障で作業を止めないため、全経路 fail-safe (無出力 + exit 0)。
 仕様: docs/superpowers/archive/2026-07-03-session-handoff-design.md
@@ -14,7 +14,6 @@ import hashlib
 import json
 import os
 import re
-import subprocess
 import sys
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -64,11 +63,21 @@ def _env_int(name: str, default: int) -> int:
     return value if value > 0 else default
 
 
+def _cache_root() -> Path:
+    """このフックが使うキャッシュの根。statusline-command.sh の CACHE_DIR と同じ規則。
+
+    規則を 1 つに閉じないと、XDG_CACHE_HOME を設定したマシンで state とレートリミットの
+    キャッシュが別の根へ落ち、statusline とも片方だけ食い違う。
+    """
+    cache_home = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
+    return Path(cache_home) / "claude"
+
+
 def _state_dir() -> Path:
     override = os.environ.get("HANDOFF_STATE_DIR", "")
     if override:
         return Path(override)
-    return Path.home() / ".cache" / "claude" / "handoff-sentinel"
+    return _cache_root() / "handoff-sentinel"
 
 
 def _notify_once(state_file: Path) -> bool:
@@ -172,8 +181,7 @@ def _rate_limits_path() -> Path:
     if override:
         return Path(override)
     config_dir = os.environ.get("CLAUDE_CONFIG_DIR") or str(Path.home() / ".claude")
-    cache_home = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
-    return Path(cache_home) / "claude" / f"rate-limits-{_account_tag(config_dir)}.json"
+    return _cache_root() / f"rate-limits-{_account_tag(config_dir)}.json"
 
 
 def _read_json_dict(path: Path) -> dict[str, Any]:
@@ -203,7 +211,8 @@ def _ratelimit_notices(session_id: str) -> list[str]:
     warn_pct = _env_int("HANDOFF_RATELIMIT_WARN_PCT", DEFAULT_RATELIMIT_WARN_PCT)
     urgent_pct = _env_int("HANDOFF_RATELIMIT_URGENT_PCT", DEFAULT_RATELIMIT_URGENT_PCT)
     now = datetime.now(UTC).timestamp()
-    fired = _read_json_dict(_session_state_file(session_id, "ratelimit"))
+    state_path = _session_state_file(session_id, "ratelimit")
+    fired = _read_json_dict(state_path)
     notices: list[str] = []
     for name in sorted(windows):
         info = windows[name]
@@ -211,60 +220,55 @@ def _ratelimit_notices(session_id: str) -> list[str]:
             continue
         pct = info.get("used_percentage")
         resets_at = info.get("resets_at")
-        # 欠落は 0% ではなく判定不能として飛ばす (欠ける経路が 4 つあり、どれも健全ではない)
+        # 欠落を 0% と読むと、値が無いときに必ず「余裕あり」へ倒れる。判定不能として飛ばす
         if not _is_number(pct):
             continue
-        if not _is_number(resets_at):
-            continue
-        if resets_at <= now:
-            # 失効した窓。本体は落とすが、キャッシュが古いときはここで落とす。
-            # 落とさないとリセットで圧が下がった瞬間に撃つ
+        # 失効した窓は見ない。本体は落として渡すが、キャッシュが古いときはここで落とす。
+        # 落とさないとリセットで圧が下がった瞬間に撃つ
+        if not (_is_number(resets_at) and resets_at > now):
             continue
         if pct >= urgent_pct:
-            threshold = urgent_pct
+            threshold, urgent = urgent_pct, True
         elif pct >= warn_pct:
-            threshold = warn_pct
+            threshold, urgent = warn_pct, False
         else:
             continue
         key = f"{name}:{threshold}"
         if fired.get(key) == resets_at:
             continue
         fired[key] = resets_at
-        notices.append(_ratelimit_message(name, pct, threshold, urgent_pct))
+        notices.append(_ratelimit_message(name, pct, threshold, urgent=urgent))
     if notices:
-        _write_ratelimit_state(session_id, fired)
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.write_text(json.dumps(fired), encoding="utf-8")
     return notices
 
 
-def _write_ratelimit_state(session_id: str, fired: dict[str, Any]) -> None:
-    path = _session_state_file(session_id, "ratelimit")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(fired), encoding="utf-8")
-
-
-def _ratelimit_message(name: str, pct: float, threshold: int, urgent_pct: int) -> str:
-    label = _WINDOW_LABELS.get(name, name)
-    used = f"{pct:g}"
-    if threshold >= urgent_pct:
-        return (
-            f"{label}のレートリミットが {threshold}% に達した (現在 {used}%)。"
-            "他の作業を中断し、直ちに session-handoff スキルを発動して引き継ぎを "
-            ".cache/handoff.md へ書き出し、記憶すべきことをメモリへ保存すること。"
-        )
-    return (
-        f"{label}のレートリミットが {threshold}% を超えた (現在 {used}%)。"
-        "区切りの良いところで session-handoff スキルを発動し、引き継ぎを "
+def _ratelimit_message(name: str, pct: float, threshold: int, *, urgent: bool) -> str:
+    """段の違いは求める行動に出す。しきい値との大小関係はどちらの段でも同じなので書き分けない。"""
+    action = (
+        "他の作業を中断し、直ちに session-handoff スキルを発動して引き継ぎを "
+        ".cache/handoff.md へ書き出し、記憶すべきことをメモリへ保存すること。"
+        if urgent
+        else "区切りの良いところで session-handoff スキルを発動し、引き継ぎを "
         ".cache/handoff.md に書き出すこと。"
     )
+    label = _WINDOW_LABELS.get(name, name)
+    return f"{label}のレートリミットが {threshold}% を超えた (現在 {pct:g}%)。{action}"
 
 
 def _context_notices(session_id: str, transcript_path: str) -> list[str]:
+    # 通知は 1 セッション 1 回なので、鳴った後は transcript を読む意味が無い。
+    # posttool はツール呼び出しのたびに走るため、この stat 1 回が末尾 1MB の読み込みを丸ごと省く
+    notified = _session_state_file(session_id, "notified")
+    if notified.exists():
+        return []
     window = _env_int("HANDOFF_CONTEXT_WINDOW_TOKENS", DEFAULT_CONTEXT_WINDOW_TOKENS)
     threshold_pct = _env_int("HANDOFF_CONTEXT_THRESHOLD_PCT", DEFAULT_CONTEXT_THRESHOLD_PCT)
     tokens = _context_tokens(_read_tail_entries(transcript_path))
     if tokens * 100 < window * threshold_pct:
         return []
-    if not _notify_once(_session_state_file(session_id, "notified")):
+    if not _notify_once(notified):
         return []
     return [
         f"コンテキスト使用率がしきい値を超えた (推定 {tokens} tokens)。"
@@ -377,7 +381,14 @@ def _isolated_git_env() -> dict[str, str]:
 
 
 def _repo_root(cwd: str) -> Path:
-    """cwd の git リポルートを返す。リポ外・git 不在は cwd に落とす。"""
+    """cwd の git リポルートを返す。リポ外・git 不在は cwd に落とす。
+
+    subprocess をここで import するのは、この関数へ来るのが record / session の 2 経路だけで、
+    ツール呼び出しごとに走る posttool と stop は一度も通らないため。トップレベルへ置くと
+    全経路が起動のたびにインタプリタの import コストを払う。
+    """
+    import subprocess
+
     try:
         result = subprocess.run(
             ["git", "-C", cwd, "rev-parse", "--show-toplevel"],

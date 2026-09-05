@@ -3,7 +3,7 @@
 # statusline-command.sh のレートリミット表示とアカウント分離テスト
 # =============================================================================
 #
-# statusLine が守る仕様は 3 つ。
+# レートリミットと 2 アカウント運用で statusLine が守る仕様は 3 つ。
 #   1. レートリミットは Claude Code 本体が stdin で渡す値を使う (自前で API を叩かない)
 #   2. 失効した窓は表示しない (リセット直後に前の窓の高い使用率を出さない)
 #   3. キャッシュをアカウントごとに分ける
@@ -174,7 +174,7 @@ expected_tag_for() {
 # =============================================================================
 
 @test "statusline: treats used_percentage as a 0-100 value" {
-    # 旧実装は 0.0-1.0 のヘッダ値を 100 倍していた。取り違えると 42% が 4200% になる。
+    # used_percentage は 0-100。0.0-1.0 と取り違えると 42% が 4200% になる。
     # スケールの取り違えは例外を出さずに成立するので、値そのものを exact に見る
     run_statusline "$(rate_limits_json 42 13)"
 
@@ -186,7 +186,8 @@ expected_tag_for() {
 @test "statusline: does not show an expired window" {
     # 本体は失効窓を落として渡すが、キャッシュから読み直す経路では過ぎた窓が残る。
     # 残すとリセットで圧が下がった直後に前の窓の使用率を出し続ける
-    run_statusline "$(rate_limits_json 99 99 "$STATUSLINE_PAST_RESET")"
+    local expired=1000000000  # 2001-09-09
+    run_statusline "$(rate_limits_json 99 99 "$expired")"
 
     [ "$status" -eq 0 ]
     assert_contains "${lines[1]}" "--%"
@@ -208,19 +209,12 @@ expected_tag_for() {
 @test "statusline: never runs an inference probe of its own" {
     # プローブは推論リクエストなので、リミットを測るためにリミットを消費する。
     # PATH 先頭の偽物が一度でも呼ばれたら、実装がまだ自前で取りに行っている
-    local fake_bin="$TEST_HOME/fakebin"
-    mkdir -p "$fake_bin"
-    local probe_log="$TEST_HOME/probe.log"
-    : > "$probe_log"
-    printf '#!/usr/bin/env bash\necho called >> "%s"\n' "$probe_log" > "$fake_bin/curl"
-    printf '#!/usr/bin/env bash\necho called >> "%s"\n' "$probe_log" > "$fake_bin/security"
-    chmod +x "$fake_bin/curl" "$fake_bin/security"
-    export PATH="$fake_bin:$PATH"
+    setup_probe_watchdog
 
     run_statusline "$(rate_limits_json)"
 
     [ "$status" -eq 0 ]
-    [ ! -s "$probe_log" ]
+    [ ! -s "$PROBE_LOG" ]
 }
 
 # =============================================================================
@@ -259,14 +253,13 @@ expected_tag_for() {
     [ -f "$XDG_CACHE_HOME/claude/rate-limits-$tag.json" ]
 }
 
-@test "statusline: writes where the handoff hook reads" {
-    # 2 つの実装がパス導出とフィールド名を共有していることを end-to-end で見る。
-    # どちらかがずれるとフックは別のファイルを読み、レートリミットの通知が
-    # 「エラーではなく無言」で来なくなる。片側だけのテストではこれを検出できない
-    local custom="$TEST_HOME/.claude-alpha"
-    mkdir -p "$custom"
-    export CLAUDE_CONFIG_DIR="$custom"
-
+# statusline が書いたキャッシュをフックが読んで発火するところまでを通す。
+# パス導出は shell と Python の 2 実装なので、どちらかがずれるとフックは別のファイルを読み、
+# レートリミットの通知が「エラーではなく無言」で来なくなる。片側だけのテストでは検出できない。
+#
+# 導出は既定アカウントとそれ以外で枝が分かれるので、両方を通す。片方だけだと、通した枝しか
+# pin されない (既定枝を壊しても全テストが緑のままになることを変異注入で確認済み)。
+assert_statusline_feeds_hook() {
     run_statusline "$(rate_limits_json 96 13)"
     [ "$status" -eq 0 ]
 
@@ -281,6 +274,22 @@ expected_tag_for() {
 
     [ "$status" -eq 0 ]
     assert_contains "$output" "session-handoff"
+}
+
+@test "statusline: writes where the handoff hook reads (custom account)" {
+    local custom="$TEST_HOME/.claude-alpha"
+    mkdir -p "$custom"
+    export CLAUDE_CONFIG_DIR="$custom"
+
+    assert_statusline_feeds_hook
+}
+
+@test "statusline: writes where the handoff hook reads (default account)" {
+    # 単一アカウント運用で実際に通る枝。ハッシュ枝だけを pin していると、
+    # 既定枝の導出が両言語でずれていても誰も気づけない
+    unset CLAUDE_CONFIG_DIR
+
+    assert_statusline_feeds_hook
 }
 
 # =============================================================================

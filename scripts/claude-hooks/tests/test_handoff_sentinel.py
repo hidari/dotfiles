@@ -146,6 +146,11 @@ def posttool_input(tmp_path: Path, transcript: Path) -> dict[str, object]:
     }
 
 
+def context_of(result: subprocess.CompletedProcess[str]) -> str:
+    """フック出力から additionalContext を取り出す。"""
+    return str(json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"])
+
+
 class TestPostToolContextWatch:
     """posttool: 最後の assistant usage 合算がしきい値以上のとき、1 回だけ通知する。"""
 
@@ -185,7 +190,7 @@ class TestPostToolContextWatch:
             "posttool", posttool_input(tmp_path, transcript), extra_env=base_env(tmp_path)
         )
         # 100+300+100=500 >= 500 で発火。報告される推定 token 数も exact に固定する
-        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        context = context_of(result)
         assert "推定 500 tokens" in context
 
     def test_通知済みセッションでは再発火しない(self, tmp_path: Path) -> None:
@@ -262,7 +267,7 @@ class TestPostToolContextWatch:
             "posttool", posttool_input(tmp_path, transcript), extra_env=base_env(tmp_path)
         )
         # 最新 999 >= 500 で発火する (U+2028 で行が割れて 200 にフォールバックしない)
-        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        context = context_of(result)
         assert "推定 999 tokens" in context
 
     def test_不正なwindow環境変数は既定にフォールバックする(self, tmp_path: Path) -> None:
@@ -284,17 +289,26 @@ FUTURE_RESET = 4_102_444_800  # 2100-01-01
 PAST_RESET = 1_000_000_000  # 2001-09-09
 
 
+def rate_limits_path(tmp_path: Path) -> Path:
+    """テスト内でのキャッシュの位置。書き込み先と env の指す先を 1 箇所に閉じる。
+
+    call site が両方に同じパスを渡す形だと、片方だけ変えたときにテストが静かに
+    「存在しないファイルを見る」状態へ落ちる。
+    """
+    return tmp_path / "rate-limits.json"
+
+
 def write_rate_limits(tmp_path: Path, windows: Mapping[str, object]) -> Path:
     """statusline が書くレートリミットのキャッシュを模した JSON を置く。"""
-    path = tmp_path / "rate-limits.json"
+    path = rate_limits_path(tmp_path)
     path.write_text(json.dumps(windows), encoding="utf-8")
     return path
 
 
-def ratelimit_env(tmp_path: Path, rate_limits: Path) -> dict[str, str]:
+def ratelimit_env(tmp_path: Path) -> dict[str, str]:
     """キャッシュの位置だけを差し替える (しきい値の既定はプロダクト側を使う)。"""
     env = base_env(tmp_path)
-    env["HANDOFF_RATE_LIMITS_FILE"] = str(rate_limits)
+    env["HANDOFF_RATE_LIMITS_FILE"] = str(rate_limits_path(tmp_path))
     return env
 
 
@@ -309,16 +323,12 @@ def run_ratelimit(
     tmp_path: Path, windows: Mapping[str, object]
 ) -> subprocess.CompletedProcess[str]:
     """窓の状態を与えて posttool を 1 回走らせる。"""
-    rate_limits = write_rate_limits(tmp_path, windows)
+    write_rate_limits(tmp_path, windows)
     return run_hook(
         "posttool",
         posttool_input(tmp_path, quiet_transcript(tmp_path)),
-        extra_env=ratelimit_env(tmp_path, rate_limits),
+        extra_env=ratelimit_env(tmp_path),
     )
-
-
-def context_of(result: subprocess.CompletedProcess[str]) -> str:
-    return str(json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"])
 
 
 class TestPostToolRateLimitWatch:
@@ -361,7 +371,7 @@ class TestPostToolRateLimitWatch:
         assert context.count("session-handoff") == 1
 
     def test_使用率が0から1のスケールでは発火しない(self, tmp_path: Path) -> None:
-        # 旧プローブは 0.0-1.0 で書いていた。取り違えた値を渡しても発火しないことを pin する。
+        # used_percentage は 0-100。0.0-1.0 スケールの値を渡しても発火しないことを pin する。
         # 0.95 を 95 と読む実装だと、ここが発火して常時通知になる
         result = run_ratelimit(
             tmp_path, {"five_hour": {"used_percentage": 0.95, "resets_at": FUTURE_RESET}}
@@ -377,8 +387,8 @@ class TestPostToolRateLimitWatch:
 
     def test_同じ窓の同じ段では再発火しない(self, tmp_path: Path) -> None:
         windows = {"five_hour": {"used_percentage": 91, "resets_at": FUTURE_RESET}}
-        rate_limits = write_rate_limits(tmp_path, windows)
-        env = ratelimit_env(tmp_path, rate_limits)
+        write_rate_limits(tmp_path, windows)
+        env = ratelimit_env(tmp_path)
         hook_input = posttool_input(tmp_path, quiet_transcript(tmp_path))
         first = run_hook("posttool", hook_input, extra_env=env)
         second = run_hook("posttool", hook_input, extra_env=env)
@@ -391,7 +401,7 @@ class TestPostToolRateLimitWatch:
         rate_limits = write_rate_limits(
             tmp_path, {"five_hour": {"used_percentage": 91, "resets_at": FUTURE_RESET}}
         )
-        env = ratelimit_env(tmp_path, rate_limits)
+        env = ratelimit_env(tmp_path)
         hook_input = posttool_input(tmp_path, quiet_transcript(tmp_path))
         first = run_hook("posttool", hook_input, extra_env=env)
         rate_limits.write_text(
@@ -406,7 +416,7 @@ class TestPostToolRateLimitWatch:
         rate_limits = write_rate_limits(
             tmp_path, {"five_hour": {"used_percentage": 91, "resets_at": FUTURE_RESET}}
         )
-        env = ratelimit_env(tmp_path, rate_limits)
+        env = ratelimit_env(tmp_path)
         hook_input = posttool_input(tmp_path, quiet_transcript(tmp_path))
         warn = run_hook("posttool", hook_input, extra_env=env)
         rate_limits.write_text(
@@ -448,7 +458,7 @@ class TestPostToolRateLimitWatch:
     def test_壊れたJSONは無出力でexit0(self, tmp_path: Path) -> None:
         broken = tmp_path / "rate-limits.json"
         broken.write_text("{not json", encoding="utf-8")
-        env = ratelimit_env(tmp_path, broken)
+        env = ratelimit_env(tmp_path)
         result = run_hook(
             "posttool", posttool_input(tmp_path, quiet_transcript(tmp_path)), extra_env=env
         )
@@ -473,25 +483,25 @@ class TestPostToolRateLimitWatch:
         # コンテキスト側の早期 return でレートリミット側が飛ばされないことを pin する
         transcript = tmp_path / "t.jsonl"
         write_transcript(transcript, [assistant_usage(500)])
-        rate_limits = write_rate_limits(
+        write_rate_limits(
             tmp_path, {"five_hour": {"used_percentage": 96, "resets_at": FUTURE_RESET}}
         )
         result = run_hook(
             "posttool",
             posttool_input(tmp_path, transcript),
-            extra_env=ratelimit_env(tmp_path, rate_limits),
+            extra_env=ratelimit_env(tmp_path),
         )
         context = context_of(result)
         assert "推定 500 tokens" in context
         assert "5 時間" in context
 
     def test_agent_id付きのsubagentでは発火しない(self, tmp_path: Path) -> None:
-        rate_limits = write_rate_limits(
+        write_rate_limits(
             tmp_path, {"five_hour": {"used_percentage": 99, "resets_at": FUTURE_RESET}}
         )
         hook_input = posttool_input(tmp_path, quiet_transcript(tmp_path))
         hook_input["agent_id"] = "agent-x"
-        result = run_hook("posttool", hook_input, extra_env=ratelimit_env(tmp_path, rate_limits))
+        result = run_hook("posttool", hook_input, extra_env=ratelimit_env(tmp_path))
         assert result.returncode == 0
         assert result.stdout == ""
 
@@ -773,7 +783,7 @@ class TestSessionStartInject:
             "GIT_WORK_TREE": str(leaked),
         }
         result = run_hook("session", session_input(repo), extra_env=env)
-        ctx = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        ctx = context_of(result)
         assert "次は Z をやる" in ctx
 
     def test_handoff不在は無出力でexit0(self, tmp_path: Path) -> None:
@@ -786,7 +796,7 @@ class TestSessionStartInject:
         record_provenance(tmp_path)
         env = base_env(tmp_path) | {"HANDOFF_INJECT_MAX_BYTES": "100"}
         result = run_hook("session", session_input(tmp_path), extra_env=env)
-        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        context = context_of(result)
         assert "A" * 100 in context
         assert "A" * 101 not in context
         assert "先頭のみ注入" in context
@@ -797,7 +807,7 @@ class TestSessionStartInject:
         record_provenance(tmp_path)
         env = base_env(tmp_path) | {"HANDOFF_INJECT_MAX_BYTES": "100"}
         result = run_hook("session", session_input(tmp_path), extra_env=env)
-        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        context = context_of(result)
         assert "�" not in context
         _header, body, _notice = context.split("\n\n")
         assert body == "あ" * 33  # 100 // 3 = 33 文字ぶんの完全な文字のみ (端数1バイトは破棄される)
@@ -810,7 +820,7 @@ class TestSessionStartInject:
         record_provenance(tmp_path)
         env = base_env(tmp_path) | {"HANDOFF_INJECT_MAX_BYTES": str(len(content))}
         result = run_hook("session", session_input(tmp_path), extra_env=env)
-        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        context = context_of(result)
         assert content in context
         assert "先頭のみ注入" not in context
 

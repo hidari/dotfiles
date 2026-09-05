@@ -84,23 +84,23 @@ fmt_duration() {
 }
 
 # ---------- アカウント識別 ----------
-# CLAUDE_CONFIG_DIR ごとに Keychain の service 名・キャッシュ・アカウント情報の
-# 置き場が変わる。既定ディレクトリだけが特別扱いされる点が全ての分岐の理由。
+# CLAUDE_CONFIG_DIR ごとにキャッシュとアカウント情報の置き場が変わる。
+# 既定ディレクトリだけが特別扱いされる点が全ての分岐の理由。
 
 # 現在の設定ディレクトリ。未設定なら既定を返す。
 account_config_dir() {
   printf '%s' "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 }
 
-# 既定の設定ディレクトリかどうか。この判定が Keychain の service 名・キャッシュ名・
-# .claude.json の置き場すべての分岐条件になるため、定義を 1 箇所に閉じる。
+# 既定の設定ディレクトリかどうか。この判定がキャッシュ名と .claude.json の置き場の
+# 分岐条件になるため、定義を 1 箇所に閉じる。
 is_default_config_dir() {
   [ "$1" = "$HOME/.claude" ]
 }
 
-# 設定ディレクトリを識別する短いタグ。既定は default、それ以外は絶対パスの
-# sha256 先頭 8 桁。Claude Code が Keychain の service 名へ付けるサフィックスと
-# 同じ導出 (実測で確定)。キャッシュファイル名の分離にも使う。
+# 設定ディレクトリを識別する短いタグ。既定は default、それ以外は絶対パスの sha256 先頭 8 桁。
+# handoff-sentinel.py の _account_tag が同じ導出を持ち、ここが書いたキャッシュをあちらが読む。
+# ずれるとフックが別のファイルを見て通知が無言で止まるので、両者を通した検体で pin してある。
 account_tag() {
   local config_dir="$1"
   if is_default_config_dir "$config_dir"; then
@@ -144,7 +144,6 @@ account_email() {
 }
 
 # ---------- Rate limits (Claude Code 本体が stdin で渡す値) ----------
-# 本体は resets_at を過ぎた窓を落とすので、ここへ来る窓はすべて有効。
 # 自前でプローブを張らない: 推論リクエストなのでリミットを測るためにリミットを消費するうえ、
 # 応答をキャッシュすると窓のリセットを跨いだとき失効した窓の使用率を出し続ける。
 # 失効した窓は捨てる。本体は落として渡してくるが、キャッシュから読み直す経路
@@ -152,10 +151,8 @@ account_email() {
 # 前の窓の高い使用率を出し続ける。
 load_rate_limits() {
   local data="$1"
-  local now
-  now=$(date +%s)
-  eval "$(printf '%s' "$data" | jq -r --argjson now "$now" '
-    def live(w): if (w.resets_at // 0) > $now then w else {} end;
+  eval "$(printf '%s' "$data" | jq -r '
+    def live(w): if (w.resets_at // 0) > now then w else {} end;
     live(.five_hour // {}) as $f |
     live(.seven_day // {}) as $s |
     "FIVE_HOUR_PCT=" + (($f.used_percentage // "") | tostring | @sh),
@@ -197,9 +194,9 @@ PINK=$'\e[38;5;213m'
 
 # ---------- Parse stdin (single jq call) ----------
 # jq 出力を eval で一括代入するため shellcheck は代入を追えない。
-# ここで先に宣言して SC2154 (referenced but not assigned) の誤検出を防ぐ
-# (usage 変数 FIVE_HOUR_UTIL 等も load_usage セクションで同様に別途宣言している)。
+# ここで先に宣言して SC2154 (referenced but not assigned) の誤検出を防ぐ。
 model_name="" used_pct="" cwd="" lines_added="" lines_removed="" cost_usd="" duration_ms="" rate_limits=""
+FIVE_HOUR_PCT="" FIVE_HOUR_RESET="" SEVEN_DAY_PCT="" SEVEN_DAY_RESET=""
 eval "$(echo "$input" | jq -r '
   "model_name=" + (.model.display_name // "Unknown" | @sh),
   "used_pct=" + (.context_window.used_percentage // 0 | tostring),
@@ -230,10 +227,6 @@ CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/claude"
 mkdir -p "$CACHE_DIR" 2>/dev/null && chmod 700 "$CACHE_DIR" 2>/dev/null
 RATE_LIMITS_CACHE="$CACHE_DIR/rate-limits-$ACCOUNT_TAG.json"
 EMAIL_CACHE_FILE="$CACHE_DIR/account-email-$ACCOUNT_TAG.txt"
-FIVE_HOUR_PCT=""
-FIVE_HOUR_RESET=""
-SEVEN_DAY_PCT=""
-SEVEN_DAY_RESET=""
 
 account_display=$(account_email "$ACCOUNT_JSON" "$EMAIL_CACHE_FILE" 2>/dev/null || true)
 
@@ -270,22 +263,26 @@ fi
 # 本体が値を渡してきたらキャッシュへ書く。handoff-sentinel フックはここを読む。
 # 本体はフックへレートリミットを渡さないので、フックへの供給経路はこの 1 本しかない。
 #
-# 渡してこないとき (セッション開始直後・headless・非サブスク) はキャッシュを消さずに読む。
+# 渡してこないとき (セッション開始直後・headless・非サブスク) はキャッシュを消さない。
 # 消すと窓がまだ有効なあいだの既知値まで失う。失効の判定は load_rate_limits が行う。
-if [ -n "$rate_limits" ] && [ "$rate_limits" != "{}" ] && [ "$rate_limits" != "null" ]; then
+if [ -n "$rate_limits" ] && [ "$rate_limits" != "{}" ]; then
   printf '%s' "$rate_limits" > "$RATE_LIMITS_CACHE"
-  load_rate_limits "$rate_limits"
-elif [ -f "$RATE_LIMITS_CACHE" ]; then
+fi
+
+# 表示は手元の値ではなく必ず書いた先を読む。こうすると画面がフックの読むバイトの
+# カナリアになり、書き込みが失敗したときに --% として目に見える。手元の値を表示すると
+# 「画面は 96% なのにフックは何も読めていない」が成立し、それを知らせる面がどこにも無い。
+if [ -f "$RATE_LIMITS_CACHE" ]; then
   load_rate_limits "$(cat "$RATE_LIMITS_CACHE")"
 fi
 
 five_reset_display=""
-if [ -n "$FIVE_HOUR_RESET" ] && [ "$FIVE_HOUR_RESET" != "0" ]; then
+if [ -n "$FIVE_HOUR_RESET" ]; then
   five_reset_display="Resets at $(format_epoch_time "$FIVE_HOUR_RESET" "+%H:%M") (Asia/Tokyo)"
 fi
 
 seven_reset_display=""
-if [ -n "$SEVEN_DAY_RESET" ] && [ "$SEVEN_DAY_RESET" != "0" ]; then
+if [ -n "$SEVEN_DAY_RESET" ]; then
   seven_reset_display="Resets at $(format_epoch_time "$SEVEN_DAY_RESET" "+%Y-%m-%d %H:%M") (Asia/Tokyo)"
 fi
 

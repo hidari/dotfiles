@@ -338,6 +338,23 @@ FAKE
     export PATH="$fake_bin:$PATH"
 }
 
+# statusline が自前でレートリミットを取りに行かないことを見るための番人。
+# curl と security を PATH 先頭で潰し、呼ばれたら PROBE_LOG へ記録する。
+# 「文字列が消えたこと」ではなく「実行されないこと」を見るために実体を置く。
+setup_probe_watchdog() {
+    setup_fake_bin_dir
+    export PROBE_LOG="$TEST_HOME/probe.log"
+    : > "$PROBE_LOG"
+
+    local stub
+    for stub in curl security; do
+        printf '#!/usr/bin/env bash\necho called >> "%s"\n' "$PROBE_LOG" > "$FAKE_BIN/$stub"
+        chmod +x "$FAKE_BIN/$stub"
+    done
+
+    export PATH="$FAKE_BIN:$PATH"
+}
+
 # テスト用の偽 osascript を PATH 先頭に用意する。
 # リファレンスモード切り替えは実 GUI を操作するため、実物を呼ぶとテストが System
 # Settings を開いてしまい CI でも回せない。呼び出し引数だけを記録して制御可能な値を
@@ -385,21 +402,18 @@ FAKE
 # statusline-command.sh へ渡す stdin JSON を組み立てる。
 # 第 1 引数は cwd。省くと git 探索経路へ入らないため、アカウント分離の観測に絞れる。
 # 第 2 引数に rate_limits オブジェクトを与えると、Claude Code 本体が渡す形を再現する。
+# 引数が空のときはキーごと出さない。本体が渡してこない実状況を再現するため、
+# "rate_limits":null との区別を保つ。
 statusline_input_json() {
-    local cwd="${1:-}"
-    local rate_limits="${2:-}"
-    if [ -n "$rate_limits" ]; then
-        printf '{"model":{"display_name":"Test"},"context_window":{"used_percentage":10},"cwd":"%s","rate_limits":%s}' \
-            "$cwd" "$rate_limits"
-        return
-    fi
-    printf '{"model":{"display_name":"Test"},"context_window":{"used_percentage":10},"cwd":"%s"}' "$cwd"
+    local rate_limits=""
+    [ -n "${2:-}" ] && rate_limits=",\"rate_limits\":$2"
+    printf '{"model":{"display_name":"Test"},"context_window":{"used_percentage":10},"cwd":"%s"%s}' \
+        "${1:-}" "$rate_limits"
 }
 
-# 未来 / 過去に失効する窓。実時刻に依存させないために固定値を使う。
-# bats ファイル側から参照するので export する。
-export STATUSLINE_FUTURE_RESET=4102444800  # 2100-01-01
-export STATUSLINE_PAST_RESET=1000000000    # 2001-09-09
+# 失効しない窓の reset。実時刻に依存させないために固定値を使う。
+# bats 側は load で同一シェルへ source するため export は要らない (REPO_ROOT 等と同じ)。
+STATUSLINE_FUTURE_RESET=4102444800  # 2100-01-01
 
 # 有効な窓 1 組を持つ rate_limits オブジェクトを組み立てる。
 rate_limits_json() {
@@ -425,7 +439,7 @@ run_statusline_in() {
 # $lines の要素数では原理的に観測できない。改行の数で見る必要がある。
 statusline_raw() {
     local dest="$1"
-    bash "$STATUSLINE_SCRIPT" > "$dest" 2>/dev/null <<< "$(statusline_input_json "${2:-}" "${3:-}")"
+    bash "$STATUSLINE_SCRIPT" > "$dest" 2>/dev/null <<< "$(statusline_input_json "${2:-}")"
 }
 
 # ファイル内の改行の数を返す。行数ではなく改行数なので、
