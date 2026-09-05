@@ -338,50 +338,6 @@ FAKE
     export PATH="$fake_bin:$PATH"
 }
 
-# statusline-command.sh を実行するための偽 security / curl を PATH 先頭に用意する。
-# security は要求された service 名を記録し、FAKE_KEYCHAIN_SERVICE に一致したときだけ
-# トークンを返す。これで「どの service 名を引きに行ったか」と「不一致時に他の名前へ
-# フォールバックしないか」の両方を観測できる。
-setup_fake_keychain() {
-    local fake_bin="$TEST_HOME/fakebin"
-    mkdir -p "$fake_bin"
-    export SECURITY_LOG="$TEST_HOME/security_calls.log"
-    : > "$SECURITY_LOG"
-
-    cat > "$fake_bin/security" <<'FAKE'
-#!/usr/bin/env bash
-service=""
-while [ $# -gt 0 ]; do
-    case "$1" in
-        -s) service="$2"; shift 2 ;;
-        *) shift ;;
-    esac
-done
-echo "$service" >> "$SECURITY_LOG"
-if [ "$service" = "${FAKE_KEYCHAIN_SERVICE:-}" ]; then
-    echo "test-token"
-    exit 0
-fi
-# 実物が item 不在時に返す exit code
-exit 44
-FAKE
-    chmod +x "$fake_bin/security"
-
-    cat > "$fake_bin/curl" <<'FAKE'
-#!/usr/bin/env bash
-cat <<'HEADERS'
-HTTP/2 200
-anthropic-ratelimit-unified-5h-utilization: 0.42
-anthropic-ratelimit-unified-5h-reset: 1800000000
-anthropic-ratelimit-unified-7d-utilization: 0.13
-anthropic-ratelimit-unified-7d-reset: 1800000000
-HEADERS
-FAKE
-    chmod +x "$fake_bin/curl"
-
-    export PATH="$fake_bin:$PATH"
-}
-
 # テスト用の偽 osascript を PATH 先頭に用意する。
 # リファレンスモード切り替えは実 GUI を操作するため、実物を呼ぶとテストが System
 # Settings を開いてしまい CI でも回せない。呼び出し引数だけを記録して制御可能な値を
@@ -427,19 +383,41 @@ FAKE
 }
 
 # statusline-command.sh へ渡す stdin JSON を組み立てる。
-# 引数を省くと cwd が空になり git 探索経路へ入らないため、アカウント分離の観測に絞れる。
+# 第 1 引数は cwd。省くと git 探索経路へ入らないため、アカウント分離の観測に絞れる。
+# 第 2 引数に rate_limits オブジェクトを与えると、Claude Code 本体が渡す形を再現する。
 statusline_input_json() {
-    printf '{"model":{"display_name":"Test"},"context_window":{"used_percentage":10},"cwd":"%s"}' "${1:-}"
+    local cwd="${1:-}"
+    local rate_limits="${2:-}"
+    if [ -n "$rate_limits" ]; then
+        printf '{"model":{"display_name":"Test"},"context_window":{"used_percentage":10},"cwd":"%s","rate_limits":%s}' \
+            "$cwd" "$rate_limits"
+        return
+    fi
+    printf '{"model":{"display_name":"Test"},"context_window":{"used_percentage":10},"cwd":"%s"}' "$cwd"
+}
+
+# 未来 / 過去に失効する窓。実時刻に依存させないために固定値を使う。
+# bats ファイル側から参照するので export する。
+export STATUSLINE_FUTURE_RESET=4102444800  # 2100-01-01
+export STATUSLINE_PAST_RESET=1000000000    # 2001-09-09
+
+# 有効な窓 1 組を持つ rate_limits オブジェクトを組み立てる。
+rate_limits_json() {
+    local five_pct="${1:-42}"
+    local seven_pct="${2:-13}"
+    local reset="${3:-$STATUSLINE_FUTURE_RESET}"
+    printf '{"five_hour":{"used_percentage":%s,"resets_at":%s},"seven_day":{"used_percentage":%s,"resets_at":%s}}' \
+        "$five_pct" "$reset" "$seven_pct" "$reset"
 }
 
 # statusline-command.sh をリポジトリ外の状況で実行する。
 run_statusline() {
-    run_statusline_in ""
+    run_statusline_in "" "${1:-}"
 }
 
 # cwd を指定して statusline-command.sh を実行する (リポジトリ行の検証用)。
 run_statusline_in() {
-    run bash "$STATUSLINE_SCRIPT" <<< "$(statusline_input_json "$1")"
+    run bash "$STATUSLINE_SCRIPT" <<< "$(statusline_input_json "$1" "${2:-}")"
 }
 
 # statusline-command.sh の生の出力をファイルへ落とす。
@@ -447,7 +425,7 @@ run_statusline_in() {
 # $lines の要素数では原理的に観測できない。改行の数で見る必要がある。
 statusline_raw() {
     local dest="$1"
-    bash "$STATUSLINE_SCRIPT" > "$dest" 2>/dev/null <<< "$(statusline_input_json "${2:-}")"
+    bash "$STATUSLINE_SCRIPT" > "$dest" 2>/dev/null <<< "$(statusline_input_json "${2:-}" "${3:-}")"
 }
 
 # ファイル内の改行の数を返す。行数ではなく改行数なので、

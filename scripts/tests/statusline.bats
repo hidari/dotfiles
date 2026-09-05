@@ -1,15 +1,16 @@
 #!/usr/bin/env bats
 # =============================================================================
-# statusline-command.sh のアカウント分離テスト
+# statusline-command.sh のレートリミット表示とアカウント分離テスト
 # =============================================================================
 #
-# 2 アカウント運用で statusLine が守る仕様は 3 つ。
-#   1. Keychain の service 名を config dir から導出する (既定は無印、それ以外は
-#      絶対パスの sha256 先頭 8 桁。実測で確定した Claude Code の規則)
-#   2. 導出した item が無くても他の service 名へフォールバックしない
-#      (他アカウントのトークンで引くと別アカウントのレート制限を表示してしまう)
-#   3. 使用率キャッシュをアカウントごとに分ける
-#      (共有すると片方の値がもう片方に TTL 分だけ表示される)
+# statusLine が守る仕様は 3 つ。
+#   1. レートリミットは Claude Code 本体が stdin で渡す値を使う (自前で API を叩かない)
+#   2. 失効した窓は表示しない (リセット直後に前の窓の高い使用率を出さない)
+#   3. キャッシュをアカウントごとに分ける
+#      (共有すると片方の値がもう片方の表示とフックの発火判定へ混ざる)
+#
+# 3 番目のキャッシュは handoff-sentinel フックがレートリミットを読む供給経路でもある。
+# 本体はフックへレートリミットを渡さないので、経路はこの 1 本しかない。
 
 load test_helper
 
@@ -93,28 +94,6 @@ expected_tag_for() {
 }
 
 # =============================================================================
-# account_keychain_service
-# =============================================================================
-
-@test "account_keychain_service: has no suffix for the default account" {
-    load_statusline_functions
-
-    run account_keychain_service "default"
-
-    [ "$status" -eq 0 ]
-    [ "$output" = "Claude Code-credentials" ]
-}
-
-@test "account_keychain_service: appends the tag for a custom account" {
-    load_statusline_functions
-
-    run account_keychain_service "2a4c0d76"
-
-    [ "$status" -eq 0 ]
-    [ "$output" = "Claude Code-credentials-2a4c0d76" ]
-}
-
-# =============================================================================
 # account_json_path
 # =============================================================================
 
@@ -191,90 +170,127 @@ expected_tag_for() {
 }
 
 # =============================================================================
-# 統合: スクリプト全体の挙動
+# レートリミット: 取得元と表示
 # =============================================================================
 
-@test "statusline: asks the keychain for the derived service name of a custom account" {
+@test "statusline: treats used_percentage as a 0-100 value" {
+    # 旧実装は 0.0-1.0 のヘッダ値を 100 倍していた。取り違えると 42% が 4200% になる。
+    # スケールの取り違えは例外を出さずに成立するので、値そのものを exact に見る
+    run_statusline "$(rate_limits_json 42 13)"
+
+    [ "$status" -eq 0 ]
+    assert_contains "${lines[1]}" "42%"
+    assert_contains "${lines[2]}" "13%"
+}
+
+@test "statusline: does not show an expired window" {
+    # 本体は失効窓を落として渡すが、キャッシュから読み直す経路では過ぎた窓が残る。
+    # 残すとリセットで圧が下がった直後に前の窓の使用率を出し続ける
+    run_statusline "$(rate_limits_json 99 99 "$STATUSLINE_PAST_RESET")"
+
+    [ "$status" -eq 0 ]
+    assert_contains "${lines[1]}" "--%"
+    refute_contains "${lines[1]}" "99%"
+}
+
+@test "statusline: keeps the cached value when the body sends nothing" {
+    # セッション開始直後・headless・非サブスクでは本体が渡さない。消すと窓が
+    # まだ有効なあいだの既知値まで失う
+    run_statusline "$(rate_limits_json 77 33)"
+    [ "$status" -eq 0 ]
+
+    run_statusline
+    [ "$status" -eq 0 ]
+    assert_contains "${lines[1]}" "77%"
+    [ -f "$XDG_CACHE_HOME/claude/rate-limits-default.json" ]
+}
+
+@test "statusline: never runs an inference probe of its own" {
+    # プローブは推論リクエストなので、リミットを測るためにリミットを消費する。
+    # PATH 先頭の偽物が一度でも呼ばれたら、実装がまだ自前で取りに行っている
+    local fake_bin="$TEST_HOME/fakebin"
+    mkdir -p "$fake_bin"
+    local probe_log="$TEST_HOME/probe.log"
+    : > "$probe_log"
+    printf '#!/usr/bin/env bash\necho called >> "%s"\n' "$probe_log" > "$fake_bin/curl"
+    printf '#!/usr/bin/env bash\necho called >> "%s"\n' "$probe_log" > "$fake_bin/security"
+    chmod +x "$fake_bin/curl" "$fake_bin/security"
+    export PATH="$fake_bin:$PATH"
+
+    run_statusline "$(rate_limits_json)"
+
+    [ "$status" -eq 0 ]
+    [ ! -s "$probe_log" ]
+}
+
+# =============================================================================
+# レートリミット: フックへの供給
+# =============================================================================
+
+@test "statusline: writes the rate limit cache under an account specific name" {
     local custom="$TEST_HOME/.claude-alpha"
     mkdir -p "$custom"
-    echo '{"oauthAccount":{"emailAddress":"work@example.com"}}' > "$custom/.claude.json"
     local tag
     tag="$(expected_tag_for "$custom")"
-    setup_fake_keychain
-    export FAKE_KEYCHAIN_SERVICE="Claude Code-credentials-$tag"
     export CLAUDE_CONFIG_DIR="$custom"
 
-    run_statusline
+    run_statusline "$(rate_limits_json)"
 
     [ "$status" -eq 0 ]
-    assert_contains "$(cat "$SECURITY_LOG")" "Claude Code-credentials-$tag"
+    [ -f "$XDG_CACHE_HOME/claude/rate-limits-$tag.json" ]
 }
 
-@test "statusline: never falls back to another account's keychain item" {
-    # 導出した item が無い状況を作る。ここで無印を試しに行くと個人アカウントの
-    # トークンで引いてしまい、仕事アカウントの statusLine に個人側の値が出る
-    local custom="$TEST_HOME/.claude-alpha"
-    mkdir -p "$custom"
-    setup_fake_keychain
-    export FAKE_KEYCHAIN_SERVICE="no-such-service"
-    export CLAUDE_CONFIG_DIR="$custom"
-
-    run_statusline
-
-    [ "$status" -eq 0 ]
-    # 無印の service 名を「行として」一度も引いていないこと。
-    # 部分一致だとサフィックス付きの名前が巻き込まれるため -x で行全体一致にする
-    local bare_count
-    bare_count="$(grep -cx 'Claude Code-credentials' "$SECURITY_LOG" || true)"
-    [ "$bare_count" -eq 0 ]
-    # 資格情報が取れないので数値は出さず未取得表示に落ちる
-    assert_contains "$output" "--%"
-}
-
-@test "statusline: writes the usage cache under an account specific name" {
-    local custom="$TEST_HOME/.claude-alpha"
-    mkdir -p "$custom"
-    local tag
-    tag="$(expected_tag_for "$custom")"
-    setup_fake_keychain
-    export FAKE_KEYCHAIN_SERVICE="Claude Code-credentials-$tag"
-    export CLAUDE_CONFIG_DIR="$custom"
-
-    run_statusline
-
-    [ "$status" -eq 0 ]
-    [ -f "$XDG_CACHE_HOME/claude/usage-cache-$tag.json" ]
-}
-
-@test "statusline: keeps the two accounts usage caches in separate files" {
+@test "statusline: keeps the two accounts rate limit caches in separate files" {
     # 相互汚染バグの pin。共有ファイルへ戻すとここが落ちる
     local custom="$TEST_HOME/.claude-alpha"
     mkdir -p "$custom"
     local tag
     tag="$(expected_tag_for "$custom")"
-    setup_fake_keychain
 
-    # 個人アカウントとして 1 回
-    export FAKE_KEYCHAIN_SERVICE="Claude Code-credentials"
     unset CLAUDE_CONFIG_DIR
-    run_statusline
+    run_statusline "$(rate_limits_json)"
     [ "$status" -eq 0 ]
 
-    # 仕事アカウントとして 1 回
-    export FAKE_KEYCHAIN_SERVICE="Claude Code-credentials-$tag"
     export CLAUDE_CONFIG_DIR="$custom"
-    run_statusline
+    run_statusline "$(rate_limits_json)"
     [ "$status" -eq 0 ]
 
-    [ -f "$XDG_CACHE_HOME/claude/usage-cache-default.json" ]
-    [ -f "$XDG_CACHE_HOME/claude/usage-cache-$tag.json" ]
+    [ -f "$XDG_CACHE_HOME/claude/rate-limits-default.json" ]
+    [ -f "$XDG_CACHE_HOME/claude/rate-limits-$tag.json" ]
 }
+
+@test "statusline: writes where the handoff hook reads" {
+    # 2 つの実装がパス導出とフィールド名を共有していることを end-to-end で見る。
+    # どちらかがずれるとフックは別のファイルを読み、レートリミットの通知が
+    # 「エラーではなく無言」で来なくなる。片側だけのテストではこれを検出できない
+    local custom="$TEST_HOME/.claude-alpha"
+    mkdir -p "$custom"
+    export CLAUDE_CONFIG_DIR="$custom"
+
+    run_statusline "$(rate_limits_json 96 13)"
+    [ "$status" -eq 0 ]
+
+    local transcript="$TEST_HOME/t.jsonl"
+    printf '{"type":"assistant","message":{"usage":{"input_tokens":1},"content":[]}}\n' > "$transcript"
+    local hook_input
+    hook_input="$(printf '{"session_id":"s1","transcript_path":"%s","cwd":"%s","hook_event_name":"PostToolUse"}' \
+        "$transcript" "$TEST_HOME")"
+
+    run env HANDOFF_STATE_DIR="$TEST_HOME/state" \
+        python3 "$REPO_ROOT/home/.claude/hooks/handoff-sentinel.py" posttool <<< "$hook_input"
+
+    [ "$status" -eq 0 ]
+    assert_contains "$output" "session-handoff"
+}
+
+# =============================================================================
+# 表示まわり
+# =============================================================================
 
 @test "statusline: shows the account address on the first line" {
     local custom="$TEST_HOME/.claude-alpha"
     mkdir -p "$custom"
     echo '{"oauthAccount":{"emailAddress":"work@example.com"}}' > "$custom/.claude.json"
-    setup_fake_keychain
     export CLAUDE_CONFIG_DIR="$custom"
 
     run_statusline
@@ -285,8 +301,6 @@ expected_tag_for() {
 }
 
 @test "statusline: emits color escapes rather than literal escape text" {
-    setup_fake_keychain
-
     run_statusline
 
     [ "$status" -eq 0 ]
@@ -305,8 +319,6 @@ expected_tag_for() {
     # リポジトリ外で 4 行目を空のまま出すと、画面に無意味な空行が残る。
     # bats の $output は末尾改行を落とし $lines の要素数では区別が付かないため、
     # 生の出力の改行数で見る (3 行 + 末尾改行なし = 改行 2 個)。
-    setup_fake_keychain
-
     statusline_raw "$TEST_HOME/out.txt"
 
     [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 2 ]
@@ -314,7 +326,6 @@ expected_tag_for() {
 
 @test "statusline: emits four lines inside a repository without a trailing newline" {
     # 4 行 + 末尾改行なし = 改行 3 個。3 行目の改行落ちも余分な末尾改行も検出する
-    setup_fake_keychain
     setup_test_repo "$TEST_HOME/myrepo"
 
     statusline_raw "$TEST_HOME/out.txt" "$TEST_HOME/myrepo"
@@ -323,7 +334,6 @@ expected_tag_for() {
 }
 
 @test "statusline: puts the repository line last" {
-    setup_fake_keychain
     setup_test_repo "$TEST_HOME/myrepo"
 
     run_statusline_in "$TEST_HOME/myrepo"
@@ -340,7 +350,6 @@ expected_tag_for() {
 # branch --show-current は成功するため、4 行目が畳まれず「プロジェクト名だけが
 # 空の行」が残る。作業ツリーの外という点ではリポジトリ外と同じなので 3 行に畳む。
 @test "statusline: collapses to three lines inside a .git directory" {
-    setup_fake_keychain
     setup_test_repo "$TEST_HOME/myrepo"
 
     statusline_raw "$TEST_HOME/out.txt" "$TEST_HOME/myrepo/.git"
@@ -349,7 +358,6 @@ expected_tag_for() {
 }
 
 @test "statusline: collapses to three lines inside a bare repository" {
-    setup_fake_keychain
     git init -q --bare "$TEST_HOME/bare.git"
 
     statusline_raw "$TEST_HOME/out.txt" "$TEST_HOME/bare.git"
@@ -359,7 +367,6 @@ expected_tag_for() {
 
 @test "statusline: keeps repository info out of the first line" {
     # 4 行目へ移したのに 1 行目にも残っている二重表示を防ぐ
-    setup_fake_keychain
     setup_test_repo "$TEST_HOME/myrepo"
 
     run_statusline_in "$TEST_HOME/myrepo"
@@ -370,7 +377,6 @@ expected_tag_for() {
 
 @test "statusline: keeps the rate limit bars on the middle lines" {
     # リポジトリ行を足したときに 5h / 7d が押し出されていないこと
-    setup_fake_keychain
     setup_test_repo "$TEST_HOME/myrepo"
 
     run_statusline_in "$TEST_HOME/myrepo"
