@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Claude Code hook: セッション引き継ぎ検知器 (handoff-sentinel)。
 
-第1引数で分岐する: posttool (コンテキスト使用率の監視) / stop (ツール呼び出し破損の
-通算検知) / session (.cache/handoff.md の自動注入) / record (skill からの provenance 記録)。
+第1引数で分岐する: posttool (コンテキスト使用率とレートリミットの監視) / stop (ツール呼び出し
+破損の通算検知) / session (.cache/handoff.md の自動注入) / record (skill からの provenance 記録)。
 しきい値等の canonical はこのファイルの定数であり、HANDOFF_* 環境変数で上書きできる。
 検知機構の故障で作業を止めないため、全経路 fail-safe (無出力 + exit 0)。
 仕様: docs/superpowers/archive/2026-07-03-session-handoff-design.md
@@ -14,12 +14,11 @@ import hashlib
 import json
 import os
 import re
-import subprocess
 import sys
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeGuard
 
 # canonical な既定値。他ファイル (SKILL.md / template.md) はこれらの値を再掲しない。
 DEFAULT_CONTEXT_WINDOW_TOKENS = 1_000_000
@@ -27,6 +26,15 @@ DEFAULT_CONTEXT_THRESHOLD_PCT = 50
 DEFAULT_BROKEN_COUNT = 5
 DEFAULT_INJECT_MAX_BYTES = 32_768
 DEFAULT_TAIL_BYTES = 1_048_576
+DEFAULT_RATELIMIT_WARN_PCT = 90
+DEFAULT_RATELIMIT_URGENT_PCT = 95
+
+# 窓名の表示ラベル。サーバは窓を追加しうるので監視対象は名指しで持たず、読み手に伝わらない
+# 名前だけをここで訳す。未知の窓は名前をそのまま出す。
+_WINDOW_LABELS = {
+    "five_hour": "5 時間",
+    "seven_day": "週次",
+}
 
 # 本文に漏れた tool-call の開始署名 (破損イベントの判定に使う)。
 # 実漏洩は崩れたトークンに続いて桁0の行頭に tool-call ブロックが現れる構造なので、
@@ -55,11 +63,21 @@ def _env_int(name: str, default: int) -> int:
     return value if value > 0 else default
 
 
+def _cache_root() -> Path:
+    """このフックが使うキャッシュの根。statusline-command.sh の CACHE_DIR と同じ規則。
+
+    規則を 1 つに閉じないと、XDG_CACHE_HOME を設定したマシンで state とレートリミットの
+    キャッシュが別の根へ落ち、statusline とも片方だけ食い違う。
+    """
+    cache_home = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
+    return Path(cache_home) / "claude"
+
+
 def _state_dir() -> Path:
     override = os.environ.get("HANDOFF_STATE_DIR", "")
     if override:
         return Path(override)
-    return Path.home() / ".cache" / "claude" / "handoff-sentinel"
+    return _cache_root() / "handoff-sentinel"
 
 
 def _notify_once(state_file: Path) -> bool:
@@ -142,27 +160,136 @@ def _context_tokens(entries: list[dict[str, Any]]) -> int:
     return 0
 
 
-def handle_posttool(payload: dict[str, Any]) -> dict[str, Any] | None:
-    pair = _session_and_transcript(payload)
-    if pair is None:
-        return None
-    session_id, transcript_path = pair
+def _account_tag(config_dir: str) -> str:
+    """設定ディレクトリを識別する短いタグ。statusline-command.sh の account_tag と同一の導出。
+
+    アカウントごとにキャッシュを分けるためだけに使う。分けないと 2 アカウントが同じファイルを
+    潰し合い、片方のレートリミットでもう片方が発火する。
+    """
+    if config_dir == str(Path.home() / ".claude"):
+        return "default"
+    return _hash_bytes(config_dir.encode("utf-8"))[:8]
+
+
+def _rate_limits_path() -> Path:
+    """statusline が書くレートリミットのキャッシュ。hook はここを読むしかない。
+
+    Claude Code がレートリミットを渡すのは statusLine の stdin だけで、hook の入力にも
+    transcript にも値が無い (実測)。したがって供給は statusline 経由に限られる。
+    """
+    override = os.environ.get("HANDOFF_RATE_LIMITS_FILE", "")
+    if override:
+        return Path(override)
+    config_dir = os.environ.get("CLAUDE_CONFIG_DIR") or str(Path.home() / ".claude")
+    return _cache_root() / f"rate-limits-{_account_tag(config_dir)}.json"
+
+
+def _read_json_dict(path: Path) -> dict[str, Any]:
+    """JSON オブジェクトとして読む。不在・壊れ・型違いはすべて空として返す。"""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _is_number(value: Any) -> TypeGuard[float]:
+    """真偽値を除いた数値かどうか。bool は int の派生なので明示的に外す。"""
+    return isinstance(value, int | float) and not isinstance(value, bool)
+
+
+def _ratelimit_notices(session_id: str) -> list[str]:
+    """逼迫した窓ごとに通知を作る。窓と段の組ごとに 1 回だけ鳴る。
+
+    再武装の契機は窓のリセットで、state には発火時の resets_at を記録する。次に読んだ
+    resets_at が違えば別の窓なので鳴り直す。コンテキストしきい値のように「いつ再武装するか」を
+    決める必要が無いのは、レートリミットが窓を持つおかげである。
+    """
+    windows = _read_json_dict(_rate_limits_path())
+    if not windows:
+        return []
+    warn_pct = _env_int("HANDOFF_RATELIMIT_WARN_PCT", DEFAULT_RATELIMIT_WARN_PCT)
+    urgent_pct = _env_int("HANDOFF_RATELIMIT_URGENT_PCT", DEFAULT_RATELIMIT_URGENT_PCT)
+    now = datetime.now(UTC).timestamp()
+    state_path = _session_state_file(session_id, "ratelimit")
+    fired = _read_json_dict(state_path)
+    notices: list[str] = []
+    for name in sorted(windows):
+        info = windows[name]
+        if not isinstance(info, dict):
+            continue
+        pct = info.get("used_percentage")
+        resets_at = info.get("resets_at")
+        # 欠落を 0% と読むと、値が無いときに必ず「余裕あり」へ倒れる。判定不能として飛ばす
+        if not _is_number(pct):
+            continue
+        # 失効した窓は見ない。本体は落として渡すが、キャッシュが古いときはここで落とす。
+        # 落とさないとリセットで圧が下がった瞬間に撃つ
+        if not (_is_number(resets_at) and resets_at > now):
+            continue
+        if pct >= urgent_pct:
+            threshold, urgent = urgent_pct, True
+        elif pct >= warn_pct:
+            threshold, urgent = warn_pct, False
+        else:
+            continue
+        key = f"{name}:{threshold}"
+        if fired.get(key) == resets_at:
+            continue
+        fired[key] = resets_at
+        notices.append(_ratelimit_message(name, pct, threshold, urgent=urgent))
+    if notices:
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.write_text(json.dumps(fired), encoding="utf-8")
+    return notices
+
+
+def _ratelimit_message(name: str, pct: float, threshold: int, *, urgent: bool) -> str:
+    """段の違いは求める行動に出す。しきい値との大小関係はどちらの段でも同じなので書き分けない。"""
+    action = (
+        "他の作業を中断し、直ちに session-handoff スキルを発動して引き継ぎを "
+        ".cache/handoff.md へ書き出し、記憶すべきことをメモリへ保存すること。"
+        if urgent
+        else "区切りの良いところで session-handoff スキルを発動し、引き継ぎを "
+        ".cache/handoff.md に書き出すこと。"
+    )
+    label = _WINDOW_LABELS.get(name, name)
+    return f"{label}のレートリミットが {threshold}% を超えた (現在 {pct:g}%)。{action}"
+
+
+def _context_notices(session_id: str, transcript_path: str) -> list[str]:
+    # 通知は 1 セッション 1 回なので、鳴った後は transcript を読む意味が無い。
+    # posttool はツール呼び出しのたびに走るため、この stat 1 回が末尾 1MB の読み込みを丸ごと省く
+    notified = _session_state_file(session_id, "notified")
+    if notified.exists():
+        return []
     window = _env_int("HANDOFF_CONTEXT_WINDOW_TOKENS", DEFAULT_CONTEXT_WINDOW_TOKENS)
     threshold_pct = _env_int("HANDOFF_CONTEXT_THRESHOLD_PCT", DEFAULT_CONTEXT_THRESHOLD_PCT)
     tokens = _context_tokens(_read_tail_entries(transcript_path))
     if tokens * 100 < window * threshold_pct:
-        return None
-    if not _notify_once(_session_state_file(session_id, "notified")):
-        return None
-    context = (
+        return []
+    if not _notify_once(notified):
+        return []
+    return [
         f"コンテキスト使用率がしきい値を超えた (推定 {tokens} tokens)。"
         "session-handoff スキルを発動して引き継ぎを .cache/handoff.md に書き出し、"
         "ユーザーにセッション切替 (/clear または新セッション) を促すこと。"
-    )
+    ]
+
+
+def handle_posttool(payload: dict[str, Any]) -> dict[str, Any] | None:
+    """コンテキストとレートリミットを両方見る。片方で早期 return すると他方が飛ぶ。"""
+    pair = _session_and_transcript(payload)
+    if pair is None:
+        return None
+    session_id, transcript_path = pair
+    notices = _context_notices(session_id, transcript_path) + _ratelimit_notices(session_id)
+    if not notices:
+        return None
     return {
         "hookSpecificOutput": {
             "hookEventName": "PostToolUse",
-            "additionalContext": context,
+            "additionalContext": "\n".join(notices),
         }
     }
 
@@ -254,7 +381,14 @@ def _isolated_git_env() -> dict[str, str]:
 
 
 def _repo_root(cwd: str) -> Path:
-    """cwd の git リポルートを返す。リポ外・git 不在は cwd に落とす。"""
+    """cwd の git リポルートを返す。リポ外・git 不在は cwd に落とす。
+
+    subprocess をここで import するのは、この関数へ来るのが record / session の 2 経路だけで、
+    ツール呼び出しごとに走る posttool と stop は一度も通らないため。トップレベルへ置くと
+    全経路が起動のたびにインタプリタの import コストを払う。
+    """
+    import subprocess
+
     try:
         result = subprocess.run(
             ["git", "-C", cwd, "rev-parse", "--show-toplevel"],

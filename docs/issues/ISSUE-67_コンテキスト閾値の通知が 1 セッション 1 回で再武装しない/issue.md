@@ -79,6 +79,10 @@ status: open
 
 ## 関連
 
+ISSUE-76: 同じフックにレートリミットの閾値を足す。あちらは窓のリセット (`resets_at`) を再武装の
+契機に使えるため、本 Issue が扱う「いつ再武装するか」の判断を要さない。state ファイルの後始末が
+無い問題は共通で、あちらで state の種類が増える
+
 ISSUE-58: 同じフックの SessionStart 経路。`.cache/handoff.md` を注入する側の provenance を
 扱っており、こちらの PostToolUse の閾値判定とは別の機構
 

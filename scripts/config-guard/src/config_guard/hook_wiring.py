@@ -30,14 +30,18 @@ from config_guard.extractors import iter_strings
 from config_guard.git_run import isolated_git_env, run_git_checked
 from config_guard.models import Finding
 
-_SRC = "home/.claude/hooks"
+# 母集団はディレクトリではなく「settings.json が参照しなければならない実行可能ファイル」。
+# statusline-command.sh は hooks/ の外にあるが、レートリミットをフックへ供給する唯一の経路
+# なので、settings.json から外れると通知が無言で死ぬ。ディレクトリで区切ると本来の集合と
+# ずれるため home/.claude 全体を見て、実行ビットで本体を選ぶ。
+_SRC = "home/.claude"
 
 # フック本体の追跡下 mode。共有モジュールは 100644 なのでここに一致しない。
 _EXECUTABLE_MODE = "100755"
 
 
 def _hook_entries(repo_root: str) -> list[tuple[str, str, str]]:
-    """追跡下の home/.claude/hooks 配下を (mode, blob_sha, path) の一覧で返す。
+    """追跡下の home/.claude 配下を (mode, blob_sha, path) の一覧で返す。
 
     NUL 区切りで受けるのは、改行区切りだと非 ASCII のパスがクォートされて件数が
     静かに落ちるためである (git ls-files の既定の挙動)。孤児検出 (mode だけを見る)

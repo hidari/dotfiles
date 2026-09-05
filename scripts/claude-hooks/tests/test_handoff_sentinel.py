@@ -12,6 +12,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
@@ -145,6 +146,11 @@ def posttool_input(tmp_path: Path, transcript: Path) -> dict[str, object]:
     }
 
 
+def context_of(result: subprocess.CompletedProcess[str]) -> str:
+    """フック出力から additionalContext を取り出す。"""
+    return str(json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"])
+
+
 class TestPostToolContextWatch:
     """posttool: 最後の assistant usage 合算がしきい値以上のとき、1 回だけ通知する。"""
 
@@ -184,7 +190,7 @@ class TestPostToolContextWatch:
             "posttool", posttool_input(tmp_path, transcript), extra_env=base_env(tmp_path)
         )
         # 100+300+100=500 >= 500 で発火。報告される推定 token 数も exact に固定する
-        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        context = context_of(result)
         assert "推定 500 tokens" in context
 
     def test_通知済みセッションでは再発火しない(self, tmp_path: Path) -> None:
@@ -261,7 +267,7 @@ class TestPostToolContextWatch:
             "posttool", posttool_input(tmp_path, transcript), extra_env=base_env(tmp_path)
         )
         # 最新 999 >= 500 で発火する (U+2028 で行が割れて 200 にフォールバックしない)
-        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        context = context_of(result)
         assert "推定 999 tokens" in context
 
     def test_不正なwindow環境変数は既定にフォールバックする(self, tmp_path: Path) -> None:
@@ -276,6 +282,228 @@ class TestPostToolContextWatch:
             env = base_env(tmp_path) | {"HANDOFF_CONTEXT_WINDOW_TOKENS": bad}
             result = run_hook("posttool", posttool_input(tmp_path, transcript), extra_env=env)
             assert result.stdout == "", f"window={bad!r} で誤発火した (既定へ落ちていない)"
+
+
+# 実時刻に依存させないための固定 epoch。窓の有効/失効はこの 2 値で作る。
+FUTURE_RESET = 4_102_444_800  # 2100-01-01
+PAST_RESET = 1_000_000_000  # 2001-09-09
+
+
+def rate_limits_path(tmp_path: Path) -> Path:
+    """テスト内でのキャッシュの位置。書き込み先と env の指す先を 1 箇所に閉じる。
+
+    call site が両方に同じパスを渡す形だと、片方だけ変えたときにテストが静かに
+    「存在しないファイルを見る」状態へ落ちる。
+    """
+    return tmp_path / "rate-limits.json"
+
+
+def write_rate_limits(tmp_path: Path, windows: Mapping[str, object]) -> Path:
+    """statusline が書くレートリミットのキャッシュを模した JSON を置く。"""
+    path = rate_limits_path(tmp_path)
+    path.write_text(json.dumps(windows), encoding="utf-8")
+    return path
+
+
+def ratelimit_env(tmp_path: Path) -> dict[str, str]:
+    """キャッシュの位置だけを差し替える (しきい値の既定はプロダクト側を使う)。"""
+    env = base_env(tmp_path)
+    env["HANDOFF_RATE_LIMITS_FILE"] = str(rate_limits_path(tmp_path))
+    return env
+
+
+def quiet_transcript(tmp_path: Path) -> Path:
+    """コンテキストしきい値を割らない transcript。レートリミット側だけを見るために使う。"""
+    transcript = tmp_path / "t.jsonl"
+    write_transcript(transcript, [assistant_usage(1)])
+    return transcript
+
+
+def run_ratelimit(
+    tmp_path: Path, windows: Mapping[str, object]
+) -> subprocess.CompletedProcess[str]:
+    """窓の状態を与えて posttool を 1 回走らせる。"""
+    write_rate_limits(tmp_path, windows)
+    return run_hook(
+        "posttool",
+        posttool_input(tmp_path, quiet_transcript(tmp_path)),
+        extra_env=ratelimit_env(tmp_path),
+    )
+
+
+class TestPostToolRateLimitWatch:
+    """posttool: レートリミットの使用率が段階しきい値に達したら、窓ごと段ごとに 1 回通知する。"""
+
+    def test_警告しきい値の直下では発火しない(self, tmp_path: Path) -> None:
+        result = run_ratelimit(
+            tmp_path, {"five_hour": {"used_percentage": 89, "resets_at": FUTURE_RESET}}
+        )
+        assert result.returncode == 0
+        assert result.stdout == ""
+
+    def test_警告しきい値ちょうどで発火しskill名と窓名を含む(self, tmp_path: Path) -> None:
+        result = run_ratelimit(
+            tmp_path, {"five_hour": {"used_percentage": 90, "resets_at": FUTURE_RESET}}
+        )
+        assert result.returncode == 0
+        output = json.loads(result.stdout)
+        assert output["hookSpecificOutput"]["hookEventName"] == "PostToolUse"
+        context = context_of(result)
+        assert "session-handoff" in context
+        assert "5 時間" in context
+        assert "90%" in context
+
+    def test_緊急しきい値では中断とメモリを促す文面になる(self, tmp_path: Path) -> None:
+        result = run_ratelimit(
+            tmp_path, {"five_hour": {"used_percentage": 95, "resets_at": FUTURE_RESET}}
+        )
+        context = context_of(result)
+        # 段の違いが文面に出ることを pin する。同じ文面なら緊急度が伝わらない
+        assert "直ちに" in context
+        assert "メモリ" in context
+
+    def test_両方の段を超えたとき緊急の側だけが出る(self, tmp_path: Path) -> None:
+        result = run_ratelimit(
+            tmp_path, {"five_hour": {"used_percentage": 97, "resets_at": FUTURE_RESET}}
+        )
+        context = context_of(result)
+        assert "直ちに" in context
+        assert context.count("session-handoff") == 1
+
+    def test_使用率が0から1のスケールでは発火しない(self, tmp_path: Path) -> None:
+        # used_percentage は 0-100。0.0-1.0 スケールの値を渡しても発火しないことを pin する。
+        # 0.95 を 95 と読む実装だと、ここが発火して常時通知になる
+        result = run_ratelimit(
+            tmp_path, {"five_hour": {"used_percentage": 0.95, "resets_at": FUTURE_RESET}}
+        )
+        assert result.stdout == ""
+
+    def test_失効した窓は見ない(self, tmp_path: Path) -> None:
+        # リセット直後に古い値が残っていても、圧が下がった瞬間に撃たないこと
+        result = run_ratelimit(
+            tmp_path, {"five_hour": {"used_percentage": 99, "resets_at": PAST_RESET}}
+        )
+        assert result.stdout == ""
+
+    def test_同じ窓の同じ段では再発火しない(self, tmp_path: Path) -> None:
+        windows = {"five_hour": {"used_percentage": 91, "resets_at": FUTURE_RESET}}
+        write_rate_limits(tmp_path, windows)
+        env = ratelimit_env(tmp_path)
+        hook_input = posttool_input(tmp_path, quiet_transcript(tmp_path))
+        first = run_hook("posttool", hook_input, extra_env=env)
+        second = run_hook("posttool", hook_input, extra_env=env)
+        assert first.stdout != ""
+        assert second.stdout == ""
+
+    def test_窓がリセットされたら再武装する(self, tmp_path: Path) -> None:
+        # resets_at が変われば別の窓なので鳴り直す。ここがラッチだと 5 時間ごとの
+        # 逼迫を 1 セッションで一度しか知らせない
+        rate_limits = write_rate_limits(
+            tmp_path, {"five_hour": {"used_percentage": 91, "resets_at": FUTURE_RESET}}
+        )
+        env = ratelimit_env(tmp_path)
+        hook_input = posttool_input(tmp_path, quiet_transcript(tmp_path))
+        first = run_hook("posttool", hook_input, extra_env=env)
+        rate_limits.write_text(
+            json.dumps({"five_hour": {"used_percentage": 91, "resets_at": FUTURE_RESET + 18000}}),
+            encoding="utf-8",
+        )
+        second = run_hook("posttool", hook_input, extra_env=env)
+        assert first.stdout != ""
+        assert second.stdout != ""
+
+    def test_段が進めば同じ窓でも鳴る(self, tmp_path: Path) -> None:
+        rate_limits = write_rate_limits(
+            tmp_path, {"five_hour": {"used_percentage": 91, "resets_at": FUTURE_RESET}}
+        )
+        env = ratelimit_env(tmp_path)
+        hook_input = posttool_input(tmp_path, quiet_transcript(tmp_path))
+        warn = run_hook("posttool", hook_input, extra_env=env)
+        rate_limits.write_text(
+            json.dumps({"five_hour": {"used_percentage": 96, "resets_at": FUTURE_RESET}}),
+            encoding="utf-8",
+        )
+        urgent = run_hook("posttool", hook_input, extra_env=env)
+        assert "直ちに" not in context_of(warn)
+        assert "直ちに" in context_of(urgent)
+
+    def test_宣言されていない窓名でも発火する(self, tmp_path: Path) -> None:
+        # 監視対象を名指しで持つと、サーバが新しい窓を出したとき静かに見落とす
+        result = run_ratelimit(
+            tmp_path, {"seven_day_opus": {"used_percentage": 96, "resets_at": FUTURE_RESET}}
+        )
+        assert "session-handoff" in context_of(result)
+
+    def test_複数の窓が同時に逼迫したら両方出る(self, tmp_path: Path) -> None:
+        result = run_ratelimit(
+            tmp_path,
+            {
+                "five_hour": {"used_percentage": 91, "resets_at": FUTURE_RESET},
+                "seven_day": {"used_percentage": 96, "resets_at": FUTURE_RESET},
+            },
+        )
+        context = context_of(result)
+        assert "5 時間" in context
+        assert "週次" in context
+
+    def test_キャッシュ不在は無出力でexit0(self, tmp_path: Path) -> None:
+        env = base_env(tmp_path)
+        env["HANDOFF_RATE_LIMITS_FILE"] = str(tmp_path / "does-not-exist.json")
+        result = run_hook(
+            "posttool", posttool_input(tmp_path, quiet_transcript(tmp_path)), extra_env=env
+        )
+        assert result.returncode == 0
+        assert result.stdout == ""
+
+    def test_壊れたJSONは無出力でexit0(self, tmp_path: Path) -> None:
+        broken = tmp_path / "rate-limits.json"
+        broken.write_text("{not json", encoding="utf-8")
+        env = ratelimit_env(tmp_path)
+        result = run_hook(
+            "posttool", posttool_input(tmp_path, quiet_transcript(tmp_path)), extra_env=env
+        )
+        assert result.returncode == 0
+        assert result.stdout == ""
+
+    def test_欠けたフィールドの窓は無視して他の窓を見る(self, tmp_path: Path) -> None:
+        # 欠落を 0% と読まず、判定できない窓だけを飛ばす
+        result = run_ratelimit(
+            tmp_path,
+            {
+                "five_hour": {"resets_at": FUTURE_RESET},
+                "seven_day": {"used_percentage": 96},
+                "seven_day_opus": {"used_percentage": 96, "resets_at": FUTURE_RESET},
+            },
+        )
+        context = context_of(result)
+        assert "5 時間" not in context
+        assert "seven_day_opus" in context
+
+    def test_コンテキスト超過と同時なら両方の通知が出る(self, tmp_path: Path) -> None:
+        # コンテキスト側の早期 return でレートリミット側が飛ばされないことを pin する
+        transcript = tmp_path / "t.jsonl"
+        write_transcript(transcript, [assistant_usage(500)])
+        write_rate_limits(
+            tmp_path, {"five_hour": {"used_percentage": 96, "resets_at": FUTURE_RESET}}
+        )
+        result = run_hook(
+            "posttool",
+            posttool_input(tmp_path, transcript),
+            extra_env=ratelimit_env(tmp_path),
+        )
+        context = context_of(result)
+        assert "推定 500 tokens" in context
+        assert "5 時間" in context
+
+    def test_agent_id付きのsubagentでは発火しない(self, tmp_path: Path) -> None:
+        write_rate_limits(
+            tmp_path, {"five_hour": {"used_percentage": 99, "resets_at": FUTURE_RESET}}
+        )
+        hook_input = posttool_input(tmp_path, quiet_transcript(tmp_path))
+        hook_input["agent_id"] = "agent-x"
+        result = run_hook("posttool", hook_input, extra_env=ratelimit_env(tmp_path))
+        assert result.returncode == 0
+        assert result.stdout == ""
 
 
 LEAKED_TOOL_CALL = (
@@ -555,7 +783,7 @@ class TestSessionStartInject:
             "GIT_WORK_TREE": str(leaked),
         }
         result = run_hook("session", session_input(repo), extra_env=env)
-        ctx = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        ctx = context_of(result)
         assert "次は Z をやる" in ctx
 
     def test_handoff不在は無出力でexit0(self, tmp_path: Path) -> None:
@@ -568,7 +796,7 @@ class TestSessionStartInject:
         record_provenance(tmp_path)
         env = base_env(tmp_path) | {"HANDOFF_INJECT_MAX_BYTES": "100"}
         result = run_hook("session", session_input(tmp_path), extra_env=env)
-        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        context = context_of(result)
         assert "A" * 100 in context
         assert "A" * 101 not in context
         assert "先頭のみ注入" in context
@@ -579,7 +807,7 @@ class TestSessionStartInject:
         record_provenance(tmp_path)
         env = base_env(tmp_path) | {"HANDOFF_INJECT_MAX_BYTES": "100"}
         result = run_hook("session", session_input(tmp_path), extra_env=env)
-        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        context = context_of(result)
         assert "�" not in context
         _header, body, _notice = context.split("\n\n")
         assert body == "あ" * 33  # 100 // 3 = 33 文字ぶんの完全な文字のみ (端数1バイトは破棄される)
@@ -592,7 +820,7 @@ class TestSessionStartInject:
         record_provenance(tmp_path)
         env = base_env(tmp_path) | {"HANDOFF_INJECT_MAX_BYTES": str(len(content))}
         result = run_hook("session", session_input(tmp_path), extra_env=env)
-        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        context = context_of(result)
         assert content in context
         assert "先頭のみ注入" not in context
 

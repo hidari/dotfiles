@@ -338,48 +338,21 @@ FAKE
     export PATH="$fake_bin:$PATH"
 }
 
-# statusline-command.sh を実行するための偽 security / curl を PATH 先頭に用意する。
-# security は要求された service 名を記録し、FAKE_KEYCHAIN_SERVICE に一致したときだけ
-# トークンを返す。これで「どの service 名を引きに行ったか」と「不一致時に他の名前へ
-# フォールバックしないか」の両方を観測できる。
-setup_fake_keychain() {
-    local fake_bin="$TEST_HOME/fakebin"
-    mkdir -p "$fake_bin"
-    export SECURITY_LOG="$TEST_HOME/security_calls.log"
-    : > "$SECURITY_LOG"
+# statusline が自前でレートリミットを取りに行かないことを見るための番人。
+# curl と security を PATH 先頭で潰し、呼ばれたら PROBE_LOG へ記録する。
+# 「文字列が消えたこと」ではなく「実行されないこと」を見るために実体を置く。
+setup_probe_watchdog() {
+    setup_fake_bin_dir
+    export PROBE_LOG="$TEST_HOME/probe.log"
+    : > "$PROBE_LOG"
 
-    cat > "$fake_bin/security" <<'FAKE'
-#!/usr/bin/env bash
-service=""
-while [ $# -gt 0 ]; do
-    case "$1" in
-        -s) service="$2"; shift 2 ;;
-        *) shift ;;
-    esac
-done
-echo "$service" >> "$SECURITY_LOG"
-if [ "$service" = "${FAKE_KEYCHAIN_SERVICE:-}" ]; then
-    echo "test-token"
-    exit 0
-fi
-# 実物が item 不在時に返す exit code
-exit 44
-FAKE
-    chmod +x "$fake_bin/security"
+    local stub
+    for stub in curl security; do
+        printf '#!/usr/bin/env bash\necho called >> "%s"\n' "$PROBE_LOG" > "$FAKE_BIN/$stub"
+        chmod +x "$FAKE_BIN/$stub"
+    done
 
-    cat > "$fake_bin/curl" <<'FAKE'
-#!/usr/bin/env bash
-cat <<'HEADERS'
-HTTP/2 200
-anthropic-ratelimit-unified-5h-utilization: 0.42
-anthropic-ratelimit-unified-5h-reset: 1800000000
-anthropic-ratelimit-unified-7d-utilization: 0.13
-anthropic-ratelimit-unified-7d-reset: 1800000000
-HEADERS
-FAKE
-    chmod +x "$fake_bin/curl"
-
-    export PATH="$fake_bin:$PATH"
+    export PATH="$FAKE_BIN:$PATH"
 }
 
 # テスト用の偽 osascript を PATH 先頭に用意する。
@@ -427,19 +400,38 @@ FAKE
 }
 
 # statusline-command.sh へ渡す stdin JSON を組み立てる。
-# 引数を省くと cwd が空になり git 探索経路へ入らないため、アカウント分離の観測に絞れる。
+# 第 1 引数は cwd。省くと git 探索経路へ入らないため、アカウント分離の観測に絞れる。
+# 第 2 引数に rate_limits オブジェクトを与えると、Claude Code 本体が渡す形を再現する。
+# 引数が空のときはキーごと出さない。本体が渡してこない実状況を再現するため、
+# "rate_limits":null との区別を保つ。
 statusline_input_json() {
-    printf '{"model":{"display_name":"Test"},"context_window":{"used_percentage":10},"cwd":"%s"}' "${1:-}"
+    local rate_limits=""
+    [ -n "${2:-}" ] && rate_limits=",\"rate_limits\":$2"
+    printf '{"model":{"display_name":"Test"},"context_window":{"used_percentage":10},"cwd":"%s"%s}' \
+        "${1:-}" "$rate_limits"
+}
+
+# 失効しない窓の reset。実時刻に依存させないために固定値を使う。
+# bats 側は load で同一シェルへ source するため export は要らない (REPO_ROOT 等と同じ)。
+STATUSLINE_FUTURE_RESET=4102444800  # 2100-01-01
+
+# 有効な窓 1 組を持つ rate_limits オブジェクトを組み立てる。
+rate_limits_json() {
+    local five_pct="${1:-42}"
+    local seven_pct="${2:-13}"
+    local reset="${3:-$STATUSLINE_FUTURE_RESET}"
+    printf '{"five_hour":{"used_percentage":%s,"resets_at":%s},"seven_day":{"used_percentage":%s,"resets_at":%s}}' \
+        "$five_pct" "$reset" "$seven_pct" "$reset"
 }
 
 # statusline-command.sh をリポジトリ外の状況で実行する。
 run_statusline() {
-    run_statusline_in ""
+    run_statusline_in "" "${1:-}"
 }
 
 # cwd を指定して statusline-command.sh を実行する (リポジトリ行の検証用)。
 run_statusline_in() {
-    run bash "$STATUSLINE_SCRIPT" <<< "$(statusline_input_json "$1")"
+    run bash "$STATUSLINE_SCRIPT" <<< "$(statusline_input_json "$1" "${2:-}")"
 }
 
 # statusline-command.sh の生の出力をファイルへ落とす。
