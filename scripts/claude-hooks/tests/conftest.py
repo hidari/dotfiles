@@ -16,6 +16,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 HOOKS_DIR = REPO_ROOT / "home" / ".claude" / "hooks"
 BOOTSTRAP = REPO_ROOT / "bootstrap.sh"
@@ -32,10 +34,41 @@ def git_scope_free_env() -> dict[str, str]:
     リポジトリではなく本体を操作してしまう。本体チェックアウトでは GIT_DIR が相対値になり
     cwd 変更で外れるので、worktree で commit したときだけ現れる。
 
-    テストは使い捨てリポジトリしか触らないので、選別せず GIT_ 接頭辞ごと落とす。フック本体は
-    本番環境で動くため、落とす対象を所在の指定だけに絞っている (apm-install-guard.py 参照)。
+    テストは使い捨てリポジトリしか触らないので、選別せず GIT_ 接頭辞ごと落とす。フック本体で
+    落とす対象を所在の指定だけに絞っているものは hook_git.py で、その理由もあちらが持つ
+    (apm-install-guard.py はフックだが、あちらは GIT_ 接頭辞ごと落とす別の方針である)。
     """
     return {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+
+
+def make_git_repo(path: Path) -> Path:
+    """使い捨ての git リポジトリを 1 つ作って返す。"""
+    path.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "init", "-q"],
+        cwd=path,
+        check=True,
+        capture_output=True,
+        env=git_scope_free_env(),
+    )
+    return path
+
+
+@pytest.fixture
+def git_location_vars_stripped(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ロケーション系 GIT_* を環境から落とす。
+
+    pre-commit の commit hook 下で走ると git がこれらを子へ渡し、`-C` で指した使い捨ての
+    リポジトリではなく本体が解決される。落とさないと本体の名前が返るので、判定は「エラー」
+    ではなく、もっともらしい別の値として外れる。
+
+    hook_git の import をここで行うのは、探索パスへ HOOKS_DIR を足すのがこのファイルの
+    上の行だからである。モジュール直下へ置くとその行より前に解決されて失敗する。
+    """
+    import hook_git
+
+    for name in hook_git.LOCATION_VARS:
+        monkeypatch.delenv(name, raising=False)
 
 
 def bash_symlink_pairs() -> list[str]:

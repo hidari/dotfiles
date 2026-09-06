@@ -1104,3 +1104,39 @@ class TestUnreadHandoffNotice:
         finally:
             handoff.chmod(0o644)
         assert "読まれないまま" in run_session(tmp_path, session_id="sess-next-2").stdout
+
+
+def run_hook_with_importtime(
+    action: str, hook_input: dict[str, object], tmp_path: Path
+) -> subprocess.CompletedProcess[str]:
+    """`-X importtime` で起動し、実際に読み込まれたモジュールを stderr へ出させる。
+
+    「読み込まないこと」は関数を読んでも確かめられない。import が関数の内側にあるという
+    書き方は、呼び出しの有無ではなく到達の有無で決まるからである。実際に起動して観測する。
+    """
+    env = {k: v for k, v in os.environ.items() if not k.startswith("HANDOFF_")}
+    env.update(base_env(tmp_path))
+    return subprocess.run(
+        [sys.executable, "-X", "importtime", str(HOOK), action],
+        input=json.dumps(hook_input),
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+
+def test_posttool_は_git_の解決モジュールを読み込まない(tmp_path: Path) -> None:
+    """ツール呼び出しごとに走る経路が subprocess の import コストを払わないこと。
+
+    handoff-sentinel は hook_git を関数の内側で import することでこの性質を持たせている。
+    トップレベルへ動かしても機能は変わらないので、ここで pin しないと静かに失われる。
+    """
+    quiet = run_hook_with_importtime(
+        "posttool", posttool_input(tmp_path, quiet_transcript(tmp_path), "sess-1"), tmp_path
+    )
+    session = run_hook_with_importtime("session", session_input(tmp_path, "sess-1"), tmp_path)
+
+    assert "hook_git" not in quiet.stderr
+    # 対照。session 経路は根の解決を通るので読み込まれる。出ないなら観測の方が壊れている
+    assert "hook_git" in session.stderr

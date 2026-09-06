@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""SessionStart で検査層の生存を測り、沈黙していれば 1 通で告げる。
+"""SessionStart でセッションの前提を測り、崩れていれば 1 通で告げる。
+
+測る対象は検査層の生存から始まったが、今はそれより広い。何を述語に含めるかは
+guard_probes のモジュール docstring が持つ。
 
 SessionStart はセッションを止められない (exit 2 でも続行し stderr が出るだけ) ので、
 この層は告げるだけである。強制は PreToolUse 側の責務のまま変わらない。

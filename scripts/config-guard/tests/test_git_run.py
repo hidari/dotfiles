@@ -11,14 +11,15 @@ from config_guard import git_run
 from config_guard.git_run import isolated_git_env
 from tests.conftest import REPO_ROOT
 
-# handoff-sentinel hook は zero-dep standalone (venv 外の system python 起動) で config_guard を
-# import できず同じ GIT_* 隔離ロジックを独立コピーで持つ (共有不能な設計境界)。両者の除外集合が
-# silent に drift すると片方の GIT_* leak が残るため import 照合で pin する。
-_HOOK_PATH = REPO_ROOT / "home" / ".claude" / "hooks" / "handoff-sentinel.py"
+# フックは zero-dep standalone (venv 外の system python 起動) で config_guard を import できず、
+# 同じ GIT_* 隔離ロジックを独立コピーで持つ (共有不能な設計境界)。両者の除外集合が silent に
+# drift すると片方の GIT_* leak が残るため import 照合で pin する。
+# フック側の canonical は hook_git で、フック群はそこを共有する。
+_HOOK_PATH = REPO_ROOT / "home" / ".claude" / "hooks" / "hook_git.py"
 
 
 def _load_hook_module() -> Any:
-    spec = importlib.util.spec_from_file_location("handoff_sentinel_under_test", _HOOK_PATH)
+    spec = importlib.util.spec_from_file_location("hook_git_under_test", _HOOK_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -45,7 +46,7 @@ def test_keeps_non_location_vars(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_hook_git_location_vars_match_config_guard() -> None:
-    # handoff-sentinel hook の独立コピーが config-guard と同じ GIT_* 除外集合であることを pin する。
+    # フック側の独立コピーが config-guard と同じ GIT_* 除外集合であることを pin する。
     # 片方に GIT_* を足し忘れると leak が silent に残るため、この import 照合が赤で検出する。
     hook = _load_hook_module()
-    assert hook._GIT_LOCATION_VARS == git_run._GIT_LOCATION_VARS
+    assert hook.LOCATION_VARS == git_run._GIT_LOCATION_VARS

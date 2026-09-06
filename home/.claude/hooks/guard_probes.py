@@ -1,7 +1,12 @@
-"""検査層が沈黙している状態を見る述語と、その登録簿。
+"""セッションが正しい前提の上に乗っているかを見る述語と、その登録簿。
 
-PreToolUse の 2 つのガードは、どちらも自分が機能していない状態を検出できない。検出できて
-いる箇所はあるが、射程が実態より狭い。この層はセッション頭で生存を測るためのものである。
+出発点は検査層の生存だった。PreToolUse の 2 つのガードは、どちらも自分が機能していない状態を
+検出できない。検出できている箇所はあるが、射程が実態より狭い。この層はセッション頭でそれを
+測るためのものである。
+
+射程はそこから広がっている。運用指示が読めているか、掴んでいるタスクリストが作業ディレクトリと
+整合しているか、といった「検査層ではないがセッションの前提にあたるもの」も述語に含む。判定は
+対象が検査層かどうかではなく、壊れていても実行が続いてしまうかどうかで行う。
 
 述語をここへ集めるのは、同じ判定を 2 箇所へ書くと片方だけ直したときに沈黙して食い違う
 ためである。それはこの層が扱っている欠陥そのものなので、canonical を 1 つにする。
@@ -202,8 +207,7 @@ def _session_directory() -> Path:
     「対象かどうか分からない」を表す必要があるが、こちらは導出元が要るだけで、
     どのディレクトリで起動していても必ず 1 つ決まる。
     """
-    root = os.environ.get("CLAUDE_PROJECT_DIR")
-    return Path(root) if root else Path.cwd()
+    return _project_root() or Path.cwd()
 
 
 def derive_task_list_id(directory: str | Path) -> str:
@@ -217,6 +221,27 @@ def derive_task_list_id(directory: str | Path) -> str:
     寄せないと、symlink 経由で入ったセッションを汚染として報告する。
     """
     return hook_git.repo_root(Path(directory).resolve()).name
+
+
+def _main_worktree_name(directory: Path) -> str | None:
+    """linked worktree が属する本体の作業ツリーの名前。決められなければ None。
+
+    `--git-common-dir` は linked worktree でも本体の `.git` を返す (実測)。本体の中では
+    自分の `.git` を返すので、どちらから呼んでも同じ値になる。
+
+    導出そのものには使わない。シェル側は worktree の名前を返すので、こちらを導出値にすると
+    同値でなくなる。ここで足すのは「本体の名前を名乗るセッションも正しい」という許容だけで、
+    別プロジェクトの名前はどちらの正解にも当たらないため検出は緩まない。
+    """
+    common = hook_git.rev_parse(directory, "--git-common-dir")
+    if common is None:
+        return None
+
+    # 相対で返ることがある。その場合は -C で渡した側から解決する。
+    path = Path(common)
+    if not path.is_absolute():
+        path = directory / path
+    return path.resolve().parent.name
 
 
 def probe_task_list_id() -> ProbeResult:
@@ -233,28 +258,52 @@ def probe_task_list_id() -> ProbeResult:
 
     未設定は対象外として通す。ランチャを通さない起動では設定されず、その場合は Claude Code
     の既定に任せている状態であって汚染ではない。
+
+    前置での明示指定 (`CLAUDE_CODE_TASK_LIST_ID=<名前> claude`) はランチャの仕様として
+    支持されており、その起動でも導出値と食い違う。汚染と明示をここで区別する手段は無い。
+    ランチャが目印を export しても spare 経由で同じように継承されるためである。区別できない
+    以上は両方の可能性を文面へ書き、判断を読み手へ渡す。
     """
     declared = os.environ.get("CLAUDE_CODE_TASK_LIST_ID")
     if not declared:
         return ProbeResult(healthy=True)
 
-    expected = derive_task_list_id(_session_directory())
+    directory = _session_directory()
+    expected = derive_task_list_id(directory)
     if declared == expected:
+        return ProbeResult(healthy=True)
+
+    if declared == _main_worktree_name(directory):
         return ProbeResult(healthy=True)
 
     return ProbeResult(
         healthy=False,
         detail=(
             f"CLAUDE_CODE_TASK_LIST_ID={declared} は、作業ディレクトリから導出される "
-            f"{expected} と食い違う。別プロジェクトのタスクリストを掴んでいるので、"
-            "タスク管理のツールを使う前に Claude Code を起動し直すこと。"
+            f"{expected} と食い違う。起動時に前置で明示した覚えが無いなら、別プロジェクトの"
+            "タスクリストを掴んでいる。タスク管理のツールを使う前に Claude Code を"
+            "起動し直すこと。"
         ),
     )
 
 
 def _herdr_bin() -> str | None:
-    """herdr の実体。herdr の中で起動していれば HERDR_BIN_PATH が指す。"""
+    """herdr の実体。herdr の中で起動していれば HERDR_BIN_PATH が指す。
+
+    同じディレクトリの herdr-agent-state.sh は socket へ直接話しかけるが、あちらは herdr が
+    統合を入れ直すたびに上書きする管理下のファイルである。上書きされる側の実装に合わせず、
+    公開された CLI を使う。
+    """
     return os.environ.get("HERDR_BIN_PATH") or shutil.which("herdr")
+
+
+def _pane_unverified(pane_id: str, reason: str) -> ProbeResult:
+    """ペインの実在を確かめられなかったことを告げる。
+
+    「確かめられなかった」と「実在しない」を同じ文面にしない。前者は herdr 側の問題で、
+    後者はセッション側の問題なので、読み手が取る手当てが違う。
+    """
+    return ProbeResult(healthy=False, detail=f"{reason}。{pane_id} の実在は未確認。")
 
 
 def probe_herdr_pane() -> ProbeResult:
@@ -263,6 +312,9 @@ def probe_herdr_pane() -> ProbeResult:
     この変数も claim で差し替わらない側にあり、既に閉じられたペインを指すことがある。
     その場合はエージェントの状態通知が黙って捨てられ、ユーザーからは動いていないように
     見える。
+
+    見るのは実在だけである。spare を起こしたペインがまだ開いていれば、継承された値でも
+    通る。同じ表に載る HERDR_WORKSPACE_ID と HERDR_TAB_ID も検査していない。
 
     未設定と herdr 不在は対象外として通す。herdr を使わない環境で常に鳴らすと、この層の
     出力そのものが読まれなくなる。あるのに応答しないのは対象外ではないので沈黙として扱う。
@@ -284,31 +336,18 @@ def probe_herdr_pane() -> ProbeResult:
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        return ProbeResult(
-            healthy=False,
-            detail=f"{herdr_bin} がペイン一覧を返さない ({exc})。{pane_id} の実在は未確認。",
-        )
+        return _pane_unverified(pane_id, f"{herdr_bin} がペイン一覧を返さない ({exc})")
 
     if result.returncode != 0:
-        return ProbeResult(
-            healthy=False,
-            detail=(
-                f"{herdr_bin} がペイン一覧を返さない (exit {result.returncode})。"
-                f"{pane_id} の実在は未確認。"
-            ),
+        return _pane_unverified(
+            pane_id, f"{herdr_bin} がペイン一覧を返さない (exit {result.returncode})"
         )
 
     try:
         panes = json.loads(result.stdout)["result"]["panes"]
         known = {pane["pane_id"] for pane in panes}
     except (ValueError, LookupError, TypeError) as exc:
-        return ProbeResult(
-            healthy=False,
-            detail=(
-                f"ペイン一覧を読めない ({exc})。応答の形が変わった可能性がある。"
-                f"{pane_id} の実在は未確認。"
-            ),
-        )
+        return _pane_unverified(pane_id, f"ペイン一覧を読めない ({exc})。応答の形が変わった")
 
     if pane_id in known:
         return ProbeResult(healthy=True)
