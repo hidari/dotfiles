@@ -440,7 +440,7 @@ def _worktree(root: Path, name: str) -> Path:
         cwd=root,
         check=True,
         capture_output=True,
-        env={**git_scope_free_env(), "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com"},
+        env=git_scope_free_env(),
     )
     worktree = root.parent / name
     subprocess.run(

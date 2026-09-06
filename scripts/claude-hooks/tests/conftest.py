@@ -42,15 +42,19 @@ def git_scope_free_env() -> dict[str, str]:
 
 
 def make_git_repo(path: Path) -> Path:
-    """使い捨ての git リポジトリを 1 つ作って返す。"""
+    """使い捨ての git リポジトリを 1 つ作って返す。
+
+    identity をリポジトリへ書き込む。開発機には global の identity があるので commit を
+    伴うテストはそのまま通るが、CI の runner には無い。環境の差が「ローカルは緑で CI だけ
+    赤」として出るので、リポジトリ側で閉じる (bats の setup_test_repo と同じ形)。
+    """
     path.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        ["git", "init", "-q"],
-        cwd=path,
-        check=True,
-        capture_output=True,
-        env=git_scope_free_env(),
-    )
+    env = git_scope_free_env()
+    subprocess.run(["git", "init", "-q"], cwd=path, check=True, capture_output=True, env=env)
+    for key, value in (("user.email", "test@example.com"), ("user.name", "test")):
+        subprocess.run(
+            ["git", "config", key, value], cwd=path, check=True, capture_output=True, env=env
+        )
     return path
 
 
