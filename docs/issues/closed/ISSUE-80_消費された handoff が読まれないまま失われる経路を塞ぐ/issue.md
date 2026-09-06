@@ -1,5 +1,5 @@
 ---
-status: open
+status: closed
 ---
 
 # fix(hooks): 消費された handoff が読まれないまま失われる経路を塞ぐ

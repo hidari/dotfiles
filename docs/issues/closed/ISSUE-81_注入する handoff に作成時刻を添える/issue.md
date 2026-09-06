@@ -1,5 +1,5 @@
 ---
-status: open
+status: closed
 ---
 
 # fix(hooks): 注入する handoff に作成時刻を添える
