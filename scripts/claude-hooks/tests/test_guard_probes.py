@@ -7,6 +7,7 @@ sys.exit) を持たない層なので、この形で仕様を読める。
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -160,7 +161,7 @@ def test_TIRITH_BIN_未設定で解決しなければ沈黙(
     # この分岐は「入っていない」と「入っているが PATH に載っていない」の両方で通る。この層は
     # 区別できないので、片方だけを勧めてはならない。2026-08-31 に PATH から /opt/homebrew/bin を
     # 外して実測したところ、tirith は brew で入っているのに brew install tirith だけを勧めた。
-    # apm 側でも同じ形が空振りを生んだ (この PR で修正済み)。
+    # apm 側でも同じ形が空振りを生んだ。
     assert "PATH に載っていない" in result.detail
     # 強制層と同じ定数を使うことも pin する。上の 2 つは部分文字列しか見ないので、この層へ
     # 文面を literal で書き戻す変異が緑のまま通り、寄せた二重管理が静かに戻せてしまう。
@@ -191,7 +192,11 @@ def test_clean_なコマンドに_clean_を返さなければ沈黙(
 
 
 def test_登録簿は名前と関数の組を持つ() -> None:
-    """呼び出し自体が例外で落ちたときにも名前が要るので、名前は結果ではなく登録簿が持つ。"""
+    """呼び出し自体が例外で落ちたときにも名前が要るので、名前は結果ではなく登録簿が持つ。
+
+    件数ではなく名前そのもので見る。件数だけだと差し替えを見逃す。順序まで見るのは、順序を
+    持つ表現のほうが集合より強く、両方を別のテストで持つと片方が完全に包含される側になるため。
+    """
     names = [name for name, _ in guard_probes.PROBES]
     assert names == ["apm", "tirith", "private-ops", "task-list-id", "herdr-ids"]
     for _, probe in guard_probes.PROBES:
@@ -285,17 +290,6 @@ def test_CLAUDE_PROJECT_DIR_が無ければ対象外として健全(monkeypatch:
 
     assert result.healthy is True
     assert result.detail == ""
-
-
-def test_登録簿は名前の集合で_pin_する() -> None:
-    """件数ではなく名前で見る。件数だけだと差し替えを見逃す。"""
-    assert {name for name, _ in guard_probes.PROBES} == {
-        "apm",
-        "tirith",
-        "private-ops",
-        "task-list-id",
-        "herdr-ids",
-    }
 
 
 def _git_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
@@ -523,35 +517,45 @@ def _pane_list(*panes: tuple[str, str, str]) -> str:
 
 
 @pytest.fixture
-def herdr_env(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
-    """HERDR_* を実環境から切り離した monkeypatch を返す。
+def herdr_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """HERDR_ 接頭辞の環境変数をすべて落とす。値は返さない。
 
     このリポジトリの開発は herdr の中で行うので、テストを走らせるシェルには HERDR_PANE_ID と
     HERDR_TAB_ID と HERDR_WORKSPACE_ID が実際に入っている。落とさずに個別の変数だけを setenv
     すると、設定しなかった変数について実環境の値を測ることになり、herdr の外で走る CI と結果が
     変わる。conftest が落とすのは GIT_ 接頭辞だけなのでここで閉じる。
+
+    個別に列挙せず接頭辞で落とすのは、見る変数が増えたときに落とし忘れないためである。列挙を
+    写すと、増やした側だけが実環境の値を測る状態になり、herdr の中では非決定に、外では緑になる。
+
+    値を返さないのは conftest.git_location_vars_stripped と同じ形にするためである。monkeypatch を
+    返す形にすると、名前が環境を指すのに型が別物になり、同じテストが monkeypatch も受け取ったとき
+    に同一オブジェクトだと読み取れない。
     """
-    for var in ("HERDR_BIN_PATH", "HERDR_PANE_ID", "HERDR_TAB_ID", "HERDR_WORKSPACE_ID"):
+    for var in [name for name in os.environ if name.startswith("HERDR_")]:
         monkeypatch.delenv(var, raising=False)
-    return monkeypatch
 
 
-def test_HERDR_PANE_ID_が未設定なら対象外として健全(herdr_env: pytest.MonkeyPatch) -> None:
-    """herdr の外で起動したセッション。判定する対象がそもそも無い。"""
-    herdr_env.delenv("HERDR_PANE_ID", raising=False)
+def test_HERDR_PANE_ID_が未設定なら対象外として健全(herdr_env: None) -> None:
+    """herdr の外で起動したセッション。判定する対象がそもそも無い。
 
+    何も setenv しない。fixture が HERDR_ 接頭辞を落とすので、ここで個別に delenv すると
+    fixture が canonical であることが読み取れなくなる。
+    """
     result = guard_probes.probe_herdr_ids()
 
     assert result.healthy is True
     assert result.detail == ""
 
 
-def test_pane_が一覧に含まれれば健全(tmp_path: Path, herdr_env: pytest.MonkeyPatch) -> None:
+def test_pane_が一覧に含まれれば健全(
+    tmp_path: Path, herdr_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     fake = _fake_herdr(
         tmp_path / "herdr", _pane_list(("wA:p1", "wA:t1", "wA"), ("wA:p2", "wA:t1", "wA"))
     )
-    herdr_env.setenv("HERDR_BIN_PATH", str(fake))
-    herdr_env.setenv("HERDR_PANE_ID", "wA:p2")
+    monkeypatch.setenv("HERDR_BIN_PATH", str(fake))
+    monkeypatch.setenv("HERDR_PANE_ID", "wA:p2")
 
     result = guard_probes.probe_herdr_ids()
 
@@ -559,11 +563,13 @@ def test_pane_が一覧に含まれれば健全(tmp_path: Path, herdr_env: pytes
     assert result.detail == ""
 
 
-def test_pane_が一覧に無ければ沈黙(tmp_path: Path, herdr_env: pytest.MonkeyPatch) -> None:
+def test_pane_が一覧に無ければ沈黙(
+    tmp_path: Path, herdr_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """閉じられたペインを指したままだと、エージェントの状態通知が黙って捨てられる。"""
     fake = _fake_herdr(tmp_path / "herdr", _pane_list(("wA:p1", "wA:t1", "wA")))
-    herdr_env.setenv("HERDR_BIN_PATH", str(fake))
-    herdr_env.setenv("HERDR_PANE_ID", "wZ:p9")
+    monkeypatch.setenv("HERDR_BIN_PATH", str(fake))
+    monkeypatch.setenv("HERDR_PANE_ID", "wZ:p9")
 
     result = guard_probes.probe_herdr_ids()
 
@@ -571,15 +577,17 @@ def test_pane_が一覧に無ければ沈黙(tmp_path: Path, herdr_env: pytest.M
     assert "wZ:p9" in result.detail
 
 
-def test_tab_が_pane_の所属と食い違えば沈黙(tmp_path: Path, herdr_env: pytest.MonkeyPatch) -> None:
+def test_tab_が_pane_の所属と食い違えば沈黙(
+    tmp_path: Path, herdr_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """ペインは実在するのに、継承した tab がそのペインの所属と違う状態。
 
     pane だけを見ていると、この形は「実在するので健全」として通ってしまう。
     """
     fake = _fake_herdr(tmp_path / "herdr", _pane_list(("wA:p1", "wA:t1", "wA")))
-    herdr_env.setenv("HERDR_BIN_PATH", str(fake))
-    herdr_env.setenv("HERDR_PANE_ID", "wA:p1")
-    herdr_env.setenv("HERDR_TAB_ID", "wB:t9")
+    monkeypatch.setenv("HERDR_BIN_PATH", str(fake))
+    monkeypatch.setenv("HERDR_PANE_ID", "wA:p1")
+    monkeypatch.setenv("HERDR_TAB_ID", "wB:t9")
 
     result = guard_probes.probe_herdr_ids()
 
@@ -590,12 +598,12 @@ def test_tab_が_pane_の所属と食い違えば沈黙(tmp_path: Path, herdr_en
 
 
 def test_workspace_が_pane_の所属と食い違えば沈黙(
-    tmp_path: Path, herdr_env: pytest.MonkeyPatch
+    tmp_path: Path, herdr_env: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     fake = _fake_herdr(tmp_path / "herdr", _pane_list(("wA:p1", "wA:t1", "wA")))
-    herdr_env.setenv("HERDR_BIN_PATH", str(fake))
-    herdr_env.setenv("HERDR_PANE_ID", "wA:p1")
-    herdr_env.setenv("HERDR_WORKSPACE_ID", "wB")
+    monkeypatch.setenv("HERDR_BIN_PATH", str(fake))
+    monkeypatch.setenv("HERDR_PANE_ID", "wA:p1")
+    monkeypatch.setenv("HERDR_WORKSPACE_ID", "wB")
 
     result = guard_probes.probe_herdr_ids()
 
@@ -604,13 +612,15 @@ def test_workspace_が_pane_の所属と食い違えば沈黙(
     assert "wB" in result.detail
 
 
-def test_tab_と_workspace_が一致すれば健全(tmp_path: Path, herdr_env: pytest.MonkeyPatch) -> None:
+def test_tab_と_workspace_が一致すれば健全(
+    tmp_path: Path, herdr_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """3 つとも同じセッションを指している通常の状態。"""
     fake = _fake_herdr(tmp_path / "herdr", _pane_list(("wA:p1", "wA:t1", "wA")))
-    herdr_env.setenv("HERDR_BIN_PATH", str(fake))
-    herdr_env.setenv("HERDR_PANE_ID", "wA:p1")
-    herdr_env.setenv("HERDR_TAB_ID", "wA:t1")
-    herdr_env.setenv("HERDR_WORKSPACE_ID", "wA")
+    monkeypatch.setenv("HERDR_BIN_PATH", str(fake))
+    monkeypatch.setenv("HERDR_PANE_ID", "wA:p1")
+    monkeypatch.setenv("HERDR_TAB_ID", "wA:t1")
+    monkeypatch.setenv("HERDR_WORKSPACE_ID", "wA")
 
     result = guard_probes.probe_herdr_ids()
 
@@ -619,7 +629,7 @@ def test_tab_と_workspace_が一致すれば健全(tmp_path: Path, herdr_env: p
 
 
 def test_tab_と_workspace_が未設定なら_pane_だけを見る(
-    tmp_path: Path, herdr_env: pytest.MonkeyPatch
+    tmp_path: Path, herdr_env: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """設定されていない変数を食い違いとして報告しない。
 
@@ -627,8 +637,8 @@ def test_tab_と_workspace_が未設定なら_pane_だけを見る(
     すると、herdr を部分的にしか使わない経路で常に鳴る。
     """
     fake = _fake_herdr(tmp_path / "herdr", _pane_list(("wA:p1", "wA:t1", "wA")))
-    herdr_env.setenv("HERDR_BIN_PATH", str(fake))
-    herdr_env.setenv("HERDR_PANE_ID", "wA:p1")
+    monkeypatch.setenv("HERDR_BIN_PATH", str(fake))
+    monkeypatch.setenv("HERDR_PANE_ID", "wA:p1")
 
     result = guard_probes.probe_herdr_ids()
 
@@ -636,7 +646,9 @@ def test_tab_と_workspace_が未設定なら_pane_だけを見る(
     assert result.detail == ""
 
 
-def test_pane_に所属が載っていなければ沈黙(tmp_path: Path, herdr_env: pytest.MonkeyPatch) -> None:
+def test_pane_に所属が載っていなければ沈黙(
+    tmp_path: Path, herdr_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """応答から所属のキーが消えたときに、食い違いとして断定しない。
 
     tab_id を持たない pane を返させる。「読めない」と「食い違い」を同じ文面へ潰すと、herdr の
@@ -650,9 +662,9 @@ def test_pane_に所属が載っていなければ沈黙(tmp_path: Path, herdr_e
         tmp_path / "herdr",
         json.dumps({"result": {"type": "pane_list", "panes": [{"pane_id": "wA:p1"}]}}),
     )
-    herdr_env.setenv("HERDR_BIN_PATH", str(fake))
-    herdr_env.setenv("HERDR_PANE_ID", "wA:p1")
-    herdr_env.setenv("HERDR_TAB_ID", "wA:t1")
+    monkeypatch.setenv("HERDR_BIN_PATH", str(fake))
+    monkeypatch.setenv("HERDR_PANE_ID", "wA:p1")
+    monkeypatch.setenv("HERDR_TAB_ID", "wA:t1")
 
     result = guard_probes.probe_herdr_ids()
 
@@ -662,14 +674,55 @@ def test_pane_に所属が載っていなければ沈黙(tmp_path: Path, herdr_e
     assert "実在は未確認" not in result.detail
 
 
+def test_一覧に_panes_が無ければ沈黙(
+    tmp_path: Path, herdr_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """JSON としては読めるが、期待した形を持たない応答。
+
+    json.loads は通るので、生の構文エラーを捕まえる分岐では止まらない。ペインを見つける前に
+    形が違うので、所属の欠落 (ペインは見つかっている) とも別の経路になる。3 つの「読めない」を
+    同じテストで代表させると、どれか 1 つを壊しても他が緑を返して変異が届かない。
+    """
+    fake = _fake_herdr(tmp_path / "herdr", json.dumps({"result": {}}))
+    monkeypatch.setenv("HERDR_BIN_PATH", str(fake))
+    monkeypatch.setenv("HERDR_PANE_ID", "wA:p1")
+
+    result = guard_probes.probe_herdr_ids()
+
+    assert result.healthy is False
+    assert "応答の形が変わった" in result.detail
+    assert "実在は未確認" in result.detail
+    assert "実在しないペイン" not in result.detail
+
+
+def test_panes_が一覧の形でなければ沈黙(
+    tmp_path: Path, herdr_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """panes が配列ではない応答。上のテストとは投げられる例外の型が違う。
+
+    文字列は反復できてしまうので、要素が 1 文字ずつ取り出されて添字アクセスで TypeError に
+    なる。キーの欠落 (LookupError) だけを検体にすると、捕捉を LookupError へ狭める変異が
+    生き残る。
+    """
+    fake = _fake_herdr(tmp_path / "herdr", json.dumps({"result": {"panes": "not-a-list"}}))
+    monkeypatch.setenv("HERDR_BIN_PATH", str(fake))
+    monkeypatch.setenv("HERDR_PANE_ID", "wA:p1")
+
+    result = guard_probes.probe_herdr_ids()
+
+    assert result.healthy is False
+    assert "応答の形が変わった" in result.detail
+    assert "実在しないペイン" not in result.detail
+
+
 def test_herdr_が見つからなければ対象外として健全(
-    tmp_path: Path, herdr_env: pytest.MonkeyPatch
+    tmp_path: Path, herdr_env: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """herdr を使わない環境で常に鳴らせば、この層ごと読まれなくなる。"""
     empty = tmp_path / "empty"
     empty.mkdir()
-    herdr_env.setenv("PATH", str(empty))
-    herdr_env.setenv("HERDR_PANE_ID", "wA:p1")
+    monkeypatch.setenv("PATH", str(empty))
+    monkeypatch.setenv("HERDR_PANE_ID", "wA:p1")
 
     result = guard_probes.probe_herdr_ids()
 
@@ -677,7 +730,9 @@ def test_herdr_が見つからなければ対象外として健全(
     assert result.detail == ""
 
 
-def test_herdr_が応答しなければ沈黙(tmp_path: Path, herdr_env: pytest.MonkeyPatch) -> None:
+def test_herdr_が応答しなければ沈黙(
+    tmp_path: Path, herdr_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """あるのに答えないのは対象外ではない。判定できなかったことを健全へ潰さない。
 
     一覧としては読めて、しかも pane が載っている応答を返させる。読めない応答を返させると、
@@ -685,8 +740,8 @@ def test_herdr_が応答しなければ沈黙(tmp_path: Path, herdr_env: pytest.
     終了コードを見ているかを測れない (変異が下流に吸収される)。
     """
     fake = _fake_herdr(tmp_path / "herdr", _pane_list(("wA:p1", "wA:t1", "wA")), exit_code=1)
-    herdr_env.setenv("HERDR_BIN_PATH", str(fake))
-    herdr_env.setenv("HERDR_PANE_ID", "wA:p1")
+    monkeypatch.setenv("HERDR_BIN_PATH", str(fake))
+    monkeypatch.setenv("HERDR_PANE_ID", "wA:p1")
 
     result = guard_probes.probe_herdr_ids()
 
@@ -694,7 +749,9 @@ def test_herdr_が応答しなければ沈黙(tmp_path: Path, herdr_env: pytest.
     assert "wA:p1" in result.detail
 
 
-def test_herdr_がエラーを返せば沈黙(tmp_path: Path, herdr_env: pytest.MonkeyPatch) -> None:
+def test_herdr_がエラーを返せば沈黙(
+    tmp_path: Path, herdr_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """herdr は不在も誤用も exit 0 で返し、失敗は応答の中の error に入る (2026-09-07 実測)。
 
     終了コードだけを見ていると、この形は「応答した」として後段のパースへ流れる。error の
@@ -704,8 +761,8 @@ def test_herdr_がエラーを返せば沈黙(tmp_path: Path, herdr_env: pytest.
         tmp_path / "herdr",
         json.dumps({"error": {"code": "pane_not_found", "message": "pane wA:p1 not found"}}),
     )
-    herdr_env.setenv("HERDR_BIN_PATH", str(fake))
-    herdr_env.setenv("HERDR_PANE_ID", "wA:p1")
+    monkeypatch.setenv("HERDR_BIN_PATH", str(fake))
+    monkeypatch.setenv("HERDR_PANE_ID", "wA:p1")
 
     result = guard_probes.probe_herdr_ids()
 
@@ -714,15 +771,17 @@ def test_herdr_がエラーを返せば沈黙(tmp_path: Path, herdr_env: pytest.
     assert "pane_not_found" in result.detail
 
 
-def test_pane_一覧が読めない形なら沈黙(tmp_path: Path, herdr_env: pytest.MonkeyPatch) -> None:
+def test_pane_一覧が読めない形なら沈黙(
+    tmp_path: Path, herdr_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """応答の形が変わったときに「一覧に無い」と誤って断定しない。
 
     healthy が False であることだけを見ると、「読めない」と「一覧に無い」が同じ値に潰れて
     区別できない。実装が誤って不在を断定するようになっても緑で通るので、文面まで見る。
     """
     fake = _fake_herdr(tmp_path / "herdr", "not json at all")
-    herdr_env.setenv("HERDR_BIN_PATH", str(fake))
-    herdr_env.setenv("HERDR_PANE_ID", "wA:p1")
+    monkeypatch.setenv("HERDR_BIN_PATH", str(fake))
+    monkeypatch.setenv("HERDR_PANE_ID", "wA:p1")
 
     result = guard_probes.probe_herdr_ids()
 

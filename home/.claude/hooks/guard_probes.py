@@ -334,8 +334,8 @@ def probe_herdr_ids() -> ProbeResult:
 
     照合は HERDR_PANE_ID を起点にする。一覧の応答では各ペインが自分の tab_id と workspace_id を
     持つので、1 回の呼び出しで 3 つとも見られる。tab と workspace の一覧を別に引く形は採らない。
-    呼び出しが増えるとセッション頭の待ちの上限がそのぶん伸びる (ISSUE-83 の領分)。ペインを
-    起点にすると、ペインを持たない workspace や tab が一覧に現れるかどうかにも依存しない。
+    呼び出しが増えるとセッション頭の待ちの上限がそのぶん伸びる。ペインを起点にすると、ペインを
+    持たない workspace や tab が一覧に現れるかどうかにも依存しない。
 
     HERDR_PANE_ID が未設定なら何も見ない。3 つは herdr が同時に設定するので、起点が無い状態で
     残りだけを検査するには別の呼び出しが要る。tab と workspace が個別に未設定のときは、その
@@ -409,7 +409,10 @@ def probe_herdr_ids() -> ProbeResult:
             continue
         try:
             actual = pane[key]
-        except (LookupError, TypeError) as exc:
+        except LookupError as exc:
+            # TypeError は並べない。ここへ来る pane は上の next() で pane_id の添字を通って
+            # いるので dict に限られ、起こるのはキーの欠落だけである。到達しない型を書くと、
+            # 読み手が「添字の通らない pane がここまで来る」と誤読する。
             return _herdr_unverified(
                 pane_id, "所属", f"ペインの所属を読めない ({exc})。応答の形が変わった"
             )
