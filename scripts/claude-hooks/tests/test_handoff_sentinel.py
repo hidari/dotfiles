@@ -127,19 +127,36 @@ def record_provenance(tmp_path: Path, *, cwd: Path | None = None) -> None:
     )
 
 
+def rate_limits_path(tmp_path: Path) -> Path:
+    """テスト内でのキャッシュの位置。書き込み先と env の指す先を 1 箇所に閉じる。
+
+    call site が両方に同じパスを渡す形だと、片方だけ変えたときにテストが静かに
+    「存在しないファイルを見る」状態へ落ちる。
+    """
+    return tmp_path / "rate-limits.json"
+
+
 def base_env(tmp_path: Path) -> dict[str, str]:
-    """テスト用の小さいしきい値: window=1000 tokens, 50% (= 500 tokens で発火)。"""
+    """テスト用の小さいしきい値: window=1000 tokens, 50% (= 500 tokens で発火)。
+
+    レートリミットのキャッシュも tmp_path 側へ倒す。既定のままだと実マシンの
+    ~/.cache/claude/rate-limits-*.json を読み、そのアカウントが逼迫している間だけ
+    無関係なテストに通知が混ざる。
+    """
     return {
         "HANDOFF_STATE_DIR": str(tmp_path / "state"),
+        "HANDOFF_RATE_LIMITS_FILE": str(rate_limits_path(tmp_path)),
         "HANDOFF_CONTEXT_WINDOW_TOKENS": "1000",
         "HANDOFF_CONTEXT_THRESHOLD_PCT": "50",
         "HANDOFF_BROKEN_COUNT": "5",
     }
 
 
-def posttool_input(tmp_path: Path, transcript: Path) -> dict[str, object]:
+def posttool_input(
+    tmp_path: Path, transcript: Path, session_id: str = "sess-1"
+) -> dict[str, object]:
     return {
-        "session_id": "sess-1",
+        "session_id": session_id,
         "transcript_path": str(transcript),
         "cwd": str(tmp_path),
         "hook_event_name": "PostToolUse",
@@ -289,27 +306,11 @@ FUTURE_RESET = 4_102_444_800  # 2100-01-01
 PAST_RESET = 1_000_000_000  # 2001-09-09
 
 
-def rate_limits_path(tmp_path: Path) -> Path:
-    """テスト内でのキャッシュの位置。書き込み先と env の指す先を 1 箇所に閉じる。
-
-    call site が両方に同じパスを渡す形だと、片方だけ変えたときにテストが静かに
-    「存在しないファイルを見る」状態へ落ちる。
-    """
-    return tmp_path / "rate-limits.json"
-
-
 def write_rate_limits(tmp_path: Path, windows: Mapping[str, object]) -> Path:
     """statusline が書くレートリミットのキャッシュを模した JSON を置く。"""
     path = rate_limits_path(tmp_path)
     path.write_text(json.dumps(windows), encoding="utf-8")
     return path
-
-
-def ratelimit_env(tmp_path: Path) -> dict[str, str]:
-    """キャッシュの位置だけを差し替える (しきい値の既定はプロダクト側を使う)。"""
-    env = base_env(tmp_path)
-    env["HANDOFF_RATE_LIMITS_FILE"] = str(rate_limits_path(tmp_path))
-    return env
 
 
 def quiet_transcript(tmp_path: Path) -> Path:
@@ -327,7 +328,7 @@ def run_ratelimit(
     return run_hook(
         "posttool",
         posttool_input(tmp_path, quiet_transcript(tmp_path)),
-        extra_env=ratelimit_env(tmp_path),
+        extra_env=base_env(tmp_path),
     )
 
 
@@ -388,7 +389,7 @@ class TestPostToolRateLimitWatch:
     def test_同じ窓の同じ段では再発火しない(self, tmp_path: Path) -> None:
         windows = {"five_hour": {"used_percentage": 91, "resets_at": FUTURE_RESET}}
         write_rate_limits(tmp_path, windows)
-        env = ratelimit_env(tmp_path)
+        env = base_env(tmp_path)
         hook_input = posttool_input(tmp_path, quiet_transcript(tmp_path))
         first = run_hook("posttool", hook_input, extra_env=env)
         second = run_hook("posttool", hook_input, extra_env=env)
@@ -401,7 +402,7 @@ class TestPostToolRateLimitWatch:
         rate_limits = write_rate_limits(
             tmp_path, {"five_hour": {"used_percentage": 91, "resets_at": FUTURE_RESET}}
         )
-        env = ratelimit_env(tmp_path)
+        env = base_env(tmp_path)
         hook_input = posttool_input(tmp_path, quiet_transcript(tmp_path))
         first = run_hook("posttool", hook_input, extra_env=env)
         rate_limits.write_text(
@@ -416,7 +417,7 @@ class TestPostToolRateLimitWatch:
         rate_limits = write_rate_limits(
             tmp_path, {"five_hour": {"used_percentage": 91, "resets_at": FUTURE_RESET}}
         )
-        env = ratelimit_env(tmp_path)
+        env = base_env(tmp_path)
         hook_input = posttool_input(tmp_path, quiet_transcript(tmp_path))
         warn = run_hook("posttool", hook_input, extra_env=env)
         rate_limits.write_text(
@@ -456,9 +457,9 @@ class TestPostToolRateLimitWatch:
         assert result.stdout == ""
 
     def test_壊れたJSONは無出力でexit0(self, tmp_path: Path) -> None:
-        broken = tmp_path / "rate-limits.json"
+        broken = rate_limits_path(tmp_path)
         broken.write_text("{not json", encoding="utf-8")
-        env = ratelimit_env(tmp_path)
+        env = base_env(tmp_path)
         result = run_hook(
             "posttool", posttool_input(tmp_path, quiet_transcript(tmp_path)), extra_env=env
         )
@@ -489,7 +490,7 @@ class TestPostToolRateLimitWatch:
         result = run_hook(
             "posttool",
             posttool_input(tmp_path, transcript),
-            extra_env=ratelimit_env(tmp_path),
+            extra_env=base_env(tmp_path),
         )
         context = context_of(result)
         assert "推定 500 tokens" in context
@@ -501,7 +502,7 @@ class TestPostToolRateLimitWatch:
         )
         hook_input = posttool_input(tmp_path, quiet_transcript(tmp_path))
         hook_input["agent_id"] = "agent-x"
-        result = run_hook("posttool", hook_input, extra_env=ratelimit_env(tmp_path))
+        result = run_hook("posttool", hook_input, extra_env=base_env(tmp_path))
         assert result.returncode == 0
         assert result.stdout == ""
 
@@ -731,8 +732,23 @@ class TestStopBrokenCount:
         assert json.loads(full.stdout)["decision"] == "block"
 
 
-def session_input(cwd: Path) -> dict[str, object]:
-    return {"session_id": "sess-1", "cwd": str(cwd), "hook_event_name": "SessionStart"}
+def session_input(cwd: Path, session_id: str = "sess-1") -> dict[str, object]:
+    return {"session_id": session_id, "cwd": str(cwd), "hook_event_name": "SessionStart"}
+
+
+def run_session(
+    tmp_path: Path, *, cwd: Path | None = None, session_id: str = "sess-1"
+) -> subprocess.CompletedProcess[str]:
+    """SessionStart フックを 1 回走らせる (session 系テスト共通の起動経路)。
+
+    起動の引数を 1 箇所へ閉じる。call site ごとに書くと、action 名や env の渡し方を
+    変えたときの取りこぼしが「無出力 = 告げるものが無い」ともっともらしい緑で返る。
+    """
+    return run_hook(
+        "session",
+        session_input(cwd if cwd is not None else tmp_path, session_id),
+        extra_env=base_env(tmp_path),
+    )
 
 
 class TestSessionStartInject:
@@ -898,3 +914,193 @@ class TestProvenanceGate:
         result = run_hook("session", session_input(tmp_path), extra_env=base_env(tmp_path))
         assert result.stdout == ""
         assert (tmp_path / ".cache" / "handoff.md").exists()  # 不一致では consume もしない
+
+
+# 固定 mtime。実時刻に依存させないため epoch と表示の対応を両方 literal で持つ。
+CREATED_EPOCH = 1_788_698_552
+CREATED_UTC = "2026-09-06T12:42:32Z"
+OLDER_EPOCH = 1_754_006_400
+OLDER_UTC = "2025-08-01T00:00:00Z"
+
+
+def consume_with_mtime(tmp_path: Path, cwd: Path, epoch: int) -> str:
+    """mtime を固定した handoff を 1 回消費し、注入された additionalContext を返す。"""
+    cwd.mkdir(parents=True, exist_ok=True)
+    handoff_dir = write_handoff(cwd, "引き継ぎ本文\n")
+    record_provenance(tmp_path, cwd=cwd)  # provenance は内容ハッシュのみ見るので mtime 固定と独立
+    os.utime(handoff_dir / "handoff.md", (epoch, epoch))
+    return context_of(run_session(tmp_path, cwd=cwd))
+
+
+class TestSessionStartCreatedAt:
+    """session: 注入文面へ引き継ぎ書そのものの作成時刻 (mtime) を UTC の絶対時刻で添える。
+
+    ファイル名の stamp は消費の瞬間に打つので、1 か月前の引き継ぎでも今日の日付が付く。
+    それだけだと新しく見える方向へバイアスがかかる。経過日数は添えない: 未消費 8 本のうち
+    7 本は書いた後にコミットが 0 本で凍結しており、経過日数は腐りの指標にならないため。
+    """
+
+    def test_注入文面にhandoffのmtimeが絶対時刻で現れる(self, tmp_path: Path) -> None:
+        context = consume_with_mtime(tmp_path, tmp_path / "repo", CREATED_EPOCH)
+        assert CREATED_UTC in context
+
+    def test_mtimeが違えば異なる作成時刻が出る(self, tmp_path: Path) -> None:
+        """消費時刻ではなく mtime を読んでいることの pin (now() 実装ならどちらも今日になる)。"""
+        newer = consume_with_mtime(tmp_path, tmp_path / "newer", CREATED_EPOCH)
+        older = consume_with_mtime(tmp_path, tmp_path / "older", OLDER_EPOCH)
+        assert CREATED_UTC in newer
+        assert OLDER_UTC in older
+        assert OLDER_UTC not in newer
+
+    def test_経過日数は添えない(self, tmp_path: Path) -> None:
+        """鮮度は絶対時刻だけ渡し、腐りの判定は読み手へ委ねる。"""
+        context = consume_with_mtime(tmp_path, tmp_path / "repo", OLDER_EPOCH)
+        assert "日前" not in context
+        assert "日経過" not in context
+
+
+def run_quiet_posttool(
+    tmp_path: Path, session_id: str, *, transcript: Path | None = None
+) -> subprocess.CompletedProcess[str]:
+    """コンテキストもレートリミットも鳴らさない PostToolUse (未読の消去だけを見る)。"""
+    return run_hook(
+        "posttool",
+        posttool_input(
+            tmp_path,
+            transcript if transcript is not None else quiet_transcript(tmp_path),
+            session_id,
+        ),
+        extra_env=base_env(tmp_path),
+    )
+
+
+CONSUMER = "sess-consumer"
+NEXT = "sess-next"
+
+
+class TestUnreadHandoffNotice:
+    """session: 消費した引き継ぎが読まれないまま終わった経路を、次のセッションへ告げる。
+
+    「読まれた」の近似は「消費したセッションが PostToolUse を 1 度でも迎えたこと」。
+    応答を返したかを見るほうが正確だがフックからは観測できず、PostToolUse なら既存の
+    配線で足りる。事故のセッションは 57 秒で死んでツールを 1 度も使っていない。
+    検出しても復帰はさせず告げるだけにする: provenance を消した後の内容を何を根拠に
+    信用するかという、決定待ちの prompt injection の議論へ巻き込まれるため。
+    """
+
+    def consume(self, tmp_path: Path, session_id: str = CONSUMER) -> str:
+        """handoff を 1 本消費し、consumed のファイル名を返す。"""
+        handoff_dir = write_handoff(tmp_path, "正規の引き継ぎ\n次は X をやる\n")
+        record_provenance(tmp_path)
+        assert run_session(tmp_path, session_id=session_id).stdout != ""  # setup の失敗を隠さない
+        return next(p.name for p in handoff_dir.iterdir() if p.name.startswith("handoff-consumed-"))
+
+    def test_消費したセッションがPostToolUseを迎えないと次のセッションへ告げる(
+        self, tmp_path: Path
+    ) -> None:
+        consumed = self.consume(tmp_path)
+        out = run_session(tmp_path, session_id=NEXT).stdout
+        assert consumed in out
+        assert "読まれないまま" in out
+
+    def test_消費したセッションのPostToolUseの後は告げない(self, tmp_path: Path) -> None:
+        self.consume(tmp_path)
+        run_quiet_posttool(tmp_path, CONSUMER)
+        assert run_session(tmp_path, session_id=NEXT).stdout == ""
+
+    def test_session_idが違うPostToolUseでは読まれた扱いにしない(self, tmp_path: Path) -> None:
+        """一致判定の pin。これが無いと「誰の PostToolUse でも消す」実装でも緑になる。"""
+        consumed = self.consume(tmp_path)
+        run_quiet_posttool(tmp_path, "sess-other")
+        assert consumed in run_session(tmp_path, session_id=NEXT).stdout
+
+    def test_transcriptが解決できないPostToolUseでも読まれた扱いにする(
+        self, tmp_path: Path
+    ) -> None:
+        """未読の消去は _session_and_transcript の判定より前に独立して置く。
+
+        同関数は transcript が欠けただけで早期 return するので、後ろに置くとその条件の
+        セッションが永久に「読まれていない」と報告され続ける。
+        """
+        self.consume(tmp_path)
+        run_quiet_posttool(tmp_path, CONSUMER, transcript=tmp_path / "missing.jsonl")
+        assert run_session(tmp_path, session_id=NEXT).stdout == ""
+
+    def test_告げるのは一度だけ(self, tmp_path: Path) -> None:
+        self.consume(tmp_path)
+        assert "読まれないまま" in run_session(tmp_path, session_id="sess-next-1").stdout
+        assert run_session(tmp_path, session_id="sess-next-2").stdout == ""
+
+    def test_同一session_idのSessionStart再発火では自分の消費を告げない(
+        self, tmp_path: Path
+    ) -> None:
+        """compact / resume で同じ session_id の SessionStart が再発火する経路の誤検知ガード。"""
+        self.consume(tmp_path, CONSUMER)
+        assert run_session(tmp_path, session_id=CONSUMER).stdout == ""
+
+    def test_handoff不在でも未読があれば告げる(self, tmp_path: Path) -> None:
+        """告知は注入と独立に返す (handoff 不在の早期 return に巻き込まれない)。"""
+        consumed = self.consume(tmp_path)
+        assert not (tmp_path / ".cache" / "handoff.md").exists()
+        assert consumed in run_session(tmp_path, session_id=NEXT).stdout
+
+    def test_告知と新しいhandoffの注入は同居する(self, tmp_path: Path) -> None:
+        """consumed 名では照合しない: 同じ秒に消費すると 2 本目が同名になり空振りする。"""
+        self.consume(tmp_path)
+        write_handoff(tmp_path, "二本目の引き継ぎ\n次は Y をやる\n")
+        record_provenance(tmp_path)
+        ctx = context_of(run_session(tmp_path, session_id=NEXT))
+        assert "読まれないまま" in ctx  # 未読の告知
+        assert "次は Y をやる" in ctx  # 新しい引き継ぎの注入
+
+    def test_消費できなかったセッションは未読を残さない(self, tmp_path: Path) -> None:
+        """provenance 不一致で consume しなかったのに未読が立つと、常時誤報になる。"""
+        write_handoff(tmp_path, "record を経ていない handoff\n")
+        run_session(tmp_path, session_id=CONSUMER)
+        assert run_session(tmp_path, session_id=NEXT).stdout == ""
+
+    def test_別リポの未読は告げない(self, tmp_path: Path) -> None:
+        """記録は session 名のファイルなので、どの repo のものかは中身でしか判別できない。"""
+        other = tmp_path / "other"
+        other.mkdir()
+        write_handoff(other, "別リポの引き継ぎ\n")
+        record_provenance(tmp_path, cwd=other)
+        assert run_session(tmp_path, cwd=other, session_id=CONSUMER).stdout != ""
+        assert run_session(tmp_path, session_id=NEXT).stdout == ""
+
+    def test_session_idの無いSessionStartでも注入し記録は残さない(self, tmp_path: Path) -> None:
+        """記録は消す側が session_id から探すので、id が無いまま記録すると誰にも消せない。
+
+        しかも空の id が作る名前は先頭がドットになり、集める側の glob からも外れる。
+        誰にも消されず誰にも見えない記録が残るので、記録しないほうを選ぶ。
+        """
+        write_handoff(tmp_path, "id 無しの引き継ぎ\n次は Z をやる\n")
+        record_provenance(tmp_path)
+        payload = session_input(tmp_path)
+        del payload["session_id"]
+        result = run_hook("session", payload, extra_env=base_env(tmp_path))
+        assert "次は Z をやる" in context_of(result)  # 注入そのものは止めない
+        assert [p.name for p in (tmp_path / "state").iterdir() if "unread" in p.name] == []
+
+    @pytest.mark.skipif(
+        hasattr(os, "geteuid") and os.geteuid() == 0,
+        reason="root は chmod 0o000 を無視でき read 失敗を作れない",
+    )
+    def test_注入が例外で落ちても未読の告知は失われない(self, tmp_path: Path) -> None:
+        """記録を消すのは出力を組み立て切ってから。
+
+        先に消すと、注入側の例外を main の包括 except が握った瞬間に告知だけが誰にも
+        届かないまま失われる。この Issue が塞ごうとしている事故を関数の内側で再現する形。
+        """
+        self.consume(tmp_path)
+        handoff_dir = write_handoff(tmp_path, "二本目の引き継ぎ\n")
+        record_provenance(tmp_path)  # ハッシュは読める間に採る
+        handoff = handoff_dir / "handoff.md"
+        handoff.chmod(0o000)  # is_file は通り read_bytes だけが落ちる
+        try:
+            blocked = run_session(tmp_path, session_id=NEXT)
+            assert blocked.returncode == 0
+            assert blocked.stdout == ""  # 例外は fail-safe に握られる
+        finally:
+            handoff.chmod(0o644)
+        assert "読まれないまま" in run_session(tmp_path, session_id="sess-next-2").stdout
