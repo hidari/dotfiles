@@ -228,6 +228,76 @@ setup_extra_account() {
 }
 
 # =============================================================================
+# シェル側とフック側の導出の同値性
+# =============================================================================
+#
+# 同じ規則を zsh と Python が別々に持つ。片方だけ変えると、セッション頭の検査が
+# 正しいセッションを汚染として報告するか、汚染を見逃すかのどちらかになる。どちらも
+# 「実行はされているのに間違った答えを返す」形なので、緑と赤の境目でしか気づけない。
+# この対照が唯一その境目を作る。
+
+# フック側の導出を印字する。guard_probes は print を持たない設計なので、印字はここが行う。
+hook_task_list_id() {
+    python3 -c \
+        'import sys; sys.path.insert(0, sys.argv[1]); import guard_probes; print(guard_probes.derive_task_list_id(sys.argv[2]))' \
+        "$REPO_ROOT/home/.claude/hooks" "$1"
+}
+
+# 同じディレクトリに対して両者が同じ値を返すことを確かめる。
+assert_derivations_agree() {
+    local dir="$1"
+    local shell_id hook_id
+
+    # git hook 経由で bats が起動されると探索先が横取りされる。シェル側はこれを落とさない
+    # ので、落とさないまま比べると本物の食い違いではない差が出る
+    local var
+    for var in GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR GIT_PREFIX GIT_NAMESPACE; do
+        unset "$var"
+    done
+
+    run_in_dir "$dir" _claude_task_list_id
+    [ "$status" -eq 0 ]
+    shell_id="$output"
+
+    run hook_task_list_id "$dir"
+    [ "$status" -eq 0 ]
+    hook_id="$output"
+
+    [ "$hook_id" = "$shell_id" ]
+}
+
+@test "task list id: shell and hook agree inside a repository" {
+    setup_test_repo "$TEST_HOME/myrepo"
+    load_zshrc_claude_functions
+
+    assert_derivations_agree "$TEST_HOME/myrepo"
+}
+
+@test "task list id: shell and hook agree from a subdirectory" {
+    setup_test_repo "$TEST_HOME/myrepo"
+    mkdir -p "$TEST_HOME/myrepo/frontend/src"
+    load_zshrc_claude_functions
+
+    assert_derivations_agree "$TEST_HOME/myrepo/frontend/src"
+}
+
+@test "task list id: shell and hook agree outside a repository" {
+    mkdir -p "$TEST_HOME/plain-dir"
+    load_zshrc_claude_functions
+
+    assert_derivations_agree "$TEST_HOME/plain-dir"
+}
+
+@test "task list id: shell and hook agree through a symlink" {
+    # フォールバックだけが経路依存になる非対称は、両側で同じ形で解消していないと出る
+    mkdir -p "$TEST_HOME/real-dir"
+    ln -s "$TEST_HOME/real-dir" "$TEST_HOME/link-dir"
+    load_zshrc_claude_functions
+
+    assert_derivations_agree "$TEST_HOME/link-dir"
+}
+
+# =============================================================================
 # claude (個人アカウント)
 # =============================================================================
 

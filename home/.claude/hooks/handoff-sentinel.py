@@ -394,49 +394,16 @@ def handle_stop(payload: dict[str, Any]) -> dict[str, Any] | None:
     return {"decision": "block", "reason": reason}
 
 
-# git の repo / worktree / index の位置を上書きする環境変数。git hook 経由の実行では git が
-# これらを子へ渡すため、継承すると `git -C <cwd>` の repo 探索が hook 側の repo に上書きされる。
-# repo の指定を -C に一本化するため、これらを除いた環境で git を起動する。
-_GIT_LOCATION_VARS = frozenset(
-    {
-        "GIT_DIR",
-        "GIT_WORK_TREE",
-        "GIT_INDEX_FILE",
-        "GIT_OBJECT_DIRECTORY",
-        "GIT_COMMON_DIR",
-        "GIT_PREFIX",
-        "GIT_NAMESPACE",
-    }
-)
-
-
-def _isolated_git_env() -> dict[str, str]:
-    """ロケーション系 GIT_* を除いた環境変数を返す。"""
-    return {k: v for k, v in os.environ.items() if k not in _GIT_LOCATION_VARS}
-
-
 def _repo_root(cwd: str) -> Path:
-    """cwd の git リポルートを返す。リポ外・git 不在は cwd に落とす。
+    """cwd の git リポルートを返す。解決の規則は hook_git が持つ。
 
-    subprocess をここで import するのは、この関数へ来るのが record / session の 2 経路だけで、
+    hook_git をここで import するのは、この関数へ来るのが record / session の 2 経路だけで、
     ツール呼び出しごとに走る posttool と stop は一度も通らないため。トップレベルへ置くと
-    全経路が起動のたびにインタプリタの import コストを払う。
+    全経路が起動のたびに subprocess の import コストを払う。
     """
-    import subprocess
+    import hook_git
 
-    try:
-        result = subprocess.run(
-            ["git", "-C", cwd, "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-            env=_isolated_git_env(),
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return Path(cwd)
-    top = result.stdout.strip()
-    return Path(top) if result.returncode == 0 and top else Path(cwd)
+    return hook_git.repo_root(cwd)
 
 
 def _hash_bytes(data: bytes) -> str:

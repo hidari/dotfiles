@@ -19,13 +19,16 @@ import してよい。
 
 from __future__ import annotations
 
+import json
 import os
+import shutil
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 import guard_resolve
+import hook_git
 
 # tirith の応答検査に流すコマンド。副作用が無く、検出されないことを実測で確かめたもの。
 # 検出される文字列を選ぶと監査カウンタの blocked が呼び出しごとに 1 増え、tirith が
@@ -35,6 +38,9 @@ TIRITH_PROBE_COMMAND = "ls -la"
 # 応答検査のタイムアウト (秒)。通常の応答は数十ミリ秒のオーダーだが、この値は
 # 「応答しない」を判定するための上限であって通常経路の待ち時間ではない。
 TIRITH_PROBE_TIMEOUT = 5.0
+
+# ペイン一覧の取得の上限 (秒)。同じく「応答しない」の判定に使う上限である。
+HERDR_PROBE_TIMEOUT = 5.0
 
 
 @dataclass(frozen=True)
@@ -189,10 +195,139 @@ def probe_private_ops() -> ProbeResult:
     )
 
 
+def _session_directory() -> Path:
+    """このセッションの作業ディレクトリ。決められなければフックの cwd に落とす。
+
+    _project_root() と違って None を返さない。あちらは opt-in マーカーを探す側なので
+    「対象かどうか分からない」を表す必要があるが、こちらは導出元が要るだけで、
+    どのディレクトリで起動していても必ず 1 つ決まる。
+    """
+    root = os.environ.get("CLAUDE_PROJECT_DIR")
+    return Path(root) if root else Path.cwd()
+
+
+def derive_task_list_id(directory: str | Path) -> str:
+    """作業ディレクトリからタスクリスト識別子を導出する。
+
+    `.zshrc` の `_claude_task_list_id` と同じ規則で、git の作業ツリーならルートの名前、
+    そうでなければ実体パスの名前になる。両者が同じ値を返すことは bats 側の対照テストが
+    pin する。規則が 2 言語にまたがるので、片方を読んだだけでは食い違いに気づけない。
+
+    先に実体パスへ寄せるのは、シェル側がフォールバックで `pwd -P` を使うためである。
+    寄せないと、symlink 経由で入ったセッションを汚染として報告する。
+    """
+    return hook_git.repo_root(Path(directory).resolve()).name
+
+
+def probe_task_list_id() -> ProbeResult:
+    """CLAUDE_CODE_TASK_LIST_ID が作業ディレクトリと整合しているか。
+
+    daemon は起動を速くするため事前にウォームした worker を claim して割り当てるが、
+    claim で差し替わらない環境変数は worker を spawn した時点の値のまま残る。この変数は
+    差し替わらない側にあるので、別プロジェクトで起こされた daemon の worker を掴むと
+    そちらの名前を着たまま起動する。
+
+    汚染された値は空でも不正でもなく実在する別プロジェクトの名前なので、タスク管理の
+    ツールを使うとそのプロジェクトの生きたバックログへ書き込む。失敗がもっともらしい成功
+    として返る形なので、使うまで気づけない。
+
+    未設定は対象外として通す。ランチャを通さない起動では設定されず、その場合は Claude Code
+    の既定に任せている状態であって汚染ではない。
+    """
+    declared = os.environ.get("CLAUDE_CODE_TASK_LIST_ID")
+    if not declared:
+        return ProbeResult(healthy=True)
+
+    expected = derive_task_list_id(_session_directory())
+    if declared == expected:
+        return ProbeResult(healthy=True)
+
+    return ProbeResult(
+        healthy=False,
+        detail=(
+            f"CLAUDE_CODE_TASK_LIST_ID={declared} は、作業ディレクトリから導出される "
+            f"{expected} と食い違う。別プロジェクトのタスクリストを掴んでいるので、"
+            "タスク管理のツールを使う前に Claude Code を起動し直すこと。"
+        ),
+    )
+
+
+def _herdr_bin() -> str | None:
+    """herdr の実体。herdr の中で起動していれば HERDR_BIN_PATH が指す。"""
+    return os.environ.get("HERDR_BIN_PATH") or shutil.which("herdr")
+
+
+def probe_herdr_pane() -> ProbeResult:
+    """HERDR_PANE_ID が実在するペインを指しているか。
+
+    この変数も claim で差し替わらない側にあり、既に閉じられたペインを指すことがある。
+    その場合はエージェントの状態通知が黙って捨てられ、ユーザーからは動いていないように
+    見える。
+
+    未設定と herdr 不在は対象外として通す。herdr を使わない環境で常に鳴らすと、この層の
+    出力そのものが読まれなくなる。あるのに応答しないのは対象外ではないので沈黙として扱う。
+    """
+    pane_id = os.environ.get("HERDR_PANE_ID")
+    if not pane_id:
+        return ProbeResult(healthy=True)
+
+    herdr_bin = _herdr_bin()
+    if not herdr_bin:
+        return ProbeResult(healthy=True)
+
+    try:
+        result = subprocess.run(
+            [herdr_bin, "pane", "list"],
+            capture_output=True,
+            text=True,
+            timeout=HERDR_PROBE_TIMEOUT,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return ProbeResult(
+            healthy=False,
+            detail=f"{herdr_bin} がペイン一覧を返さない ({exc})。{pane_id} の実在は未確認。",
+        )
+
+    if result.returncode != 0:
+        return ProbeResult(
+            healthy=False,
+            detail=(
+                f"{herdr_bin} がペイン一覧を返さない (exit {result.returncode})。"
+                f"{pane_id} の実在は未確認。"
+            ),
+        )
+
+    try:
+        panes = json.loads(result.stdout)["result"]["panes"]
+        known = {pane["pane_id"] for pane in panes}
+    except (ValueError, LookupError, TypeError) as exc:
+        return ProbeResult(
+            healthy=False,
+            detail=(
+                f"ペイン一覧を読めない ({exc})。応答の形が変わった可能性がある。"
+                f"{pane_id} の実在は未確認。"
+            ),
+        )
+
+    if pane_id in known:
+        return ProbeResult(healthy=True)
+
+    return ProbeResult(
+        healthy=False,
+        detail=(
+            f"HERDR_PANE_ID={pane_id} は実在しないペインを指している。"
+            "エージェントの状態通知は届かないまま捨てられる。"
+        ),
+    )
+
+
 # プローブの登録簿。名前を結果ではなくここが持つのは、プローブの呼び出し自体が例外で
 # 落ちたときにも名前が要るためである。名前が無いと「検査できなかった」を報告できない。
 PROBES: tuple[tuple[str, Callable[[], ProbeResult]], ...] = (
     ("apm", probe_apm),
     ("tirith", probe_tirith),
     ("private-ops", probe_private_ops),
+    ("task-list-id", probe_task_list_id),
+    ("herdr-pane", probe_herdr_pane),
 )

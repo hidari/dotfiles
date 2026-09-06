@@ -6,12 +6,15 @@ sys.exit) を持たない層なので、この形で仕様を読める。
 
 from __future__ import annotations
 
+import json
+import subprocess
 from pathlib import Path
 
 import guard_probes
 import guard_resolve
+import hook_git
 import pytest
-from conftest import bash_symlink_pairs
+from conftest import bash_symlink_pairs, git_scope_free_env
 
 
 def test_shim_へ解決すれば健全(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -191,7 +194,7 @@ def test_clean_なコマンドに_clean_を返さなければ沈黙(
 def test_登録簿は名前と関数の組を持つ() -> None:
     """呼び出し自体が例外で落ちたときにも名前が要るので、名前は結果ではなく登録簿が持つ。"""
     names = [name for name, _ in guard_probes.PROBES]
-    assert names == ["apm", "tirith", "private-ops"]
+    assert names == ["apm", "tirith", "private-ops", "task-list-id", "herdr-pane"]
     for _, probe in guard_probes.PROBES:
         assert callable(probe)
 
@@ -287,4 +290,206 @@ def test_CLAUDE_PROJECT_DIR_が無ければ対象外として健全(monkeypatch:
 
 def test_登録簿は名前の集合で_pin_する() -> None:
     """件数ではなく名前で見る。件数だけだと差し替えを見逃す。"""
-    assert {name for name, _ in guard_probes.PROBES} == {"apm", "tirith", "private-ops"}
+    assert {name for name, _ in guard_probes.PROBES} == {
+        "apm",
+        "tirith",
+        "private-ops",
+        "task-list-id",
+        "herdr-pane",
+    }
+
+
+def _git_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str = "myrepo") -> Path:
+    """CLAUDE_PROJECT_DIR で指させる git の作業ツリーを 1 つ作る。"""
+    root = tmp_path / name
+    root.mkdir()
+    subprocess.run(
+        ["git", "init", "-q"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        env=git_scope_free_env(),
+    )
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(root))
+    for var in hook_git.LOCATION_VARS:
+        monkeypatch.delenv(var, raising=False)
+    return root
+
+
+def test_タスクリスト識別子がリポジトリ名と一致すれば健全(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _git_project(tmp_path, monkeypatch)
+    monkeypatch.setenv("CLAUDE_CODE_TASK_LIST_ID", "myrepo")
+
+    result = guard_probes.probe_task_list_id()
+
+    assert result.healthy is True
+    assert result.detail == ""
+
+
+def test_タスクリスト識別子が食い違えば両方の値を添えて沈黙(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """汚染された値は空でも不正でもなく、実在する別プロジェクトの名前である。
+
+    どちらが宣言でどちらが導出かを文面が持たないと、受け取った側はどちらへ寄せるべきか
+    決められない。
+    """
+    _git_project(tmp_path, monkeypatch)
+    monkeypatch.setenv("CLAUDE_CODE_TASK_LIST_ID", "someone-elses-project")
+
+    result = guard_probes.probe_task_list_id()
+
+    assert result.healthy is False
+    assert "someone-elses-project" in result.detail
+    assert "myrepo" in result.detail
+
+
+def test_タスクリスト識別子が未設定なら対象外として健全(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ランチャを通さない起動では設定されない。既定に任せている状態なので汚染ではない。"""
+    _git_project(tmp_path, monkeypatch)
+    monkeypatch.delenv("CLAUDE_CODE_TASK_LIST_ID", raising=False)
+
+    result = guard_probes.probe_task_list_id()
+
+    assert result.healthy is True
+    assert result.detail == ""
+
+
+def test_リポジトリのサブディレクトリでもルートの名前で判定する(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """サブディレクトリの名前で判定すると、正しいセッションを汚染として報告する。"""
+    root = _git_project(tmp_path, monkeypatch)
+    deep = root / "frontend" / "src"
+    deep.mkdir(parents=True)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(deep))
+    monkeypatch.setenv("CLAUDE_CODE_TASK_LIST_ID", "myrepo")
+
+    assert guard_probes.probe_task_list_id().healthy is True
+
+
+def test_git_の作業ツリー外では作業ディレクトリの名前で判定する(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plain = tmp_path / "plain-dir"
+    plain.mkdir()
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(plain))
+    monkeypatch.setenv("CLAUDE_CODE_TASK_LIST_ID", "plain-dir")
+    for var in hook_git.LOCATION_VARS:
+        monkeypatch.delenv(var, raising=False)
+
+    assert guard_probes.probe_task_list_id().healthy is True
+
+
+def test_symlink_経由で入っても同じ識別子へ解決する(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`.zshrc` 側が pwd -P で実体へ寄せるので、こちらも寄せないと経路違いを汚染と読む。"""
+    real = tmp_path / "real-dir"
+    real.mkdir()
+    link = tmp_path / "link-dir"
+    link.symlink_to(real)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(link))
+    monkeypatch.setenv("CLAUDE_CODE_TASK_LIST_ID", "real-dir")
+    for var in hook_git.LOCATION_VARS:
+        monkeypatch.delenv(var, raising=False)
+
+    assert guard_probes.probe_task_list_id().healthy is True
+
+
+def _fake_herdr(path: Path, stdout: str = "", exit_code: int = 0) -> Path:
+    """指定の標準出力と exit code を返す偽 herdr を作る。"""
+    path.write_text(
+        f"#!/bin/sh\ncat <<'HERDR_PROBE_JSON'\n{stdout}\nHERDR_PROBE_JSON\nexit {exit_code}\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o755)
+    return path
+
+
+def _pane_list(*pane_ids: str) -> str:
+    """herdr pane list の応答を、pane_id だけ持つ最小の形で組む。"""
+    return json.dumps(
+        {"result": {"type": "pane_list", "panes": [{"pane_id": p} for p in pane_ids]}}
+    )
+
+
+def test_HERDR_PANE_ID_が未設定なら対象外として健全(monkeypatch: pytest.MonkeyPatch) -> None:
+    """herdr の外で起動したセッション。判定する対象がそもそも無い。"""
+    monkeypatch.delenv("HERDR_PANE_ID", raising=False)
+
+    result = guard_probes.probe_herdr_pane()
+
+    assert result.healthy is True
+    assert result.detail == ""
+
+
+def test_pane_が一覧に含まれれば健全(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = _fake_herdr(tmp_path / "herdr", _pane_list("wA:p1", "wA:p2"))
+    monkeypatch.setenv("HERDR_BIN_PATH", str(fake))
+    monkeypatch.setenv("HERDR_PANE_ID", "wA:p2")
+
+    result = guard_probes.probe_herdr_pane()
+
+    assert result.healthy is True
+    assert result.detail == ""
+
+
+def test_pane_が一覧に無ければ沈黙(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """閉じられたペインを指したままだと、エージェントの状態通知が黙って捨てられる。"""
+    fake = _fake_herdr(tmp_path / "herdr", _pane_list("wA:p1"))
+    monkeypatch.setenv("HERDR_BIN_PATH", str(fake))
+    monkeypatch.setenv("HERDR_PANE_ID", "wZ:p9")
+
+    result = guard_probes.probe_herdr_pane()
+
+    assert result.healthy is False
+    assert "wZ:p9" in result.detail
+
+
+def test_herdr_が見つからなければ対象外として健全(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """herdr を使わない環境で常に鳴らせば、この層ごと読まれなくなる。"""
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    monkeypatch.delenv("HERDR_BIN_PATH", raising=False)
+    monkeypatch.setenv("PATH", str(empty))
+    monkeypatch.setenv("HERDR_PANE_ID", "wA:p1")
+
+    result = guard_probes.probe_herdr_pane()
+
+    assert result.healthy is True
+    assert result.detail == ""
+
+
+def test_herdr_が応答しなければ沈黙(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """あるのに答えないのは対象外ではない。判定できなかったことを健全へ潰さない。
+
+    一覧としては読めて、しかも pane が載っている応答を返させる。読めない応答を返させると、
+    終了コードを見ない実装でも後段のパースが同じ healthy=False を返すので、この検査が
+    終了コードを見ているかを測れない (変異が下流に吸収される)。
+    """
+    fake = _fake_herdr(tmp_path / "herdr", _pane_list("wA:p1"), exit_code=1)
+    monkeypatch.setenv("HERDR_BIN_PATH", str(fake))
+    monkeypatch.setenv("HERDR_PANE_ID", "wA:p1")
+
+    result = guard_probes.probe_herdr_pane()
+
+    assert result.healthy is False
+    assert "wA:p1" in result.detail
+
+
+def test_pane_一覧が読めない形なら沈黙(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """応答の形が変わったときに「一覧に無い」と誤って断定しない。"""
+    fake = _fake_herdr(tmp_path / "herdr", "not json at all")
+    monkeypatch.setenv("HERDR_BIN_PATH", str(fake))
+    monkeypatch.setenv("HERDR_PANE_ID", "wA:p1")
+
+    result = guard_probes.probe_herdr_pane()
+
+    assert result.healthy is False
