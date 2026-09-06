@@ -228,6 +228,95 @@ setup_extra_account() {
 }
 
 # =============================================================================
+# .zshrc とフック側の導出の同値性
+# =============================================================================
+#
+# 同じ規則を zsh と Python が別々に持つ。片方だけ変えると、セッション頭の検査が
+# 正しいセッションを汚染として報告するか、汚染を見逃すかのどちらかになる。どちらも
+# 「実行はされているのに間違った答えを返す」形なので、緑と赤の境目でしか気づけない。
+# この対照が唯一その境目を作る。
+#
+# 覆うのは .zshrc とフックの 1 本だけである。同じ規則を持つ statusline-command.sh は
+# ここに入っていない。あちらとの重複は Issue 12 の領分。
+
+# フック側の導出を印字する。guard_probes は print を持たない設計なので、印字はここが行う。
+hook_task_list_id() {
+    python3 -c \
+        'import sys; sys.path.insert(0, sys.argv[1]); import guard_probes; print(guard_probes.derive_task_list_id(sys.argv[2]))' \
+        "$REPO_ROOT/home/.claude/hooks" "$1"
+}
+
+# 落とすべき GIT_* を canonical から 1 行ずつ受け取る。ここへ列挙を写すと、集合が増えたときに
+# この対照だけが古い集合で走り、失敗は「シェルと Python の導出が食い違った」という真逆の
+# 見え方で返る。
+hook_git_location_vars() {
+    python3 -c \
+        'import sys; sys.path.insert(0, sys.argv[1]); import hook_git; print("\n".join(sorted(hook_git.LOCATION_VARS)))' \
+        "$REPO_ROOT/home/.claude/hooks"
+}
+
+# 同じディレクトリに対して両者が同じ値を返すことを確かめる。
+assert_derivations_agree() {
+    local dir="$1"
+    local shell_id hook_id var
+
+    # git hook 経由で bats が起動されると探索先が横取りされる。シェル側はこれを落とさない
+    # ので、落とさないまま比べると本物の食い違いではない差が出る
+    while IFS= read -r var; do
+        [ -n "$var" ] && unset "$var"
+    done < <(hook_git_location_vars)
+
+    run_in_dir "$dir" _claude_task_list_id
+    [ "$status" -eq 0 ]
+    shell_id="$output"
+
+    run hook_task_list_id "$dir"
+    [ "$status" -eq 0 ]
+    hook_id="$output"
+
+    [ "$hook_id" = "$shell_id" ]
+}
+
+@test "task list id: shell and hook agree inside a repository" {
+    setup_test_repo "$TEST_HOME/myrepo"
+    load_zshrc_claude_functions
+
+    assert_derivations_agree "$TEST_HOME/myrepo"
+}
+
+@test "task list id: shell and hook agree from a subdirectory" {
+    setup_test_repo "$TEST_HOME/myrepo"
+    mkdir -p "$TEST_HOME/myrepo/frontend/src"
+    load_zshrc_claude_functions
+
+    assert_derivations_agree "$TEST_HOME/myrepo/frontend/src"
+}
+
+@test "task list id: shell and hook agree outside a repository" {
+    mkdir -p "$TEST_HOME/plain-dir"
+    load_zshrc_claude_functions
+
+    assert_derivations_agree "$TEST_HOME/plain-dir"
+}
+
+@test "task list id: shell and hook agree through a symlink" {
+    # フォールバックだけが経路依存になる非対称は、両側で同じ形で解消していないと出る
+    mkdir -p "$TEST_HOME/real-dir"
+    ln -s "$TEST_HOME/real-dir" "$TEST_HOME/link-dir"
+    load_zshrc_claude_functions
+
+    assert_derivations_agree "$TEST_HOME/link-dir"
+}
+
+@test "task list id: shell and hook agree at the filesystem root" {
+    # basename が空になる唯一の場所。片方だけが空を返すと、呼び出し側が変数を設定するか
+    # どうかの判断とプローブの判定が食い違う
+    load_zshrc_claude_functions
+
+    assert_derivations_agree /
+}
+
+# =============================================================================
 # claude (個人アカウント)
 # =============================================================================
 

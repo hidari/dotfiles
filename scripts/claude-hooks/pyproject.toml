@@ -36,6 +36,7 @@ ignore = ["RUF002", "RUF003"]
 "tests/test_guard_health.py" = ["N802"]
 "tests/test_guard_probes.py" = ["N802"]
 "tests/test_handoff_sentinel.py" = ["N802"]
+"tests/test_hook_git.py" = ["N802"]
 "tests/test_instructions_loaded_log.py" = ["N802"]
 "tests/test_pretooluse.py" = ["N802"]
 
