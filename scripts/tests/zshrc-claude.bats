@@ -167,12 +167,41 @@ setup_extra_account() {
 #
 # ID を手で打つ限り typo は避けられない。作業ディレクトリから導出すれば
 # 打ち間違えようがなく、指定を忘れることもない。
+#
+# 入力空間の組み立ては下の setup_case_* が持つ。この節の単体テストと、次の節にある
+# シェルとフックの同値性の対照は、同じ空間を別の観点で覆っている。別々に組むと、片方だけ
+# 条件が変わったときに「同値性が崩れた」ではなく「別の入力を比べている」という形になり、
+# どちらも緑のまま食い違う。組み立てを共有すれば、条件は必ず両方へ同時に効く。
+#
+# 対象ディレクトリは CASE_DIR へ入れる。bats はテストごとに別プロセスなので混ざらない。
+
+setup_case_repository_root() {
+    setup_test_repo "$TEST_HOME/myrepo"
+    CASE_DIR="$TEST_HOME/myrepo"
+}
+
+setup_case_subdirectory() {
+    setup_test_repo "$TEST_HOME/myrepo"
+    mkdir -p "$TEST_HOME/myrepo/frontend/src"
+    CASE_DIR="$TEST_HOME/myrepo/frontend/src"
+}
+
+setup_case_outside_repository() {
+    mkdir -p "$TEST_HOME/plain-dir"
+    CASE_DIR="$TEST_HOME/plain-dir"
+}
+
+setup_case_symlinked_directory() {
+    mkdir -p "$TEST_HOME/real-dir"
+    ln -s "$TEST_HOME/real-dir" "$TEST_HOME/link-dir"
+    CASE_DIR="$TEST_HOME/link-dir"
+}
 
 @test "_claude_task_list_id: derives from the git repository root" {
-    setup_test_repo "$TEST_HOME/myrepo"
+    setup_case_repository_root
     load_zshrc_claude_functions
 
-    run_in_dir "$TEST_HOME/myrepo" _claude_task_list_id
+    run_in_dir "$CASE_DIR" _claude_task_list_id
 
     [ "$status" -eq 0 ]
     [ "$output" = "myrepo" ]
@@ -181,21 +210,20 @@ setup_extra_account() {
 @test "_claude_task_list_id: resolves to the root even from a subdirectory" {
     # サブディレクトリごとに別 ID になると、同じプロジェクトの進捗が割れる。
     # これが導出元を cwd ではなくリポジトリルートにしている理由
-    setup_test_repo "$TEST_HOME/myrepo"
-    mkdir -p "$TEST_HOME/myrepo/frontend/src"
+    setup_case_subdirectory
     load_zshrc_claude_functions
 
-    run_in_dir "$TEST_HOME/myrepo/frontend/src" _claude_task_list_id
+    run_in_dir "$CASE_DIR" _claude_task_list_id
 
     [ "$status" -eq 0 ]
     [ "$output" = "myrepo" ]
 }
 
 @test "_claude_task_list_id: falls back to the cwd name outside a repository" {
-    mkdir -p "$TEST_HOME/plain-dir"
+    setup_case_outside_repository
     load_zshrc_claude_functions
 
-    run_in_dir "$TEST_HOME/plain-dir" _claude_task_list_id
+    run_in_dir "$CASE_DIR" _claude_task_list_id
 
     [ "$status" -eq 0 ]
     [ "$output" = "plain-dir" ]
@@ -206,11 +234,10 @@ setup_extra_account() {
     # 返すため、揃えないと同じ場所なのにタスクリストが 2 つに割れる。
     # git 側は --show-toplevel が常に実体パスを返すので、フォールバックだけ経路依存に
     # なる非対称を作らない
-    mkdir -p "$TEST_HOME/real-dir"
-    ln -s "$TEST_HOME/real-dir" "$TEST_HOME/link-dir"
+    setup_case_symlinked_directory
     load_zshrc_claude_functions
 
-    run_in_dir "$TEST_HOME/link-dir" _claude_task_list_id
+    run_in_dir "$CASE_DIR" _claude_task_list_id
 
     [ "$status" -eq 0 ]
     [ "$output" = "real-dir" ]
@@ -278,34 +305,32 @@ assert_derivations_agree() {
 }
 
 @test "task list id: shell and hook agree inside a repository" {
-    setup_test_repo "$TEST_HOME/myrepo"
+    setup_case_repository_root
     load_zshrc_claude_functions
 
-    assert_derivations_agree "$TEST_HOME/myrepo"
+    assert_derivations_agree "$CASE_DIR"
 }
 
 @test "task list id: shell and hook agree from a subdirectory" {
-    setup_test_repo "$TEST_HOME/myrepo"
-    mkdir -p "$TEST_HOME/myrepo/frontend/src"
+    setup_case_subdirectory
     load_zshrc_claude_functions
 
-    assert_derivations_agree "$TEST_HOME/myrepo/frontend/src"
+    assert_derivations_agree "$CASE_DIR"
 }
 
 @test "task list id: shell and hook agree outside a repository" {
-    mkdir -p "$TEST_HOME/plain-dir"
+    setup_case_outside_repository
     load_zshrc_claude_functions
 
-    assert_derivations_agree "$TEST_HOME/plain-dir"
+    assert_derivations_agree "$CASE_DIR"
 }
 
 @test "task list id: shell and hook agree through a symlink" {
     # フォールバックだけが経路依存になる非対称は、両側で同じ形で解消していないと出る
-    mkdir -p "$TEST_HOME/real-dir"
-    ln -s "$TEST_HOME/real-dir" "$TEST_HOME/link-dir"
+    setup_case_symlinked_directory
     load_zshrc_claude_functions
 
-    assert_derivations_agree "$TEST_HOME/link-dir"
+    assert_derivations_agree "$CASE_DIR"
 }
 
 @test "task list id: shell and hook agree at the filesystem root" {
