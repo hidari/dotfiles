@@ -43,10 +43,10 @@
     "ask": [
       "Bash(git push:*)",
       "Bash(git rm:*)"
-    ]
+    ],
+    "defaultMode": "auto"
   },
   "hooks": {
-    "PreCompact": [],
     "PreToolUse": [
       {
         "matcher": "Bash",
@@ -163,16 +163,11 @@
     "code-simplifier@claude-plugins-official": true,
     "feature-dev@claude-plugins-official": true,
     "frontend-design@claude-plugins-official": true,
-    "kotlin-lsp@claude-plugins-official": true,
     "modern-web-guidance@googlechrome": true,
     "playwright@claude-plugins-official": true,
-    "pyright-lsp@claude-plugins-official": true,
-    "rust-analyzer-lsp@claude-plugins-official": true,
     "superpowers-chrome@superpowers-marketplace": true,
     "superpowers-developing-for-claude-code@superpowers-marketplace": true,
-    "superpowers@superpowers-marketplace": true,
-    "swift-lsp@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true
+    "superpowers@superpowers-marketplace": true
   },
   "extraKnownMarketplaces": {
     "chrome-devtools-plugins": {
@@ -201,12 +196,16 @@
   "effortLevel": "xhigh",
   "ultracode": true,
   "promptSuggestionEnabled": false,
+  "awaySummaryEnabled": false,
+  "dialogExpiry": "never",
   "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,
   "claudeMdExcludes": [
     "**/home/.claude/CLAUDE.md"
   ],
   "editorMode": "normal",
+  "autoCompactEnabled": true,
+  "switchModelsOnFlag": false,
   "remoteControlAtStartup": true,
   "crossSessionInbound": "accept",
   "inputNeededNotifEnabled": true,
