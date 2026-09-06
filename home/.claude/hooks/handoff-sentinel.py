@@ -29,10 +29,9 @@ DEFAULT_TAIL_BYTES = 1_048_576
 DEFAULT_RATELIMIT_WARN_PCT = 90
 DEFAULT_RATELIMIT_URGENT_PCT = 95
 
-# 「消費したが読まれていないかもしれない」記録の拡張子。書く側 (_mark_unread) と消す側
-# (_clear_unread) がファイル名を離れた場所で組み立てるので、綴りをここに 1 つだけ置く。
-# session_id 起点の state (.notified / .blocked / .ratelimit) とは接尾辞が交わらないため、
-# repo_id と session_id がたまたま同じ文字列でも同じファイルを指さない。
+# 「消費したが読まれていないかもしれない」記録の拡張子。他の接尾辞と違い、ファイル名を組む側
+# (_mark_unread / _clear_unread) と glob で集める側 (_pending_unread) の両方に現れる。
+# 綴りがズレると告知が一度も出ない静かな失敗になるので、ここに 1 つだけ置く。
 _UNREAD_SUFFIX = "unread"
 
 # 窓名の表示ラベル。サーバは窓を追加しうるので監視対象は名指しで持たず、読み手に伝わらない
@@ -106,14 +105,23 @@ def _session_state_file(session_id: str, suffix: str) -> Path:
     return _state_dir() / f"{_sanitize(session_id)}.{suffix}"
 
 
+def _session_id(payload: dict[str, Any]) -> str:
+    """payload の session_id を取り出す唯一の経路。欠落・型違いはどちらも空文字に倒す。
+
+    各ハンドラが別々に isinstance を書くと、妥当性の判断を変えるときに探し漏れる。
+    """
+    session_id = payload.get("session_id")
+    return session_id if isinstance(session_id, str) else ""
+
+
 def _session_and_transcript(payload: dict[str, Any]) -> tuple[str, str] | None:
     """payload から session_id と実在する transcript_path を検証付きで取り出す。
 
     posttool / stop 共通の入力ガード。どちらか欠ければ None を返し呼び出し側は no-op。
     """
-    session_id = payload.get("session_id")
+    session_id = _session_id(payload)
     transcript_path = payload.get("transcript_path")
-    if not (isinstance(session_id, str) and session_id):
+    if not session_id:
         return None
     if not (isinstance(transcript_path, str) and os.path.isfile(transcript_path)):
         return None
@@ -286,26 +294,25 @@ def _context_notices(session_id: str, transcript_path: str) -> list[str]:
 def _clear_unread(session_id: str) -> None:
     """自分が消費した引き継ぎを読んだ証跡として、未読の記録を消す (対は _mark_unread)。
 
-    記録は repo 単位のファイル名なので、本来なら cwd から repo_id を導いて直接開きたい。
-    しかしその導出は git の起動を伴い (_repo_root の docstring 参照)、この関数はツール
-    呼び出しごとに走る。代わりに state ディレクトリ側を舐めて session_id で照合する。
-    他セッションの記録を消さないことは、この照合だけが担保している。
+    記録を session 単位で置くのは、この関数がツール呼び出しごとに走るため。repo 単位に
+    すると repo_id の導出に git の起動が要り (_repo_root の docstring 参照)、それを避ける
+    には state ディレクトリの全走査が要る。走査の量を決めるのは掃除機構を持たない
+    .notified で、増えることと無関係なこの経路が伸び続けることになる。
+    他セッションの記録を消さないことは、ここではファイル名そのものが担保している。
     """
     try:
-        candidates = list(_state_dir().glob(f"*.{_UNREAD_SUFFIX}"))
+        _session_state_file(session_id, _UNREAD_SUFFIX).unlink(missing_ok=True)
     except OSError:
+        # 消せなくても後続の通知は返す (この関数の失敗で観測を止めない)
         return
-    for path in candidates:
-        if _read_json_dict(path).get("session_id") == session_id:
-            path.unlink(missing_ok=True)
 
 
 def handle_posttool(payload: dict[str, Any]) -> dict[str, Any] | None:
-    """コンテキストとレートリミットを両方見る。片方で早期 return すると他方が飛ぶ。"""
+    """未読の消去とコンテキストとレートリミットを見る。1 つで早期 return すると他が飛ぶ。"""
     # 未読の消去は _session_and_transcript より前に独立して置く。同関数は transcript が
     # 欠けただけで早期 return するので、後ろに置くとその条件のセッションが永久に未読扱いになる
-    own_session = payload.get("session_id")
-    if isinstance(own_session, str) and own_session:
+    own_session = _session_id(payload)
+    if own_session:
         _clear_unread(own_session)
     pair = _session_and_transcript(payload)
     if pair is None:
@@ -458,47 +465,75 @@ def _read_provenance(prov: Path) -> str | None:
         return None
 
 
-def _unread_path(repo_root: Path) -> Path:
-    """消費したが読まれていないかもしれない引き継ぎの記録 (対は _clear_unread)。
-
-    provenance と同じく repo 単位で置く。session 単位にすると、次のセッションは前の
-    セッションの id を知らないので自分宛でない記録を見つけられない。
-    """
-    return _state_dir() / f"{_repo_id(repo_root)}.{_UNREAD_SUFFIX}"
-
-
 def _mark_unread(repo_root: Path, session_id: str, consumed_name: str) -> None:
-    """消費を記録する。消費したセッションがツールを 1 度でも使えば _clear_unread が消す。"""
-    path = _unread_path(repo_root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps({"session_id": session_id, "consumed": consumed_name}), encoding="utf-8"
+    """消費を記録する。消費したセッションがツールを 1 度でも使えば _clear_unread が消す。
+
+    session_id が無い payload では記録しない。消す側はその id からファイル名を作るので、
+    記録しても誰にも消されず、次のセッションが必ず未読だと誤報することになる。
+
+    記録に失敗しても注入は続ける。ここで例外を上げると、リネーム済み・provenance 削除済み
+    なのに注入だけが出力されない状態になり、塞ごうとしている事故そのものを再現する。
+    """
+    if not session_id:
+        return
+    path = _session_state_file(session_id, _UNREAD_SUFFIX)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({"repo_id": _repo_id(repo_root), "consumed": consumed_name}),
+            encoding="utf-8",
+        )
+    except OSError:
+        return
+
+
+def _pending_unread(repo_root: Path, session_id: str) -> list[tuple[Path, str]]:
+    """この repo で消費されたまま読まれていない記録を集める。消すのは呼び出し側の仕事。
+
+    自分自身の記録は外す。compact や resume で同じ session_id の SessionStart が
+    再発火したとき、まだ読んでいる最中の引き継ぎを「失われた」と誤報しないため。
+
+    ここは全走査だが、セッション開始時の 1 回きりで、同じ経路が既に git を起動している。
+    """
+    own = _session_state_file(session_id, _UNREAD_SUFFIX) if session_id else None
+    repo_id = _repo_id(repo_root)
+    try:
+        candidates = sorted(_state_dir().glob(f"*.{_UNREAD_SUFFIX}"))
+    except OSError:
+        return []
+    pending: list[tuple[Path, str]] = []
+    for path in candidates:
+        if path == own:
+            continue
+        record = _read_json_dict(path)
+        if record.get("repo_id") != repo_id:
+            continue
+        consumed = record.get("consumed")
+        if not (isinstance(consumed, str) and consumed):
+            continue
+        pending.append((path, consumed))
+    return pending
+
+
+def _unread_message(consumed: str) -> str:
+    """未読の告知。自動で復帰はさせず、判断は読み手へ渡す。
+
+    復帰させると provenance を消した後の内容を何を根拠に信用するかという問いになり、
+    決定待ちの prompt injection の議論へ巻き込まれる。
+    """
+    return (
+        f"前のセッションが消費した引き継ぎ (.cache/{consumed}) は、読まれないまま終わった"
+        "可能性がある。必要なら内容を確認すること。"
     )
 
 
-def _unread_notice(repo_root: Path, session_id: str) -> list[str]:
-    """前のセッションが消費したまま読まなかった引き継ぎがあれば告げ、記録を消す。
-
-    自動で復帰はさせない。provenance を消した後の内容を何を根拠に信用するかという問いに
-    なり、決定待ちの prompt injection の議論へ巻き込まれるため、判断は読み手へ渡す。
-
-    自分自身の記録は告げない。compact や resume で同じ session_id の SessionStart が
-    再発火したとき、まだ読んでいる最中の引き継ぎを「失われた」と誤報しないため。
-    """
-    path = _unread_path(repo_root)
-    if not path.is_file():
-        return []
-    record = _read_json_dict(path)
-    if record.get("session_id") == session_id:
-        return []
-    consumed = record.get("consumed")
-    path.unlink(missing_ok=True)  # 壊れて読めない記録もここで片付ける (毎回の再読を防ぐ)
-    if not (isinstance(consumed, str) and consumed):
-        return []
-    return [
-        f"前のセッションが消費した引き継ぎ (.cache/{consumed}) は、読まれないまま終わった"
-        "可能性がある。必要なら内容を確認すること。"
-    ]
+def _forget_unread(paths: list[Path]) -> None:
+    """告げ終えた記録を消す。消せなくても出力は返す (次のセッションで再度告げるだけ)。"""
+    for path in paths:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            continue
 
 
 def _created_at(handoff: Path) -> str:
@@ -570,13 +605,16 @@ def handle_session(payload: dict[str, Any]) -> dict[str, Any] | None:
     cwd = payload.get("cwd")
     if not (isinstance(cwd, str) and os.path.isdir(cwd)):
         return None
-    raw_session = payload.get("session_id")
-    session_id = raw_session if isinstance(raw_session, str) else ""
+    session_id = _session_id(payload)
     repo_root = _repo_root(cwd)
-    parts = _unread_notice(repo_root, session_id)
+    pending = _pending_unread(repo_root, session_id)
+    parts = [_unread_message(consumed) for _, consumed in pending]
     injected = _inject_handoff(repo_root, session_id)
     if injected is not None:
         parts.append(injected)
+    # 記録を消すのは出力を組み立て切ってから。先に消すと _inject_handoff の例外を main の
+    # 包括 except が握った瞬間、告知だけが誰にも届かないまま失われる
+    _forget_unread([path for path, _ in pending])
     if not parts:
         return None
     return {

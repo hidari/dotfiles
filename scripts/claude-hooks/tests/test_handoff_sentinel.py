@@ -152,9 +152,11 @@ def base_env(tmp_path: Path) -> dict[str, str]:
     }
 
 
-def posttool_input(tmp_path: Path, transcript: Path) -> dict[str, object]:
+def posttool_input(
+    tmp_path: Path, transcript: Path, session_id: str = "sess-1"
+) -> dict[str, object]:
     return {
-        "session_id": "sess-1",
+        "session_id": session_id,
         "transcript_path": str(transcript),
         "cwd": str(tmp_path),
         "hook_event_name": "PostToolUse",
@@ -455,7 +457,7 @@ class TestPostToolRateLimitWatch:
         assert result.stdout == ""
 
     def test_壊れたJSONは無出力でexit0(self, tmp_path: Path) -> None:
-        broken = tmp_path / "rate-limits.json"
+        broken = rate_limits_path(tmp_path)
         broken.write_text("{not json", encoding="utf-8")
         env = base_env(tmp_path)
         result = run_hook(
@@ -730,8 +732,23 @@ class TestStopBrokenCount:
         assert json.loads(full.stdout)["decision"] == "block"
 
 
-def session_input(cwd: Path) -> dict[str, object]:
-    return {"session_id": "sess-1", "cwd": str(cwd), "hook_event_name": "SessionStart"}
+def session_input(cwd: Path, session_id: str = "sess-1") -> dict[str, object]:
+    return {"session_id": session_id, "cwd": str(cwd), "hook_event_name": "SessionStart"}
+
+
+def run_session(
+    tmp_path: Path, *, cwd: Path | None = None, session_id: str = "sess-1"
+) -> subprocess.CompletedProcess[str]:
+    """SessionStart フックを 1 回走らせる (session 系テスト共通の起動経路)。
+
+    起動の引数を 1 箇所へ閉じる。call site ごとに書くと、action 名や env の渡し方を
+    変えたときの取りこぼしが「無出力 = 告げるものが無い」ともっともらしい緑で返る。
+    """
+    return run_hook(
+        "session",
+        session_input(cwd if cwd is not None else tmp_path, session_id),
+        extra_env=base_env(tmp_path),
+    )
 
 
 class TestSessionStartInject:
@@ -912,7 +929,7 @@ def consume_with_mtime(tmp_path: Path, cwd: Path, epoch: int) -> str:
     handoff_dir = write_handoff(cwd, "引き継ぎ本文\n")
     record_provenance(tmp_path, cwd=cwd)  # provenance は内容ハッシュのみ見るので mtime 固定と独立
     os.utime(handoff_dir / "handoff.md", (epoch, epoch))
-    return context_of(run_hook("session", session_input(cwd), extra_env=base_env(tmp_path)))
+    return context_of(run_session(tmp_path, cwd=cwd))
 
 
 class TestSessionStartCreatedAt:
@@ -936,18 +953,29 @@ class TestSessionStartCreatedAt:
         assert OLDER_UTC not in newer
 
     def test_経過日数は添えない(self, tmp_path: Path) -> None:
-        """鮮度は絶対時刻だけ渡し、腐りの判定は読み手へ委ねる (ISSUE-81 の射程)。"""
+        """鮮度は絶対時刻だけ渡し、腐りの判定は読み手へ委ねる。"""
         context = consume_with_mtime(tmp_path, tmp_path / "repo", OLDER_EPOCH)
         assert "日前" not in context
         assert "日経過" not in context
 
 
-def posttool_quiet_input(tmp_path: Path, session_id: str) -> dict[str, object]:
-    """コンテキストもレートリミットも鳴らさない posttool 入力 (未読記録の消去だけを見る)。"""
-    return posttool_input(tmp_path, quiet_transcript(tmp_path)) | {"session_id": session_id}
+def run_quiet_posttool(
+    tmp_path: Path, session_id: str, *, transcript: Path | None = None
+) -> subprocess.CompletedProcess[str]:
+    """コンテキストもレートリミットも鳴らさない PostToolUse (未読の消去だけを見る)。"""
+    return run_hook(
+        "posttool",
+        posttool_input(
+            tmp_path,
+            transcript if transcript is not None else quiet_transcript(tmp_path),
+            session_id,
+        ),
+        extra_env=base_env(tmp_path),
+    )
 
 
 CONSUMER = "sess-consumer"
+NEXT = "sess-next"
 
 
 class TestUnreadHandoffNotice:
@@ -957,50 +985,34 @@ class TestUnreadHandoffNotice:
     応答を返したかを見るほうが正確だがフックからは観測できず、PostToolUse なら既存の
     配線で足りる。事故のセッションは 57 秒で死んでツールを 1 度も使っていない。
     検出しても復帰はさせず告げるだけにする: provenance を消した後の内容を何を根拠に
-    信用するかは ISSUE-58 (prompt injection) の領分で、そちらは決定待ちのため。
+    信用するかという、決定待ちの prompt injection の議論へ巻き込まれるため。
     """
 
     def consume(self, tmp_path: Path, session_id: str = CONSUMER) -> str:
         """handoff を 1 本消費し、consumed のファイル名を返す。"""
-        write_handoff(tmp_path, "正規の引き継ぎ\n次は X をやる\n")
+        handoff_dir = write_handoff(tmp_path, "正規の引き継ぎ\n次は X をやる\n")
         record_provenance(tmp_path)
-        result = run_hook(
-            "session",
-            session_input(tmp_path) | {"session_id": session_id},
-            extra_env=base_env(tmp_path),
-        )
-        assert result.stdout != ""  # 消費できていない setup で以降を測らない
-        names = sorted(p.name for p in (tmp_path / ".cache").iterdir())
-        return next(n for n in names if n.startswith("handoff-consumed-"))
-
-    def next_session(self, tmp_path: Path, session_id: str = "sess-next") -> str:
-        """次のセッションの SessionStart を走らせ stdout を返す (無出力なら空文字)。"""
-        return run_hook(
-            "session",
-            session_input(tmp_path) | {"session_id": session_id},
-            extra_env=base_env(tmp_path),
-        ).stdout
+        assert run_session(tmp_path, session_id=session_id).stdout != ""  # setup の失敗を隠さない
+        return next(p.name for p in handoff_dir.iterdir() if p.name.startswith("handoff-consumed-"))
 
     def test_消費したセッションがPostToolUseを迎えないと次のセッションへ告げる(
         self, tmp_path: Path
     ) -> None:
         consumed = self.consume(tmp_path)
-        out = self.next_session(tmp_path)
+        out = run_session(tmp_path, session_id=NEXT).stdout
         assert consumed in out
         assert "読まれないまま" in out
 
     def test_消費したセッションのPostToolUseの後は告げない(self, tmp_path: Path) -> None:
         self.consume(tmp_path)
-        run_hook("posttool", posttool_quiet_input(tmp_path, CONSUMER), extra_env=base_env(tmp_path))
-        assert self.next_session(tmp_path) == ""
+        run_quiet_posttool(tmp_path, CONSUMER)
+        assert run_session(tmp_path, session_id=NEXT).stdout == ""
 
     def test_session_idが違うPostToolUseでは読まれた扱いにしない(self, tmp_path: Path) -> None:
         """一致判定の pin。これが無いと「誰の PostToolUse でも消す」実装でも緑になる。"""
         consumed = self.consume(tmp_path)
-        run_hook(
-            "posttool", posttool_quiet_input(tmp_path, "sess-other"), extra_env=base_env(tmp_path)
-        )
-        assert consumed in self.next_session(tmp_path)
+        run_quiet_posttool(tmp_path, "sess-other")
+        assert consumed in run_session(tmp_path, session_id=NEXT).stdout
 
     def test_transcriptが解決できないPostToolUseでも読まれた扱いにする(
         self, tmp_path: Path
@@ -1011,44 +1023,84 @@ class TestUnreadHandoffNotice:
         セッションが永久に「読まれていない」と報告され続ける。
         """
         self.consume(tmp_path)
-        broken = posttool_quiet_input(tmp_path, CONSUMER)
-        broken["transcript_path"] = str(tmp_path / "missing.jsonl")
-        run_hook("posttool", broken, extra_env=base_env(tmp_path))
-        assert self.next_session(tmp_path) == ""
+        run_quiet_posttool(tmp_path, CONSUMER, transcript=tmp_path / "missing.jsonl")
+        assert run_session(tmp_path, session_id=NEXT).stdout == ""
 
     def test_告げるのは一度だけ(self, tmp_path: Path) -> None:
         self.consume(tmp_path)
-        assert "読まれないまま" in self.next_session(tmp_path, "sess-next-1")
-        assert self.next_session(tmp_path, "sess-next-2") == ""
+        assert "読まれないまま" in run_session(tmp_path, session_id="sess-next-1").stdout
+        assert run_session(tmp_path, session_id="sess-next-2").stdout == ""
 
     def test_同一session_idのSessionStart再発火では自分の消費を告げない(
         self, tmp_path: Path
     ) -> None:
         """compact / resume で同じ session_id の SessionStart が再発火する経路の誤検知ガード。"""
         self.consume(tmp_path, CONSUMER)
-        assert self.next_session(tmp_path, CONSUMER) == ""
+        assert run_session(tmp_path, session_id=CONSUMER).stdout == ""
 
     def test_handoff不在でも未読があれば告げる(self, tmp_path: Path) -> None:
         """告知は注入と独立に返す (handoff 不在の早期 return に巻き込まれない)。"""
         consumed = self.consume(tmp_path)
         assert not (tmp_path / ".cache" / "handoff.md").exists()
-        assert consumed in self.next_session(tmp_path)
+        assert consumed in run_session(tmp_path, session_id=NEXT).stdout
 
     def test_告知と新しいhandoffの注入は同居する(self, tmp_path: Path) -> None:
         """consumed 名では照合しない: 同じ秒に消費すると 2 本目が同名になり空振りする。"""
         self.consume(tmp_path)
         write_handoff(tmp_path, "二本目の引き継ぎ\n次は Y をやる\n")
         record_provenance(tmp_path)
-        ctx = json.loads(self.next_session(tmp_path))["hookSpecificOutput"]["additionalContext"]
+        ctx = context_of(run_session(tmp_path, session_id=NEXT))
         assert "読まれないまま" in ctx  # 未読の告知
         assert "次は Y をやる" in ctx  # 新しい引き継ぎの注入
 
     def test_消費できなかったセッションは未読を残さない(self, tmp_path: Path) -> None:
         """provenance 不一致で consume しなかったのに未読が立つと、常時誤報になる。"""
         write_handoff(tmp_path, "record を経ていない handoff\n")
-        run_hook(
-            "session",
-            session_input(tmp_path) | {"session_id": CONSUMER},
-            extra_env=base_env(tmp_path),
-        )
-        assert self.next_session(tmp_path) == ""
+        run_session(tmp_path, session_id=CONSUMER)
+        assert run_session(tmp_path, session_id=NEXT).stdout == ""
+
+    def test_別リポの未読は告げない(self, tmp_path: Path) -> None:
+        """記録は session 名のファイルなので、どの repo のものかは中身でしか判別できない。"""
+        other = tmp_path / "other"
+        other.mkdir()
+        write_handoff(other, "別リポの引き継ぎ\n")
+        record_provenance(tmp_path, cwd=other)
+        assert run_session(tmp_path, cwd=other, session_id=CONSUMER).stdout != ""
+        assert run_session(tmp_path, session_id=NEXT).stdout == ""
+
+    def test_session_idの無いSessionStartでも注入し記録は残さない(self, tmp_path: Path) -> None:
+        """記録は消す側が session_id から探すので、id が無いまま記録すると誰にも消せない。
+
+        しかも空の id が作る名前は先頭がドットになり、集める側の glob からも外れる。
+        誰にも消されず誰にも見えない記録が残るので、記録しないほうを選ぶ。
+        """
+        write_handoff(tmp_path, "id 無しの引き継ぎ\n次は Z をやる\n")
+        record_provenance(tmp_path)
+        payload = session_input(tmp_path)
+        del payload["session_id"]
+        result = run_hook("session", payload, extra_env=base_env(tmp_path))
+        assert "次は Z をやる" in context_of(result)  # 注入そのものは止めない
+        assert [p.name for p in (tmp_path / "state").iterdir() if "unread" in p.name] == []
+
+    @pytest.mark.skipif(
+        hasattr(os, "geteuid") and os.geteuid() == 0,
+        reason="root は chmod 0o000 を無視でき read 失敗を作れない",
+    )
+    def test_注入が例外で落ちても未読の告知は失われない(self, tmp_path: Path) -> None:
+        """記録を消すのは出力を組み立て切ってから。
+
+        先に消すと、注入側の例外を main の包括 except が握った瞬間に告知だけが誰にも
+        届かないまま失われる。この Issue が塞ごうとしている事故を関数の内側で再現する形。
+        """
+        self.consume(tmp_path)
+        handoff_dir = write_handoff(tmp_path, "二本目の引き継ぎ\n")
+        record_provenance(tmp_path)  # ハッシュは読める間に採る
+        handoff = handoff_dir / "handoff.md"
+        handoff.chmod(0o000)  # is_file は通り read_bytes だけが落ちる
+        try:
+            blocked = run_session(tmp_path, session_id=NEXT)
+            assert blocked.returncode == 0
+            assert blocked.stdout == ""  # 例外は fail-safe に握られる
+        finally:
+            handoff.chmod(0o644)
+        assert "読まれないまま" in run_session(tmp_path, session_id="sess-next-2").stdout
