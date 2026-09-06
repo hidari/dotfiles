@@ -29,6 +29,12 @@ DEFAULT_TAIL_BYTES = 1_048_576
 DEFAULT_RATELIMIT_WARN_PCT = 90
 DEFAULT_RATELIMIT_URGENT_PCT = 95
 
+# 「消費したが読まれていないかもしれない」記録の拡張子。書く側 (_mark_unread) と消す側
+# (_clear_unread) がファイル名を離れた場所で組み立てるので、綴りをここに 1 つだけ置く。
+# session_id 起点の state (.notified / .blocked / .ratelimit) とは接尾辞が交わらないため、
+# repo_id と session_id がたまたま同じ文字列でも同じファイルを指さない。
+_UNREAD_SUFFIX = "unread"
+
 # 窓名の表示ラベル。サーバは窓を追加しうるので監視対象は名指しで持たず、読み手に伝わらない
 # 名前だけをここで訳す。未知の窓は名前をそのまま出す。
 _WINDOW_LABELS = {
@@ -277,8 +283,30 @@ def _context_notices(session_id: str, transcript_path: str) -> list[str]:
     ]
 
 
+def _clear_unread(session_id: str) -> None:
+    """自分が消費した引き継ぎを読んだ証跡として、未読の記録を消す (対は _mark_unread)。
+
+    記録は repo 単位のファイル名なので、本来なら cwd から repo_id を導いて直接開きたい。
+    しかしその導出は git の起動を伴い (_repo_root の docstring 参照)、この関数はツール
+    呼び出しごとに走る。代わりに state ディレクトリ側を舐めて session_id で照合する。
+    他セッションの記録を消さないことは、この照合だけが担保している。
+    """
+    try:
+        candidates = list(_state_dir().glob(f"*.{_UNREAD_SUFFIX}"))
+    except OSError:
+        return
+    for path in candidates:
+        if _read_json_dict(path).get("session_id") == session_id:
+            path.unlink(missing_ok=True)
+
+
 def handle_posttool(payload: dict[str, Any]) -> dict[str, Any] | None:
     """コンテキストとレートリミットを両方見る。片方で早期 return すると他方が飛ぶ。"""
+    # 未読の消去は _session_and_transcript より前に独立して置く。同関数は transcript が
+    # 欠けただけで早期 return するので、後ろに置くとその条件のセッションが永久に未読扱いになる
+    own_session = payload.get("session_id")
+    if isinstance(own_session, str) and own_session:
+        _clear_unread(own_session)
     pair = _session_and_transcript(payload)
     if pair is None:
         return None
@@ -430,6 +458,60 @@ def _read_provenance(prov: Path) -> str | None:
         return None
 
 
+def _unread_path(repo_root: Path) -> Path:
+    """消費したが読まれていないかもしれない引き継ぎの記録 (対は _clear_unread)。
+
+    provenance と同じく repo 単位で置く。session 単位にすると、次のセッションは前の
+    セッションの id を知らないので自分宛でない記録を見つけられない。
+    """
+    return _state_dir() / f"{_repo_id(repo_root)}.{_UNREAD_SUFFIX}"
+
+
+def _mark_unread(repo_root: Path, session_id: str, consumed_name: str) -> None:
+    """消費を記録する。消費したセッションがツールを 1 度でも使えば _clear_unread が消す。"""
+    path = _unread_path(repo_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"session_id": session_id, "consumed": consumed_name}), encoding="utf-8"
+    )
+
+
+def _unread_notice(repo_root: Path, session_id: str) -> list[str]:
+    """前のセッションが消費したまま読まなかった引き継ぎがあれば告げ、記録を消す。
+
+    自動で復帰はさせない。provenance を消した後の内容を何を根拠に信用するかという問いに
+    なり、決定待ちの prompt injection の議論へ巻き込まれるため、判断は読み手へ渡す。
+
+    自分自身の記録は告げない。compact や resume で同じ session_id の SessionStart が
+    再発火したとき、まだ読んでいる最中の引き継ぎを「失われた」と誤報しないため。
+    """
+    path = _unread_path(repo_root)
+    if not path.is_file():
+        return []
+    record = _read_json_dict(path)
+    if record.get("session_id") == session_id:
+        return []
+    consumed = record.get("consumed")
+    path.unlink(missing_ok=True)  # 壊れて読めない記録もここで片付ける (毎回の再読を防ぐ)
+    if not (isinstance(consumed, str) and consumed):
+        return []
+    return [
+        f"前のセッションが消費した引き継ぎ (.cache/{consumed}) は、読まれないまま終わった"
+        "可能性がある。必要なら内容を確認すること。"
+    ]
+
+
+def _created_at(handoff: Path) -> str:
+    """引き継ぎ書そのものが書かれた時刻 (mtime) を UTC の絶対時刻で返す。
+
+    消費の瞬間に打つファイル名の stamp しか出ないと、1 か月前の引き継ぎが今日の日付を
+    添えて「前セッションからの」として届き、新しく見える方向へバイアスがかかる。
+    経過日数は添えない。腐りは「書いた後にリポジトリが動いたか」で測るもので経過日数では
+    測れず、日数を出すとそれが判断の指標に見えてしまう。判断は読み手へ渡す。
+    """
+    return datetime.fromtimestamp(handoff.stat().st_mtime, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def handle_record(cwd: str) -> None:
     """session-handoff skill が書き出した handoff.md の provenance (内容ハッシュ) を記録する。
 
@@ -446,11 +528,8 @@ def handle_record(cwd: str) -> None:
     prov.write_text(_hash_bytes(handoff.read_bytes()) + "\n", encoding="utf-8")
 
 
-def handle_session(payload: dict[str, Any]) -> dict[str, Any] | None:
-    cwd = payload.get("cwd")
-    if not (isinstance(cwd, str) and os.path.isdir(cwd)):
-        return None
-    repo_root = _repo_root(cwd)
+def _inject_handoff(repo_root: Path, session_id: str) -> str | None:
+    """provenance を通った .cache/handoff.md を消費し、注入する文面を返す。"""
     handoff = _handoff_path(repo_root)
     if not handoff.is_file():
         return None
@@ -460,6 +539,9 @@ def handle_session(payload: dict[str, Any]) -> dict[str, Any] | None:
         # skill が record した内容と一致しない handoff は信頼しない (prompt injection 防御)。
         # 未記録・改竄・第三者作成はすべてここで弾く (fail-closed)
         return None
+    # リネームより前に読む。mtime はリネームを跨いでも保たれるが、リネームが失敗したときに
+    # consumed 側は存在しないので、読む対象を消費前のパスに固定しておく
+    created = _created_at(handoff)
     max_bytes = _env_int("HANDOFF_INJECT_MAX_BYTES", DEFAULT_INJECT_MAX_BYTES)
     text = raw[:max_bytes].decode("utf-8", errors="ignore")
     if len(raw) > max_bytes:
@@ -472,11 +554,35 @@ def handle_session(payload: dict[str, Any]) -> dict[str, Any] | None:
         # リネームに失敗したら注入もしない (毎セッション再注入される重複より欠落を選ぶ)
         return None
     prov.unlink(missing_ok=True)  # 消費した provenance を片付ける (二重注入防止)
-    context = f"前セッションからの引き継ぎ (.cache/{consumed.name} として保存済み):\n\n{text}"
+    _mark_unread(repo_root, session_id, consumed.name)
+    return (
+        f"前セッションからの引き継ぎ ({created} に作成、"
+        f".cache/{consumed.name} として保存済み):\n\n{text}"
+    )
+
+
+def handle_session(payload: dict[str, Any]) -> dict[str, Any] | None:
+    """未読の告知と引き継ぎの注入を集めて返す。
+
+    どちらか一方で早期 return しないこと。handoff の有無で先に返すと、消費だけされて
+    読まれなかった記録が誰にも告げられないまま次の消費に上書きされる。
+    """
+    cwd = payload.get("cwd")
+    if not (isinstance(cwd, str) and os.path.isdir(cwd)):
+        return None
+    raw_session = payload.get("session_id")
+    session_id = raw_session if isinstance(raw_session, str) else ""
+    repo_root = _repo_root(cwd)
+    parts = _unread_notice(repo_root, session_id)
+    injected = _inject_handoff(repo_root, session_id)
+    if injected is not None:
+        parts.append(injected)
+    if not parts:
+        return None
     return {
         "hookSpecificOutput": {
             "hookEventName": "SessionStart",
-            "additionalContext": context,
+            "additionalContext": "\n\n".join(parts),
         }
     }
 
