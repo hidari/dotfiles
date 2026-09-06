@@ -287,34 +287,64 @@ def probe_task_list_id() -> ProbeResult:
     )
 
 
+# 継承した ID のうち、ペインの所属として一覧から照合できるもの。HERDR_PANE_ID は照合の起点
+# なのでここには入らない。
+_HERDR_MEMBERSHIP_IDS: tuple[tuple[str, str], ...] = (
+    ("HERDR_TAB_ID", "tab_id"),
+    ("HERDR_WORKSPACE_ID", "workspace_id"),
+)
+
+
 def _herdr_bin() -> str | None:
     """herdr の実体。herdr の中で起動していれば HERDR_BIN_PATH が指す。
 
     同じディレクトリの herdr-agent-state.sh は socket へ直接話しかけるが、あちらは herdr が
     統合を入れ直すたびに上書きする管理下のファイルである。上書きされる側の実装に合わせず、
     公開された CLI を使う。
+
+    guard_resolve.resolve_tirith_bin と同じ形をしているが、あちらへは寄せない。canonical を
+    1 つにする価値があるのは片方を直したときにもう片方が古びる情報で、HERDR_BIN_PATH と
+    TIRITH_BIN は互いに独立している。guard_resolve は強制層がホットパスで import する leaf と
+    して射程を apm と tirith に絞っており、herdr は強制層が使わない。失敗の返し方も違う
+    (あちらは見つからなくても文字列を返して呼び出し側の FileNotFoundError へ委ねるが、こちらは
+    None を返して対象外として通す)。
     """
     return os.environ.get("HERDR_BIN_PATH") or shutil.which("herdr")
 
 
-def _pane_unverified(pane_id: str, reason: str) -> ProbeResult:
-    """ペインの実在を確かめられなかったことを告げる。
+def _herdr_unverified(pane_id: str, subject: str, reason: str) -> ProbeResult:
+    """照合できなかったことを、何が確かめられなかったかとともに告げる。
 
-    「確かめられなかった」と「実在しない」を同じ文面にしない。前者は herdr 側の問題で、
+    「確かめられなかった」と「食い違っている」を同じ文面にしない。前者は herdr 側の問題で、
     後者はセッション側の問題なので、読み手が取る手当てが違う。
+
+    subject を呼び出し側から受けるのは、一覧そのものが引けない状態 (実在が不明) と、一覧は
+    引けたがペインが所属を持たない状態 (所属が不明) を区別するためである。同じ文面へ潰すと、
+    herdr が応答しないことと応答の形が変わったことが読み手から見て同じになる。
     """
-    return ProbeResult(healthy=False, detail=f"{reason}。{pane_id} の実在は未確認。")
+    return ProbeResult(healthy=False, detail=f"{reason}。{pane_id} の{subject}は未確認。")
 
 
-def probe_herdr_pane() -> ProbeResult:
-    """HERDR_PANE_ID が実在するペインを指しているか。
+def probe_herdr_ids() -> ProbeResult:
+    """継承した herdr の ID が同じペインを指しているか。
 
-    この変数も claim で差し替わらない側にあり、既に閉じられたペインを指すことがある。
-    その場合はエージェントの状態通知が黙って捨てられ、ユーザーからは動いていないように
-    見える。
+    これらの変数も claim で差し替わらない側にあり、既に閉じられたペインや別のセッションの
+    ものを指すことがある。その場合はエージェントの状態通知が黙って捨てられ、ユーザーからは
+    動いていないように見える。
 
-    見るのは実在だけである。spare を起こしたペインがまだ開いていれば、継承された値でも
-    通る。同じ表に載る HERDR_WORKSPACE_ID と HERDR_TAB_ID も検査していない。
+    照合は HERDR_PANE_ID を起点にする。一覧の応答では各ペインが自分の tab_id と workspace_id を
+    持つので、1 回の呼び出しで 3 つとも見られる。tab と workspace の一覧を別に引く形は採らない。
+    呼び出しが増えるとセッション頭の待ちの上限がそのぶん伸びる (ISSUE-83 の領分)。ペインを
+    起点にすると、ペインを持たない workspace や tab が一覧に現れるかどうかにも依存しない。
+
+    HERDR_PANE_ID が未設定なら何も見ない。3 つは herdr が同時に設定するので、起点が無い状態で
+    残りだけを検査するには別の呼び出しが要る。tab と workspace が個別に未設定のときは、その
+    変数だけを対象外として通す。
+
+    herdr が設定する変数はこの 3 つだけではないが、残りは対象にしない (2026-09-07 に全数を
+    確かめた)。在否のフラグ、socket の固定パス、バイナリのパスはいずれもセッションではなく
+    マシンを指すので、spare 経由で継承されても汚染にならない。汚染が意味を持つのは、値が
+    セッションごとに変わりかつ実在する別のものを指しうる識別子に限られる。
 
     未設定と herdr 不在は対象外として通す。herdr を使わない環境で常に鳴らすと、この層の
     出力そのものが読まれなくなる。あるのに応答しないのは対象外ではないので沈黙として扱う。
@@ -336,29 +366,63 @@ def probe_herdr_pane() -> ProbeResult:
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        return _pane_unverified(pane_id, f"{herdr_bin} がペイン一覧を返さない ({exc})")
+        return _herdr_unverified(pane_id, "実在", f"{herdr_bin} がペイン一覧を返さない ({exc})")
 
     if result.returncode != 0:
-        return _pane_unverified(
-            pane_id, f"{herdr_bin} がペイン一覧を返さない (exit {result.returncode})"
+        return _herdr_unverified(
+            pane_id, "実在", f"{herdr_bin} がペイン一覧を返さない (exit {result.returncode})"
         )
 
     try:
-        panes = json.loads(result.stdout)["result"]["panes"]
-        known = {pane["pane_id"] for pane in panes}
-    except (ValueError, LookupError, TypeError) as exc:
-        return _pane_unverified(pane_id, f"ペイン一覧を読めない ({exc})。応答の形が変わった")
+        payload = json.loads(result.stdout)
+    except ValueError as exc:
+        return _herdr_unverified(
+            pane_id, "実在", f"ペイン一覧を読めない ({exc})。応答の形が変わった"
+        )
 
-    if pane_id in known:
-        return ProbeResult(healthy=True)
+    # herdr は不在も誤用も exit 0 で返し、失敗は応答の中の error に入る (2026-09-07 実測)。
+    # 終了コードだけを見ていると、この形が「応答した」として後段のパースへ流れる。
+    error = payload.get("error") if isinstance(payload, dict) else None
+    if error:
+        return _herdr_unverified(pane_id, "実在", f"{herdr_bin} がエラーを返した ({error})")
 
-    return ProbeResult(
-        healthy=False,
-        detail=(
-            f"HERDR_PANE_ID={pane_id} は実在しないペインを指している。"
-            "エージェントの状態通知は届かないまま捨てられる。"
-        ),
-    )
+    try:
+        panes = payload["result"]["panes"]
+        pane = next((entry for entry in panes if entry["pane_id"] == pane_id), None)
+    except (LookupError, TypeError) as exc:
+        return _herdr_unverified(
+            pane_id, "実在", f"ペイン一覧を読めない ({exc})。応答の形が変わった"
+        )
+
+    if pane is None:
+        return ProbeResult(
+            healthy=False,
+            detail=(
+                f"HERDR_PANE_ID={pane_id} は実在しないペインを指している。"
+                "エージェントの状態通知は届かないまま捨てられる。"
+            ),
+        )
+
+    for var, key in _HERDR_MEMBERSHIP_IDS:
+        declared = os.environ.get(var)
+        if not declared:
+            continue
+        try:
+            actual = pane[key]
+        except (LookupError, TypeError) as exc:
+            return _herdr_unverified(
+                pane_id, "所属", f"ペインの所属を読めない ({exc})。応答の形が変わった"
+            )
+        if declared != actual:
+            return ProbeResult(
+                healthy=False,
+                detail=(
+                    f"{var}={declared} は、{pane_id} が実際に属する {actual} と食い違う。"
+                    "別のセッションの値を着たまま起動している。"
+                ),
+            )
+
+    return ProbeResult(healthy=True)
 
 
 # プローブの登録簿。名前を結果ではなくここが持つのは、プローブの呼び出し自体が例外で
@@ -368,5 +432,5 @@ PROBES: tuple[tuple[str, Callable[[], ProbeResult]], ...] = (
     ("tirith", probe_tirith),
     ("private-ops", probe_private_ops),
     ("task-list-id", probe_task_list_id),
-    ("herdr-pane", probe_herdr_pane),
+    ("herdr-ids", probe_herdr_ids),
 )

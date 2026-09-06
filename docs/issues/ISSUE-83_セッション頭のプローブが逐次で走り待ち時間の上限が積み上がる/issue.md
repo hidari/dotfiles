@@ -24,11 +24,11 @@ status: open
 | `probe_tirith` | `tirith check` | `guard_probes.TIRITH_PROBE_TIMEOUT` |
 | `probe_task_list_id` | `git rev-parse --show-toplevel` (`hook_git.repo_root`) | `hook_git.RESOLVE_TIMEOUT` |
 | `probe_task_list_id` | `git rev-parse --git-common-dir` (`_main_worktree_name`) | 同上 |
-| `probe_herdr_pane` | `herdr pane list` | `guard_probes.HERDR_PROBE_TIMEOUT` |
+| `probe_herdr_ids` | `herdr pane list` | `guard_probes.HERDR_PROBE_TIMEOUT` |
 
 `probe_apm` と `probe_private_ops` は subprocess を持たないので上限に寄与しない。
 
-ISSUE-79 で `probe_task_list_id` と `probe_herdr_pane` を足す前は `probe_tirith` の 1 回だけ
+ISSUE-79 で `probe_task_list_id` と `probe_herdr_ids` を足す前は `probe_tirith` の 1 回だけ
 だった。つまりこの Issue が扱う状態は ISSUE-79 が作ったものである。
 
 `probe_task_list_id` が 2 回呼ぶのは、導出値との比較に加えて linked worktree の本体名も許容
@@ -53,7 +53,7 @@ ISSUE-79 で `probe_task_list_id` と `probe_herdr_pane` を足す前は `probe_
 プローブの数によらず一定になる。
 
 懸念は、打ち切られたプローブが「沈黙」と報告される点。この層は「健全」と「検査できなかった」を
-区別する設計 (`_pane_unverified` がその形) なので、打ち切りは第 3 の状態として扱う必要がある。
+区別する設計 (`_herdr_unverified` がその形) なので、打ち切りは第 3 の状態として扱う必要がある。
 
 ### どちらも採らない案
 
