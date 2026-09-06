@@ -167,12 +167,47 @@ setup_extra_account() {
 #
 # ID を手で打つ限り typo は避けられない。作業ディレクトリから導出すれば
 # 打ち間違えようがなく、指定を忘れることもない。
+#
+# 入力空間の組み立ては下の setup_case_* が持つ。この節の単体テストと、次の節にある
+# シェルとフックの同値性の対照は、同じ空間を別の観点で覆っている。別々に組むと、片方だけ
+# 条件が変わったときに「同値性が崩れた」ではなく「別の入力を比べている」という形になり、
+# どちらも緑のまま食い違う。組み立てを共有すれば、条件は必ず両方へ同時に効く。
+#
+# 対象ディレクトリは CASE_DIR へ入れる。bats はテストごとに別プロセスなので混ざらない。
+
+setup_case_repository_root() {
+    setup_test_repo "$TEST_HOME/myrepo"
+    CASE_DIR="$TEST_HOME/myrepo"
+}
+
+setup_case_subdirectory() {
+    setup_test_repo "$TEST_HOME/myrepo"
+    mkdir -p "$TEST_HOME/myrepo/frontend/src"
+    CASE_DIR="$TEST_HOME/myrepo/frontend/src"
+}
+
+setup_case_outside_repository() {
+    mkdir -p "$TEST_HOME/plain-dir"
+    CASE_DIR="$TEST_HOME/plain-dir"
+}
+
+setup_case_symlinked_directory() {
+    mkdir -p "$TEST_HOME/real-dir"
+    ln -s "$TEST_HOME/real-dir" "$TEST_HOME/link-dir"
+    CASE_DIR="$TEST_HOME/link-dir"
+}
+
+# 作るものが無いケースも関数にする。上のコメントが「組み立ては setup_case_* が持つ」と宣言
+# しているので、1 つだけインラインで残すとその宣言が実態より広くなる。
+setup_case_filesystem_root() {
+    CASE_DIR=/
+}
 
 @test "_claude_task_list_id: derives from the git repository root" {
-    setup_test_repo "$TEST_HOME/myrepo"
+    setup_case_repository_root
     load_zshrc_claude_functions
 
-    run_in_dir "$TEST_HOME/myrepo" _claude_task_list_id
+    run_in_dir "$CASE_DIR" _claude_task_list_id
 
     [ "$status" -eq 0 ]
     [ "$output" = "myrepo" ]
@@ -181,21 +216,20 @@ setup_extra_account() {
 @test "_claude_task_list_id: resolves to the root even from a subdirectory" {
     # サブディレクトリごとに別 ID になると、同じプロジェクトの進捗が割れる。
     # これが導出元を cwd ではなくリポジトリルートにしている理由
-    setup_test_repo "$TEST_HOME/myrepo"
-    mkdir -p "$TEST_HOME/myrepo/frontend/src"
+    setup_case_subdirectory
     load_zshrc_claude_functions
 
-    run_in_dir "$TEST_HOME/myrepo/frontend/src" _claude_task_list_id
+    run_in_dir "$CASE_DIR" _claude_task_list_id
 
     [ "$status" -eq 0 ]
     [ "$output" = "myrepo" ]
 }
 
 @test "_claude_task_list_id: falls back to the cwd name outside a repository" {
-    mkdir -p "$TEST_HOME/plain-dir"
+    setup_case_outside_repository
     load_zshrc_claude_functions
 
-    run_in_dir "$TEST_HOME/plain-dir" _claude_task_list_id
+    run_in_dir "$CASE_DIR" _claude_task_list_id
 
     [ "$status" -eq 0 ]
     [ "$output" = "plain-dir" ]
@@ -206,11 +240,10 @@ setup_extra_account() {
     # 返すため、揃えないと同じ場所なのにタスクリストが 2 つに割れる。
     # git 側は --show-toplevel が常に実体パスを返すので、フォールバックだけ経路依存に
     # なる非対称を作らない
-    mkdir -p "$TEST_HOME/real-dir"
-    ln -s "$TEST_HOME/real-dir" "$TEST_HOME/link-dir"
+    setup_case_symlinked_directory
     load_zshrc_claude_functions
 
-    run_in_dir "$TEST_HOME/link-dir" _claude_task_list_id
+    run_in_dir "$CASE_DIR" _claude_task_list_id
 
     [ "$status" -eq 0 ]
     [ "$output" = "real-dir" ]
@@ -219,9 +252,10 @@ setup_extra_account() {
 @test "_claude_task_list_id: yields nothing at the filesystem root" {
     # basename が空になる唯一の場所。空の ID を渡したときの Claude Code の挙動は
     # 未確認なので、呼び出し側が変数を設定しない判断をするための signal にする
+    setup_case_filesystem_root
     load_zshrc_claude_functions
 
-    run_in_dir / _claude_task_list_id
+    run_in_dir "$CASE_DIR" _claude_task_list_id
 
     [ "$status" -eq 0 ]
     [ -z "$output" ]
@@ -237,7 +271,7 @@ setup_extra_account() {
 # この対照が唯一その境目を作る。
 #
 # 覆うのは .zshrc とフックの 1 本だけである。同じ規則を持つ statusline-command.sh は
-# ここに入っていない。あちらとの重複は Issue 12 の領分。
+# ここに入っていない。あちらとの重複は別に扱う。
 
 # フック側の導出を印字する。guard_probes は print を持たない設計なので、印字はここが行う。
 hook_task_list_id() {
@@ -278,42 +312,41 @@ assert_derivations_agree() {
 }
 
 @test "task list id: shell and hook agree inside a repository" {
-    setup_test_repo "$TEST_HOME/myrepo"
+    setup_case_repository_root
     load_zshrc_claude_functions
 
-    assert_derivations_agree "$TEST_HOME/myrepo"
+    assert_derivations_agree "$CASE_DIR"
 }
 
 @test "task list id: shell and hook agree from a subdirectory" {
-    setup_test_repo "$TEST_HOME/myrepo"
-    mkdir -p "$TEST_HOME/myrepo/frontend/src"
+    setup_case_subdirectory
     load_zshrc_claude_functions
 
-    assert_derivations_agree "$TEST_HOME/myrepo/frontend/src"
+    assert_derivations_agree "$CASE_DIR"
 }
 
 @test "task list id: shell and hook agree outside a repository" {
-    mkdir -p "$TEST_HOME/plain-dir"
+    setup_case_outside_repository
     load_zshrc_claude_functions
 
-    assert_derivations_agree "$TEST_HOME/plain-dir"
+    assert_derivations_agree "$CASE_DIR"
 }
 
 @test "task list id: shell and hook agree through a symlink" {
     # フォールバックだけが経路依存になる非対称は、両側で同じ形で解消していないと出る
-    mkdir -p "$TEST_HOME/real-dir"
-    ln -s "$TEST_HOME/real-dir" "$TEST_HOME/link-dir"
+    setup_case_symlinked_directory
     load_zshrc_claude_functions
 
-    assert_derivations_agree "$TEST_HOME/link-dir"
+    assert_derivations_agree "$CASE_DIR"
 }
 
 @test "task list id: shell and hook agree at the filesystem root" {
     # basename が空になる唯一の場所。片方だけが空を返すと、呼び出し側が変数を設定するか
     # どうかの判断とプローブの判定が食い違う
+    setup_case_filesystem_root
     load_zshrc_claude_functions
 
-    assert_derivations_agree /
+    assert_derivations_agree "$CASE_DIR"
 }
 
 # =============================================================================
@@ -1142,4 +1175,30 @@ setup_dev_packages() {
 
     [ "$status" -ne 0 ]
     assert_contains "$output" "start marker not found"
+}
+
+# =============================================================================
+# ディレクトリ切り替えヘルパー自身の健全性
+# =============================================================================
+#
+# 上の setup_case_* は対象ディレクトリを変数で渡す。渡し忘れを弾く層が run_in_dir にあり、
+# その層が外れても赤くならない経路があるので、ここで別に pin する。
+
+@test "run_in_dir: rejects an empty directory argument" {
+    # bash の cd "" は rc 0 でカレントに留まる。渡し忘れるとテストがリポジトリの
+    # チェックアウト上で走り、2 つの実装を突き合わせるだけの対照は両方が同じ場所を見て
+    # 一致するので、作っていない入力について緑を返す
+    run run_in_dir "" true
+
+    [ "$status" -eq 1 ]
+    assert_contains "$output" "ディレクトリが不正"
+}
+
+@test "run_in_dir: rejects a directory that does not exist" {
+    # 変数は設定されているが指す先が無い形。cd は rc 1 を返すので run_in_dir 自体は
+    # 失敗するが、失敗の理由が cd のエラーになり、渡し忘れと同じ文面にならない
+    run run_in_dir "$TEST_HOME/nonexistent" true
+
+    [ "$status" -eq 1 ]
+    assert_contains "$output" "ディレクトリが不正"
 }
