@@ -29,7 +29,7 @@ from config_guard.models import Finding
 
 # 常時ロード層の上限 (バイト)。canonical はここだけに置く。
 # 移設でカテゴリを切り出したら同時に下げる (幅は test_budget_tracks_the_real_repo_closely が縛る)。
-ALWAYS_LOADED_BUDGET_BYTES = 26924
+ALWAYS_LOADED_BUDGET_BYTES = 27030
 
 # 予算を引き上げた記録。上げるときは (日付, 引き上げ後の値, 理由) を末尾へ 1 行足す。
 # 許可の条件は budget_ratchet.evaluate_ratchet が canonical。
@@ -41,6 +41,16 @@ BUDGET_RAISES: tuple[tuple[str, int, str], ...] = (
         "開発スタイルの主語を 私 から ユーザー (Hidari) へ明確化した (+211B)。"
         "規範側は過去の露出インシデントに直結するので常時層に置く必要がある。"
         "体系的な削減は Issue #36 の 本体に残す核を確定する で行う",
+    ),
+    (
+        "2026-09-07",
+        27030,
+        "文書系ファイルがプロダクトコードより早く drift するという前提と、"
+        "必要なときはスナップショットと割り切って都度生成するという扱いを "
+        "ファーストクラスドキュメント の規範へ追加し、ADR のようなその時々の意思決定は "
+        "in-repo-issue 内へ置くことを 書かずに済ませる の規範へ追加した (本文 +419B)。"
+        "いずれも文書を書くかどうかの判断そのものを変える規範なので、"
+        "判断の瞬間に読まれる常時層に要る。移設先の候補は Issue #36 で尽きている",
     ),
 )
 

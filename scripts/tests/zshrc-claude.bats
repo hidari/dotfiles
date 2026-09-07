@@ -15,9 +15,9 @@
 #   4. タスクリスト ID は作業ディレクトリから導出する (git リポジトリならルート、
 #      無ければ cwd の名前)。前置の明示指定はこの導出に優先し、何も導出できない
 #      ときは変数ごと渡さず既定のセッション ID リストに任せる
-#   5. 未知のタスクリスト ID は新規作成として通し、知らせるだけでブロックはしない
-#      (_claude_task_list_notice() が導出済みの ID を引数で受け取る専用関数であり、
-#      ランチャと通知が別々に ID を判定して食い違うことを防ぐ)
+#   5. タスクリスト ID の妥当性はシェル側では検査しない。前置値と導出値の食い違いは
+#      SessionStart hook の probe_task_list_id が見る (理由は .zshrc の
+#      _claude_config_dir の手前にある見出しコメント)
 
 load test_helper
 
@@ -52,65 +52,6 @@ write_config_dirs_file() {
 setup_extra_account() {
     write_config_dirs_file '.claude-alpha'
     mkdir -p "$TEST_HOME/.claude-alpha"
-}
-
-# =============================================================================
-# _claude_task_list_notice
-# =============================================================================
-
-@test "_claude_task_list_notice: warns when the task list id is unknown" {
-    load_zshrc_claude_functions
-
-    run _claude_task_list_notice "$TEST_HOME/.claude" nonexistent
-
-    # 新規作成は正当な操作なので、知らせるだけでブロックはしない
-    [ "$status" -eq 0 ]
-    assert_contains "$output" "新しいタスクリストを作成します: nonexistent"
-}
-
-@test "_claude_task_list_notice: stays silent when the task list already exists" {
-    mkdir -p "$TEST_HOME/.claude/tasks/dotfiles"
-    load_zshrc_claude_functions
-
-    run _claude_task_list_notice "$TEST_HOME/.claude" dotfiles
-
-    [ "$status" -eq 0 ]
-    # 既知の ID で警告が出ると常時ノイズになり、本当の typo を見落とす
-    [ -z "$output" ]
-}
-
-@test "_claude_task_list_notice: stays silent when no task list id is given" {
-    load_zshrc_claude_functions
-
-    run _claude_task_list_notice "$TEST_HOME/.claude" ""
-
-    [ "$status" -eq 0 ]
-    [ -z "$output" ]
-}
-
-@test "_claude_task_list_notice: distinguishes the config dir it inspects" {
-    # タスクリストはアカウントごとに別なので、探索先が config dir 依存であることを pin する。
-    # 既定側にだけ存在する ID を追加アカウント側の config dir で問い合わせたら未知として扱う。
-    mkdir -p "$TEST_HOME/.claude/tasks/dotfiles"
-    mkdir -p "$TEST_HOME/.claude-alpha"
-    load_zshrc_claude_functions
-
-    run _claude_task_list_notice "$TEST_HOME/.claude-alpha" dotfiles
-
-    [ "$status" -eq 0 ]
-    assert_contains "$output" "新しいタスクリストを作成します: dotfiles"
-}
-
-@test "_claude_task_list_notice: ignores the ambient environment variable" {
-    # グローバル参照が残っていると、呼び出し側が渡した ID ではなく前置の値を見てしまう。
-    # 導出した ID と手打ちの ID が食い違ったときに誤った判定をする
-    mkdir -p "$TEST_HOME/.claude/tasks/derived"
-    load_zshrc_claude_functions
-
-    CLAUDE_CODE_TASK_LIST_ID=nonexistent run _claude_task_list_notice "$TEST_HOME/.claude" derived
-
-    [ "$status" -eq 0 ]
-    [ -z "$output" ]
 }
 
 # =============================================================================
@@ -381,21 +322,6 @@ assert_derivations_agree() {
     [ "$launches" -eq 1 ]
 }
 
-@test "claude: inspects the config dir handed in from outside" {
-    # 前置で CLAUDE_CONFIG_DIR を渡すと起動先は別アカウントになるのに、確認先が
-    # 個人側に固定されていると存在しない ID を既知と誤判定して黙る。
-    # 「起動するアカウント」と「確認するアカウント」は一致していなければならない
-    mkdir -p "$TEST_HOME/.claude/tasks/dotfiles"
-    mkdir -p "$TEST_HOME/.claude-alpha"
-    setup_recording_claude
-    load_zshrc_claude_functions
-
-    CLAUDE_CONFIG_DIR="$TEST_HOME/.claude-alpha" CLAUDE_CODE_TASK_LIST_ID=dotfiles run claude
-
-    [ "$status" -eq 0 ]
-    assert_contains "$output" "新しいタスクリストを作成します: dotfiles"
-}
-
 @test "claude: fails without launching when the config dir handed in is missing" {
     # 存在しない値は Claude Code が黙って受け入れ、その場所に初期状態の設定を作って
     # 起動する。前置の typo は /login を求められるまで気づけないため、ここで止める
@@ -409,18 +335,6 @@ assert_derivations_agree() {
     refute_contains "$(cat "$RECORDED_LAUNCH")" "LAUNCHED"
 }
 
-@test "claude: falls back to the default config dir when none is handed in" {
-    # 上の裏返し。既定は個人側であり、外部指定が無いのに別の場所を見にいかないこと
-    mkdir -p "$TEST_HOME/.claude/tasks/dotfiles"
-    setup_recording_claude
-    load_zshrc_claude_functions
-
-    CLAUDE_CODE_TASK_LIST_ID=dotfiles run claude
-
-    [ "$status" -eq 0 ]
-    [ -z "$output" ]
-}
-
 @test "claude: forwards its arguments to the binary" {
     setup_recording_claude
     load_zshrc_claude_functions
@@ -431,7 +345,9 @@ assert_derivations_agree() {
     assert_contains "$(cat "$RECORDED_LAUNCH")" "ARGV=--resume foo"
 }
 
-@test "claude: passes the derived task list id to the binary" {
+@test "claude: passes the derived task list id without announcing it" {
+    # 黙ることも一緒に見るのは、シェル側へタスクリストの検査を戻す退行を捕まえるため。
+    # 起動そのものも確かめないと、通知の抑止と起動の欠落が同じ「出力が空」で返る
     setup_test_repo "$TEST_HOME/myrepo"
     setup_recording_claude
     load_zshrc_claude_functions
@@ -439,6 +355,7 @@ assert_derivations_agree() {
     run_in_dir "$TEST_HOME/myrepo" claude
 
     [ "$status" -eq 0 ]
+    [ -z "$output" ]
     assert_contains "$(cat "$RECORDED_LAUNCH")" "TASK_LIST=myrepo"
 }
 
@@ -472,17 +389,6 @@ assert_derivations_agree() {
     # ここを確かめないと else 分岐の起動を削除しても検出できない
     assert_contains "$recorded" "LAUNCHED"
     refute_contains "$recorded" "TASK_LIST="
-}
-
-@test "claude: warns about a derived task list that does not exist yet" {
-    setup_test_repo "$TEST_HOME/myrepo"
-    setup_recording_claude
-    load_zshrc_claude_functions
-
-    run_in_dir "$TEST_HOME/myrepo" claude
-
-    [ "$status" -eq 0 ]
-    assert_contains "$output" "新しいタスクリストを作成します: myrepo"
 }
 
 # =============================================================================
@@ -799,7 +705,9 @@ assert_derivations_agree() {
     refute_contains "$recorded" "TASK_LIST=myrepo"
 }
 
-@test "claude-alpha: passes the derived task list id to the binary" {
+@test "claude-alpha: passes the derived task list id without announcing it" {
+    # 黙ることを静的側と生成側の両方で pin する。片方だけだと、生成テンプレートに
+    # だけ検査を戻す退行が緑で通る
     setup_extra_account
     setup_test_repo "$TEST_HOME/myrepo"
     setup_recording_claude
@@ -808,6 +716,7 @@ assert_derivations_agree() {
     run_in_dir "$TEST_HOME/myrepo" claude-alpha
 
     [ "$status" -eq 0 ]
+    [ -z "$output" ]
     local recorded
     recorded="$(cat "$RECORDED_LAUNCH")"
     assert_contains "$recorded" "CONFIG_DIR=$TEST_HOME/.claude-alpha"
@@ -830,18 +739,6 @@ assert_derivations_agree() {
     # ここを確かめないと else 分岐の起動を削除しても検出できない
     assert_contains "$recorded" "LAUNCHED"
     refute_contains "$recorded" "TASK_LIST="
-}
-
-@test "claude-alpha: warns about an unknown task list but still launches" {
-    setup_extra_account
-    setup_recording_claude
-    load_zshrc_claude_functions
-
-    CLAUDE_CODE_TASK_LIST_ID=typo run claude-alpha
-
-    [ "$status" -eq 0 ]
-    assert_contains "$output" "新しいタスクリストを作成します: typo"
-    assert_contains "$(cat "$RECORDED_LAUNCH")" "LAUNCHED"
 }
 
 # =============================================================================
