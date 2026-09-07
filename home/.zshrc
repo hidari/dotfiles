@@ -200,18 +200,12 @@ function cppath() {
 ########################################
 # Claude Code 起動
 
-# タスクリスト ID が未知なら知らせる。Claude Code は未知の ID でも黙って新しいリストを
-# 作るため、typo は「履歴が分裂している」形でしか後から気づけない。
-# 新規作成そのものは正当な操作なのでブロックはしない。
-# ID は呼び出し側が解決した値を受け取る。グローバルを直接読むと、導出した ID ではなく
-# 前置の値を見てしまい判定がずれる。
-function _claude_task_list_notice() {
-  local config_dir="$1"
-  local task_list_id="$2"
-  [ -n "$task_list_id" ] || return 0
-  [ -d "$config_dir/tasks/$task_list_id" ] && return 0
-  echo "新しいタスクリストを作成します: $task_list_id" >&2
-}
+# タスクリスト ID の妥当性はシェル側では検査しない。SessionStart hook の
+# probe_task_list_id が前置値と導出値の食い違いを見るので、typo も daemon 由来の汚染も
+# 同じ経路で捕まり、期待される名前と対処まで示す。
+# ここで tasks/<ID>/ の存在を見ても代わりにはならない。Claude Code はタスクを 1 件も
+# 作るまでそのディレクトリを作らないので (2026-09-07 実測)、鳴るのはタスクリストを
+# 使っていないリポジトリであって typo ではない。
 
 # 有効な設定ディレクトリを解決する。引数があればそれを、無ければ前置で渡された
 # CLAUDE_CONFIG_DIR を、それも無ければ既定を使う。
@@ -244,14 +238,15 @@ function _claude_task_list_id() {
 # 明示指定すると Keychain の service 名の導出が変わって再ログインを誘発しうる
 # (既定はサフィックス無し、指定時は絶対パスの sha256 先頭 8 桁)。どちらの条件で
 # 分岐しているかは未確認なので、未確認の前提に賭けず変数を設定しない。
-# ただし外から前置で渡された値は読んで尊重する。確認先を決め打ちにすると、起動する
-# アカウントとタスクリストを確認するアカウントがずれて警告が食い違う。
+# ただし外から前置で渡された値は読んで尊重する。検査先を既定へ決め打ちにすると、
+# 起動するアカウントと検査するアカウントがずれて、実在しない場所で起動してしまう。
 # command claude で関数自身の再帰を避ける。
 function claude() {
-  local config_dir task_list
-  config_dir="$(_claude_config_dir)" || return 1
+  local task_list
+  # 起動先が実在することだけ確かめる。この関数は CLAUDE_CONFIG_DIR を設定しないので
+  # 解決した値そのものは使わない
+  _claude_config_dir > /dev/null || return 1
   task_list="${CLAUDE_CODE_TASK_LIST_ID:-$(_claude_task_list_id)}"
-  _claude_task_list_notice "$config_dir" "$task_list"
   # 空文字を渡したときの挙動は未確認。導出できないときは変数ごと渡さず既定に任せる
   if [ -n "$task_list" ]; then
     CLAUDE_CODE_TASK_LIST_ID="$task_list" command claude "$@"
@@ -380,7 +375,6 @@ function ${name}() {
   local config_dir task_list
   config_dir=\"\$(_claude_config_dir \"\$HOME/${line}\")\" || return 1
   task_list=\"\${CLAUDE_CODE_TASK_LIST_ID:-\$(_claude_task_list_id)}\"
-  _claude_task_list_notice \"\$config_dir\" \"\$task_list\"
   if [ -n \"\$task_list\" ]; then
     CLAUDE_CONFIG_DIR=\"\$config_dir\" CLAUDE_CODE_TASK_LIST_ID=\"\$task_list\" command claude \"\$@\"
   else
