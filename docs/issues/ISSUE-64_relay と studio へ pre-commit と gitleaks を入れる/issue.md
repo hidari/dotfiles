@@ -29,6 +29,15 @@ studio-Hamiltonian-logo-automation) を dotfiles と agentic-coding-tools の運
 `.hidari/` も `settings.local.json` も `docs/issues/` も 3 リポジトリとも既に揃っている。
 移行が要ると思われていた部分は終わっていた。
 
+### 実測表の訂正 (2026-09-11)
+
+上の表の「pre-commit: なし」は 2 つのことを区別していない。実際に無かったのはツールの
+ほうだけで、フック体系そのものは両リポジトリとも持っていた。どちらも `core.hooksPath` で
+`.githooks/` を指しており、relay は 3 経路、studio は pre-push 1 本を動かしていた。
+
+この取り違えは着手の見積もりを歪める。「フックが無いので入れる」ではなく「既存のフック体系を
+別の機構へ移す」が実際の作業で、移植と旧手順の撤去がついてくる。
+
 pre-commit の実体を実測した。git の機能とツールの二層である。
 
 - git の機能: `.git/hooks/pre-commit` を commit 前に呼ぶ
@@ -79,6 +88,22 @@ clone しただけでは効かない。`pre-commit install` を各リポジト�
 ならない理由である。dotfiles の `bootstrap.sh` は自分自身にしかこれをやっていないので、
 汎用化するかどうかがこの Issue の論点になる。
 
+**この論点は実測で解消した (2026-09-11)。**両リポジトリとも既に自前の取り付け経路を持って
+いた。relay は `cargo xtask setup`、studio は README の手順である。どちらも
+`core.hooksPath` を設定する形だったものを `pre-commit install` へ差し替えれば済み、
+`bootstrap.sh` の汎用化は要らない。対象リポジトリの一覧をどこが持つかという drift の火種も
+発生しない。
+
+### core.hooksPath が残っていると取り付けは静かに失敗する
+
+移行で最も踏みやすいのはここだった。`core.hooksPath` が設定されていると `pre-commit install`
+は警告を出して取り付けに失敗するが、コミット自体は成功する。検査が一度も走らないまま緑が
+続くので、`--all-files` の緑だけを見ていると「取り付いた」と誤判定する。relay の最初の
+live smoke で実際に陽性検体が素通りした。
+
+relay は `run_setup` の `--unset-all` で塞ぎ、studio は `.githooks/` の撤去と README /
+CLAUDE.md からの旧手順の削除で塞いだ。どちらもテストで pin してある。
+
 ### apm.yml は置かない (決定済み)
 
 dotfiles が user スコープで `~/.claude/skills/` へ 16 個を配置しており、これは全リポジトリで
@@ -101,22 +126,71 @@ in-repo Issue の記法検査 (`issue-id-notation` 系) を含めるかは別の
 両リポジトリとも `docs/issues/` を持つので対象にはなるが、既存違反の量を先に測らないと
 取り付けた瞬間に赤くなる。上流の増分モードが既存違反を直さずに取り付ける入口になる。
 
+**測って決めた。含めない (2026-09-11)。**既存違反は relay 1745 件 / studio 2010 件あり、
+中身は `#242424` のような hex color が主だった。識別子が裸の数字である両リポジトリでは、
+本文中の参照と数量表現・色指定を機械的に区別できない。増分モードで取り付けても、色を
+1 つ足すたびに偽陽性が出る。
+
+区別できる形にするには識別子の記法そのものを変える必要があり、それは上流
+(agentic-coding-tools の ISSUE-22) が rename しない判断を持っているので、この Issue の
+範囲では動かせない。
+
+### provisioning は各リポジトリの既定に従う (2026-09-11 裁定)
+
+gitleaks と pre-commit をどこから供給するかは 2 リポジトリで形が違う。揃えるのは
+`.gitleaks.toml` の検出集合であって、起動経路ではない。
+
+| リポジトリ | 供給 | 起動 |
+| --- | --- | --- |
+| relay | mise.toml の pin | `mise exec -- gitleaks` |
+| studio | Homebrew | PATH 直起動 |
+
+relay を mise のままにしたのは、あちらの 2026-07-11 の設計 (toolchain-version-guardrails) が
+PATH 直起動を明示的に禁じているためである。理由は開発機に古い版が残って pin と食い違った
+ことで、gitleaks にも同じ経路が開く。既に actionlint と shellcheck が同じ機構に乗っている。
+
+studio には mise が無く、持ち込むと使っていないリポジトリへ新しいツールチェーンを足すことに
+なるので Homebrew 前提にした。どちらもテストで pin してあり、片方の形をもう片方へ写すと
+赤くなる。
+
+### 設定ファイル自身の構文検査が無い (未決)
+
+studio の live smoke で見つけた。`.pre-commit-config.yaml` の `name` の値に裸のコロンが
+あると YAML が mapping と解釈し、pre-commit が `InvalidConfigError` で起動しない。
+
+配線を pin するテストは YAML をテキストとして読むので、この形を素通りする。実際に studio では
+テスト 8 件すべてが緑のまま構文エラーを見逃し、取り付け後の live smoke で初めて露見した。
+
+同じ穴は relay 側にもある。どちらの CI にも pre-commit を走らせる job が無く、
+`pre-commit validate-config` を呼ぶ経路もどこにも無い。塞ぐには CI に job を足すか、
+テストから validate-config を呼ぶかだが、後者はテストが外部コマンドに依存するので
+CI に pre-commit が無い状態では落ちる。どちらを採るかは決めていない。
+
 ## タスク
 
 - [x] relay と studio の既存履歴に対して gitleaks を走らせ、検出の有無と量を測る。
       検出があれば扱い (直すのか allowlist へ入れるのか) を決めてから取り付ける。
       結果と扱いの判断は「既存履歴の走査 (2026-09-07)」節が持つ
-- [ ] `.gitleaks.toml` を 2 リポジトリへ置く。dotfiles の検出集合をそのまま採るのか、
+- [x] `.gitleaks.toml` を 2 リポジトリへ置く。dotfiles の検出集合をそのまま採るのか、
       リポジトリごとに変えるのかを決める。dotfiles の canonical は `.gitleaks.toml` 自身なので
       散文へ再掲しないこと
-- [ ] `.pre-commit-config.yaml` を 2 リポジトリへ置く。汎用の hook だけを採り、
+      → dotfiles と同一の検出集合を採った。両リポジトリとも `cmp` でバイト単位の一致を確認済み。
+      PII ルールのコストは `--staged` が差分しか見ないことの実測で消えている
+- [x] `.pre-commit-config.yaml` を 2 リポジトリへ置く。汎用の hook だけを採り、
       リポジトリ固有のものは持ち込まない
-- [ ] 取り付けが実際に効いていることを、検出されるべき文字列を含む一時ファイルで確かめる。
+      → relay は PR #606、studio は PR #316。旧 `.githooks` が持っていた検査は両方とも
+      全経路を移してある
+- [x] 取り付けが実際に効いていることを、検出されるべき文字列を含む一時ファイルで確かめる。
       走らせて 0 件だったことを健全の根拠にしない (正常なら非空になる対照を並べる)
-- [ ] `pre-commit install` の実行経路を決める。dotfiles の `bootstrap.sh` を汎用化して
+      → 両リポジトリとも陽性検体で HEAD が動かないことと、陰性側で全 hook を通過することの
+      両方を live smoke で確認した。studio では pre-push stage の 714 テスト実行も見ている
+- [x] `pre-commit install` の実行経路を決める。dotfiles の `bootstrap.sh` を汎用化して
       他リポジトリへも取り付けるのか、各リポジトリで手動にするのかを比較する。
       汎用化するなら対象リポジトリの一覧をどこが持つかが drift の火種になる
-- [ ] in-repo Issue の記法検査を含めるかを、既存違反の量を測ったうえで決める
+      → 両リポジトリとも自前の経路を既に持っていたので汎用化は不要。判断の根拠は
+      「取り付けはリポジトリに travel しない」節が持つ
+- [x] in-repo Issue の記法検査を含めるかを、既存違反の量を測ったうえで決める
+      → 含めない。件数と理由は「設定の内容をどこから採るか」節が持つ
 
 ## 関連
 
