@@ -1,2 +1,15 @@
+# ~/.gitconfig.private として配置する (home/.gitconfig が include する)。
+# 追跡外のファイルなので、実値はここではなく各マシンで設定する。
+#
+# PUBLIC リポジトリへコミットすると author / committer のアドレスは公開面へ載る。
+# gitleaks が走査するのはファイルの内容だけで、コミットのメタデータ (author / committer /
+# タグの tagger / コミットメッセージ) はその面の外にあるため、検査では塞げない。
+# 手当ては git の設定側にしかない。
+#
+# 実値は GitHub の noreply 形にすること。
+#
+#   <ユーザーID>+<ユーザー名>@users.noreply.github.com
+#
+# ID は `gh api user --jq .id` で引ける。下の既定値のままにしないこと。
 [user]
 	email = your.email@example.com

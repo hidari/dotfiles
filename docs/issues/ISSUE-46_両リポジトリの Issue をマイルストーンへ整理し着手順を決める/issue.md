@@ -91,7 +91,7 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | M1 | Issue 維持コストの原因を消す | Issue 43、ISSUE-52、ISSUE-74 |
 | M2 | 検査を配布先で走る状態にする | ISSUE-64、ISSUE-53、ISSUE-72、ISSUE-86 |
 | M3 | skill バンドルの二重登録を止める | Issue 40 |
-| M4 | PUBLIC 露出の scrub | Issue 21、Issue 29、上流 ISSUE-15、上流 ISSUE-23 |
+| M4 | PUBLIC 露出の scrub | Issue 21、Issue 29、ISSUE-87、上流 ISSUE-15、上流 ISSUE-23 |
 | M5 | 静的検査の基盤を寄せ射程の穴を塞ぐ | Issue 39、Issue 30、ISSUE-57、ISSUE-60、Issue 41、ISSUE-47、Issue 17、Issue 18、ISSUE-75、ISSUE-85 |
 | M6 | winvm の実装品質 | 上流の winvm 系 Issue |
 | M7 | 環境とテスト網の個別 | 下の細分表 |
@@ -117,12 +117,13 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 
 ### 割り当ての検算 (2026-09-11)
 
-dotfiles の active 53 件の全件がいずれかのマイルストーンへ入ることを数えて確かめた。M1 が 3、
-M2 が 4、M3 が 1、M4 が 2 (dotfiles 側のみ)、M5 が 10、M6 が 0 (上流のみ)、M7 が 16、M8 が 1、
-M9 が 10、M10 が 3、M11 が 2、この Issue 自身が 1 で合計 53。
+dotfiles の active 54 件の全件がいずれかのマイルストーンへ入ることを数えて確かめた。M1 が 3、
+M2 が 4、M3 が 1、M4 が 3 (dotfiles 側のみ)、M5 が 10、M6 が 0 (上流のみ)、M7 が 16、M8 が 1、
+M9 が 10、M10 が 3、M11 が 2、この Issue 自身が 1 で合計 54。
 
-同日中に 3 度動いている。ISSUE-84 の起票で 51 になり、ISSUE-64 の作業から派生した ISSUE-85
-(M5) と ISSUE-86 (M2) で 53 になった。**後の 2 件は起票と同じ変更で表へ入れている。**
+同日中に 4 度動いている。ISSUE-84 の起票で 51、ISSUE-64 から派生した ISSUE-85 (M5) と
+ISSUE-86 (M2) で 53、別リポジトリからの委譲で起票した ISSUE-87 (M4) で 54 になった。
+**後の 3 件はいずれも起票と同じ変更で表へ入れている。**
 
 09-07 からの増分は ISSUE-84 の 1 件で、M9 へ割り当てた。対象が `home/.claude/hooks/` の
 handoff-sentinel なので M9 に入る。**起票と同じ変更では入れ損ねており、別リポジトリからの
