@@ -1,8 +1,12 @@
 # gitleaks 設定
 # 既定の secret 検出ルールを継承しつつ、PII 検出の custom ルールを重ねる。
 # 個々のルールが何を見るかは各 [[rules]] の description が正本なので、ここでは
-# 列挙しない。pre-commit (staged 検査) と CI の双方が本設定を使用する。
-title = "hidari-dotfiles gitleaks config"
+# 列挙しない。
+#
+# canonical は dotfiles のこのファイルで、他リポジトリには同一内容の写しを置く。
+# 変更は dotfiles 側で行い、写しへ配り直すこと。写しとの乖離は内容の一致で判定できる。
+# どこから呼ばれるかは各リポジトリの .pre-commit-config.yaml と CI 定義が持つ。
+title = "hidari shared gitleaks config"
 
 [extend]
 useDefault = true
