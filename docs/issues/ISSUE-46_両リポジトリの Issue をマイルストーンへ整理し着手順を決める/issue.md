@@ -96,7 +96,7 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | M6 | winvm の実装品質 | 上流の winvm 系 Issue |
 | M7 | 環境とテスト網の個別 | 下の細分表 |
 | M8 | CI の必須チェックを実効化する | ISSUE-50 |
-| M9 | フックの共通基盤とガードの穴 | Issue 26、ISSUE-58、ISSUE-67、ISSUE-71、ISSUE-62、ISSUE-63、ISSUE-66、ISSUE-77、ISSUE-83 |
+| M9 | フックの共通基盤とガードの穴 | Issue 26、ISSUE-58、ISSUE-67、ISSUE-71、ISSUE-62、ISSUE-63、ISSUE-66、ISSUE-77、ISSUE-83、ISSUE-84 |
 | M10 | 規範層の構造を直す | ISSUE-48、ISSUE-61、ISSUE-65 |
 | M11 | セッションの取り違えを検出する | ISSUE-78、ISSUE-82 |
 
@@ -114,6 +114,21 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | Raycast | Issue 22、Issue 23 |
 | PowerShell | Issue 27、Issue 28 |
 | 単独 | Issue 31、Issue 33、ISSUE-51 |
+
+### 割り当ての検算 (2026-09-11)
+
+dotfiles の active 51 件の全件がいずれかのマイルストーンへ入ることを数えて確かめた。M1 が 3、
+M2 が 3、M3 が 1、M4 が 2 (dotfiles 側のみ)、M5 が 9、M6 が 0 (上流のみ)、M7 が 16、M8 が 1、
+M9 が 10、M10 が 3、M11 が 2、この Issue 自身が 1 で合計 51。
+
+09-07 からの増分は ISSUE-84 の 1 件で、M9 へ割り当てた。対象が `home/.claude/hooks/` の
+handoff-sentinel なので M9 に入る。**起票と同じ変更では入れ損ねており、別リポジトリからの
+委譲で起票した ISSUE-74 と同じ経路を踏んでいる。**下のタスクが挙げる未決のうち、委譲元が
+この表を読む理由を持たない件は、委譲を受けた dotfiles 側のセッションでも同様に漏れる。
+
+open の内訳は 09-07 から動いていないが、これは相殺の結果である。ISSUE-64 が open から
+in_progress へ移って -1、ISSUE-84 の起票で +1 になっている。**open だけを見ると同じ値が
+返るので、増分を open の差分で数えると 0 件と読める。**active の合計で数えること。
 
 ### 割り当ての検算 (2026-09-07)
 
