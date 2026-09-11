@@ -12,8 +12,10 @@ status: open
 解釈して構文エラーになる。
 
 ```yaml
-name: cargo nt (nextest: doctest 以外すべて)   # ← "nextest:" が mapping に見える
+name: run tests (fast: unit only)   # ← "fast:" が mapping に見える
 ```
+
+踏んだのは hook 名に補足を括弧で足した形で、補足の中にコロンがあった。
 
 pre-commit は起動時に `InvalidConfigError` を返し、hook を 1 つも実行しない。
 
@@ -78,7 +80,7 @@ pre-commit は起動時に `InvalidConfigError` を返し、hook を 1 つも実
 ## 関連
 
 ISSUE-64 が studio と relay への取り付けを扱い、この欠陥はその live smoke で見つかった。
-検出の経緯と、テストが素通りした理由はあちらの本文が持つ
+取り付けの経緯と実測はあちらが持ち、塞ぎ方の比較と決定はこの Issue が持つ
 
 ISSUE-53 が配布先の加入状況と写しの drift を見る層を扱う。設定の存在を見る層と設定の
 妥当性を見る層は隣接するので、同じ機構へ乗せられるかを検討する対象になる

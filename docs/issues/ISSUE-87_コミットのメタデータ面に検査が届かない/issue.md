@@ -62,7 +62,8 @@ identity を予約形にすれば以後のコミットは守られる。
 
 `home/.gitconfig.private.example` に noreply 形の実例を書こうとしたところ、
 `.gitleaks.toml` の `email-address` ルールが検出することが分かった。allowlist は
-`@example.(com|org|net)` だけで、`users.noreply.github.com` は入っていない。
+文書用の例示ドメインと SSH clone URL の 2 軸だけで、noreply 形はどちらにも入らない
+(集合の正本は `.gitleaks.toml` の `email-address` ルール自身)。
 
 noreply 形は公開を前提に設計されたアドレスなので、allowlist に入れる方が筋は通る。ただし
 `.gitleaks.toml` は canonical で、変更すると relay と studio の写しへも配り直しが要る。
@@ -92,5 +93,5 @@ agentic-coding-tools の ISSUE-15: PUBLIC リポジトリの漏洩ガード。�
 ISSUE-64: gitleaks の取り付けを扱う。あちらが入れる層はファイル内容の面で、この Issue は
 その面の外を扱う。同じツールを使うが守る対象が違う
 
-ISSUE-21: PUBLIC リポジトリに露出している個人情報と private リポジトリ情報を棚卸しする。
+Issue 21: PUBLIC リポジトリに露出している個人情報と private リポジトリ情報を棚卸しする。
 2026-06-26 の監査の続きで、この Issue が扱うメタデータ面はあちらの棚卸しの対象に入る

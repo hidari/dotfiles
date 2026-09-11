@@ -10,6 +10,9 @@
 #
 #   <ユーザーID>+<ユーザー名>@users.noreply.github.com
 #
+# 山括弧のままにしてあるのは、具体例へ置き換えるとこのリポジトリ自身の gitleaks
+# (email-address ルール) が弾くため。既定値の側は allowlist に載る形を選んである。
+#
 # ID は `gh api user --jq .id` で引ける。下の既定値のままにしないこと。
 [user]
 	email = your.email@example.com

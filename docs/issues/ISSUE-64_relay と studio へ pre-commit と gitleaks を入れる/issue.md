@@ -184,10 +184,8 @@ studio の live smoke で見つけた。`.pre-commit-config.yaml` の `name` の
 配線を pin するテストは YAML をテキストとして読むので、この形を素通りする。実際に studio では
 テスト 8 件すべてが緑のまま構文エラーを見逃し、取り付け後の live smoke で初めて露見した。
 
-同じ穴は relay 側にもある。どちらの CI にも pre-commit を走らせる job が無く、
-`pre-commit validate-config` を呼ぶ経路もどこにも無い。塞ぐには CI に job を足すか、
-テストから validate-config を呼ぶかだが、後者はテストが外部コマンドに依存するので
-CI に pre-commit が無い状態では落ちる。どちらを採るかは決めていない。
+同じ穴は relay 側にもある。どちらの CI にも `pre-commit validate-config` を呼ぶ経路が無い。
+塞ぎ方の比較と決定は ISSUE-85 が持つ。
 
 ## タスク
 

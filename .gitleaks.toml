@@ -3,9 +3,10 @@
 # 個々のルールが何を見るかは各 [[rules]] の description が正本なので、ここでは
 # 列挙しない。
 #
-# canonical は dotfiles のこのファイルで、他リポジトリには同一内容の写しを置く。
+# 正本は dotfiles リポジトリの .gitleaks.toml で、他リポジトリには同一内容の写しを置く。
 # 変更は dotfiles 側で行い、写しへ配り直すこと。写しとの乖離は内容の一致で判定できる。
-# どこから呼ばれるかは各リポジトリの .pre-commit-config.yaml と CI 定義が持つ。
+# 呼び出し元はこのファイルを置いたリポジトリ側が持つ。pre-commit から呼ぶか CI から
+# 呼ぶかはリポジトリごとに違うので、ここでは所在を断定しない。
 title = "hidari shared gitleaks config"
 
 [extend]
@@ -21,7 +22,7 @@ tags = ["pii", "path"]
   # 境界 ([/"]|$) で許可語をそこで終わらせ、/Users/user (許可) と /Users/userfoo (検出) を
   # 区別する。境界に . を含めない: 含めると許可語で始まるだけの別名 (user.smith 等) が
   # 丸ごと通り、実在しうる名前を素通りさせる。
-  [rules.allowlist]
+  [[rules.allowlists]]
   description = "placeholder / 共有・CI 用パスは許可"
   # secret==match (capture group 無し) だが、境界判定の意図を明示するため match を指定
   regexTarget = "match"
