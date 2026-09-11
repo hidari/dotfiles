@@ -92,13 +92,13 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | M2 | 検査を配布先で走る状態にする | ISSUE-53、ISSUE-72、ISSUE-86 |
 | M3 | skill バンドルの二重登録を止める | Issue 40 |
 | M4 | PUBLIC 露出の scrub | Issue 21、Issue 29、ISSUE-87、agentic-coding-tools ISSUE-15、agentic-coding-tools ISSUE-23 |
-| M5 | 静的検査の基盤を寄せ射程の穴を塞ぐ | Issue 39、Issue 30、ISSUE-57、ISSUE-60、Issue 41、ISSUE-47、Issue 17、Issue 18、ISSUE-75、ISSUE-85 |
+| M5 | 静的検査の基盤を寄せ射程の穴を塞ぐ | Issue 39、Issue 30、ISSUE-57、ISSUE-60、Issue 41、ISSUE-47、Issue 17、Issue 18、ISSUE-75、ISSUE-85、ISSUE-90 |
 | M6 | winvm の実装品質 | 上流の winvm 系 Issue |
 | M7 | 環境とテスト網の個別 | 下の細分表 |
 | M8 | CI の必須チェックを実効化する | ISSUE-50 |
 | M9 | フックの共通基盤とガードの穴 | Issue 26、ISSUE-58、ISSUE-67、ISSUE-71、ISSUE-62、ISSUE-63、ISSUE-66、ISSUE-77、ISSUE-83、ISSUE-84 |
-| M10 | 規範層の構造を直す | ISSUE-48、ISSUE-61、ISSUE-65 |
-| M11 | セッションの取り違えを検出する | ISSUE-78、ISSUE-82 |
+| M10 | 規範層の構造を直す | ISSUE-48、ISSUE-61、ISSUE-65、ISSUE-88、ISSUE-89 |
+| M11 | セッションの取り違えを検出する | ISSUE-78、ISSUE-82、ISSUE-91 |
 
 ### M7 の細分 (2026-09-02)
 
@@ -114,6 +114,24 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | Raycast | Issue 22、Issue 23 |
 | PowerShell | Issue 27、Issue 28 |
 | 単独 | Issue 31、Issue 33、ISSUE-51 |
+
+### 割り当ての検算 (2026-09-12)
+
+dotfiles の active 57 件の全件がいずれかのマイルストーンへ入ることを数えて確かめた。M1 が 3、
+M2 が 3、M3 が 1、M4 が 3 (dotfiles 側のみ)、M5 が 11、M6 が 0 (上流のみ)、M7 が 16、M8 が 1、
+M9 が 10、M10 が 5、M11 が 3、この Issue 自身が 1 で合計 57。
+
+09-11 からの増分は起票 4 件で、割り当ては ISSUE-88 と ISSUE-89 が M10、ISSUE-90 が M5、
+ISSUE-91 が M11。4 件とも別リポジトリからの委譲およびユーザーの要望を材料にしており、
+**4 件とも起票と同じ変更で表へ入れている。**
+
+割り当ての理由。ISSUE-88 と ISSUE-89 はどちらも常時層 / `rules` / `references` への追記なので
+M10。ISSUE-90 は config-guard へ検査を足すので M5 で、対象が apm の deploy 先であっても
+「配布先で走らせる」側ではないため M2 ではない。ISSUE-91 は並行セッションの把握なので M11 で、
+持ち場が statusLine であって `home/.claude/hooks/` ではないため M9 ではない。
+
+突き合わせは `.cache/reconcile-issue46.py` で行い、未割り当てとしてこの Issue 自身の 1 件だけが、
+腐りとして 0 件が返ることを確かめた。status の内訳は in_progress 2 / open 55 で合計が一致する。
 
 ### 割り当ての検算 (2026-09-11)
 
