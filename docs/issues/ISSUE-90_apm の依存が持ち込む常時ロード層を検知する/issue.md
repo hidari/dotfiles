@@ -27,9 +27,9 @@ status: open
 
 ### 既にある配線
 
-`home/.claude/settings.json` の `claudeMdExcludes` に `**/home/.claude/CLAUDE.md` が 1 件あり、
-config-guard が pin している (ISSUE-36 で配線、消さないこと)。schema の記述では「絶対パスに
-picomatch で照合」。
+`home/.claude/settings.json` の `claudeMdExcludes` に既存の除外があり、config-guard が pin して
+いる (Issue 36 で配線、消さないこと)。除外の値は settings.json が canonical なのでここには
+再掲しない。schema の記述では「絶対パスに picomatch で照合」。
 
 ### 未検証
 
@@ -48,7 +48,6 @@ picomatch で照合」。
       構造上の位置に置く (位置が違うと別経路で成立する)
 - [ ] `claudeMdExcludes` の未検証 3 点を live probe で測る。測った結果はメモリか
       `references/` へ残す
-- [ ] ISSUE-46 のマイルストーン表へ入れる
 
 ## 未決
 
@@ -69,5 +68,5 @@ picomatch で照合」。
   確認手段が発火しない」形は軸F が記録している
 - ISSUE-46 — 両リポジトリの Issue をマイルストーンへ整理し着手順を決める。所属の canonical は
   あちらの表
-- ISSUE-36 (closed) — `claudeMdExcludes` の配線はここで入った
+- Issue 36 — `claudeMdExcludes` の配線はここで入った
 - メモリ reference-claude-md-nested-traversal が Read 発火と subagent ごとの課金を持つ

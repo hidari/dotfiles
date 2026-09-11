@@ -26,16 +26,16 @@ status: open
   委譲元が pin (`rust-toolchain.toml` の channel) で条件成立を再確認済み。**RUST-07 は取らない**
 - 「まだ存在しない `.cargo/config.toml` も path-filter に先に含める」は成立しない。委譲元の
   canonical が「このリポジトリでは使えない」と結論しており、限界カバレッジが 0
-- 「`references/` にビルド性能に触れる行は 0 件」は再現しない。同じ grep で 5 hit する。
-  実質的な主張 (ビルド性能の規範は無い) は成立するが、報告された 0 件は再現しない
+- 「`references/` にビルド性能に触れる行は 0 件」は再現しない。同じ語で引くと hit する。
+  実質的な主張 (ビルド性能の規範は無い) は成立するが、報告された 0 件は再現しない。委譲元は
+  0 件を得た検査条件を書いていないので、どの版のどのパスで引いたかが辿れない
 - 「`rules/rust-practices.md` の tests/ 集約項は『時間』と書いており誤り」は偽。既存本文は
   「時間が線形に増える」とは書かず、増える対象を「再コンパイルと再リンク」と書いている。
   BP-16 は事実の誤りの修正ではなく「量を名指ししていない曖昧さの解消」であり blocking ではない
 
 ### 取り込む規範
 
-識別子は検証ワークフローの採番。内容の canonical は `.cache/delegation-rust-practices.md` と
-`.cache/delegation-build-practices.md`、判定は `.cache/delegation-verification-summary.txt`。
+識別子は検証ワークフローの採番。材料は `.cache/` 配下に残してある (追跡外)。
 
 既存の `rules/rust-practices.md` へ入れるもの:
 
@@ -84,10 +84,9 @@ BP-05 / BP-06、枠は BP-07):
 - [ ] `config_guard.rules_paths.EXPECTED_PATHS` へ新設 rules の pin を理由コメント付きで足す (BP-18)
 - [ ] RUST-09 / RUST-10 を `references/observation.md` へ足す
 - [ ] 新設 references を作り BP-08〜BP-13 を入れる
-- [ ] 第三者 org の内部識別子と数値を落とす。機構と桁だけを残して抽象化する (BP-14)
+- [ ] 第三者 org の内部識別子と数値を落とす。機構と桁だけを残して抽象化する
 - [ ] 新設 rules の `paths` が実マッチャで発火することを確かめる。pin だけでは沈黙する rules が
       できる (`rules_paths.py` は glob の意味論を検証しないと明記している)
-- [ ] ISSUE-46 のマイルストーン表へ入れる
 
 ## 未決
 
@@ -136,5 +135,4 @@ BP-05 / BP-06、枠は BP-07):
   対応する。着手順は上の未決
 - ISSUE-46 — 両リポジトリの Issue をマイルストーンへ整理し着手順を決める。所属の canonical は
   あちらの表
-- 材料は `.cache/delegation-rust-practices.md` と `.cache/delegation-build-practices.md`
-  (委譲元の原文)、`.cache/delegation-verification-summary.txt` (反証と配置提案)。どちらも追跡外
+- 2 つの委譲元の原文と検証結果 (反証・配置提案・予算影響) は `.cache/` 配下に残してある (追跡外)

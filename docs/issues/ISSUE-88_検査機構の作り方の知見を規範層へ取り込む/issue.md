@@ -29,8 +29,7 @@ CLAUDE.md / paths 付き rules / references) へ取り込む。
 
 ### 取り込む知見
 
-識別子は検証ワークフローの採番。内容の canonical は `.cache/delegation-inspection-mechanisms.md`
-と検証結果 (`.cache/delegation-verification-summary.txt`)。
+識別子は検証ワークフローの採番。材料は `.cache/` 配下に残してある (追跡外)。
 
 | ID | 内容 | 置き場の提案 |
 | --- | --- | --- |
@@ -65,13 +64,12 @@ CLAUDE.md / paths 付き rules / references) へ取り込む。
       到達できず、ISSUE-48 が孤児の節の実例を持つ
 - [ ] 新規の scoped rules を足した場合は `config_guard.rules_paths.EXPECTED_PATHS` への pin を
       足す (`check_rules_paths` が「pin が無い」で報告する)
-- [ ] ISSUE-46 のマイルストーン表へ入れる
 
 ## 未決
 
 着手前に決める。決めずに個別へ入れると常時層の配分が判断できなくなる。
 
-- **INS-2 の置き場。** トリガ (検証手段を選ぶ瞬間) に file surface が無いので ISSUE-36 の基準では
+- **INS-2 の置き場。** トリガ (検証手段を選ぶ瞬間) に file surface が無いので Issue 36 の基準では
   常時層だが余裕 0 で `BUDGET_RAISES` が要る。代案は (a) 検査記述面 (`sgconfig.yml` /
   `rules/*.yml` / `.pre-commit-config.yaml` / `scripts/**/*.py` / `.github/workflows/*.yml`) へ
   向けた新規 `paths` 付き rules (b) ISSUE-48 の再構成で観測カテゴリを圧縮した分で払う。
@@ -103,5 +101,4 @@ CLAUDE.md / paths 付き rules / references) へ取り込む。
 - ISSUE-46 — 両リポジトリの Issue をマイルストーンへ整理し着手順を決める。所属の canonical は
   あちらの表
 - ISSUE-89 — Rust のビルド規範。常時層の予算を共有するので配分をまとめて決める
-- 材料は `.cache/delegation-inspection-mechanisms.md` (委譲元の原文) と
-  `.cache/delegation-verification-summary.txt` (反証と配置提案)。どちらも追跡外
+- 委譲元の原文と検証結果 (反証・配置提案・予算影響) は `.cache/` 配下に残してある (追跡外)
