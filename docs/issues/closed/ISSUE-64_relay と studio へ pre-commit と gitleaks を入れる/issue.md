@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: closed
 ---
 
 # chore: relay と studio へ pre-commit と gitleaks を入れる
