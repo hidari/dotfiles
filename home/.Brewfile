@@ -37,7 +37,7 @@ brew "yt-dlp"                             # 動画ダウンローダー
 brew "jq"                                 # JSONパーサー
 brew "rsync"                              # ファイル同期ツール
 brew "tree"                               # ディレクトリツリー表示
-brew "tgrep"                              # trigram 索引付き grep (検索は Grep/grep でなくこちらを使う)
+brew "tgrep"                              # trigram 索引付き grep
 brew "yusukebe/tap/ax", trusted: true     # The AI-era curl
 brew "hidari/tap/rip"                     # zipアーカイバ
 
