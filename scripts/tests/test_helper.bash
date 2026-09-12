@@ -11,11 +11,13 @@ REPO_ROOT="$(dirname "$SCRIPTS_DIR")"
 # する。既定値は実ファイルなので通常実行と CI の対象は変わらない。
 BOOTSTRAP_SCRIPT="${BOOTSTRAP_SCRIPT:-$REPO_ROOT/bootstrap.sh}"
 
-# 次の 2 つは ~/.zshrc と ~/.claude/statusline-command.sh のライブ symlink 先そのもの。
-# 変異注入で実ファイルを壊すと、その間に開いたシェルや statusLine の描画が壊れた版を踏む
-# (特に claude 関数の再帰変異は実害が大きい)。上書き可能にしておく理由がここだけ重い。
+# 以下はホーム側のライブ symlink 先そのもの。変異注入で実ファイルを壊すと、その間に開いた
+# シェルや statusLine の描画が壊れた版を踏む (特に claude 関数の再帰変異は実害が大きい)。
+# 上書き可能にしておく理由がここだけ重い。対象をここで数えたり列挙したりしない。
+# 増えたときに数と列挙だけが取り残される (実際 .zshenv を足すまで「2 つ」のままだった)。
 STATUSLINE_SCRIPT="${STATUSLINE_SCRIPT:-$REPO_ROOT/home/.claude/statusline-command.sh}"
 ZSHRC_FILE="${ZSHRC_FILE:-$REPO_ROOT/home/.zshrc}"
+ZSHENV_FILE="${ZSHENV_FILE:-$REPO_ROOT/home/.zshenv}"
 
 # apm ガードの判定を持つ共有シェル層。bootstrap.sh と PATH shim の両方が source する。
 # bootstrap.sh はブロック切り出しで source されるため自分の位置から解決できず、
@@ -25,10 +27,6 @@ ZSHRC_FILE="${ZSHRC_FILE:-$REPO_ROOT/home/.zshrc}"
 # フォールバックも別ディレクトリを指すので、export を外すと変異注入だけが静かに壊れる。
 APM_GUARD_LIB="${APM_GUARD_LIB:-$REPO_ROOT/scripts/apm-guard/lib.sh}"
 export APM_GUARD_LIB
-
-# ~/.zshenv のライブ symlink 先そのもの。ZSHRC_FILE と同じ理由で上書き可能にする。
-# こちらは全 zsh 起動が読むため、変異注入で実ファイルを壊すと影響がさらに広い。
-ZSHENV_FILE="${ZSHENV_FILE:-$REPO_ROOT/home/.zshenv}"
 
 # .zshrc のセクション区切り。ブロック切り出しの終端マーカーとして複数の入口が使う
 ZSHRC_SECTION_END='^########################################$'

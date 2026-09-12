@@ -28,11 +28,13 @@ jobs:
       - name: Setup uv
         uses: ./.github/actions/setup-uv
 
-      # bats スイートには .zshrc のブロックを実際の zsh へ渡して評価するものがある。
+      # bats スイートには zsh の設定を実際の zsh へ渡して評価するものがある。
       # ubuntu ランナーは zsh を同梱しないので明示的に入れる。入れないと該当テストが
       # 「zsh が無い」で赤くなり、ガード本体の検査は 1 件も走らない。
-      # shellcheck のような version pin を置かないのは、検査対象が [[ -o interactive ]] の
-      # セマンティクスだけで、警告集合のようにバージョンで変わる面を持たないため。
+      # shellcheck のような version pin を置かないのは、検査対象が zsh のどの設定ファイルを
+      # どの起動形態で読むかという安定した規約で、警告集合のようにバージョンで変わる面を
+      # 持たないため。対象スイートをここに列挙しないのは、増えたときに列挙側だけが
+      # 取り残されるため (実際に .zshenv のスイートを足したときそうなった)。
       - name: Setup zsh
         run: |
           sudo apt-get update -qq
