@@ -153,8 +153,17 @@ PUBLIC リポジトリへ書けている以上あちらへも書ける。
 一切依存しなくなるため。dotfiles 側は `home/.zshenv` と `zshenv.bats` と `SYMLINK_PAIRS` の
 1 行が不要になる。
 
-本 Issue では採らない。checker は別リポジトリの持ち場で、配線の形は委譲の時点で決まって
-いたため。論点として agentic-coding-tools へ返す。
+**2026-09-12 に採らないことが決まった。** 判断は checker の持ち主である
+agentic-coding-tools 側で、理由は 2 つ。
+
+1. あちらの canonical な分岐表は入力が環境変数 1 つという前提で組まれていて、緑のまま何も
+   見ていない形を 30 通り数えた末のものなので、入力を増やすと数え直しが要る
+2. `.zshenv` と既定値は同じことを 2 箇所で実現するので、canonical を 1 つ決める原則に反する
+
+結果として `.zshenv` が単一の機構として残る。上の表の 3 行目 (GUI / IDE) は**閉じないまま
+残すという選択**であり、見落としではない。閉じるかどうかは「それらが本当にこの hook を
+走らせるか」を実測してから別件で判断する。採らなかった案とその理由は agentic-coding-tools の
+ISSUE-15 にも残る (自然に再提案される種類の案であるため)。
 
 ### 中立パスの名前空間
 
@@ -187,4 +196,6 @@ Issue 44: `.zshrc` が非対話シェルへ運ぶ設定をエイリアス以外�
 意図して運ぶ側を増やすので、あちらが絞る対象を決めるときに突き合わせが要る
 
 agentic-coding-tools の ISSUE-15: 検査本体の持ち場。層 2 の canonical は同リポジトリの
-`scripts/check-leak-guard-denylist.py` の docstring
+`scripts/check-leak-guard-denylist.py` の docstring。checker に中立パスの既定値を持たせて
+この配線ごと不要にする案を採らなかった記録も、本 Issue の「採らなかった案」節と対で
+あちらに残る
