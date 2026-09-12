@@ -35,3 +35,7 @@ tmp/
 # 生成するが brainstorming の visual companion (.superpowers/brainstorm/) は生成しないため、
 # 前者を消すと後者が git status に出る。ここで両方まとめて隠す。
 .superpowers/
+
+# tgrep (Homebrew 導入の検索 CLI) がリポジトリルートに作る索引キャッシュ。
+# 実体は数 MB のバイナリ索引で、走査のたびに再生成される。
+.tgrep
