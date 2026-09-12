@@ -26,6 +26,10 @@ ZSHRC_FILE="${ZSHRC_FILE:-$REPO_ROOT/home/.zshrc}"
 APM_GUARD_LIB="${APM_GUARD_LIB:-$REPO_ROOT/scripts/apm-guard/lib.sh}"
 export APM_GUARD_LIB
 
+# ~/.zshenv のライブ symlink 先そのもの。ZSHRC_FILE と同じ理由で上書き可能にする。
+# こちらは全 zsh 起動が読むため、変異注入で実ファイルを壊すと影響がさらに広い。
+ZSHENV_FILE="${ZSHENV_FILE:-$REPO_ROOT/home/.zshenv}"
+
 # .zshrc のセクション区切り。ブロック切り出しの終端マーカーとして複数の入口が使う
 ZSHRC_SECTION_END='^########################################$'
 

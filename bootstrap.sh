@@ -22,6 +22,7 @@ BACKUP_DIR="$HOME/.dotfiles_backup/$(date +%Y%m%d_%H%M%S)"
 # シンボリックリンク定義（ソース|ターゲット）
 SYMLINK_PAIRS=(
     "home/.Brewfile|.Brewfile"
+    "home/.zshenv|.zshenv"
     "home/.zshrc|.zshrc"
     "home/.gitconfig|.gitconfig"
     "home/.config/git/.gitignore_global|.config/git/.gitignore_global"
