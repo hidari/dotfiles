@@ -98,6 +98,16 @@ bootstrap は既存の `projects/` を移行しない。実体を持つ設定デ
 - 対話シェル: `home/.zshrc` の `tirith init` が zsh のコマンド実行前に検査する。
 - Claude Code: `home/.claude/hooks/tirith-check.py` を PreToolUse(Bash) フックに登録し、エージェントの Bash 実行前に `tirith check` へ委譲する。判定ロジックは本体、テストは `scripts/claude-hooks` を参照。
 
+## 禁止語ガードのリストの参照
+
+PUBLIC リポジトリへ書けない禁止語リストの在り処を、`home/.zshenv` が環境変数
+`LEAK_GUARD_DENYLIST` で指す。検査本体は別リポジトリ (agentic-coding-tools) が持ち、ここの
+持ち場は export の配線だけ。
+
+指す先は中立な固定パスで、そこをリスト実体への symlink として人が手で張る。`bootstrap.sh` は
+この symlink を作らないので、新しいマシンでは張るまで検査が働かない。指す先のパスと、
+bootstrap に作らせない理由と、判定に使う演算子の根拠は `home/.zshenv` のコメントが持つ。
+
 ## apm による skill 配信 (vendored skills)
 
 一部の Claude Code skill は自作せず、upstream から apm (Agent Package Manager) 経由で取り込む。宣言の正本は `home/apm.yml`、解決した commit と content hash の pin は `home/apm.lock.yaml`。
