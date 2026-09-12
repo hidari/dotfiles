@@ -6,7 +6,7 @@ status: open
 
 ## 背景
 
-Issue #16 で導入した `issue-scoped-artifacts` hook は、上流 superpowers (`brainstorming` / `writing-plans`) が既定パスへ書いてしまった場合、つまり成果物が `docs/superpowers/plans/` や `docs/superpowers/specs/` に落ちた場合しか捕捉しない。Issue ディレクトリ配下に置かれたファイル名の違反、たとえば番号の無い `spec.md` や、`15_` 配下に置かれた `16-spec.md` のような番号不一致は検出しない。
+ISSUE-16 で導入した `issue-scoped-artifacts` hook は、上流 superpowers (`brainstorming` / `writing-plans`) が既定パスへ書いてしまった場合、つまり成果物が `docs/superpowers/plans/` や `docs/superpowers/specs/` に落ちた場合しか捕捉しない。Issue ディレクトリ配下に置かれたファイル名の違反、たとえば番号の無い `spec.md` や、`15_` 配下に置かれた `16-spec.md` のような番号不一致は検出しない。
 
 規約のうち実害を防いでいるのは `<NNN>` の一致であって「`docs/superpowers/` に置かないこと」ではない。番号前置の理由は subagent-driven-development の workspace 名の衝突回避であり、`plan.md` のような番号なしの名前にすると全 Issue の workspace が `.superpowers/sdd/plan/` へ集中し、上流が「plan ごとのサブディレクトリ化」で潰したばかりの衝突を再現してしまう。つまり守る価値の高い方が現状 prose のみで、機械検査が付いていない。
 
@@ -22,7 +22,7 @@ Issue #16 で導入した `issue-scoped-artifacts` hook は、上流 superpowers
 
 ## 関連
 
-[Issue #16](../closed/16_superpowers%20の成果物を%20Issue%20ディレクトリ配下へ寄せる/issue.md) の最終レビューで検出した既知の限界。`16-spec.md` と `16-plan.md` の「今回やらないこと」節を参照。
+[ISSUE-16](../closed/16_superpowers%20の成果物を%20Issue%20ディレクトリ配下へ寄せる/issue.md) の最終レビューで検出した既知の限界。`16-spec.md` と `16-plan.md` の「今回やらないこと」節を参照。
 
 Issue 18: closed 配下の Issue の status を config-guard で検査する。同種の検査で、片方を
 実装するときにもう片方も併せて入れる形が自然。

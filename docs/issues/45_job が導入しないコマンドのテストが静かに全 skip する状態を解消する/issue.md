@@ -62,8 +62,8 @@ gitleaks の 8 本はカバレッジが失われていない一方、`bats` job 
 
 ## 関連
 
-- [Issue #27: run-pester.ps1 の件数ガードを実効化する](../27_run-pester.ps1%20の件数ガードを実効化する/issue.md)
+- [ISSUE-27: run-pester.ps1 の件数ガードを実効化する](../27_run-pester.ps1%20の件数ガードを実効化する/issue.md)
   - 同じ「0 件実行が緑になる」形。あちらは Pester のラッパ、こちらは bats と CI job の
     組み合わせで、機構は別
-- [Issue #4: nvim-markdown.bats の probe を setup_file でバッチ化する](../4_nvim-markdown.bats%20の%20probe%20を%20setup_file%20でバッチ化する/issue.md)
+- [ISSUE-4: nvim-markdown.bats の probe を setup_file でバッチ化する](../4_nvim-markdown.bats%20の%20probe%20を%20setup_file%20でバッチ化する/issue.md)
   - 同じファイル群を触るので、着手順によっては衝突する

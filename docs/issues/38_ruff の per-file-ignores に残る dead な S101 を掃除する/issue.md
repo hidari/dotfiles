@@ -12,7 +12,7 @@ status: open
 設定が、そもそも何も無効化していない。
 
 対象は `scripts/backup-tool` / `scripts/config-guard` / `scripts/mise-update-notifier` /
-`scripts/node-security-notifier` の 4 本。Issue #26 の集約で作った `scripts/claude-hooks` も
+`scripts/node-security-notifier` の 4 本。ISSUE-26 の集約で作った `scripts/claude-hooks` も
 同じ状態だったが、そのレビューで見つかったため先に落としてある。
 
 no-op であることは対照付きで実測した。`assert True` だけを持つプローブを作り、プロジェクトの
@@ -35,7 +35,7 @@ assert が通る。宣言と実態が食い違ったまま検査に出ない状�
 
 ## 関連
 
-- Issue #26 の集約 PR のレビューで検出。`scripts/claude-hooks` の同じ設定を落とした際、他 4 本にも
+- ISSUE-26 の集約 PR のレビューで検出。`scripts/claude-hooks` の同じ設定を落とした際、他 4 本にも
   同型があることが分かった
-- [Issue #26: refactor: Claude Code フックの共通基盤を集約する](../26_Claude%20Code%20フックの共通基盤を集約する/issue.md)。
+- [ISSUE-26: refactor: Claude Code フックの共通基盤を集約する](../26_Claude%20Code%20フックの共通基盤を集約する/issue.md)。
   集約の過程で見つかったが、対象がフック以外のプロジェクトにも及ぶため分離した

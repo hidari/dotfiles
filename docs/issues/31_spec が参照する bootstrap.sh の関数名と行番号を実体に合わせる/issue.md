@@ -6,7 +6,7 @@ status: open
 
 ## 背景
 
-Issue #25 の Phase 4 でマージ前ゲートが検出した。25-spec.md が 2 箇所で `install_apm_skills()`
+ISSUE-25 の Phase 4 でマージ前ゲートが検出した。25-spec.md が 2 箇所で `install_apm_skills()`
 という関数を参照しているが、`bootstrap.sh` にこの名前の関数は存在しない。実測した内容は次のとおり。
 
 - spec が参照する名前: `install_apm_skills()` (2 箇所)
@@ -28,6 +28,6 @@ CLAUDE.md の「機械検証可能な制約を散文に literal で書かない�
 
 ## 関連
 
-- [Issue #25: skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する](../closed/25_skill%20と%20plugin%20を新規%20PUBLIC%20リポジトリへ集約し%20apm%20配布へ移行する/issue.md)
-  検出元かつ修正対象の文書を持つ Issue。#25 は Phase 3b が未完で open のままなので、
+- [ISSUE-25: skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する](../closed/25_skill%20と%20plugin%20を新規%20PUBLIC%20リポジトリへ集約し%20apm%20配布へ移行する/issue.md)
+  検出元かつ修正対象の文書を持つ Issue。ISSUE-25 は Phase 3b が未完で open のままなので、
   そちらの作業に合わせて直してもよい
