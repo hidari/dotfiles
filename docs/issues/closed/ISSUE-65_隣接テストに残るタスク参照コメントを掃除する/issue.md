@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: closed
 ---
 
 # chore(config-guard): コードに残るタスク参照コメントを掃除する
