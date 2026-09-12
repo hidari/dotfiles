@@ -74,13 +74,33 @@ symlink で問題ない (委譲元の実測: 生きた symlink で status=checke
 
 ## タスク
 
-- [ ] `home/.zshenv` を追加し、`-L` ガード付きで `LEAK_GUARD_DENYLIST` を export する
-- [ ] `bootstrap.sh` の `SYMLINK_PAIRS` へ `home/.zshenv|.zshenv` を足す
-- [ ] 配線を pin するテストを足す。3 状態の分岐・無出力・`SYMLINK_PAIRS` への登録の 3 面を見る
+- [x] `home/.zshenv` を追加し、`-L` ガード付きで `LEAK_GUARD_DENYLIST` を export する
+- [x] `bootstrap.sh` の `SYMLINK_PAIRS` へ `home/.zshenv|.zshenv` を足す
+- [x] 配線を pin するテストを足す。3 状態の分岐・無出力・`SYMLINK_PAIRS` への登録の 3 面を見る
 - [ ] ISSUE-46 のマイルストーン表 (M4) へ ISSUE-92 を入れる
-- [ ] 実マシンへ `~/.zshenv` を張り、変更後に起動したシェルから checker が status=skipped を
+- [x] 実マシンへ `~/.zshenv` を張り、変更後に起動したシェルから checker が status=skipped を
       返すことを確かめる (symlink を張る前の正しい結果は skipped。checked の確認は
       ユーザーがリストの symlink を張ったあと)
+
+## 実測 (2026-09-12、配線後)
+
+`~/.zshenv` を張った状態で full chain を 3 枝とも通した。値はコマンドの前に置いて注入せず、
+ライブの `~/.zshenv` が中立パスの symlink を見て決めた値を使っている (注入する形では必ず
+checked になり、見たい失敗を原理的に出せない)。
+
+| 中立パスの状態 | checker の出力 | rc |
+| --- | --- | --- |
+| 生きた symlink | `status=checked tracked=143 scanned=143 entries=1 findings=0` | 0 |
+| 壊れた symlink | `[x] LEAK_GUARD_DENYLIST の指す先を stat できない (errno=2)` | 2 |
+| symlink なし | `status=skipped reason=env-unset` | 0 |
+
+`unset` を「ガードが効いた」の根拠にする前に、ライブのファイルが実際に読まれていることを
+`zsh -xc true` のトレースで確かめた (`/Users/<user>/.zshenv:22> [ -L ... ]` の行が出る)。
+トレースに出ない場合の `unset` は「読まれていない」を意味するので、両者は区別が要る。
+
+テストの変異注入は 8 件すべて kill された。うち 1 件は「pair を削って reverse drift の
+allowlist へ逃がす」形で、この変異は `bootstrap.bats` 側を緑に戻すが `zshenv.bats` の
+個別 pin だけが赤くなる。個別 pin を別に持つ理由がこれにあたる。
 
 ## 関連
 
