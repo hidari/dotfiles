@@ -38,6 +38,37 @@ def test_precommit_scan_hook_always_runs() -> None:
     assert hooks[0].get("always_run") is True
 
 
+def test_issue_ref_notation_hook_checks_the_diff_only() -> None:
+    # この hook は既存の違反を許す。取り付け時点で追跡下に違反が残っているため、
+    # 全件を止める形にすると毎コミット赤になって人が hook ごと外す。--check-diff は
+    # 差分の追加行だけを見るのでその形を避ける。件数はここに書かない (残件は変わるので、
+    # 書いた瞬間から drift する)。入口が --check へ変わると設計が崩れるため値を pin する。
+    #
+    # 検査器 issue-id.py は apm の deploy 先に在り home/.gitignore で ignore される。
+    # fresh clone と CI には存在しないので、パスの実在はここで縛れない (縛ると CI が
+    # 赤くなる)。不在時は python3 自身が exit 2 で落ちるため取り付けは fail-closed で、
+    # 「検査が無音で消える」形にはならない。実在の確認は取り付け時の live smoke が担う。
+    with _PRECOMMIT_CONFIG_PATH.open(encoding="utf-8") as handle:
+        data = yaml.safe_load(handle)
+    hooks = [
+        hook
+        for repo in data.get("repos", [])
+        for hook in repo.get("hooks", [])
+        if hook.get("id") == "issue-ref-notation"
+    ]
+    # hook が消えた/複製された場合も silent pass にせずここで落とす
+    assert len(hooks) == 1
+    entry = hooks[0]["entry"]
+    assert "issue-id.py" in entry
+    assert "--check-diff" in entry
+    # --check は全走査で、混ざると既存違反で常時赤になる。部分一致では区別できない
+    assert " --check " not in f" {entry} "
+    # 差分は引数で渡らないので pre-commit がファイル名を渡す形にしない。
+    # always_run が外れると「Issue を触らないコミットでは走らない」に化ける
+    assert hooks[0].get("pass_filenames") is False
+    assert hooks[0].get("always_run") is True
+
+
 def test_issue_scoped_artifacts_hook_matches_upstream_default_paths_only() -> None:
     # issue-scoped-artifacts hook の健全時の出力は常に "(no files to check)Skipped"
     # である。移行で docs/superpowers/{plans,specs}/ が消えたため、通常のコミットでも

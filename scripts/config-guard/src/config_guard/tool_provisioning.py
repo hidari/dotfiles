@@ -93,6 +93,11 @@ NOT_PROVISIONED: dict[str, str] = {
     "bash": "OS が同梱する。pre-commit が起動するのも PATH 上の実体で Brewfile 版ではない",
     "sh": "bash と同じ理由",
     "zsh": "bash と同じ理由",
+    "python3": (
+        "issue-ref-notation が呼ぶ検査器のインタプリタ。標準ライブラリだけで動くので "
+        "PATH 上の実体が brew 版でも /usr/bin でも足りる。brew の python を宣言すると "
+        "実際に起動する実体と別物を供給側に書くことになる"
+    ),
 }
 
 
