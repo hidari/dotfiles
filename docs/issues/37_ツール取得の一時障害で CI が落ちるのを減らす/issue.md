@@ -62,7 +62,7 @@ mise は exact pin で運用している。uv だけが action の pin だけで
 
 ## 関連
 
-- [Issue #5: CI のツール取得の curl-verify-extract を共通 composite action へ括り出す](../closed/5_CI%20のツール取得の%20curl-verify-extract%20を共通%20composite%20action%20へ括り出す/issue.md) (closed)。
+- [ISSUE-5: CI のツール取得の curl-verify-extract を共通 composite action へ括り出す](../closed/5_CI%20のツール取得の%20curl-verify-extract%20を共通%20composite%20action%20へ括り出す/issue.md) (closed)。
   - 取得手順の重複を `scripts/ci/download-and-verify.sh` へ寄せた Issue。本 Issue は
     その取得が失敗したときの振る舞いを扱う
 - PR #115 と PR #116 の CI で観測 (どちらも該当 job の再実行で緑)

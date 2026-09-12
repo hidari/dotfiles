@@ -90,6 +90,30 @@ repos:
         entry: "この成果物は docs/issues/<NNN>_<title>/<NNN>-spec.md または <NNN>-plan.md へ置く"
         files: '^docs/superpowers/(plans|specs)/'
 
+      # in-repo Issue の識別子記法。`#<N>` は GitHub の番号空間で、in-repo Issue を
+      # その形で書くと autolink が発火し、同じ番号の GitHub オブジェクトと文脈でしか
+      # 区別できなくなる。規約の canonical は issue-id.py 自身で、regex も接頭辞も
+      # 許可される前置もここへ再掲しない。
+      #
+      # --check-diff は差分の追加行だけを見て既存の違反を許す。追跡下には既存の違反が
+      # 残るため、全件を止める形にすると毎コミット赤になって hook ごと外される。
+      # 全走査の backstop は同スクリプトの --check で、こちらは手で回す。
+      #
+      # 検査器は apm の deploy 先に在り home/.gitignore が ignore するため、fresh clone と
+      # CI には存在しない。よって CI ミラーは張らない (issue-scoped-artifacts と同じ理由で、
+      # 捕捉対象がローカルでの編集時にしか発生しない)。不在の環境では python3 自身が
+      # exit 2 で落ちるので、取り付けは fail-closed になり検査が無音で消える形にはならない。
+      #
+      # 他の Python hook と違って uv を経由しないのは、検査器が uv プロジェクトの外
+      # (apm の deploy 先) に在り、単独実行のための PEP 723 ヘッダも持たないため。
+      # 標準ライブラリだけで動くので PATH 上の python3 で足りる。
+      - id: issue-ref-notation
+        name: in-repo Issue の識別子記法 (差分)
+        language: system
+        entry: python3 home/.claude/skills/dev-workflow/skills/in-repo-issue/scripts/issue-id.py --check-diff
+        pass_filenames: false
+        always_run: true
+
       - id: mise-update-notifier-ruff-check
         name: mise-update-notifier ruff check
         language: system

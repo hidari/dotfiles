@@ -6,7 +6,7 @@ status: open
 
 ## 背景
 
-Issue #25 の Phase 4 で実際に壊した。Issue ドキュメントの伏字化でプレースホルダを裸のシェル語へ
+ISSUE-25 の Phase 4 で実際に壊した。Issue ドキュメントの伏字化でプレースホルダを裸のシェル語へ
 置いたため、`<` がリダイレクトと解釈されて手順のスニペットが構文エラーになった。bash と zsh の
 両方で再現し、伏字前は通ることを対照で確認している。
 
@@ -36,9 +36,9 @@ CLAUDE.md は「静的検査可能なルールはプロンプトではなく、�
 
 ## 関連
 
-- [Issue #25: skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する](../closed/25_skill%20と%20plugin%20を新規%20PUBLIC%20リポジトリへ集約し%20apm%20配布へ移行する/issue.md)
+- [ISSUE-25: skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する](../closed/25_skill%20と%20plugin%20を新規%20PUBLIC%20リポジトリへ集約し%20apm%20配布へ移行する/issue.md)
   検出元。25-plan.md の Step 9 で実際に踏んだ。同 plan の冒頭には、再発を防ぐための
   散文の注意書きを入れてあるが、これは静的検査の代わりにはならない
-- [Issue #39: refactor: config-guard の Markdown フェンス走査を 1 実装へ寄せる](../39_config-guard%20の%20Markdown%20フェンス走査を%201%20実装へ寄せる/issue.md)
+- [ISSUE-39: refactor: config-guard の Markdown フェンス走査を 1 実装へ寄せる](../39_config-guard%20の%20Markdown%20フェンス走査を%201%20実装へ寄せる/issue.md)
   この検査はフェンス内を抽出するので、フェンスの開始と終了を決める規約が要る。
   config-guard には既に同じ規約の実装が 2 つあるため、3 つ目を足さないこと

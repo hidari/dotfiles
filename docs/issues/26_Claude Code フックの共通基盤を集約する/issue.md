@@ -6,7 +6,7 @@ status: in_progress
 
 ## 背景
 
-Issue #25 Phase 3a (PR #91) のレビューで、フック周りの共通部分が 3 箇所に分散していることが分かった。
+ISSUE-25 Phase 3a (PR #91) のレビューで、フック周りの共通部分が 3 箇所に分散していることが分かった。
 いずれも単体では動くが、片方だけ変えたときに沈黙した失敗になる形の重複である。
 Phase 3a のスコープを大きく超えるため別 Issue に分けた。
 
@@ -92,10 +92,10 @@ Phase 3a のスコープを大きく超えるため別 Issue に分けた。
 
 ## 関連
 
-- [Issue #25: skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する](../closed/25_skill%20と%20plugin%20を新規%20PUBLIC%20リポジトリへ集約し%20apm%20配布へ移行する/issue.md)
+- [ISSUE-25: skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する](../closed/25_skill%20と%20plugin%20を新規%20PUBLIC%20リポジトリへ集約し%20apm%20配布へ移行する/issue.md)
 - PR #91 のレビューで検出 (Reuse / Efficiency / Altitude の 3 観点から独立に同じ箇所が挙がった)
-- [Issue #36: refactor: CLAUDE.md を rules と skill へ分割し常時ロード量を減らす](../closed/36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md)。
-  - 観測フック `home/.claude/hooks/instructions-loaded-log.py` は #36 で常設と決まり、集約と同時に
+- [ISSUE-36: refactor: CLAUDE.md を rules と skill へ分割し常時ロード量を減らす](../closed/36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md)。
+  - 観測フック `home/.claude/hooks/instructions-loaded-log.py` は ISSUE-36 で常設と決まり、集約と同時に
     `scripts/claude-hooks/` の 4 本目として取り込んだ
 - ISSUE-58 が `handoff-sentinel` の位置づけ (security guard として扱うか) の判断を扱う。
   本 Issue は「個人ツールであり security guard ではない」として必須フック検査への追加を

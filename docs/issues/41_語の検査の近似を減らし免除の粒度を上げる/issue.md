@@ -6,7 +6,7 @@ status: open
 
 ## 背景
 
-`config_guard.term_definitions` (Issue #36 の PR で新設) は、rules が `defines` で
+`config_guard.term_definitions` (ISSUE-36 の PR で新設) は、rules が `defines` で
 宣言した語が定義の届かない層に出現していないかを検査する。マージ時点で 3 つの近似を
 承知のうえで残した。どれも「検査が緩い」方向ではなく「免除表が伸びる」方向のコストで、
 免除は人が書いた散文なので、伸びるほど機構の弱点になる。
@@ -53,7 +53,7 @@ rules) を起点に、references は名指しした側の文脈を継ぐ、と�
 
 ## 関連
 
-- [Issue #36: CLAUDE.md を rules と skill へ分割し常時ロード量を減らす](../closed/36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md) の
+- [ISSUE-36: CLAUDE.md を rules と skill へ分割し常時ロード量を減らす](../closed/36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md) の
   「simplify が見つけた「宣言側の沈黙」」節と「覆っていない範囲」節 (この Issue の切り出し元)
 - `scripts/config-guard/src/config_guard/term_definitions.py`
 - `scripts/config-guard/src/config_guard/instruction_refs.py` (`prose_lines` と `extract_home_refs`)

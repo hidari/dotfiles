@@ -11,7 +11,7 @@ status: open
 AX 要素の参照はプロセス境界を越えられないので、read が見つけた popup を apply が捨てて
 探し直す形になっている。
 
-Issue #20 の対応で走査を幅優先へ変え、全体 17 秒から 15.4 秒まで短縮した。内訳は
+ISSUE-20 の対応で走査を幅優先へ変え、全体 17 秒から 15.4 秒まで短縮した。内訳は
 read フェーズ 8.6 秒 (ペインが開くまでの待ちが支配的で、走査を速くしても効かない) と
 apply フェーズ 6.8 秒 (うち走査 4 秒)。ここで削れるのは apply 側の走査 4 秒にあたる。
 
@@ -44,7 +44,7 @@ read が値と一緒に UI 要素の index 連鎖を返し、apply がそれを�
 
 ## 関連
 
-Issue #20 の pre-merge quality gate で simplify の efficiency と altitude が指摘した。
+ISSUE-20 の pre-merge quality gate で simplify の efficiency と altitude が指摘した。
 
-Issue 23: 外部ディスプレイ接続時にどのディスプレイを切り替えるか確認する。同じ
+ISSUE-23: 外部ディスプレイ接続時にどのディスプレイを切り替えるか確認する。同じ
 `toggle-reference-mode.sh` の別の欠陥なので、着手が重なると衝突する。

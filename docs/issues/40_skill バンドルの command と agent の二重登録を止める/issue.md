@@ -17,14 +17,14 @@ prefix 有無の 2 通りで system prompt に載っている。description が�
 apm 0.28.0 にこれを抑止するノブは無い。
 
 実測と選択肢の比較は
-[Issue #36](../closed/36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md) の
+[ISSUE-36](../closed/36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md) の
 「command と agent の二重登録の出所を確定し方針を決めた」節が canonical。同節で S5 を採ることを
 決めた。上流の 2 bundle から sub-skills を撤去して bundle を command と agent だけにし、dotfiles
 側は apm install 後に flat 側の deploy 先を消す。登録は prefix 名の 1 経路になる。
 
 残す側を prefix 経路にしたのは、そちらが plugin の契約を満たしているため。`schemas/` が届くのも
 `${CLAUDE_PLUGIN_ROOT}` が解決するのも verbatim コピー経由の側だけで、flat 側にはその経路が無い。
-削減幅は #36 の「シナリオごとの常時ロード bytes」表の S5 行が canonical。
+削減幅は ISSUE-36 の「シナリオごとの常時ロード bytes」表の S5 行が canonical。
 
 作業の主体は PUBLIC リポジトリ [hidari/agentic-coding-tools](https://github.com/hidari/agentic-coding-tools)
 側にあり、dotfiles 側は flat 側の後始末と apm の pin を揃える部分を持つ。
@@ -33,7 +33,7 @@ apm 0.28.0 にこれを抑止するノブは無い。
 
 `security-red-team` と `security-blue-team` の sub-skill は、長い日本語の description で
 自然言語からの自動起動を担っている。撤去するとその起動経路が失われる。root SKILL.md か
-command の description へ移すか、落とすかを決める必要がある。この trade-off は Issue 36 の
+command の description へ移すか、落とすかを決める必要がある。この trade-off は ISSUE-36 の
 該当節に書かれていない。
 
 ## 調査結果 (2026-08-25)
@@ -162,13 +162,13 @@ shadow されて元々一度もロードされていなかった。実効の削�
 - [ ] dotfiles の `home/apm.yml` の agentic-coding-tools 向け pin をまとめて新 SHA へ揃え、
       `apm install` で供給を繋ぐ
 - [ ] 新セッションで登録が prefix 名の 1 経路になったことを実測し、削減後のバイト数を
-      Issue #36 へ記録する
+      ISSUE-36 へ記録する
 
 ## 関連
 
-- [Issue #36: CLAUDE.md を rules と skill へ分割し常時ロード量を減らす](../closed/36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md)。
-  本 Issue の実測と方針決定はすべて #36 側にある。派生
-- [Issue #25: skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する](../closed/25_skill%20と%20plugin%20を新規%20PUBLIC%20リポジトリへ集約し%20apm%20配布へ移行する/issue.md)。
+- [ISSUE-36: CLAUDE.md を rules と skill へ分割し常時ロード量を減らす](../closed/36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md)。
+  本 Issue の実測と方針決定はすべて ISSUE-36 側にある。派生
+- [ISSUE-25: skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する](../closed/25_skill%20と%20plugin%20を新規%20PUBLIC%20リポジトリへ集約し%20apm%20配布へ移行する/issue.md)。
   供給を apm 1 経路へ寄せた Issue。本 Issue はその経路の中で起きている二重配置を扱う
 - flat 分解を抑止するノブが無いこと自体は上流の設計判断なので、必要なら
   [microsoft/apm](https://github.com/microsoft/apm) へ報告する余地がある。ノブが入れば dotfiles
