@@ -46,5 +46,5 @@ read が値と一緒に UI 要素の index 連鎖を返し、apply がそれを�
 
 ISSUE-20 の pre-merge quality gate で simplify の efficiency と altitude が指摘した。
 
-Issue 23: 外部ディスプレイ接続時にどのディスプレイを切り替えるか確認する。同じ
+ISSUE-23: 外部ディスプレイ接続時にどのディスプレイを切り替えるか確認する。同じ
 `toggle-reference-mode.sh` の別の欠陥なので、着手が重なると衝突する。

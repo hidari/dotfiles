@@ -33,7 +33,7 @@ apm 0.28.0 にこれを抑止するノブは無い。
 
 `security-red-team` と `security-blue-team` の sub-skill は、長い日本語の description で
 自然言語からの自動起動を担っている。撤去するとその起動経路が失われる。root SKILL.md か
-command の description へ移すか、落とすかを決める必要がある。この trade-off は Issue 36 の
+command の description へ移すか、落とすかを決める必要がある。この trade-off は ISSUE-36 の
 該当節に書かれていない。
 
 ## 調査結果 (2026-08-25)

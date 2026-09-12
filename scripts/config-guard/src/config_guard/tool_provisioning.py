@@ -94,9 +94,9 @@ NOT_PROVISIONED: dict[str, str] = {
     "sh": "bash と同じ理由",
     "zsh": "bash と同じ理由",
     "python3": (
-        "issue-ref-notation が呼ぶ検査器のインタプリタ。標準ライブラリだけで動くので "
-        "PATH 上の実体が brew 版でも /usr/bin でも足りる。brew の python を宣言すると "
-        "実際に起動する実体と別物を供給側に書くことになる"
+        "標準ライブラリだけで動く検査スクリプトのインタプリタ。PATH 上の実体が brew 版でも "
+        "/usr/bin でも足りるので、brew の python を宣言すると実際に起動する実体と別物を "
+        "供給側に書くことになる"
     ),
 }
 
