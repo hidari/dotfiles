@@ -91,7 +91,7 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | M1 | Issue 維持コストの原因を消す | Issue 43、ISSUE-52、ISSUE-74 |
 | M2 | 検査を配布先で走る状態にする | ISSUE-53、ISSUE-72、ISSUE-86 |
 | M3 | skill バンドルの二重登録を止める | Issue 40 |
-| M4 | PUBLIC 露出の scrub | Issue 21、Issue 29、ISSUE-87、agentic-coding-tools ISSUE-15、agentic-coding-tools ISSUE-23 |
+| M4 | PUBLIC 露出の scrub | Issue 21、Issue 29、ISSUE-87、ISSUE-92、agentic-coding-tools ISSUE-15、agentic-coding-tools ISSUE-23 |
 | M5 | 静的検査の基盤を寄せ射程の穴を塞ぐ | Issue 39、Issue 30、ISSUE-57、ISSUE-60、Issue 41、ISSUE-47、Issue 17、Issue 18、ISSUE-75、ISSUE-85、ISSUE-90 |
 | M6 | winvm の実装品質 | 上流の winvm 系 Issue |
 | M7 | 環境とテスト網の個別 | 下の細分表 |
@@ -114,6 +114,23 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | Raycast | Issue 22、Issue 23 |
 | PowerShell | Issue 27、Issue 28 |
 | 単独 | Issue 31、Issue 33、ISSUE-51 |
+
+### 割り当ての検算 (2026-09-12、ISSUE-92 の起票後)
+
+dotfiles の active 58 件の全件がいずれかのマイルストーンへ入ることを数えて確かめた。M1 が 3、
+M2 が 3、M3 が 1、M4 が 4 (dotfiles 側のみ)、M5 が 11、M6 が 0 (上流のみ)、M7 が 16、M8 が 1、
+M9 が 10、M10 が 5、M11 が 3、この Issue 自身が 1 で合計 58。
+
+増分は起票 1 件で、ISSUE-92 を M4 へ入れた。別リポジトリ (agentic-coding-tools) からの委譲を
+材料にしており、起票と同じブランチで表へ入れている。
+
+割り当ての理由。ISSUE-92 は PUBLIC リポジトリへ書けない禁止語リストの在り処を指す配線なので
+M4。同じ M4 に既にいる agentic-coding-tools ISSUE-15 が検査本体の持ち場で、こちらはその
+dotfiles 側の配線にあたる。対象が `home/.zshenv` という zsh の設定ファイルであっても、
+解いている問題は露出の防止なので M7 の zsh 層ではない。
+
+数え直しは目視ではなく検算器で行い、未割り当てとしてこの Issue 自身の 1 件だけが、腐りとして
+0 件が返ることを確かめている。status の内訳は in_progress 2 / open 56 で合計が一致する。
 
 ### 割り当ての検算 (2026-09-12)
 
