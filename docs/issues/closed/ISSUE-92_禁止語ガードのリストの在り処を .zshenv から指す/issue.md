@@ -1,5 +1,5 @@
 ---
-status: open
+status: closed
 ---
 
 # feat: 禁止語ガードのリストの在り処を .zshenv から指す
@@ -77,7 +77,7 @@ symlink で問題ない (委譲元の実測: 生きた symlink で status=checke
 - [x] `home/.zshenv` を追加し、`-L` ガード付きで `LEAK_GUARD_DENYLIST` を export する
 - [x] `bootstrap.sh` の `SYMLINK_PAIRS` へ `home/.zshenv|.zshenv` を足す
 - [x] 配線を pin するテストを足す。3 状態の分岐・無出力・`SYMLINK_PAIRS` への登録の 3 面を見る
-- [ ] ISSUE-46 のマイルストーン表 (M4) へ ISSUE-92 を入れる
+- [x] ISSUE-46 のマイルストーン表 (M4) へ ISSUE-92 を入れる
 - [x] 実マシンへ `~/.zshenv` を張り、変更後に起動したシェルから checker が status=skipped を
       返すことを確かめる (symlink を張る前の正しい結果は skipped。checked の確認は
       ユーザーがリストの symlink を張ったあと)
