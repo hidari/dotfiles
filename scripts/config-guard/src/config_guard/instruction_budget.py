@@ -29,7 +29,7 @@ from config_guard.models import Finding
 
 # 常時ロード層の上限 (バイト)。canonical はここだけに置く。
 # 移設でカテゴリを切り出したら同時に下げる (幅は test_budget_tracks_the_real_repo_closely が縛る)。
-ALWAYS_LOADED_BUDGET_BYTES = 27030
+ALWAYS_LOADED_BUDGET_BYTES = 27844
 
 # 予算を引き上げた記録。上げるときは (日付, 引き上げ後の値, 理由) を末尾へ 1 行足す。
 # 許可の条件は budget_ratchet.evaluate_ratchet が canonical。
@@ -51,6 +51,15 @@ BUDGET_RAISES: tuple[tuple[str, int, str], ...] = (
         "in-repo-issue 内へ置くことを 書かずに済ませる の規範へ追加した (本文 +419B)。"
         "いずれも文書を書くかどうかの判断そのものを変える規範なので、"
         "判断の瞬間に読まれる常時層に要る。移設先の候補は Issue #36 で尽きている",
+    ),
+    (
+        "2026-09-13",
+        27844,
+        "検索を Grep ツールや素の grep ではなく tgrep で行う規範を 観測 のカテゴリへ追加した "
+        "(本文 +814B)。tgrep は索引の外側で劣化を申告せず、0 件・遅い正解・別物のいずれかを返す。"
+        "回避したい失敗は検索の時点で起きていて、そこではまだ何も Read していないため "
+        "paths 付き rules へはスコープできない (判定基準は skill context-loading-mechanics)。"
+        "一次実測は references/observation.md が持つ",
     ),
 )
 
