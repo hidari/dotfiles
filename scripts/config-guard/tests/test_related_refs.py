@@ -96,7 +96,7 @@ def test_self_identifiers_skips_an_identifier_prefixed_with_a_foreign_repository
 
 def test_one_foreign_prefix_covers_the_rest_of_the_line() -> None:
     # 1 つの前置で他リポの識別子を続けて書く形が実データにある。この粒度は意図で、
-    # 代償 (前置より後ろの自リポ識別子が素通りする) は Issue 43 の spec が引き受けている
+    # 代償 (前置より後ろの自リポ識別子が素通りする) は別 Issue の spec が引き受けている
     assert self_identifiers(f"- {FOREIGN} の ISSUE-23: 保留分。ISSUE-15 の後続") == []
 
 

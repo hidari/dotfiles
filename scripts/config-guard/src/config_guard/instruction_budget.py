@@ -8,7 +8,7 @@ CLAUDE.md は追記で膨らみ続ける (実測: 2026-08-12 の 36,599B から 
 - User スコープの CLAUDE.md は session_start で必ずロードされる
 - `~/.claude/rules/*.md` は paths frontmatter が無いときだけ session_start でロードされる
 - paths を持つ rules は該当パターンのファイルを Read したときだけロードされる。
-  予算には計上しないが無料ではなく、一致ファイルを読んだ agent 文脈ごとに払う (実測は Issue #36)
+  予算には計上しないが無料ではなく、一致ファイルを読んだ agent 文脈ごとに払う
 
 常時層のコストは session_start だけでなく subagent の dispatch ごとにも払う
 (subagent がツールを一切使わずに CLAUDE.md の本文を引用できることを実測した)。
@@ -155,8 +155,8 @@ def is_always_loaded_rule(text: str) -> bool:
     frontmatter が壊れているときは常時ロード扱い (予算へ計上) にする。
     計上漏れは予算を無言ですり抜けるので、誤るなら厳しい側へ倒す。
 
-    空・null の paths が Claude Code 側で scoped 扱いになるかは未実測 (Issue #36 の
-    probe は非空の値しか使っていない)。曖昧なので他のケースと同じく計上側へ倒す。
+    空・null の paths が Claude Code 側で scoped 扱いになるかは未実測 (probe が非空の値
+    しか使っていないため)。曖昧なので他のケースと同じく計上側へ倒す。
     """
     return not rule_paths(text)
 

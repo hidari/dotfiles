@@ -50,7 +50,7 @@ def test_paths_inside_body_does_not_exempt() -> None:
 
 def test_empty_paths_is_treated_as_always_loaded() -> None:
     # 空・null の paths を Claude Code が scoped 扱いにするかは未実測。
-    # Issue #36 の probe は非空の値しか使っていないので、キーの有無だけで
+    # probe は非空の値しか使っていないので、キーの有無だけで
     # 除外すると未確認の前提を検査の土台にすることになる。計上側へ倒す
     for body in ("---\npaths: []\n---\n\n# x\n", "---\npaths:\n---\n\n# x\n"):
         assert is_always_loaded_rule(body), body

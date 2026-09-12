@@ -59,7 +59,7 @@ def test_hidden_flag_reason_passes_normal_tags() -> None:
 
 
 def test_check_index_flags_detects_skip_worktree(tmp_path: Path) -> None:
-    # 検出したい本体。Issue #8 が解消した二重管理そのもの
+    # 検出したい本体。過去に解消した二重管理そのもの
     _init_committed_repo(tmp_path, ["a.txt", "b.txt"])
     run_git(tmp_path, "update-index", "--skip-worktree", "a.txt")
 
@@ -128,8 +128,9 @@ def test_check_index_flags_scans_every_tracked_file(tmp_path: Path) -> None:
 
 
 def test_repo_has_no_hidden_index_flags() -> None:
-    # Issue #8 の帰結を守る。settings.json の skip-worktree を解除して live と committed を
-    # 1 本にした。bit が復活すると変更が git から見えなくなり、CI が捕捉できない drift へ戻る
+    # 二重管理を解消したときの帰結を守る。settings.json の skip-worktree を解除して
+    # live と committed を 1 本にした。bit が復活すると変更が git から見えなくなり、
+    # CI が捕捉できない drift へ戻る
     assert check_index_flags(str(REPO_ROOT)) == []
 
 
