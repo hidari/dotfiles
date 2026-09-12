@@ -70,3 +70,9 @@ ISSUE-59: セッション頭で検査層の沈黙を検出する層を作った 
 
 ISSUE-25: `~/.local/bin` へ shim を置く案を検討して採らなかった記録を spec に持つ。closed なので
 `closed/` 配下にある
+
+ISSUE-92: 禁止語ガードの環境変数を `.zshenv` から export する Issue。上の「`.zshenv` へ PATH 行を
+移す案は成立しない」の射程は PATH に限る (スナップショットが最終行で上書きするのは PATH だけで、
+PATH 以外の export は現に届いている) ので、あちらの配線はこの結論と衝突しない。ただし `.zshenv` が
+実在するようになるため、上が `.zshrc` を選ぶ論拠として挙げる「新規ファイルも新しい symlink も
+SYMLINK_PAIRS の追加も要らない」は、`.zshenv` 側の追加コストが既に払われた状態で読み直すこと
