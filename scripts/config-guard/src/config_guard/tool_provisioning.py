@@ -66,9 +66,16 @@ _PUNCTUATION_CHARS = "();<>|&"
 # `brew info --json=v2 <formula>` を引けば正確に導出できるが、Brewfile を行で読む判断と
 # 同じ理由 (外部 CLI とネットワークへの依存で CI から外れる) で pin にした。例外は少ないので
 # 列挙で足りる。新しい formula を足すときは、コマンド名が formula 名と違う場合だけここへ書く。
+#
+# 同名の実行ファイルを持たないものは空タプルを書く。書かないと formula 名がそのまま
+# コマンド名として供給側へ入り、検査が実在しない名前を「供給済み」として持つ。値を
+# 検査が引く名前に絞るのは、提供コマンドの全列挙を書くとそれ自体が未検証の主張になるため
+# (wireshark の bin は 14 本あり、一部だけ書けば「これで全部」と読まれる)。
 FORMULA_COMMANDS: dict[str, tuple[str, ...]] = {
     "powershell": ("pwsh",),
     "bats-core": ("bats",),
+    "wireshark": (),
+    "wireshark-chmodbpf": (),
 }
 
 # pre-commit の entry からは導出できないが、供給されていないと困るコマンドと、その理由。

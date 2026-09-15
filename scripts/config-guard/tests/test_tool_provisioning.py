@@ -148,6 +148,15 @@ def test_formula_names_map_to_their_commands(tmp_path: Path) -> None:
     assert provided_commands(str(tmp_path)) == {"pwsh", "bats"}
 
 
+def test_entries_without_a_same_named_command_provide_nothing(tmp_path: Path) -> None:
+    # wireshark の bin は tshark / dumpcap など 14 本で、formula 名と同名の実行ファイルは
+    # 無い。wireshark-chmodbpf は pkg を配るだけでコマンドを 1 つも出さない。既定の
+    # 「名前の最後の区切り」を通すと実在しない名前が供給側へ入り、検査が未検証の主張を持つ。
+    # 供給側の phantom は要求側の漏れより悪い (足したつもりで検査を黙らせる)
+    write_file(tmp_path, BREWFILE_PATH, 'brew "wireshark"\ncask "wireshark-chmodbpf"\n')
+    assert provided_commands(str(tmp_path)) == set()
+
+
 def test_mise_tools_also_provide(tmp_path: Path) -> None:
     write_file(tmp_path, MISE_CONFIG_PATH, '[tools]\nnode = "24.18.0"\n')
     assert provided_commands(str(tmp_path)) == {"node"}
