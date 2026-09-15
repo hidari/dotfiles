@@ -1,4 +1,4 @@
-# カスタムTap
+# --- カスタムTap ---
 tap "hidari/tap"
 tap "stripe/stripe-cli"
 tap "supabase/tap"
@@ -8,7 +8,7 @@ tap "microsoft/apm"
 brew "git"                                # バージョン管理システム
 brew "cmake"                              # クロスプラットフォームビルドシステム
 brew "icu4c@76"                           # C/C++向けUnicode,国際化,地域化ライブラリ
-brew "go"                                 # Go言語
+brew "go"                                 # Go言語 (末尾の go エントリを go install する実行系)
 brew "deno"                               # Denoランタイム
 brew "gh"                                 # GitHub CLI
 brew "libpq"                              # PostgreSQL通信するクライアントライブラリ
@@ -19,7 +19,7 @@ brew "pnpm"                               # Node.js パッケージマネージ�
 brew "uv"                                 # Python パッケージ/実行管理 (pre-commit の local hook が依存)
 brew "just"                               # コマンドランナー (justfile)
 
-# --- Platform CLI
+# --- Platform CLI ---
 brew "stripe/stripe-cli/stripe"           # Stripe決済プラットフォームCLI
 brew "supabase/tap/supabase"              # SupabaseバックエンドサービスCLI
 brew "awscli"                             # AWS CLIツール
@@ -34,7 +34,7 @@ brew "imagemagick"                        # 画像処理ツール
 brew "yt-dlp"                             # 動画ダウンローダー
 
 # --- ユーティリティ ---
-brew "jq"                                 # JSONパーサー
+brew "jq"                                 # JSONプロセッサ (フィルタと変換)
 brew "rsync"                              # ファイル同期ツール
 brew "tree"                               # ディレクトリツリー表示
 brew "tgrep"                              # trigram 索引付き grep
@@ -50,7 +50,7 @@ brew "tirith"                             # URL/コマンドセキュリティ C
 brew "bats-core"                          # bash のテストフレームワーク (scripts/tests/ をローカルで回す)
 
 # --- ネットワーク解析 ---
-brew "wireshark"                          # パケット解析の CLI (tshark / dumpcap。GUI は同梱しない)
+brew "wireshark"                          # パケット解析の CLI (tshark / dumpcap, GUI は同梱しない)
 cask "mitmproxy"                          # HTTPS 中間プロキシ (通信の記録と改変)
 cask "wireshark-chmodbpf"                 # BPF デバイスへ権限を与える起動項目 (無いと root 以外でキャプチャできない)
 
@@ -59,5 +59,5 @@ cask "font-hackgen-nerd"                  # ターミナル用 日本語プロ�
 cask "font-plemol-jp-nf"                  # ターミナル用 日本語プログラミングフォント (IBM Plex Mono + IBM Plex Sans JP, Nerd Font 内蔵)
 
 # --- Go言語ツール ---
-go "golang.org/x/tools/gopls"             # Go言語サーバー（LSP）
+go "golang.org/x/tools/gopls"             # Go言語サーバー (LSP)
 go "honnef.co/go/tools/cmd/staticcheck"   # Go静的解析ツール
