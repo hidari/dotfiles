@@ -14,7 +14,9 @@ prefix 有無の 2 通りで system prompt に載っている。description が�
 `.claude/skills/<pkg>/` へ verbatim コピーし、`.claude-plugin/` を持つパッケージの `agents/` と
 `commands/` を `.claude/agents/` `.claude/commands/` へ flat 分解する。両方を持つパッケージは
 両方の規則が走るので、同じ内容が 2 箇所に置かれ、Claude Code がそれぞれを別経路で登録する。
-apm 0.28.0 にこれを抑止するノブは無い。
+apm 0.28.0 にこれを抑止するノブは無い。この主張は commands / agents 面に限り、版も 0.28.0
+時点のものである。skills 面と 0.30.0 での挙動は「skills 面の抑止ノブが apm 0.30.0 で
+効かなくなった」節が持つ。
 
 実測と選択肢の比較は
 [ISSUE-36](../closed/36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md) の
@@ -138,6 +140,67 @@ shadow されて元々一度もロードされていなかった。実効の削�
 - agentic-coding-tools の ISSUE-31: production ガードを command へ移したことで、
   web-monkey-qa 側の防御が 1 層しかないことが可視化された
 
+## pin を v0.7.0 へ揃えた (2026-09-16)
+
+`home/apm.yml` の agentic-coding-tools 向け pin 9 行を v0.5.0 から v0.7.0
+(`f66dbbf98817b83b54ffadd9e33d2d48ad19fb77`) へまとめて揃え、v0.6.0 で新設された
+`skills/devops/macos-vm-verification` を 1 行足して 10 行にした。`apm install --frozen` が
+exit 0 で通ることと、`config-guard` がリポジトリルートに対して問題を出さないことを確認した。
+
+### skills 面の抑止ノブが apm 0.30.0 で効かなくなった
+
+増えた面は、この Issue が扱ってきた面ではない。lockfile の `.claude/commands/` は前後とも
+15 行、`.claude/agents/` は前後とも 9 行で動いていない。背景節が数える command 5 個と
+agent 3 個の二重登録は 1 件も増えていない。
+
+増えたのは `.claude/skills/<component>` への nested skills の flat 分解で、deploy 先の
+skill は 16 個から 24 個になった。増分 8 のうち 7 個が dev-workflow の component
+(commit-and-pr-message / e2e-scenario-impact-check / git-branch-switcher / in-repo-issue /
+issue-scoped-artifacts / pre-merge-quality-gate / retrospective-codify) で、残る 1 個は
+macos-vm-verification である。後者は独立した skill なので二重登録ではない。
+
+背景節の「apm 0.28.0 にこれを抑止するノブは無い」は commands / agents 面に限った主張で、
+skills 面には当てはまらない。ISSUE-36 の「抑止ノブは無い」節が 4 ケースの対照で
+`"skills": ["./skills"]` は nested skills の flat 分解を止めると実測しており、そちらが
+canonical である。
+
+dev-workflow の `plugin.json` は v0.5.0 と v0.7.0 で完全に同一で、どちらも
+`"skills": ["./skills"]` を宣言している。宣言があるのに flat 分解された以上、これは上流の
+構造変化ではなく、ISSUE-36 が効くと実測したノブが apm 0.30.0 で効かなくなった回帰にあたる。
+前回の install 時点は 0.28.0 だった。dev-workflow 配下の差分も
+`skills/pre-merge-quality-gate/SKILL.md` 1 本だけで、上流側は動いていない。
+
+したがって関連節が書く「flat 分解を抑止するノブが無いこと自体は上流の設計判断」も skills 面
+には成り立たない。microsoft/apm へ出すなら機能要望ではなく回帰報告になる。
+
+### 残タスクの射程が 1 面ぶん足りない
+
+「flat 側の deploy 先を消す後始末」と「config-guard で flat の deploy 先が空であることを
+不変条件として pin」は調査結果 (2026-08-25) を参照しているが、そこは `.claude/commands/` と
+`.claude/agents/` の 2 面しか想定していない。`.claude/skills/<component>` を足して 3 面で
+書くこと。2 面のまま書くと、今回生えた 8 個の flat skill を丸ごと取りこぼす。件数も対象も
+着手時点で数え直すこと。
+
+### install が一度失敗する形がある
+
+pin を上げた直後の `apm install` が exit 1 で落ちた。メッセージは
+`Cached Claude Plugin 'mizchi/skills/tooling/justfile' ... cannot be upgraded safely:
+the locked marketplace plugin manifest is missing or unreadable` で、pin を変えていない
+無関係なパッケージが止めている。
+
+原因は lockfile が記録する manifest のファイル名の違いにある。同じ
+`package_type: marketplace_plugin` でも、dev-workflow の `deployed_files` は
+`.claude-plugin/plugin.json` を持ち、justfile は `.claude-plugin/manifest.json` を持つ。
+キャッシュ側の `manifest.json` 自体は読めるので、「missing or unreadable」という文面から
+ファイルの不在を探すと外れる。
+
+手当ては該当キャッシュディレクトリだけを消して retry する形で足りた。`apm deps clean` は
+全依存を消すので、この症状には過剰である。
+
+`home/apm_modules/` 配下の `.apm/` が空であることを破損の証拠にしないこと。健全な
+dev-workflow / security-blue-red-team / web-monkey-qa の `.apm/` に入っているのはネストした
+依存 (`skills` / `agents` / `prompts`) で、依存を持たないパッケージでは空が正常になる。
+
 ## タスク
 
 - [x] sub-skill の description が担っていた自然言語からの自動起動の移し先を決める
@@ -159,10 +222,14 @@ shadow されて元々一度もロードされていなかった。実効の削�
       置き場は決着済みで、`bootstrap.sh` の `install_apm_packages` に隣接させ、config-guard で
       「flat の deploy 先が空であること」を不変条件として pin する (経緯は上の調査結果)
 - [ ] `apm install --frozen` と `apm audit` が、flat 側を消した状態で通ることを確かめる
-- [ ] dotfiles の `home/apm.yml` の agentic-coding-tools 向け pin をまとめて新 SHA へ揃え、
-      `apm install` で供給を繋ぐ
+- [x] dotfiles の `home/apm.yml` の agentic-coding-tools 向け pin をまとめて新 SHA へ揃え、
+      `apm install` で供給を繋ぐ。v0.7.0 へ 10 行まとめて揃えた。結果と、その過程で分かった
+      射程の広がりは「pin を v0.7.0 へ揃えた」節が持つ
 - [ ] 新セッションで登録が prefix 名の 1 経路になったことを実測し、削減後のバイト数を
       ISSUE-36 へ記録する
+- [ ] `"skills": ["./skills"]` が apm 0.30.0 で nested skills の flat 分解を止めなくなったことを
+      合成パッケージの対照付きで確定させ、microsoft/apm へ回帰として報告する。ISSUE-36 の
+      「抑止ノブは無い」節が持つ 4 ケース対照がそのまま再利用できる
 
 ## 関連
 
@@ -170,6 +237,7 @@ shadow されて元々一度もロードされていなかった。実効の削�
   本 Issue の実測と方針決定はすべて ISSUE-36 側にある。派生
 - [ISSUE-25: skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する](../closed/25_skill%20と%20plugin%20を新規%20PUBLIC%20リポジトリへ集約し%20apm%20配布へ移行する/issue.md)。
   供給を apm 1 経路へ寄せた Issue。本 Issue はその経路の中で起きている二重配置を扱う
-- flat 分解を抑止するノブが無いこと自体は上流の設計判断なので、必要なら
+- commands / agents 面に flat 分解を抑止するノブが無いこと自体は上流の設計判断なので、必要なら
   [microsoft/apm](https://github.com/microsoft/apm) へ報告する余地がある。ノブが入れば dotfiles
-  側の後始末は不要になるが、本 Issue は上流の変更を待たずに閉じられる
+  側の後始末は不要になるが、本 Issue は上流の変更を待たずに閉じられる。skills 面は事情が違い、
+  既知のノブが 0.30.0 で効かなくなった回帰にあたるので、出すなら機能要望ではなく回帰報告になる
