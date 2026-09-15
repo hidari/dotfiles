@@ -49,6 +49,11 @@ brew "shellcheck"                         # .sh の静的解析 (pre-commit loca
 brew "tirith"                             # URL/コマンドセキュリティ CLI (zsh と Claude Code の二層で使う)
 brew "bats-core"                          # bash のテストフレームワーク (scripts/tests/ をローカルで回す)
 
+# --- ネットワーク解析 ---
+brew "wireshark"                          # パケット解析の CLI (tshark / dumpcap。GUI は同梱しない)
+cask "mitmproxy"                          # HTTPS 中間プロキシ (通信の記録と改変)
+cask "wireshark-chmodbpf"                 # BPF デバイスへ権限を与える起動項目 (無いと root 以外でキャプチャできない)
+
 # --- フォント ---
 cask "font-hackgen-nerd"                  # ターミナル用 日本語プログラミングフォント (Hack + 源柔ゴシック, Nerd Font 内蔵)
 cask "font-plemol-jp-nf"                  # ターミナル用 日本語プログラミングフォント (IBM Plex Mono + IBM Plex Sans JP, Nerd Font 内蔵)
