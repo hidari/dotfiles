@@ -1,0 +1,16 @@
+# .bats から bats の skip を直接呼ぶと、その skip の性質 (別 job がカバーしている /
+# どの job も供給しない / 単に環境依存) が出力から区別できない。CI の bats job は
+# スイート全件を走らせるので、区別できない skip は「1 件も検証していないのに緑」を作る。
+# 入口を宣言付きの 2 つに限り、宣言外の skip は scripts/ci/assert-declared-skips.sh が
+# CI で落とす。この規則はその宣言が外されることを開発機側で止める。
+#   require_command_or_skip <key> [<cmd>]  job が供給する。CI で不在なら落とす
+#   skip_uncovered <dep>                   どの job も供給しない。CI でも skip する
+# 実装本体の skip は scripts/tests/test_helper.bash にあり .bats ではないので対象外。
+id: bats-no-bare-skip
+language: bash
+severity: error
+files:
+  - 'scripts/tests/**/*.bats'
+rule:
+  pattern: skip $MSG
+message: bats の skip を直接呼ばない。require_command_or_skip か skip_uncovered を使う (宣言の無い skip は CI の緑を空虚にする)。

@@ -1,0 +1,11 @@
+# rules/bats-no-bare-skip.yml のテスト。id は rule と一致させる。
+id: bats-no-bare-skip
+valid:
+  - 'require_command_or_skip gitleaks || return 1'
+  - 'require_command_or_skip nvim "$NVIM_BIN" || return 1'
+  - 'skip_uncovered osacompile || return 1'
+  - 'file_setup_ready_or_skip || return 1'
+invalid:
+  - 'skip "gitleaks is not installed"'
+  - 'skip "neo-tree is not installed"'
+  - 'command -v gitleaks >/dev/null 2>&1 || skip "gitleaks 未インストール"'

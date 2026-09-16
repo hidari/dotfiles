@@ -21,6 +21,12 @@
 
 load test_helper
 
+# 構文検査に使う osacompile を差し替え可能にする。ローカル macOS には必ず在るため、
+# 固定してしまうと「Linux ランナーでは未カバーとして skip される」側の経路を
+# ローカルで踏めない。差し替えられれば CI の skip 集合をローカルで再現でき、
+# scripts/ci/assert-declared-skips.sh を実スイートに対して検証できる。
+OSACOMPILE_BIN="${OSACOMPILE_BIN:-osacompile}"
+
 setup() {
     setup_test_home
     setup_fake_osascript
@@ -84,12 +90,14 @@ teardown() {
 # エラーになる。予約語との衝突 (path / round など) は特に踏みやすい。
 # 挙動は GUI 依存で検証できないが、コンパイルが通ることだけは GUI 抜きで確かめられる。
 @test "applescript: the embedded block compiles" {
-    command -v osacompile > /dev/null 2>&1 || skip "osacompile is unavailable"
+    if ! command -v "$OSACOMPILE_BIN" > /dev/null 2>&1; then
+        skip_uncovered osacompile || return 1
+    fi
 
     [ -n "$DISPLAY_APPLESCRIPT" ]
     printf '%s' "$DISPLAY_APPLESCRIPT" > "$TEST_HOME/embedded.applescript"
 
-    run osacompile -o "$TEST_HOME/embedded.scpt" "$TEST_HOME/embedded.applescript"
+    run "$OSACOMPILE_BIN" -o "$TEST_HOME/embedded.scpt" "$TEST_HOME/embedded.applescript"
 
     [ "$status" -eq 0 ]
 }

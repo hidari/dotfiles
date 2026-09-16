@@ -19,23 +19,49 @@ PROBE="$REPO_ROOT/scripts/tests/nvim-markdown-probe.lua"
 # bats と nvim が同じディレクトリに入るため PATH から隠す方式は使えない。
 NVIM_BIN="${NVIM_BIN:-nvim}"
 
-setup() {
-    require_command_or_skip "$NVIM_BIN" || return 1
+# probe の構成は 2 種類しかないのに、以前は @test ごとに nvim を spawn していた。
+# ここで 1 回ずつ回してキャッシュし、各テストはそれを読む。
+# setup_file の中では skip を呼べない (bats は「1..N と宣言したのに 0 件実行」の
+# 警告付き rc=1 で落ちる) ため、可否はフラグで運び setup() 側で skip する。
+setup_file() {
+    # 宣言キーは nvim のまま、探す先だけ NVIM_BIN で差し替える。キーを差し替えると
+    # ガードの検証が「宣言に無いコマンド」の枝へ落ちて、見たい枝に届かない。
+    require_command_for_file_setup nvim "$NVIM_BIN" || return 1
+
+    if [ "$FILE_SETUP_READY" = "1" ]; then
+        spawn_probe_with_extends > "$BATS_FILE_TMPDIR/with-extends.txt" 2>&1
+        spawn_probe_without_extends > "$BATS_FILE_TMPDIR/without-extends.txt" 2>&1
+    fi
 }
 
-# 本番と同じ rtp 構成 (拡張クエリを含む) でプローブを走らせる
-probe_with_extends() {
+setup() {
+    file_setup_ready_or_skip || return 1
+}
+
+# 本番と同じ rtp 構成 (拡張クエリを含む) でプローブを走らせる。setup_file から 1 回だけ呼ぶ
+spawn_probe_with_extends() {
     "$NVIM_BIN" --clean --headless \
         --cmd "set rtp+=$NVIM_CONFIG_DIR" \
         --cmd "set rtp+=$NVIM_CONFIG_DIR/after" \
         -c "luafile $PROBE" -c 'qa!' 2>&1
 }
 
-# 拡張クエリを外して走らせる。検査が本当に効いていることを示す negative case 用
-probe_without_extends() {
+# 拡張クエリを外して走らせる。検査が本当に効いていることを示す negative case 用。
+# こちらも setup_file から 1 回だけ呼ぶ
+spawn_probe_without_extends() {
     "$NVIM_BIN" --clean --headless \
         --cmd "set rtp+=$NVIM_CONFIG_DIR" \
         -c "luafile $PROBE" -c 'qa!' 2>&1
+}
+
+# キャッシュ済みの出力を返す。呼び出し側の契約 (run probe_with_extends で $output を得る)
+# を保つので、spawn からキャッシュ読みへ移しても各 @test は 1 行も変わらない
+probe_with_extends() {
+    cat "$BATS_FILE_TMPDIR/with-extends.txt"
+}
+
+probe_without_extends() {
+    cat "$BATS_FILE_TMPDIR/without-extends.txt"
 }
 
 @test "markdown palette: six heading levels are defined" {
@@ -221,7 +247,7 @@ probe_without_extends() {
     # CI にはプラグインを入れないため、その場合は検査できない
     src="${NEOTREE_HIGHLIGHTS:-$HOME/.local/share/nvim/lazy/neo-tree.nvim/lua/neo-tree/ui/highlights.lua}"
     if [ ! -f "$src" ]; then
-        skip "neo-tree is not installed"
+        skip_uncovered neo-tree || return 1
     fi
 
     run probe_with_extends

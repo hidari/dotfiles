@@ -28,6 +28,13 @@ jobs:
       - name: Setup uv
         uses: ./.github/actions/setup-uv
 
+      # gitleaks は leak guard job にもあるが、こちらにも入れる。入れないと gitleaks を
+      # 要するスイートがこの job では 1 件も走らないまま緑になり、この job の緑が
+      # 「全スイートを検証した」ことの証拠にならなくなる。pin は composite が持つので
+      # 2 job に置いても drift しない。
+      - name: Setup gitleaks
+        uses: ./.github/actions/setup-gitleaks
+
       # bats スイートには zsh の設定を実際の zsh へ渡して評価するものがある。
       # ubuntu ランナーは zsh を同梱しないので明示的に入れる。入れないと該当テストが
       # 「zsh が無い」で赤くなり、ガード本体の検査は 1 件も走らない。
@@ -40,8 +47,15 @@ jobs:
           sudo apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends zsh
 
+      # TAP で走らせ、skip 集合を宣言 (test_helper.bash の UNCOVERED_DEPENDENCIES) と
+      # 突き合わせる。skip 0 件を条件にしないのは、どの job も供給しない依存による skip が
+      # 正当に残るため。宣言外の skip と、宣言したのに起きない skip の両方でここが落ちる。
+      # pipefail が無いと bats の失敗を tee の成功が飲み込む。
       - name: Run Bats tests
-        run: bats scripts/tests/
+        run: |
+          set -o pipefail
+          bats --formatter tap scripts/tests/ | tee "$RUNNER_TEMP/bats.tap"
+          scripts/ci/assert-declared-skips.sh "$RUNNER_TEMP/bats.tap"
 
   ast-grep:
     name: ast-grep (syntax lint)
@@ -144,22 +158,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Bats
-        uses: ./.github/actions/setup-bats
+      - name: Setup gitleaks
+        uses: ./.github/actions/setup-gitleaks
 
-      - name: Install gitleaks
-        run: |
-          gitleaks_version="8.30.1" # 開発機と揃える
-          # sha256 は展開前に内容を pin する堰。
-          # 再計算方法: curl で同じ URL を取得し sha256sum gitleaks_8.30.1_linux_x64.tar.gz を実行する。
-          expected_sha256="551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
-          archive="$RUNNER_TEMP/gitleaks.tar.gz"
-          "$GITHUB_WORKSPACE/scripts/ci/download-and-verify.sh" "https://github.com/gitleaks/gitleaks/releases/download/v${gitleaks_version}/gitleaks_${gitleaks_version}_linux_x64.tar.gz" "$expected_sha256" "$archive"
-          tar -xz -C "$RUNNER_TEMP" -f "$archive" gitleaks
-          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
-
-      - name: Validate gitleaks rules (bats)
-        run: bats scripts/tests/gitleaks.bats
+      # ルール検証 (scripts/tests/gitleaks.bats) はこの job には無い。bats job が
+      # gitleaks を入れて全スイートの一部として走らせるので、ここに置くと同じ検証が
+      # 2 job で二重に走る。この job が受け持つのは履歴を持つチェックアウトを要する
+      # 範囲スキャンだけで、fetch-depth: 0 がその理由でもある。
 
       # 履歴 (既知の過去パス) を蒸し返さないよう、PR/push の新規コミット範囲のみ走査する。
       # SHA は env 経由で渡し ${{ }} の script injection を避ける。

@@ -19,8 +19,10 @@ load test_helper
 GITLEAKS_CONFIG="$REPO_ROOT/.gitleaks.toml"
 
 setup() {
-    command -v gitleaks >/dev/null 2>&1 || skip "gitleaks 未インストール"
-    [ -f "$GITLEAKS_CONFIG" ] || skip ".gitleaks.toml が無い"
+    require_command_or_skip gitleaks || return 1
+    # 設定はリポジトリの追跡下にあるので、無いのは skip ではなく異常。
+    # skip でかわすとルール検証が 1 件も走らないまま緑になる
+    [ -f "$GITLEAKS_CONFIG" ]
     SCAN_DIR=$(mktemp -d)
     REPORT="$SCAN_DIR/report.json"
 }
