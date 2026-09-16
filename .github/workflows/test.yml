@@ -11,6 +11,8 @@ permissions:
 
 # shell を省いた run step は bash -e で動き pipefail が付かない。パイプの前段の失敗が
 # 後段の成功に飲み込まれないよう、明示の bash (-eo pipefail) を既定にする。
+# job 側に defaults.run を置くとこの既定は丸ごと使われなくなるので、そちらにも shell を書く。
+# 全 step の実効の shell は scripts/tests/ci-wiring.bats が見る。
 defaults:
   run:
     shell: bash
@@ -143,6 +145,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
+        shell: bash
         working-directory: scripts/backup-tool
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -204,6 +207,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
+        shell: bash
         working-directory: scripts/config-guard
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -241,6 +245,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
+        shell: bash
         working-directory: scripts/mise-update-notifier
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -268,6 +273,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
+        shell: bash
         working-directory: scripts/node-security-notifier
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -295,6 +301,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
+        shell: bash
         working-directory: scripts/claude-hooks
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7

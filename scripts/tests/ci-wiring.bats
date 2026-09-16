@@ -32,9 +32,56 @@ load test_helper
     [ "$status" -eq 0 ]
 }
 
-@test "every run step defaults to bash with pipefail" {
-    # shell を省いた step は bash -e で動き、パイプの前段の失敗が緑になる
-    assert_workflow_contains $'defaults:\nrun:\nshell: bash'
+@test "every run step runs under bash with pipefail or pwsh" {
+    # shell を省いた step は bash -e で動き、パイプの前段の失敗が緑になる。
+    # job の defaults.run は workflow の defaults.run を丸ごと置き換えるので、
+    # 実効の shell は YAML の構造から step ごとに決める (決め方はプローブが持つ)
+    require_command_or_skip uv || return 1
+
+    run env WORKFLOW_FILE="$WORKFLOW_FILE" uv run --quiet --no-project --with pyyaml python3 \
+        "$REPO_ROOT/scripts/tests/ci-shell-probe.py"
+    [ "$status" -eq 0 ] || return 1
+
+    # 0 件だと step を 1 つも見ないまま違反 0 になる
+    refute_contains "$output" "RUN_STEP_COUNT=0"
+    # 違反の一覧が空であること。run は末尾の改行を落とすので足してから行単位で見る
+    assert_contains "$output"$'\n' $'\nRUN_STEP_WITHOUT_SHELL=\n'
+}
+
+@test "the shell probe lets job defaults replace workflow defaults as a whole" {
+    # 上のテストの判定モデルを pin する。GitHub Actions は job に defaults.run があると
+    # workflow 側の defaults.run を使わない (working-directory だけの job が bash -e で動いた)。
+    # キーごとに混ぜるモデルだと、この job を bash と誤って通す
+    require_command_or_skip uv || return 1
+
+    local workflow="$BATS_TEST_TMPDIR/workflow.yml"
+    cat > "$workflow" << 'EOF'
+defaults:
+  run:
+    shell: bash
+jobs:
+  replaced:
+    defaults:
+      run:
+        working-directory: sub
+    steps:
+      - name: without shell
+        run: "true"
+  inherited:
+    steps:
+      - name: from workflow
+        run: "true"
+      - name: explicit sh
+        shell: sh
+        run: "true"
+EOF
+
+    run env WORKFLOW_FILE="$workflow" uv run --quiet --no-project --with pyyaml python3 \
+        "$REPO_ROOT/scripts/tests/ci-shell-probe.py"
+    [ "$status" -eq 0 ] || return 1
+
+    assert_contains "$output" "RUN_STEP_COUNT=3"
+    assert_contains "$output"$'\n' $'\nRUN_STEP_WITHOUT_SHELL=replaced/without shell,inherited/explicit sh\n'
 }
 
 @test "every shell script under scripts/ci is executable in the index" {
