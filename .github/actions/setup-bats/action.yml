@@ -7,8 +7,9 @@ runs:
     - name: Install bats-core
       shell: bash
       run: |
-        # annotated tag なので git/ref/tags が返す 7868b95e は tag object であって commit ではない。
-        # tarball URL は commit を要求するため git/tags/<sha> でもう一段 dereference した値を置く。
+        # bats-core のリリースは annotated tag なので、git/ref/tags が返す SHA は tag object であって
+        # commit ではない。tarball URL は commit を要求するため git/tags/<sha> でもう一段
+        # dereference した値を置く。
         bats_sha="eb7f42f8d608ac693d7a4b67474f6714ea68cfc5" # v1.14.0 (開発機と揃える)
         curl --proto '=https' --tlsv1.2 -fsSL "https://github.com/bats-core/bats-core/archive/${bats_sha}.tar.gz" | tar -xz -C "$RUNNER_TEMP"
         echo "$RUNNER_TEMP/bats-core-${bats_sha}/bin" >> "$GITHUB_PATH"

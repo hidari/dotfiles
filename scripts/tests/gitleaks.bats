@@ -222,6 +222,5 @@ range_scan() {
 
 @test "the CI leak guard is wired with -m" {
     # 機構が正しくても取り付けが外れれば何も守らない。workflow 側の配線を pin する
-    run grep -qE 'gitleaks git --log-opts="-m ' "$REPO_ROOT/.github/workflows/test.yml"
-    [ "$status" -eq 0 ]
+    assert_workflow_contains 'gitleaks git --log-opts="-m '
 }

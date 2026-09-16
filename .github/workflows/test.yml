@@ -47,15 +47,35 @@ jobs:
           sudo apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends zsh
 
-      # TAP で走らせ、skip 集合を宣言 (test_helper.bash の UNCOVERED_DEPENDENCIES) と
-      # 突き合わせる。skip 0 件を条件にしないのは、どの job も供給しない依存による skip が
-      # 正当に残るため。宣言外の skip と、宣言したのに起きない skip の両方でここが落ちる。
+      # neo-tree のハイライト群名の検査はプラグインのソースを 1 ファイルだけ読む。
+      # nvim --clean は lazy.nvim を起動しないので、プラグインを入れずにそのファイルだけを取る。
+      # commit は lazy-lock.json の pin を読むので、プラグインを更新しても直す箇所が増えない。
+      # sha256 を重ねないのは commit SHA 自体が内容のアドレスだから。その前提が崩れないよう、
+      # 40 桁の commit SHA でない値 (ブランチ名のような動く参照) は弾く。
+      - name: Fetch neo-tree highlights
+        run: |
+          commit=$(jq -er '."neo-tree.nvim".commit' home/.config/nvim/lazy-lock.json)
+          if ! printf '%s' "$commit" | grep -Eqx '[0-9a-f]{40}'; then
+            echo "lazy-lock.json の neo-tree.nvim が commit SHA を持たない: $commit" >&2
+            exit 1
+          fi
+          curl --proto '=https' --tlsv1.2 -fsSL -o "$RUNNER_TEMP/neo-tree-highlights.lua" \
+            "https://raw.githubusercontent.com/nvim-neo-tree/neo-tree.nvim/${commit}/lua/neo-tree/ui/highlights.lua"
+
+      # CI では前提の不在を skip で隠さない (test_helper.bash の skip_outside_ci が落とす) ので、
+      # ここで起きる skip は全部が異常になる。どの job も供給できない依存 (macOS 専用コマンド等) の
+      # テストは skip ではなくタグ uncovered で実行対象から外す。
       # pipefail が無いと bats の失敗を tee の成功が飲み込む。
       - name: Run Bats tests
+        env:
+          NEOTREE_HIGHLIGHTS: ${{ runner.temp }}/neo-tree-highlights.lua
         run: |
           set -o pipefail
-          bats --formatter tap scripts/tests/ | tee "$RUNNER_TEMP/bats.tap"
-          scripts/ci/assert-declared-skips.sh "$RUNNER_TEMP/bats.tap"
+          bats --filter-tags '!uncovered' --formatter tap scripts/tests/ | tee "$RUNNER_TEMP/bats.tap"
+          if grep '# skip' "$RUNNER_TEMP/bats.tap"; then
+            echo "skip されたテストがある。CI では前提の不在を skip で隠さない" >&2
+            exit 1
+          fi
 
   ast-grep:
     name: ast-grep (syntax lint)
@@ -90,7 +110,7 @@ jobs:
         run: |
           shellcheck_version="0.11.0" # 開発機と揃える
           # sha256 は展開前に内容を pin する堰。
-          # 再計算方法: curl で同じ URL を取得し sha256sum shellcheck-v0.11.0.linux.x86_64.tar.xz を実行する。
+          # 再計算方法: curl で同じ URL を取得し sha256sum shellcheck-v<version>.linux.x86_64.tar.xz を実行する。
           expected_sha256="8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
           archive="$RUNNER_TEMP/shellcheck.tar.xz"
           "$GITHUB_WORKSPACE/scripts/ci/download-and-verify.sh" "https://github.com/koalaman/shellcheck/releases/download/v${shellcheck_version}/shellcheck-v${shellcheck_version}.linux.x86_64.tar.xz" "$expected_sha256" "$archive"
@@ -163,8 +183,8 @@ jobs:
 
       # ルール検証 (scripts/tests/gitleaks.bats) はこの job には無い。bats job が
       # gitleaks を入れて全スイートの一部として走らせるので、ここに置くと同じ検証が
-      # 2 job で二重に走る。この job が受け持つのは履歴を持つチェックアウトを要する
-      # 範囲スキャンだけで、fetch-depth: 0 がその理由でもある。
+      # 2 job で二重に走る。この job が受け持つのは範囲スキャンだけで、範囲の走査に
+      # 履歴が要るので checkout を fetch-depth: 0 にしている。
 
       # 履歴 (既知の過去パス) を蒸し返さないよう、PR/push の新規コミット範囲のみ走査する。
       # SHA は env 経由で渡し ${{ }} の script injection を避ける。

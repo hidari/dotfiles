@@ -34,9 +34,8 @@ ZSHRC_SECTION_END='^########################################$'
 # Raycast のリファレンスモード切り替えスクリプト。
 RAYCAST_TOGGLE_SCRIPT="${RAYCAST_TOGGLE_SCRIPT:-$REPO_ROOT/home/.config/raycast/scripts/toggle-reference-mode.sh}"
 
-# CI ワークフローの定義。宣言表 CI_BATS_JOB_COMMANDS の突き合わせ先。
-# 上書き可能にするのは、突き合わせ器そのものを変異注入で検証できるようにするため。
-WORKFLOW_FILE="${WORKFLOW_FILE:-$REPO_ROOT/.github/workflows/test.yml}"
+# CI ワークフローの定義。配線を pin するテストが assert_workflow_contains 経由で読む。
+WORKFLOW_FILE="$REPO_ROOT/.github/workflows/test.yml"
 
 FIXTURES_DIR="$TEST_DIR/fixtures"
 BOOTSTRAP_FIXTURES_DIR="$FIXTURES_DIR/bootstrap"
@@ -64,172 +63,29 @@ teardown_test_home() {
 }
 
 # =============================================================================
-# 不在コマンドのガード
+# 前提の不在
 # =============================================================================
 #
-# CI の bats job は scripts/tests/ を全件走らせるが、job が持つコマンドは限られる。
-# 不在を一律 skip でかわすと「1 件も検証していないのに緑」になるため、入口を 2 つに分け、
-# どちらも宣言表に無い名前を拒む。
-#
-#   require_command_or_skip <key> [<cmd>]  job が供給する。CI で不在なら落とす
-#   skip_uncovered <dep>                   どの job も供給しない。CI でも skip する
-#
-# 宣言の外で使われると、前者は正当な不在で CI を赤くし、後者は
-# assert-declared-skips.sh が突き合わせる相手を失う。どちらも「気づけない」側へ倒れる。
+# CI の bats job は skip が 1 件でもあれば落ちる。不在をここで CI の失敗へ変えるので、
+# テストが skip で不在を隠す経路はローカルにしか残らない。CI で走らせないテストは
+# skip ではなく bats のタグ uncovered で実行対象から外す (workflow の --filter-tags)。
 
-# CI の bats job が実行時に持つコマンドと、その供給元。
-# 形式は "<cmd>:<kind>:<source>"。kind が action なら .github/actions/<source>、
-# step なら bats job の step 名、runner ならランナー同梱で workflow には現れない。
-# 実体との突き合わせは ci-supply.bats が行う (runner は突き合わせる相手が無いので、
-# 在ると仮定してよい根拠を source に書く)。
-CI_BATS_JOB_COMMANDS=(
-    "bats:action:setup-bats"
-    "nvim:action:setup-neovim"
-    "ast-grep:action:setup-ast-grep"
-    "uv:action:setup-uv"
-    "gitleaks:action:setup-gitleaks"
-    "zsh:step:Setup zsh"
-    "sha256sum:runner:ubuntu-latest が coreutils を同梱する"
-)
-
-# どの job も供給しない依存と、その理由。形式は "<dep>:<reason>"。
-# ここに載るものは CI でも skip されるのが正しい。宣言と実際の skip 集合の突き合わせは
-# scripts/ci/assert-declared-skips.sh が行うので、宣言だけを増やしても
-# 「実際には skip されない dead な宣言」として赤くなる。
-UNCOVERED_DEPENDENCIES=(
-    "osacompile:macOS 専用のため Linux ランナーに無い"
-    "neo-tree:どの job も導入しない (ISSUE-96)"
-)
-
-# 宣言された skip の先頭に置くマーカー。assert-declared-skips.sh がこれで宣言済みと
-# 宣言外を分ける。向こうはこのファイルを source して読むので値の二重記述は無い。
-UNCOVERED_SKIP_MARKER="uncovered"
-
-# CI の bats job がこのコマンドを供給するか。
-# bash 3.2 には連想配列が無いので "<cmd>:..." の前方一致で引く。
-ci_job_supplies() {
-    local key="$1"
-    local entry
-    for entry in "${CI_BATS_JOB_COMMANDS[@]}"; do
-        if [ "${entry%%:*}" = "$key" ]; then
-            return 0
-        fi
-    done
-    return 1
-}
-
-# 未カバー依存の理由を返す。宣言に無ければ何も返さず非 0。
-# 件数で先に分岐するのは、bash 3.2 が set -u 下で空配列の [@] 展開を
-# unbound variable にするため ([@] と違い ${#...[@]} は空でも 0 を返す)。
-# この関数だけが set -u を敷いた scripts/ci/assert-declared-skips.sh から呼ばれる。
-# 表が空になるのは異常ではなく、全依存が CI へ入った状態を意味する。
-uncovered_reason() {
-    local dep="$1"
-    local entry
-
-    [ "${#UNCOVERED_DEPENDENCIES[@]}" -gt 0 ] || return 1
-
-    for entry in "${UNCOVERED_DEPENDENCIES[@]}"; do
-        if [ "${entry%%:*}" = "$dep" ]; then
-            printf '%s' "${entry#*:}"
-            return 0
-        fi
-    done
-    return 1
-}
-
-# コマンドが宣言と実在の両面で使えるかを rc で返す。skip をここで呼ばないのは、
-# setup_file の中では skip が使えないため (bats は「1..N と宣言したのに 0 件実行」の
-# 警告付き rc=1 で落ちる。実測は bats 1.13 / 1.14 とも同じ)。下の 2 つの入口が
-# この判定を共有し、skip をどこで呼ぶかだけを変える。
-#   0  使える
-#   1  使ってはいけない (宣言外、または CI での不在)。案内は stderr へ出してある
-#   2  使えないが正常 (ローカルでの不在)。呼び出し側が skip する
-# 第 1 引数は宣言表のキー、第 2 引数は実際に探すコマンド (省略時はキーと同じ)。
-# 2 つを分けるのは、ガード自体を検証するテストが実コマンドだけを不在へ差し替えられる
-# ようにするため (nvim-markdown.bats の NVIM_BIN がこの形を使う)。
-command_state_for_ci() {
-    local key="$1"
-    local cmd="${2:-$1}"
-
-    if ! ci_job_supplies "$key"; then
-        echo "$key は CI_BATS_JOB_COMMANDS に無い" >&2
-        echo "  job が供給するなら表へ足し、供給しないなら skip_uncovered を使う" >&2
-        return 1
-    fi
-
-    if command -v "$cmd" > /dev/null 2>&1; then
-        return 0
-    fi
+# ローカルでは skip し、CI では理由を出して落とす。呼び出し側は `|| return 1` を付ける。
+# setup_file から呼んでもよい。bats は setup_file の skip をそのファイルの全 @test の
+# skip として出し、setup_file の非 0 はファイル全体を赤くする。
+skip_outside_ci() {
+    local reason="$1"
 
     if [ -n "${CI:-}" ]; then
-        echo "$cmd は CI では必須だが見つからない" >&2
+        echo "$reason (CI では必須)" >&2
         return 1
     fi
-
-    return 2
+    skip "$reason"
 }
 
-# 外部コマンドの有無で分岐する。CI では skip で隠さず落とす。
-# 緑のまま何も検証していない状態が一番危ないので、ローカルの利便とは非対称にする。
+# 外部コマンドの有無で分岐する。
 require_command_or_skip() {
-    local rc=0
-    command_state_for_ci "$@" || rc=$?
-
-    case "$rc" in
-        0) return 0 ;;
-        2) skip "${2:-$1} が見つからない" ;;
-        *) return 1 ;;
-    esac
-}
-
-# setup_file で使うコマンドガード。可否をフラグへ書き、skip は setup() 側の
-# file_setup_ready_or_skip が行う。判定の規約は require_command_or_skip と共有する。
-#
-#   setup_file() { require_command_for_file_setup nvim "$NVIM_BIN" || return 1
-#                  [ "$FILE_SETUP_READY" = 1 ] && spawn_probe > "$BATS_FILE_TMPDIR/..." }
-#   setup()      { file_setup_ready_or_skip || return 1 }
-require_command_for_file_setup() {
-    local rc=0
-    command_state_for_ci "$@" || rc=$?
-
-    case "$rc" in
-        0)
-            export FILE_SETUP_READY=1
-            return 0
-            ;;
-        2)
-            export FILE_SETUP_READY=0
-            export FILE_SETUP_SKIP_REASON="${2:-$1} が見つからない"
-            return 0
-            ;;
-        *) return 1 ;;
-    esac
-}
-
-# setup_file が準備を終えていなければ skip する。
-# 未設定を「準備済み」と読まないのは、setup_file がガードを呼び忘れたときに
-# 全テストが素通りして緑になるため。
-file_setup_ready_or_skip() {
-    if [ "${FILE_SETUP_READY:-unset}" = "1" ]; then
-        return 0
-    fi
-    skip "${FILE_SETUP_SKIP_REASON:-setup_file が準備を終えていない}"
-}
-
-# どの job も供給しない依存による skip を宣言する。理由は宣言表から引くので、
-# 呼び出し側は理由を書かない (同じ理由が呼び出し側と表へ二重に載って drift するのを防ぐ)。
-skip_uncovered() {
-    local dep="$1"
-    local reason
-
-    if ! reason=$(uncovered_reason "$dep"); then
-        echo "skip_uncovered: $dep は UNCOVERED_DEPENDENCIES に無い" >&2
-        echo "  未カバーとして宣言するなら表へ足す" >&2
-        return 1
-    fi
-
-    skip "$UNCOVERED_SKIP_MARKER $dep: $reason"
+    command -v "$1" > /dev/null 2>&1 || skip_outside_ci "$1 が見つからない"
 }
 
 # bootstrap.sh からヘルパー関数を読み込む
@@ -299,27 +155,6 @@ extract_marker_block() {
 
     if [ ! -s "$dest" ]; then
         echo "Error: empty block extracted from $file" >&2
-        return 1
-    fi
-}
-
-# ワークフローから指定 job のブロックだけを dest へ書き出す。
-# YAML パーサを呼ばず text-parse するのは、bats から呼べるパーサが uv 経由の依存解決を
-# 毎回のテストへ乗せるため。脆さは 2 段で抑える。空なら失敗させることと、切り出した中身が
-# 狙った job のものであることを ci-supply.bats が対照付きで自己検査すること。
-# job は 2 スペースインデントで並ぶので、job 名の行の次から次の同インデント行の手前までを取る。
-extract_workflow_job() {
-    local job="$1"
-    local dest="$2"
-
-    awk -v header="  $job:" '
-        $0 == header { inside = 1; next }
-        inside && /^  [^ ]/ { exit }
-        inside { print }
-    ' "$WORKFLOW_FILE" > "$dest"
-
-    if [ ! -s "$dest" ]; then
-        echo "Error: job block not found in $WORKFLOW_FILE: $job" >&2
         return 1
     fi
 }
@@ -688,6 +523,13 @@ assert_array_contains() {
     echo "  expected: $needle" >&2
     echo "  actual: $*" >&2
     return 1
+}
+
+# CI ワークフローが needle を含むことを確認する。検査機構の取り付けを pin するテスト用。
+# インデントの変更で赤くならないよう、行頭の空白を落としてから照合する。
+# 複数行の needle は、その行が連続して並んでいることまで見る。
+assert_workflow_contains() {
+    assert_contains "$(sed 's/^[[:space:]]*//' "$WORKFLOW_FILE")" "$1"
 }
 
 # haystack が needle を含まないことを確認する (assert_contains の否定形)。

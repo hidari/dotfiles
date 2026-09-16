@@ -14,9 +14,16 @@ PR #49 で見送った理由: `NVIM_BIN` / `CI` の skip ガードは `setup()` 
 
 ## 決めたこと
 
-`setup_file()` の中で `skip` は呼べない。bats は「1..N と宣言したのに 0 件実行」の警告付き
-rc=1 で落ちる (1.13 / 1.14 のいずれでも同じ)。そこで可否をフラグへ書いて `setup()` 側で
-skip する形にした。
+既存のガード `require_command_or_skip` を `setup_file()` から呼ぶだけで済み、`setup()` は
+消した。bats は `setup_file()` の skip をそのファイルの全 `@test` の skip として出し、
+`setup_file()` の非 0 はファイル全体を赤くする (bats 1.14 で実測)。ローカル skip と
+CI hard-fail がファイル単位でそのまま成り立つ。
+
+**途中で「`setup_file()` の中では skip を呼べない」と結論し、可否をフラグで `setup()` へ運ぶ
+回避策を作ったが、誤りだった。**再現に使った fixture の `@test` 名が日本語で、観測した
+「0 件実行で rc=1」は skip ではなく日本語名による未実行だった
+(`rules/bats-test-name-ascii-only.yml` が禁じる形)。fixture をリポジトリの検査の外に置いたので、
+この規則が効かなかった。回避策は同じ PR の中で撤去した。
 
 `@test` 側は 1 行も変えていない。`probe_with_extends` という関数名を保ったまま中身を
 キャッシュ読みへ差し替え、spawn する側を `spawn_probe_*` として分離したため。呼び出し側の
