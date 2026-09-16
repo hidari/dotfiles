@@ -91,7 +91,7 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | M1 | Issue 維持コストの原因を消す | Issue 43、ISSUE-52、ISSUE-74 |
 | M2 | 検査を配布先で走る状態にする | ISSUE-53、ISSUE-72、ISSUE-86 |
 | M3 | skill バンドルの二重登録を止める | Issue 40 |
-| M4 | PUBLIC 露出の scrub | Issue 21、Issue 29、ISSUE-87、agentic-coding-tools ISSUE-15、agentic-coding-tools ISSUE-23 |
+| M4 | PUBLIC 露出の scrub | Issue 21、Issue 29、ISSUE-87 |
 | M5 | 静的検査の基盤を寄せ射程の穴を塞ぐ | Issue 39、Issue 30、ISSUE-57、ISSUE-60、Issue 41、ISSUE-47、Issue 17、Issue 18、ISSUE-75、ISSUE-85、ISSUE-90、ISSUE-94 |
 | M6 | winvm の実装品質 | 上流の winvm 系 Issue |
 | M7 | 環境とテスト網の個別 | 下の細分表 |
@@ -121,7 +121,11 @@ M2 が 3、M3 が 1、M4 が 3 (dotfiles 側のみ)、M5 が 12、M6 が 0 (上�
 M9 が 10、M10 が 4、M11 が 3、この Issue 自身が 1 で合計 56。
 
 09-16 の 58 からの動きは、Issue 45 と Issue 4 が同じ PR でクローズされたことだけである。
-**M7 の「テスト網」はこの 2 件だけで構成されていたので、行ごと外した。**
+M7 の「テスト網」はこの 2 件だけで構成されていたので、行ごと外した。
+
+M4 からは上流の 2 件 (agentic-coding-tools の ISSUE-15 と ISSUE-23) を外した。前者は 09-15、
+後者は 09-16 に上流で closed になっていた。この節の検算器は dotfiles 側の active しか
+数えないので、上流の腐りは検算に掛からない。上流からの連絡で気づいた。
 
 順序制約表からは `Issue 4 → Issue 45` を外した。両方 closed になり制約が満たされたためで、
 同表が定める「満たされた制約は外す」に従う。

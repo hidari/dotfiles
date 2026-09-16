@@ -15,7 +15,7 @@
 
 load test_helper
 
-GUARDS_DIR="$TEST_DIR/fixtures/guards"
+GUARDS_DIR="$FIXTURES_DIR/guards"
 
 # fixture を子 bats として TAP で走らせる。
 run_guard_fixture() {
@@ -27,8 +27,9 @@ run_guard_fixture() {
 @test "require_command_or_skip: a present command runs the body" {
     run_guard_fixture "" require-present.bats
 
+    # 実行 0 件でも status は 0 で skip も出ないので、本体が走った行を行頭から確かめる
     [ "$status" -eq 0 ]
-    assert_contains "$output" "ok 1"
+    assert_contains "$output" $'\nok 1 present: the test body runs'
     refute_contains "$output" "# skip"
 }
 

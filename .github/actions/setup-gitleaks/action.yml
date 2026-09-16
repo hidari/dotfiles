@@ -1,5 +1,5 @@
 name: Setup gitleaks
-description: gitleaks をバージョン pin した公式 tarball から取得し PATH に追加するローカル composite action。leak guard job と bats job の双方が使い、version pin を単一箇所へ集約して job 間の drift を防ぐ。
+description: gitleaks をバージョン pin した公式 tarball から取得し PATH に追加するローカル composite action。pin を単一箇所へ集約し複数 job 間の drift を防ぐ。
 
 runs:
   using: composite

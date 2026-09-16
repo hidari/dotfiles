@@ -1,5 +1,6 @@
 #!/usr/bin/env bats
-# 実在しないコマンドを require したときの対照。本体は走れば必ず赤くなる。
+# test-helper-guards.bats と run-bats.bats が子プロセスとして渡す fixture。
+# 実在しないコマンドを require する。本体は走れば必ず赤くなる。
 
 load ../../test_helper
 

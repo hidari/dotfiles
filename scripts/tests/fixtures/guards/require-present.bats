@@ -1,7 +1,6 @@
 #!/usr/bin/env bats
-# 実在するコマンドを require したときの対照。
-# このファイルは test-helper-guards.bats が子 bats として起動する fixture で、
-# bats はディレクトリを既定で再帰しないため本スイート (bats scripts/tests/) には拾われない。
+# test-helper-guards.bats と run-bats.bats が子プロセスとして渡す fixture。
+# 実在するコマンドを require する。
 
 load ../../test_helper
 

@@ -34,8 +34,8 @@ ZSHRC_SECTION_END='^########################################$'
 # Raycast のリファレンスモード切り替えスクリプト。
 RAYCAST_TOGGLE_SCRIPT="${RAYCAST_TOGGLE_SCRIPT:-$REPO_ROOT/home/.config/raycast/scripts/toggle-reference-mode.sh}"
 
-# CI ワークフローの定義。配線を pin するテストが assert_workflow_contains 経由で読む。
-WORKFLOW_FILE="$REPO_ROOT/.github/workflows/test.yml"
+# CI ワークフローの定義。assert_workflow_contains が読む。
+WORKFLOW_FILE="${WORKFLOW_FILE:-$REPO_ROOT/.github/workflows/test.yml}"
 
 FIXTURES_DIR="$TEST_DIR/fixtures"
 BOOTSTRAP_FIXTURES_DIR="$FIXTURES_DIR/bootstrap"
@@ -66,13 +66,12 @@ teardown_test_home() {
 # 前提の不在
 # =============================================================================
 #
-# CI の bats job は skip が 1 件でもあれば落ちる。不在をここで CI の失敗へ変えるので、
-# テストが skip で不在を隠す経路はローカルにしか残らない。CI で走らせないテストは
-# skip ではなく bats のタグ uncovered で実行対象から外す (workflow の --filter-tags)。
+# CI の bats job は skip が 1 件でもあれば落ちる (scripts/ci/run-bats.sh)。不在をここで
+# CI の失敗へ変えるので、テストが skip で不在を隠す経路はローカルにしか残らない。
+# CI で走らせないテストは skip ではなく bats のタグ uncovered で実行対象から外す。
 
 # ローカルでは skip し、CI では理由を出して落とす。呼び出し側は `|| return 1` を付ける。
-# setup_file から呼んでもよい。bats は setup_file の skip をそのファイルの全 @test の
-# skip として出し、setup_file の非 0 はファイル全体を赤くする。
+# setup_file から呼んでもよい (そのときの挙動は test-helper-guards.bats が pin する)。
 skip_outside_ci() {
     local reason="$1"
 
@@ -83,7 +82,6 @@ skip_outside_ci() {
     skip "$reason"
 }
 
-# 外部コマンドの有無で分岐する。
 require_command_or_skip() {
     command -v "$1" > /dev/null 2>&1 || skip_outside_ci "$1 が見つからない"
 }
@@ -525,11 +523,12 @@ assert_array_contains() {
     return 1
 }
 
-# CI ワークフローが needle を含むことを確認する。検査機構の取り付けを pin するテスト用。
-# インデントの変更で赤くならないよう、行頭の空白を落としてから照合する。
-# 複数行の needle は、その行が連続して並んでいることまで見る。
+# CI ワークフローが needle の行をこの順に連続して持つことを確認する。
+# 検査機構の取り付けを pin するテスト用。行頭の空白を落としたうえで行単位の完全一致で
+# 見るので、インデントの変更では赤くならず、コメントアウトした行や後ろに別の引数が
+# 続く行には一致しない。
 assert_workflow_contains() {
-    assert_contains "$(sed 's/^[[:space:]]*//' "$WORKFLOW_FILE")" "$1"
+    assert_contains $'\n'"$(sed 's/^[[:space:]]*//' "$WORKFLOW_FILE")"$'\n' $'\n'"$1"$'\n'
 }
 
 # haystack が needle を含まないことを確認する (assert_contains の否定形)。

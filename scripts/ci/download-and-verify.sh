@@ -2,14 +2,14 @@
 # =============================================================================
 # CI のツール取得で共通する「HTTPS ダウンロード + 固定 sha256 検証」を1箇所へ集約する。
 #
-# setup-ast-grep / setup-neovim / gitleaks 導入ステップが独立に書いていた
+# CI の各ツール導入 (setup-* composite と workflow の step) が独立に書いていた
 #   curl (--proto '=https' 等の security flag 群) + sha256sum -c の2行
-# を共通化し、検証手順を変えるときの drift を防ぐ。展開方法は3者で異なる
+# を共通化し、検証手順を変えるときの drift を防ぐ。展開方法は呼び出し側ごとに異なる
 # (unzip / tar 全体 / tar 単一メンバ) ため展開は呼び出し側に残す。
 #
-# 対象外: setup-bats (commit-SHA 付き URL を tar へ直接パイプ) と bootstrap.sh の
-# installer (curl | sh) は「ファイルへ落として sha256 で pin」という契約に合わない
-# 別の完全性モデルのため、同じ security flag を持っていてもここには通さない。
+# 対象外: commit SHA 付き URL で取るもの (setup-bats など。SHA 自体が内容を pin する) と
+# bootstrap.sh の installer (curl | sh) は「ファイルへ落として sha256 で pin」という契約に
+# 合わない別の完全性モデルのため、同じ security flag を持っていてもここには通さない。
 #
 # 使い方:
 #   download-and-verify.sh <url> <sha256> <dest>

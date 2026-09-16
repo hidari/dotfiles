@@ -20,8 +20,7 @@ GITLEAKS_CONFIG="$REPO_ROOT/.gitleaks.toml"
 
 setup() {
     require_command_or_skip gitleaks || return 1
-    # 設定はリポジトリの追跡下にあるので、無いのは skip ではなく異常。
-    # skip でかわすとルール検証が 1 件も走らないまま緑になる
+    # 設定はリポジトリの追跡下にあるので、無いのは skip ではなく異常
     [ -f "$GITLEAKS_CONFIG" ]
     SCAN_DIR=$(mktemp -d)
     REPORT="$SCAN_DIR/report.json"
@@ -222,5 +221,5 @@ range_scan() {
 
 @test "the CI leak guard is wired with -m" {
     # 機構が正しくても取り付けが外れれば何も守らない。workflow 側の配線を pin する
-    assert_workflow_contains 'gitleaks git --log-opts="-m '
+    assert_workflow_contains 'gitleaks git --log-opts="-m $RANGE" --redact --no-banner -c .gitleaks.toml'
 }

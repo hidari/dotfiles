@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
-# setup_file でコマンドが不在だったときの対照。
-# ローカルなら全テストが skip され、CI ならファイル全体が赤くなる。本体は走れば必ず赤くなる。
+# test-helper-guards.bats が子プロセスとして渡す fixture。
+# setup_file で実在しないコマンドを require する。本体は走れば必ず赤くなる。
 
 load ../../test_helper
 

@@ -9,6 +9,12 @@ on:
 permissions:
   contents: read
 
+# shell を省いた run step は bash -e で動き pipefail が付かない。パイプの前段の失敗が
+# 後段の成功に飲み込まれないよう、明示の bash (-eo pipefail) を既定にする。
+defaults:
+  run:
+    shell: bash
+
 jobs:
   bats:
     name: all suites (bats)
@@ -28,10 +34,9 @@ jobs:
       - name: Setup uv
         uses: ./.github/actions/setup-uv
 
-      # gitleaks は leak guard job にもあるが、こちらにも入れる。入れないと gitleaks を
-      # 要するスイートがこの job では 1 件も走らないまま緑になり、この job の緑が
-      # 「全スイートを検証した」ことの証拠にならなくなる。pin は composite が持つので
-      # 2 job に置いても drift しない。
+      # gitleaks は leak guard job にもあるが、この job は全スイートを走らせるので
+      # gitleaks.bats のルール検証もここで走る。pin は composite が持つので、
+      # 複数の job に置いても drift しない。
       - name: Setup gitleaks
         uses: ./.github/actions/setup-gitleaks
 
@@ -62,20 +67,10 @@ jobs:
           curl --proto '=https' --tlsv1.2 -fsSL -o "$RUNNER_TEMP/neo-tree-highlights.lua" \
             "https://raw.githubusercontent.com/nvim-neo-tree/neo-tree.nvim/${commit}/lua/neo-tree/ui/highlights.lua"
 
-      # CI では前提の不在を skip で隠さない (test_helper.bash の skip_outside_ci が落とす) ので、
-      # ここで起きる skip は全部が異常になる。どの job も供給できない依存 (macOS 専用コマンド等) の
-      # テストは skip ではなくタグ uncovered で実行対象から外す。
-      # pipefail が無いと bats の失敗を tee の成功が飲み込む。
       - name: Run Bats tests
         env:
           NEOTREE_HIGHLIGHTS: ${{ runner.temp }}/neo-tree-highlights.lua
-        run: |
-          set -o pipefail
-          bats --filter-tags '!uncovered' --formatter tap scripts/tests/ | tee "$RUNNER_TEMP/bats.tap"
-          if grep '# skip' "$RUNNER_TEMP/bats.tap"; then
-            echo "skip されたテストがある。CI では前提の不在を skip で隠さない" >&2
-            exit 1
-          fi
+        run: scripts/ci/run-bats.sh scripts/tests/
 
   ast-grep:
     name: ast-grep (syntax lint)
@@ -173,18 +168,16 @@ jobs:
   gitleaks:
     name: gitleaks (leak guard)
     runs-on: ubuntu-latest
+    # ルール検証 (scripts/tests/gitleaks.bats) は bats job が全スイートの一部として走らせる。
+    # この job が受け持つのは範囲スキャンだけ。
     steps:
+      # 範囲の走査に履歴が要る
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
 
       - name: Setup gitleaks
         uses: ./.github/actions/setup-gitleaks
-
-      # ルール検証 (scripts/tests/gitleaks.bats) はこの job には無い。bats job が
-      # gitleaks を入れて全スイートの一部として走らせるので、ここに置くと同じ検証が
-      # 2 job で二重に走る。この job が受け持つのは範囲スキャンだけで、範囲の走査に
-      # 履歴が要るので checkout を fetch-depth: 0 にしている。
 
       # 履歴 (既知の過去パス) を蒸し返さないよう、PR/push の新規コミット範囲のみ走査する。
       # SHA は env 経由で渡し ${{ }} の script injection を避ける。

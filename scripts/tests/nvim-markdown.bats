@@ -15,30 +15,21 @@ load test_helper
 NVIM_CONFIG_DIR="$REPO_ROOT/home/.config/nvim"
 PROBE="$REPO_ROOT/scripts/tests/nvim-markdown-probe.lua"
 
-# skip ガード自体を検証できるように、実行する nvim を差し替え可能にする。
-# bats と nvim が同じディレクトリに入るため PATH から隠す方式は使えない。
-NVIM_BIN="${NVIM_BIN:-nvim}"
-
 # probe の構成は 2 種類しかないので、nvim の起動はファイルにつき 1 回ずつで済ませ、
-# 各テストはキャッシュを読む。nvim が無ければここで全テストが skip になる。
+# 各テストはキャッシュを読む。
 setup_file() {
-    require_command_or_skip "$NVIM_BIN" || return 1
-    spawn_probe_with_extends > "$BATS_FILE_TMPDIR/with-extends.txt" 2>&1
-    spawn_probe_without_extends > "$BATS_FILE_TMPDIR/without-extends.txt" 2>&1
+    require_command_or_skip nvim || return 1
+    # 本番と同じ rtp 構成 (拡張クエリを含む)
+    spawn_probe --cmd "set rtp+=$NVIM_CONFIG_DIR/after" > "$BATS_FILE_TMPDIR/with-extends.txt"
+    # 拡張クエリを外した構成。検査が本当に効いていることを示す negative case 用
+    spawn_probe > "$BATS_FILE_TMPDIR/without-extends.txt"
 }
 
-# 本番と同じ rtp 構成 (拡張クエリを含む) でプローブを走らせる
-spawn_probe_with_extends() {
-    "$NVIM_BIN" --clean --headless \
+# 引数は nvim の起動オプションとして config の rtp の後ろへ足す
+spawn_probe() {
+    nvim --clean --headless \
         --cmd "set rtp+=$NVIM_CONFIG_DIR" \
-        --cmd "set rtp+=$NVIM_CONFIG_DIR/after" \
-        -c "luafile $PROBE" -c 'qa!' 2>&1
-}
-
-# 拡張クエリを外して走らせる。検査が本当に効いていることを示す negative case 用
-spawn_probe_without_extends() {
-    "$NVIM_BIN" --clean --headless \
-        --cmd "set rtp+=$NVIM_CONFIG_DIR" \
+        "$@" \
         -c "luafile $PROBE" -c 'qa!' 2>&1
 }
 
