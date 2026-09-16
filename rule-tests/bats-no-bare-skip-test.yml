@@ -1,0 +1,13 @@
+# rules/bats-no-bare-skip.yml のテスト。id は rule と一致させる。
+id: bats-no-bare-skip
+valid:
+  - 'require_command_or_skip gitleaks || return 1'
+  - '[ -f "$src" ] || skip_outside_ci "neo-tree のソースが見つからない" || return 1'
+  - 'echo skip'
+  - 'local skip=1'
+invalid:
+  - 'skip'
+  - 'skip "gitleaks is not installed"'
+  - 'skip multi word reason'
+  - 'command -v gitleaks >/dev/null 2>&1 || skip'
+  - 'command -v gitleaks >/dev/null 2>&1 || skip "gitleaks 未インストール"'

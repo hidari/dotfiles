@@ -34,6 +34,9 @@ ZSHRC_SECTION_END='^########################################$'
 # Raycast のリファレンスモード切り替えスクリプト。
 RAYCAST_TOGGLE_SCRIPT="${RAYCAST_TOGGLE_SCRIPT:-$REPO_ROOT/home/.config/raycast/scripts/toggle-reference-mode.sh}"
 
+# CI ワークフローの定義。assert_workflow_contains が読む。
+WORKFLOW_FILE="${WORKFLOW_FILE:-$REPO_ROOT/.github/workflows/test.yml}"
+
 FIXTURES_DIR="$TEST_DIR/fixtures"
 BOOTSTRAP_FIXTURES_DIR="$FIXTURES_DIR/bootstrap"
 
@@ -59,22 +62,28 @@ teardown_test_home() {
     fi
 }
 
-# 外部コマンドの有無で分岐する。CI では skip で隠さず落とす。
-# 緑のまま何も検証していない状態が一番危ないので、ローカルの利便とは非対称にする。
-# 「CI なら必須」が成り立つのは、そのテストを走らせる job が導入するコマンドに限る。
-# job が入れないコマンド (bats job にとっての gitleaks、Linux にとっての osacompile)
-# へこの入口を使うと、正当な不在で CI が赤くなる。
-require_command_or_skip() {
-    local cmd="$1"
+# =============================================================================
+# 前提の不在
+# =============================================================================
+#
+# CI の bats job は skip が 1 件でもあれば落ちる (scripts/ci/run-bats.sh)。不在をここで
+# CI の失敗へ変えるので、テストが skip で不在を隠す経路はローカルにしか残らない。
+# CI で走らせないテストは skip ではなく bats のタグ uncovered で実行対象から外す。
 
-    if command -v "$cmd" >/dev/null 2>&1; then
-        return 0
-    fi
+# ローカルでは skip し、CI では理由を出して落とす。呼び出し側は `|| return 1` を付ける。
+# setup_file から呼んでもよい (そのときの挙動は test-helper-guards.bats が pin する)。
+skip_outside_ci() {
+    local reason="$1"
+
     if [ -n "${CI:-}" ]; then
-        echo "$cmd is required in CI but was not found" >&2
+        echo "$reason (CI では必須)" >&2
         return 1
     fi
-    skip "$cmd is not installed"
+    skip "$reason"
+}
+
+require_command_or_skip() {
+    command -v "$1" > /dev/null 2>&1 || skip_outside_ci "$1 が見つからない"
 }
 
 # bootstrap.sh からヘルパー関数を読み込む
@@ -233,6 +242,15 @@ run_in_dir() {
     cd "$dir" || return 1
     run "$@"
     cd "$saved" || return 1
+}
+
+# YAML を構造として読むプローブ (scripts/tests/*-probe.py) を run で実行する。残りの引数はプローブへ渡す。
+# --no-project は、uv が cwd から上へ pyproject.toml を探すため。bats を scripts/<project>/ の
+# 中で起動すると、そのプロジェクトの依存を sync しに行き、結果が起動した場所に左右される。
+run_yaml_probe() {
+    local probe="$1"
+    shift
+    run uv run --quiet --no-project --with pyyaml python3 "$TEST_DIR/$probe" "$@"
 }
 
 # 偽バイナリの置き場を FAKE_BIN へ export する。値は返さない。
@@ -512,6 +530,37 @@ assert_array_contains() {
     echo "  expected: $needle" >&2
     echo "  actual: $*" >&2
     return 1
+}
+
+# 配列が「key=<1 以上の整数>」の要素を持つことを確認する。第 1 引数が key、残りが配列。
+# refute_contains "key=0" は key の行そのものが無いときも通るので、件数の下限はこちらで見る。
+assert_positive_count() {
+    local key="$1"
+    shift
+
+    local element count
+    for element in "$@"; do
+        case "$element" in
+            "$key="*) count="${element#"$key="}" ;;
+            *) continue ;;
+        esac
+        case "$count" in
+            "" | 0* | *[!0-9]*) ;;
+            *) return 0 ;;
+        esac
+    done
+
+    echo "assert_positive_count: $key=<1 以上> の要素が無い" >&2
+    echo "  actual: $*" >&2
+    return 1
+}
+
+# CI ワークフローが needle の行をこの順に連続して持つことを確認する。
+# 検査機構の取り付けを pin するテスト用。行頭の空白を落としたうえで行単位の完全一致で
+# 見るので、インデントの変更では赤くならず、コメントアウトした行や後ろに別の引数が
+# 続く行には一致しない。
+assert_workflow_contains() {
+    assert_contains $'\n'"$(sed 's/^[[:space:]]*//' "$WORKFLOW_FILE")"$'\n' $'\n'"$1"$'\n'
 }
 
 # haystack が needle を含まないことを確認する (assert_contains の否定形)。

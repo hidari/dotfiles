@@ -9,7 +9,7 @@ regex 版は行頭錨が無く, コメントアウトした run 行を false pas
 run: | のブロックスカラーを false fail していた.
 
 実行: uv run --quiet --no-project --with pyyaml python3 <このファイル>
---no-project を必ず付ける (付けないと backup-tool の依存を sync しに行く).
+(--no-project の理由は scripts/tests/test_helper.bash の run_yaml_probe).
 """
 
 from __future__ import annotations

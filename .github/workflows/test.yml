@@ -9,6 +9,13 @@ on:
 permissions:
   contents: read
 
+# shell を省いた run step は bash -e で動き pipefail が付かない。パイプの前段の失敗が
+# 後段の成功に飲み込まれないよう、明示の bash (-eo pipefail) を既定にする。
+# job 側に defaults.run を置くときはそちらにも shell を書く (理由と検査は scripts/tests/ci-shell-probe.py)。
+defaults:
+  run:
+    shell: bash
+
 jobs:
   bats:
     name: all suites (bats)
@@ -28,6 +35,12 @@ jobs:
       - name: Setup uv
         uses: ./.github/actions/setup-uv
 
+      # gitleaks は leak guard job にもあるが、この job は全スイートを走らせるので
+      # gitleaks.bats のルール検証もここで走る。pin は composite が持つので、
+      # 複数の job に置いても drift しない。
+      - name: Setup gitleaks
+        uses: ./.github/actions/setup-gitleaks
+
       # bats スイートには zsh の設定を実際の zsh へ渡して評価するものがある。
       # ubuntu ランナーは zsh を同梱しないので明示的に入れる。入れないと該当テストが
       # 「zsh が無い」で赤くなり、ガード本体の検査は 1 件も走らない。
@@ -40,8 +53,25 @@ jobs:
           sudo apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends zsh
 
+      # neo-tree のハイライト群名の検査はプラグインのソースを 1 ファイルだけ読む。
+      # nvim --clean は lazy.nvim を起動しないので、プラグインを入れずにそのファイルだけを取る。
+      # commit は lazy-lock.json の pin を読むので、プラグインを更新しても直す箇所が増えない。
+      # sha256 を重ねないのは commit SHA 自体が内容のアドレスだから。その前提が崩れないよう、
+      # 40 桁の commit SHA でない値 (ブランチ名のような動く参照) は弾く。
+      - name: Fetch neo-tree highlights
+        run: |
+          commit=$(jq -er '."neo-tree.nvim".commit' home/.config/nvim/lazy-lock.json)
+          if ! printf '%s' "$commit" | grep -Eqx '[0-9a-f]{40}'; then
+            echo "lazy-lock.json の neo-tree.nvim が commit SHA を持たない: $commit" >&2
+            exit 1
+          fi
+          curl --proto '=https' --tlsv1.2 -fsSL -o "$RUNNER_TEMP/neo-tree-highlights.lua" \
+            "https://raw.githubusercontent.com/nvim-neo-tree/neo-tree.nvim/${commit}/lua/neo-tree/ui/highlights.lua"
+
       - name: Run Bats tests
-        run: bats scripts/tests/
+        env:
+          NEOTREE_HIGHLIGHTS: ${{ runner.temp }}/neo-tree-highlights.lua
+        run: scripts/ci/run-bats.sh scripts/tests/
 
   ast-grep:
     name: ast-grep (syntax lint)
@@ -76,7 +106,7 @@ jobs:
         run: |
           shellcheck_version="0.11.0" # 開発機と揃える
           # sha256 は展開前に内容を pin する堰。
-          # 再計算方法: curl で同じ URL を取得し sha256sum shellcheck-v0.11.0.linux.x86_64.tar.xz を実行する。
+          # 再計算方法: curl で同じ URL を取得し sha256sum shellcheck-v<version>.linux.x86_64.tar.xz を実行する。
           expected_sha256="8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
           archive="$RUNNER_TEMP/shellcheck.tar.xz"
           "$GITHUB_WORKSPACE/scripts/ci/download-and-verify.sh" "https://github.com/koalaman/shellcheck/releases/download/v${shellcheck_version}/shellcheck-v${shellcheck_version}.linux.x86_64.tar.xz" "$expected_sha256" "$archive"
@@ -114,6 +144,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
+        shell: bash
         working-directory: scripts/backup-tool
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -139,27 +170,16 @@ jobs:
   gitleaks:
     name: gitleaks (leak guard)
     runs-on: ubuntu-latest
+    # ルール検証 (scripts/tests/gitleaks.bats) は bats job が全スイートの一部として走らせる。
+    # この job が受け持つのは範囲スキャンだけ。
     steps:
+      # 範囲の走査に履歴が要る
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
 
-      - name: Setup Bats
-        uses: ./.github/actions/setup-bats
-
-      - name: Install gitleaks
-        run: |
-          gitleaks_version="8.30.1" # 開発機と揃える
-          # sha256 は展開前に内容を pin する堰。
-          # 再計算方法: curl で同じ URL を取得し sha256sum gitleaks_8.30.1_linux_x64.tar.gz を実行する。
-          expected_sha256="551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
-          archive="$RUNNER_TEMP/gitleaks.tar.gz"
-          "$GITHUB_WORKSPACE/scripts/ci/download-and-verify.sh" "https://github.com/gitleaks/gitleaks/releases/download/v${gitleaks_version}/gitleaks_${gitleaks_version}_linux_x64.tar.gz" "$expected_sha256" "$archive"
-          tar -xz -C "$RUNNER_TEMP" -f "$archive" gitleaks
-          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
-
-      - name: Validate gitleaks rules (bats)
-        run: bats scripts/tests/gitleaks.bats
+      - name: Setup gitleaks
+        uses: ./.github/actions/setup-gitleaks
 
       # 履歴 (既知の過去パス) を蒸し返さないよう、PR/push の新規コミット範囲のみ走査する。
       # SHA は env 経由で渡し ${{ }} の script injection を避ける。
@@ -186,6 +206,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
+        shell: bash
         working-directory: scripts/config-guard
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -223,6 +244,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
+        shell: bash
         working-directory: scripts/mise-update-notifier
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -250,6 +272,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
+        shell: bash
         working-directory: scripts/node-security-notifier
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -277,6 +300,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
+        shell: bash
         working-directory: scripts/claude-hooks
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7

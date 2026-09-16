@@ -91,7 +91,7 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | M1 | Issue 維持コストの原因を消す | Issue 43、ISSUE-52、ISSUE-74 |
 | M2 | 検査を配布先で走る状態にする | ISSUE-53、ISSUE-72、ISSUE-86 |
 | M3 | skill バンドルの二重登録を止める | Issue 40 |
-| M4 | PUBLIC 露出の scrub | Issue 21、Issue 29、ISSUE-87、agentic-coding-tools ISSUE-15、agentic-coding-tools ISSUE-23 |
+| M4 | PUBLIC 露出の scrub | Issue 21、Issue 29、ISSUE-87 |
 | M5 | 静的検査の基盤を寄せ射程の穴を塞ぐ | Issue 39、Issue 30、ISSUE-57、ISSUE-60、Issue 41、ISSUE-47、Issue 17、Issue 18、ISSUE-75、ISSUE-85、ISSUE-90、ISSUE-94 |
 | M6 | winvm の実装品質 | 上流の winvm 系 Issue |
 | M7 | 環境とテスト網の個別 | 下の細分表 |
@@ -109,11 +109,26 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | 群 | 指す Issue |
 | --- | --- |
 | zsh 層 | Issue 11、Issue 12、Issue 34、Issue 44、ISSUE-69 |
-| テスト網 | Issue 4、Issue 45 |
 | CI の安定性 | Issue 37、Issue 38 |
 | Raycast | Issue 22、Issue 23 |
 | PowerShell | Issue 27、Issue 28 |
 | 単独 | Issue 31、Issue 33、ISSUE-51、ISSUE-95 |
+
+### 割り当ての検算 (2026-09-17、Issue 45 と Issue 4 のクローズの後)
+
+dotfiles の active 56 件の全件がいずれかのマイルストーンへ入ることを数えて確かめた。M1 が 3、
+M2 が 3、M3 が 1、M4 が 3 (dotfiles 側のみ)、M5 が 12、M6 が 0 (上流のみ)、M7 が 15、M8 が 1、
+M9 が 10、M10 が 4、M11 が 3、この Issue 自身が 1 で合計 56。
+
+09-16 の 58 からの動きは、Issue 45 と Issue 4 が同じ PR でクローズされたことだけである。
+M7 の「テスト網」はこの 2 件だけで構成されていたので、行ごと外した。
+
+M4 からは上流の 2 件 (agentic-coding-tools の ISSUE-15 と ISSUE-23) を外した。前者は 09-15、
+後者は 09-16 に上流で closed になっていた。この節の検算器は dotfiles 側の active しか
+数えないので、上流の腐りは検算に掛からない。上流からの連絡で気づいた。
+
+順序制約表からは `Issue 4 → Issue 45` を外した。両方 closed になり制約が満たされたためで、
+同表が定める「満たされた制約は外す」に従う。
 
 ### 割り当ての検算 (2026-09-16)
 
@@ -307,7 +322,6 @@ canonical で、マイルストーン表と細分表は所属だけを持つ。
 | Issue 37 | ISSUE-50 | 必須チェックを入れると取得の一時障害がマージを止める |
 | ISSUE-58 | Issue 26 の必須フック検査タスク | handoff-sentinel の位置づけを先に決める |
 | Issue 44 | ISSUE-69 (逆でもよい) | `.zshrc` の置き場が衝突する |
-| Issue 4 | Issue 45 (逆でもよい) | 同じファイル群を触る |
 | ISSUE-72 | ISSUE-53 (逆でもよい) | 全リポの母集団を共有し、先に着手した側が形を決める |
 | Issue 17 | Issue 18 (同時が自然) | 同種の検査で、片方を入れるときもう片方も入れる |
 | Issue 22 | Issue 23 | 同一スクリプトの別の欠陥 |
@@ -460,6 +474,10 @@ M8 を後回しにするのは、CI が緑であることの確認が手作業 (
 | 2026-09-07 | 48 / 2 / 33 | 36 / 2 / 15 | 88 |
 | 2026-09-11 | 51 / 2 / 34 | 37 / 2 / 15 | 92 |
 | 2026-09-16 | 56 / 2 / 37 | 40 / 1 / 17 | 99 |
+| 2026-09-17 | 54 / 2 / 39 | 42 / 1 / 18 | 99 |
+
+09-17 行の dotfiles 側の動きは Issue 45 と Issue 4 のクローズだけである。上流側は open が 2、
+closed が 1 増えているが、その内訳はこの計測では追っていない。
 
 09-16 行の dotfiles 側は 09-11 の 53 から +5 になっている。内訳は 2 段で、09-11 から 09-12 の
 +4 (ISSUE-88 から ISSUE-91 の起票) を経た 57 に対し、ISSUE-65 のクローズ (-1) と ISSUE-94 /

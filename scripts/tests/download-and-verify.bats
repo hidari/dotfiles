@@ -22,7 +22,7 @@ DOWNLOAD_VERIFY_SCRIPT="$REPO_ROOT/scripts/ci/download-and-verify.sh"
 WRONG_SHA256="0000000000000000000000000000000000000000000000000000000000000000"
 
 setup() {
-    command -v sha256sum >/dev/null 2>&1 || skip "sha256sum 未インストール"
+    require_command_or_skip sha256sum || return 1
     # 関数だけ公開される (source 時は main を走らせない BASH_SOURCE guard)
     source "$DOWNLOAD_VERIFY_SCRIPT"
     FIXTURE=$(mktemp)

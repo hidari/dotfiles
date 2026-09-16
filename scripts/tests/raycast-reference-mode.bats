@@ -83,8 +83,10 @@ teardown() {
 # AppleScript の構文エラーは bash 側からは見えず、実行して初めて -2700 系の実行時
 # エラーになる。予約語との衝突 (path / round など) は特に踏みやすい。
 # 挙動は GUI 依存で検証できないが、コンパイルが通ることだけは GUI 抜きで確かめられる。
+# osacompile は macOS 専用で Linux ランナーに無いので、タグで CI の実行対象から外す。
+# bats test_tags=uncovered
 @test "applescript: the embedded block compiles" {
-    command -v osacompile > /dev/null 2>&1 || skip "osacompile is unavailable"
+    require_command_or_skip osacompile || return 1
 
     [ -n "$DISPLAY_APPLESCRIPT" ]
     printf '%s' "$DISPLAY_APPLESCRIPT" > "$TEST_HOME/embedded.applescript"

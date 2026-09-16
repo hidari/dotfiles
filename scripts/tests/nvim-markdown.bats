@@ -15,27 +15,31 @@ load test_helper
 NVIM_CONFIG_DIR="$REPO_ROOT/home/.config/nvim"
 PROBE="$REPO_ROOT/scripts/tests/nvim-markdown-probe.lua"
 
-# skip ガード自体を検証できるように、実行する nvim を差し替え可能にする。
-# bats と nvim が同じディレクトリに入るため PATH から隠す方式は使えない。
-NVIM_BIN="${NVIM_BIN:-nvim}"
-
-setup() {
-    require_command_or_skip "$NVIM_BIN" || return 1
+# probe の構成は 2 種類しかないので、nvim の起動はファイルにつき 1 回ずつで済ませ、
+# 各テストはキャッシュを読む。
+setup_file() {
+    require_command_or_skip nvim || return 1
+    # 本番と同じ rtp 構成 (拡張クエリを含む)
+    spawn_probe --cmd "set rtp+=$NVIM_CONFIG_DIR/after" > "$BATS_FILE_TMPDIR/with-extends.txt"
+    # 拡張クエリを外した構成。検査が本当に効いていることを示す negative case 用
+    spawn_probe > "$BATS_FILE_TMPDIR/without-extends.txt"
 }
 
-# 本番と同じ rtp 構成 (拡張クエリを含む) でプローブを走らせる
+# 引数は nvim の起動オプションとして config の rtp の後ろへ足す
+spawn_probe() {
+    nvim --clean --headless \
+        --cmd "set rtp+=$NVIM_CONFIG_DIR" \
+        "$@" \
+        -c "luafile $PROBE" -c 'qa!' 2>&1
+}
+
+# setup_file がキャッシュした出力を返す。各テストは run probe_with_extends で $output を得る
 probe_with_extends() {
-    "$NVIM_BIN" --clean --headless \
-        --cmd "set rtp+=$NVIM_CONFIG_DIR" \
-        --cmd "set rtp+=$NVIM_CONFIG_DIR/after" \
-        -c "luafile $PROBE" -c 'qa!' 2>&1
+    cat "$BATS_FILE_TMPDIR/with-extends.txt"
 }
 
-# 拡張クエリを外して走らせる。検査が本当に効いていることを示す negative case 用
 probe_without_extends() {
-    "$NVIM_BIN" --clean --headless \
-        --cmd "set rtp+=$NVIM_CONFIG_DIR" \
-        -c "luafile $PROBE" -c 'qa!' 2>&1
+    cat "$BATS_FILE_TMPDIR/without-extends.txt"
 }
 
 @test "markdown palette: six heading levels are defined" {
@@ -154,7 +158,7 @@ probe_without_extends() {
     # 引いたとき markdown の色に解決しないことを保証する。
     # 走査した組が 0 だと空回りして緑になるため件数も固定する
     run probe_with_extends
-    refute_contains "$output" "FOREIGN_BLEED_PAIR_COUNT=0"
+    assert_positive_count FOREIGN_BLEED_PAIR_COUNT "${lines[@]}"
     assert_contains "$output" "FOREIGN_BLEED_COUNT=0"
 }
 
@@ -164,7 +168,7 @@ probe_without_extends() {
     # これが無いとサフィックスを誤って markdown でも色が出ない回帰を素通しする。
     # 走査した組が 0 だと空回りして緑になるため件数も固定する
     run probe_with_extends
-    refute_contains "$output" "SCOPED_COLOR_PAIR_COUNT=0"
+    assert_positive_count SCOPED_COLOR_PAIR_COUNT "${lines[@]}"
     assert_contains "$output" "SCOPED_COLOR_MISMATCH_COUNT=0"
 }
 
@@ -187,7 +191,7 @@ probe_without_extends() {
     # グループが空だと下のループが回らず NEOTREE_APPLIED=1 のまま通ってしまう。
     # 空でないことを先に固定して偽の緑を塞ぐ
     run probe_with_extends
-    refute_contains "$output" "NEOTREE_GROUP_COUNT=0"
+    assert_positive_count NEOTREE_GROUP_COUNT "${lines[@]}"
     assert_contains "$output" "NEOTREE_APPLIED=1"
 }
 
@@ -196,7 +200,7 @@ probe_without_extends() {
     # 見出しも色相に頼らず bold を併用する。fg 比較だけでは守れないので属性まで突き合わせる。
     # 検査対象が 0 件だと空回りして緑になるため件数も固定する
     run probe_with_extends
-    refute_contains "$output" "ATTRIBUTE_CHECK_COUNT=0"
+    assert_positive_count ATTRIBUTE_CHECK_COUNT "${lines[@]}"
     assert_contains "$output" "ATTRIBUTE_VIOLATION_COUNT=0"
 }
 
@@ -218,15 +222,13 @@ probe_without_extends() {
 
 @test "neo-tree highlight group names exist in the plugin source" {
     # グループ名は treesitter のキャプチャではないので、綴りを間違えても Neovim は黙る。
-    # CI にはプラグインを入れないため、その場合は検査できない
+    # CI はプラグインを入れず、lazy-lock.json の commit からこの 1 ファイルだけを取って渡す
     src="${NEOTREE_HIGHLIGHTS:-$HOME/.local/share/nvim/lazy/neo-tree.nvim/lua/neo-tree/ui/highlights.lua}"
-    if [ ! -f "$src" ]; then
-        skip "neo-tree is not installed"
-    fi
+    [ -f "$src" ] || skip_outside_ci "neo-tree のソースが見つからない: $src" || return 1
 
     run probe_with_extends
     # 検査対象が空のまま緑になるのを防ぐ
-    refute_contains "$output" "NEOTREE_GROUP_COUNT=0"
+    assert_positive_count NEOTREE_GROUP_COUNT "${lines[@]}"
 
     groups=$(printf '%s\n' "$output" | sed -n 's/^NEOTREE_GROUPS=//p' | tr ',' '\n')
     source_text=$(cat "$src")
@@ -260,7 +262,7 @@ probe_without_extends() {
 @test "palette: every pair of distinct colors is perceptibly different" {
     # 比べる組が 0 だと下のループが回らず違反 0 のまま通ってしまう
     run probe_with_extends
-    refute_contains "$output" "PALETTE_JND_PAIR_COUNT=0"
+    assert_positive_count PALETTE_JND_PAIR_COUNT "${lines[@]}"
     assert_contains "$output" "PALETTE_JND_VIOLATION_COUNT=0"
 }
 
@@ -269,7 +271,7 @@ probe_without_extends() {
     # JND は色相が近くても輝度や彩度が違えば通すため、色相を別の不変条件として測る。
     # 組が 0 だと空回りして緑になるので件数も固定する
     run probe_with_extends
-    refute_contains "$output" "HEADING_HUE_PAIR_COUNT=0"
+    assert_positive_count HEADING_HUE_PAIR_COUNT "${lines[@]}"
     assert_contains "$output" "HEADING_HUE_VIOLATION_COUNT=0"
 }
 
@@ -287,7 +289,7 @@ probe_without_extends() {
 @test "opaque surfaces meet the contrast target against their own background" {
     # 面が 0 個だと上のループが回らず違反 0 のまま通ってしまう
     run probe_with_extends
-    refute_contains "$output" "SURFACE_COUNT=0"
+    assert_positive_count SURFACE_COUNT "${lines[@]}"
     assert_contains "$output" "SURFACE_VIOLATION_COUNT=0"
 }
 

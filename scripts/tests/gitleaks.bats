@@ -19,8 +19,9 @@ load test_helper
 GITLEAKS_CONFIG="$REPO_ROOT/.gitleaks.toml"
 
 setup() {
-    command -v gitleaks >/dev/null 2>&1 || skip "gitleaks 未インストール"
-    [ -f "$GITLEAKS_CONFIG" ] || skip ".gitleaks.toml が無い"
+    require_command_or_skip gitleaks || return 1
+    # 設定はリポジトリの追跡下にあるので、無いのは skip ではなく異常
+    [ -f "$GITLEAKS_CONFIG" ]
     SCAN_DIR=$(mktemp -d)
     REPORT="$SCAN_DIR/report.json"
 }
@@ -220,6 +221,5 @@ range_scan() {
 
 @test "the CI leak guard is wired with -m" {
     # 機構が正しくても取り付けが外れれば何も守らない。workflow 側の配線を pin する
-    run grep -qE 'gitleaks git --log-opts="-m ' "$REPO_ROOT/.github/workflows/test.yml"
-    [ "$status" -eq 0 ]
+    assert_workflow_contains 'gitleaks git --log-opts="-m $RANGE" --redact --no-banner -c .gitleaks.toml'
 }

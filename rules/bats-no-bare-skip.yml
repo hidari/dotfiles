@@ -1,0 +1,18 @@
+# .bats から bats の skip を直接呼ばない。前提の不在の扱いを
+# scripts/tests/test_helper.bash の skip_outside_ci に 1 つだけ置くため。
+# 直接の skip は CI の bats job で発火して初めて落ちるので、push するまで気づけない。
+# 実装本体の skip は test_helper.bash にあり .bats ではないので対象外。
+#
+# コマンド名の位置だけを見る。pattern: skip は echo skip のような引数の語にも当たり、
+# pattern: skip $MSG は引数を持たない skip を取りこぼす。
+id: bats-no-bare-skip
+language: bash
+severity: error
+files:
+  - 'scripts/tests/**/*.bats'
+rule:
+  kind: command
+  has:
+    field: name
+    regex: '^skip$'
+message: bats の skip を直接呼ばない。require_command_or_skip か skip_outside_ci を使い、CI で走らせないテストはタグ uncovered で外す。
