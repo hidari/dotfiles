@@ -105,14 +105,13 @@ scan_exit() {
     # 設定のデータ構造を検証するときは regex ではなく言語自身に解釈させる)。
     require_command_or_skip uv || return 1
 
-    run uv run --quiet --no-project --with pyyaml python3 \
-        "$REPO_ROOT/scripts/tests/ast-grep-wiring-probe.py"
+    run_yaml_probe ast-grep-wiring-probe.py
     [ "$status" -eq 0 ] || return 1
 
     # 件数が 0 だと hook の id や step の run を改名したときに
     # 「見つからないから緑」になる。先に 0 を弾いて空回りを塞ぐ
-    refute_contains "$output" "PRECOMMIT_HOOK_COUNT=0"
-    refute_contains "$output" "WORKFLOW_STEP_COUNT=0"
+    assert_positive_count PRECOMMIT_HOOK_COUNT "${lines[@]}"
+    assert_positive_count WORKFLOW_STEP_COUNT "${lines[@]}"
 
     # 配線されたすべてがフラグを伴うこと
     assert_contains "$output" "PRECOMMIT_ENTRY_MISSING_FLAG=0"

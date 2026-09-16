@@ -158,7 +158,7 @@ probe_without_extends() {
     # 引いたとき markdown の色に解決しないことを保証する。
     # 走査した組が 0 だと空回りして緑になるため件数も固定する
     run probe_with_extends
-    refute_contains "$output" "FOREIGN_BLEED_PAIR_COUNT=0"
+    assert_positive_count FOREIGN_BLEED_PAIR_COUNT "${lines[@]}"
     assert_contains "$output" "FOREIGN_BLEED_COUNT=0"
 }
 
@@ -168,7 +168,7 @@ probe_without_extends() {
     # これが無いとサフィックスを誤って markdown でも色が出ない回帰を素通しする。
     # 走査した組が 0 だと空回りして緑になるため件数も固定する
     run probe_with_extends
-    refute_contains "$output" "SCOPED_COLOR_PAIR_COUNT=0"
+    assert_positive_count SCOPED_COLOR_PAIR_COUNT "${lines[@]}"
     assert_contains "$output" "SCOPED_COLOR_MISMATCH_COUNT=0"
 }
 
@@ -191,7 +191,7 @@ probe_without_extends() {
     # グループが空だと下のループが回らず NEOTREE_APPLIED=1 のまま通ってしまう。
     # 空でないことを先に固定して偽の緑を塞ぐ
     run probe_with_extends
-    refute_contains "$output" "NEOTREE_GROUP_COUNT=0"
+    assert_positive_count NEOTREE_GROUP_COUNT "${lines[@]}"
     assert_contains "$output" "NEOTREE_APPLIED=1"
 }
 
@@ -200,7 +200,7 @@ probe_without_extends() {
     # 見出しも色相に頼らず bold を併用する。fg 比較だけでは守れないので属性まで突き合わせる。
     # 検査対象が 0 件だと空回りして緑になるため件数も固定する
     run probe_with_extends
-    refute_contains "$output" "ATTRIBUTE_CHECK_COUNT=0"
+    assert_positive_count ATTRIBUTE_CHECK_COUNT "${lines[@]}"
     assert_contains "$output" "ATTRIBUTE_VIOLATION_COUNT=0"
 }
 
@@ -228,7 +228,7 @@ probe_without_extends() {
 
     run probe_with_extends
     # 検査対象が空のまま緑になるのを防ぐ
-    refute_contains "$output" "NEOTREE_GROUP_COUNT=0"
+    assert_positive_count NEOTREE_GROUP_COUNT "${lines[@]}"
 
     groups=$(printf '%s\n' "$output" | sed -n 's/^NEOTREE_GROUPS=//p' | tr ',' '\n')
     source_text=$(cat "$src")
@@ -262,7 +262,7 @@ probe_without_extends() {
 @test "palette: every pair of distinct colors is perceptibly different" {
     # 比べる組が 0 だと下のループが回らず違反 0 のまま通ってしまう
     run probe_with_extends
-    refute_contains "$output" "PALETTE_JND_PAIR_COUNT=0"
+    assert_positive_count PALETTE_JND_PAIR_COUNT "${lines[@]}"
     assert_contains "$output" "PALETTE_JND_VIOLATION_COUNT=0"
 }
 
@@ -271,7 +271,7 @@ probe_without_extends() {
     # JND は色相が近くても輝度や彩度が違えば通すため、色相を別の不変条件として測る。
     # 組が 0 だと空回りして緑になるので件数も固定する
     run probe_with_extends
-    refute_contains "$output" "HEADING_HUE_PAIR_COUNT=0"
+    assert_positive_count HEADING_HUE_PAIR_COUNT "${lines[@]}"
     assert_contains "$output" "HEADING_HUE_VIOLATION_COUNT=0"
 }
 
@@ -289,7 +289,7 @@ probe_without_extends() {
 @test "opaque surfaces meet the contrast target against their own background" {
     # 面が 0 個だと上のループが回らず違反 0 のまま通ってしまう
     run probe_with_extends
-    refute_contains "$output" "SURFACE_COUNT=0"
+    assert_positive_count SURFACE_COUNT "${lines[@]}"
     assert_contains "$output" "SURFACE_VIOLATION_COUNT=0"
 }
 

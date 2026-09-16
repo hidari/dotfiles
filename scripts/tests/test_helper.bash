@@ -244,6 +244,15 @@ run_in_dir() {
     cd "$saved" || return 1
 }
 
+# YAML を構造として読むプローブ (scripts/tests/*-probe.py) を run で実行する。残りの引数はプローブへ渡す。
+# --no-project は、uv が cwd から上へ pyproject.toml を探すため。bats を scripts/<project>/ の
+# 中で起動すると、そのプロジェクトの依存を sync しに行き、結果が起動した場所に左右される。
+run_yaml_probe() {
+    local probe="$1"
+    shift
+    run uv run --quiet --no-project --with pyyaml python3 "$TEST_DIR/$probe" "$@"
+}
+
 # 偽バイナリの置き場を FAKE_BIN へ export する。値は返さない。
 # コマンド置換で呼ぶとサブシェルになり export が親へ届かないため、変数で受け渡す。
 # 届かない場合、stub 自体は作られるので「呼ばれた記録が無い」= ガードが効いた、という
@@ -519,6 +528,29 @@ assert_array_contains() {
 
     echo "assert_array_contains: expected element not found" >&2
     echo "  expected: $needle" >&2
+    echo "  actual: $*" >&2
+    return 1
+}
+
+# 配列が「key=<1 以上の整数>」の要素を持つことを確認する。第 1 引数が key、残りが配列。
+# refute_contains "key=0" は key の行そのものが無いときも通るので、件数の下限はこちらで見る。
+assert_positive_count() {
+    local key="$1"
+    shift
+
+    local element count
+    for element in "$@"; do
+        case "$element" in
+            "$key="*) count="${element#"$key="}" ;;
+            *) continue ;;
+        esac
+        case "$count" in
+            "" | 0* | *[!0-9]*) ;;
+            *) return 0 ;;
+        esac
+    done
+
+    echo "assert_positive_count: $key=<1 以上> の要素が無い" >&2
     echo "  actual: $*" >&2
     return 1
 }

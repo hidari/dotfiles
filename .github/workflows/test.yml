@@ -11,8 +11,7 @@ permissions:
 
 # shell を省いた run step は bash -e で動き pipefail が付かない。パイプの前段の失敗が
 # 後段の成功に飲み込まれないよう、明示の bash (-eo pipefail) を既定にする。
-# job 側に defaults.run を置くとこの既定は丸ごと使われなくなるので、そちらにも shell を書く。
-# 全 step の実効の shell は scripts/tests/ci-wiring.bats が見る。
+# job 側に defaults.run を置くときはそちらにも shell を書く (理由と検査は scripts/tests/ci-shell-probe.py)。
 defaults:
   run:
     shell: bash
