@@ -118,7 +118,6 @@ _LINK_BASELINE_ENTRIES: dict[str, int] = {
     "40_skill バンドルの command と agent の二重登録を止める/issue.md": 2,
     "41_語の検査の近似を減らし免除の粒度を上げる/issue.md": 1,
     "44_.zshrc が非対話シェルへ運ぶ設定をエイリアス以外にも絞る/issue.md": 1,
-    "45_job が導入しないコマンドのテストが静かに全 skip する状態を解消する/issue.md": 2,
     "closed/10_タスクリスト ID を作業ディレクトリから自動導出する/issue.md": 1,
     "closed/13_保留にしたタスクリスト統合 3 本を適用する/issue.md": 1,
     "closed/15_docs の相対リンクを pre-commit で検査する/issue.md": 1,
