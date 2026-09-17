@@ -4,11 +4,10 @@
 第1引数で分岐する: posttool (コンテキスト使用率とレートリミットの監視) / stop (ツール呼び出し
 破損の通算検知) / session (.cache/handoff.md の自動注入) / record (skill からの provenance 記録)。
 しきい値等の canonical はこのファイルの定数であり、HANDOFF_* 環境変数で上書きできる。
-各通知の文面は、session-handoff skill を呼んだ後の締めの行動まで持つ。skill は行動を再掲せず、
-通知の文面に従う。
+各通知の文面は、session-handoff skill を呼んだ後の締めの行動と案内まで持つ。skill は行動を
+再掲せず、通知の文面に従う。
 hook として呼ばれる経路は、検知機構の故障で作業を止めないため fail-safe (無出力 + exit 0)。
-record だけは skill が呼ぶコマンドなので、記録できなかったことを非 0 で返す。skill はそれを
-取り付け無しと読み、自動では引き継がれないと利用者へ添える。
+record だけは skill が呼ぶコマンドなので、記録できなかったことを非 0 と stderr の理由で返す。
 仕様: docs/superpowers/archive/2026-07-03-session-handoff-design.md
 """
 
@@ -531,18 +530,12 @@ def handle_record(cwd: str) -> bool:
     repo_root = _repo_root(cwd)
     handoff = _handoff_path(repo_root)
     if not handoff.is_file():
+        print(f"record: {handoff} が無いので記録しなかった", file=sys.stderr)
         return False
     prov = _provenance_path(repo_root)
     prov.parent.mkdir(parents=True, exist_ok=True)
     prov.write_text(_hash_bytes(handoff.read_bytes()) + "\n", encoding="utf-8")
     return True
-
-
-def _run_record() -> int:
-    try:
-        return 0 if handle_record(os.getcwd()) else 1
-    except Exception:
-        return 1
 
 
 def _inject_handoff(repo_root: Path, session_id: str) -> str | None:
@@ -617,8 +610,9 @@ HANDLERS: dict[str, Callable[[dict[str, Any]], dict[str, Any] | None]] = {
 def main() -> int:
     action = sys.argv[1] if len(sys.argv) > 1 else ""
     if action == "record":
-        # skill から呼ばれる副作用コマンド (hook JSON は受けず cwd から解決する)
-        return _run_record()
+        # skill から呼ばれる副作用コマンド (hook JSON は受けず cwd から解決する)。
+        # 例外は握らない。Python が非 0 で終わり、理由が stderr に残る
+        return 0 if handle_record(os.getcwd()) else 1
     try:
         handler = HANDLERS.get(action)
         if handler is None:

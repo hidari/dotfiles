@@ -112,6 +112,11 @@ def _git_init(path: Path) -> None:
     )
 
 
+def run_record(cwd: Path, state_dir: Path) -> subprocess.CompletedProcess[str]:
+    """skill と同じく cwd から record アクションを起動する。"""
+    return run_hook("record", None, extra_env={"HANDOFF_STATE_DIR": str(state_dir)}, cwd=cwd)
+
+
 def record_provenance(tmp_path: Path, *, cwd: Path | None = None) -> None:
     """real record アクションで handoff.md の provenance を確立する。
 
@@ -119,13 +124,7 @@ def record_provenance(tmp_path: Path, *, cwd: Path | None = None) -> None:
     (git サブディレクトリのテストのみ cwd を渡す)。repo-id 導出やハッシュ計算を複製せず
     本物の record -> session フローを黒箱で通す。
     """
-    result = run_hook(
-        "record",
-        None,
-        extra_env={"HANDOFF_STATE_DIR": str(tmp_path / "state")},
-        cwd=cwd or tmp_path,
-    )
-    assert result.returncode == 0
+    assert run_record(cwd or tmp_path, tmp_path / "state").returncode == 0
 
 
 def rate_limits_path(tmp_path: Path) -> Path:
@@ -590,7 +589,7 @@ class TestStopBrokenCount:
         assert "session-handoff" in output["reason"]
         assert (tmp_path / "state" / "sess-1.blocked").is_file()
 
-    def test_破損の通知は再起動を促してから停止を求める(self, tmp_path: Path) -> None:
+    def test_破損の通知は再起動と停止を求める(self, tmp_path: Path) -> None:
         transcript = tmp_path / "t.jsonl"
         write_transcript(transcript, self.leaks(5))
         result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=base_env(tmp_path))
@@ -924,34 +923,25 @@ class TestStateFileSanitization:
 
 
 class TestRecordExitCode:
-    """record は skill が呼ぶコマンドなので、記録できなかったことを終了コードで返す。
+    """record は skill が呼ぶコマンドなので、記録できなかったことを終了コードと stderr で返す。
 
-    session-handoff skill は非 0 を「取り付け無し」と読み、自動では引き継がれないと利用者へ添える。
+    成功時の exit 0 は record_provenance が呼び出しのたびに確かめる。
     """
 
-    def run_record(self, tmp_path: Path, state_dir: Path) -> subprocess.CompletedProcess[str]:
-        return run_hook(
-            "record", None, extra_env={"HANDOFF_STATE_DIR": str(state_dir)}, cwd=tmp_path
-        )
-
-    def test_記録できたらexit0でprovenanceを残す(self, tmp_path: Path) -> None:
-        write_handoff(tmp_path, "引き継ぎ\n")
-        result = self.run_record(tmp_path, tmp_path / "state")
-        assert result.returncode == 0
-        assert len(list((tmp_path / "state").glob("*.provenance"))) == 1
-
-    def test_handoffが無ければ非0で終わり何も残さない(self, tmp_path: Path) -> None:
-        result = self.run_record(tmp_path, tmp_path / "state")
+    def test_handoffが無ければ非0で終わり理由を出して何も残さない(self, tmp_path: Path) -> None:
+        result = run_record(tmp_path, tmp_path / "state")
         assert result.returncode != 0
+        assert "handoff.md" in result.stderr
         assert not (tmp_path / "state").exists()
 
-    def test_provenanceを書けなければ非0で終わる(self, tmp_path: Path) -> None:
+    def test_provenanceを書けなければ非0で終わり理由を出す(self, tmp_path: Path) -> None:
         write_handoff(tmp_path, "引き継ぎ\n")
         blocker = tmp_path / "blocker"
         blocker.write_text("", encoding="utf-8")
-        # 通常ファイルの下にはディレクトリを作れないので、書き込みが OSError で失敗する
-        result = self.run_record(tmp_path, blocker / "state")
+        # 通常ファイルの下には state ディレクトリを作れず、作成が NotADirectoryError になる
+        result = run_record(tmp_path, blocker / "state")
         assert result.returncode != 0
+        assert "NotADirectoryError" in result.stderr
 
 
 class TestProvenanceGate:
