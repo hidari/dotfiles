@@ -119,12 +119,13 @@ def record_provenance(tmp_path: Path, *, cwd: Path | None = None) -> None:
     (git サブディレクトリのテストのみ cwd を渡す)。repo-id 導出やハッシュ計算を複製せず
     本物の record -> session フローを黒箱で通す。
     """
-    run_hook(
+    result = run_hook(
         "record",
         None,
         extra_env={"HANDOFF_STATE_DIR": str(tmp_path / "state")},
         cwd=cwd or tmp_path,
     )
+    assert result.returncode == 0
 
 
 def rate_limits_path(tmp_path: Path) -> Path:
@@ -192,14 +193,18 @@ class TestPostToolContextWatch:
         assert "session-handoff" in output["hookSpecificOutput"]["additionalContext"]
         assert (tmp_path / "state" / "sess-1.notified").is_file()
 
-    def test_通知は引き継ぎの後に作業を打ち切るよう求める(self, tmp_path: Path) -> None:
-        # session-handoff skill は締めの行動を通知の文面へ委ねるので、打ち切りの指示はここにしか無い
+    def test_通知はセッション切替と自動注入の案内と作業の打ち切りを求める(
+        self, tmp_path: Path
+    ) -> None:
         transcript = tmp_path / "t.jsonl"
         write_transcript(transcript, [assistant_usage(500)])
         result = run_hook(
             "posttool", posttool_input(tmp_path, transcript), extra_env=base_env(tmp_path)
         )
-        assert "以後の作業を打ち切ること" in context_of(result)
+        context = context_of(result)
+        assert "セッション切替 (/clear または新セッション)" in context
+        assert "開始時に自動で読み込まれる" in context
+        assert "以後の作業を打ち切ること" in context
 
     def test_usage3フィールドは合算される(self, tmp_path: Path) -> None:
         transcript = tmp_path / "t.jsonl"
@@ -583,8 +588,15 @@ class TestStopBrokenCount:
         output = json.loads(result.stdout)
         assert output["decision"] == "block"
         assert "session-handoff" in output["reason"]
-        assert "停止すること" in output["reason"]
         assert (tmp_path / "state" / "sess-1.blocked").is_file()
+
+    def test_破損の通知は再起動を促してから停止を求める(self, tmp_path: Path) -> None:
+        transcript = tmp_path / "t.jsonl"
+        write_transcript(transcript, self.leaks(5))
+        result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=base_env(tmp_path))
+        reason = json.loads(result.stdout)["reason"]
+        assert "Claude Code の再起動" in reason
+        assert "停止すること" in reason
 
     def test_破損4件では発火しない(self, tmp_path: Path) -> None:
         transcript = tmp_path / "t.jsonl"
@@ -909,6 +921,37 @@ class TestStateFileSanitization:
         assert len(created) == 1
         assert created[0].name.endswith(".notified")
         assert "/" not in created[0].name
+
+
+class TestRecordExitCode:
+    """record は skill が呼ぶコマンドなので、記録できなかったことを終了コードで返す。
+
+    session-handoff skill は非 0 を「取り付け無し」と読み、自動では引き継がれないと利用者へ添える。
+    """
+
+    def run_record(self, tmp_path: Path, state_dir: Path) -> subprocess.CompletedProcess[str]:
+        return run_hook(
+            "record", None, extra_env={"HANDOFF_STATE_DIR": str(state_dir)}, cwd=tmp_path
+        )
+
+    def test_記録できたらexit0でprovenanceを残す(self, tmp_path: Path) -> None:
+        write_handoff(tmp_path, "引き継ぎ\n")
+        result = self.run_record(tmp_path, tmp_path / "state")
+        assert result.returncode == 0
+        assert len(list((tmp_path / "state").glob("*.provenance"))) == 1
+
+    def test_handoffが無ければ非0で終わり何も残さない(self, tmp_path: Path) -> None:
+        result = self.run_record(tmp_path, tmp_path / "state")
+        assert result.returncode != 0
+        assert not (tmp_path / "state").exists()
+
+    def test_provenanceを書けなければ非0で終わる(self, tmp_path: Path) -> None:
+        write_handoff(tmp_path, "引き継ぎ\n")
+        blocker = tmp_path / "blocker"
+        blocker.write_text("", encoding="utf-8")
+        # 通常ファイルの下にはディレクトリを作れないので、書き込みが OSError で失敗する
+        result = self.run_record(tmp_path, blocker / "state")
+        assert result.returncode != 0
 
 
 class TestProvenanceGate:
