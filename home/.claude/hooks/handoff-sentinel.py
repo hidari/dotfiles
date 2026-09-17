@@ -262,7 +262,8 @@ def _ratelimit_message(name: str, pct: float, threshold: int, *, urgent: bool) -
     """段の違いは求める行動に出す。しきい値との大小関係はどちらの段でも同じなので書き分けない。"""
     action = (
         "他の作業を中断し、直ちに session-handoff スキルを発動して引き継ぎを "
-        ".cache/handoff.md へ書き出し、記憶すべきことをメモリへ保存すること。"
+        ".cache/handoff.md へ書き出し、記憶すべきことをメモリへ保存したうえで、"
+        "以後の作業を打ち切ってユーザーの判断を仰ぐこと。"
         if urgent
         else "区切りの良いところで session-handoff スキルを発動し、引き継ぎを "
         ".cache/handoff.md に書き出すこと。"
@@ -287,7 +288,7 @@ def _context_notices(session_id: str, transcript_path: str) -> list[str]:
     return [
         f"コンテキスト使用率がしきい値を超えた (推定 {tokens} tokens)。"
         "session-handoff スキルを発動して引き継ぎを .cache/handoff.md に書き出し、"
-        "ユーザーにセッション切替 (/clear または新セッション) を促すこと。"
+        "ユーザーにセッション切替 (/clear または新セッション) を促して、以後の作業を打ち切ること。"
     ]
 
 

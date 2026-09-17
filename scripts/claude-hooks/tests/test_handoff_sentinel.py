@@ -192,6 +192,15 @@ class TestPostToolContextWatch:
         assert "session-handoff" in output["hookSpecificOutput"]["additionalContext"]
         assert (tmp_path / "state" / "sess-1.notified").is_file()
 
+    def test_通知は引き継ぎの後に作業を打ち切るよう求める(self, tmp_path: Path) -> None:
+        # session-handoff skill は締めの行動を通知の文面へ委ねるので、打ち切りの指示はここにしか無い
+        transcript = tmp_path / "t.jsonl"
+        write_transcript(transcript, [assistant_usage(500)])
+        result = run_hook(
+            "posttool", posttool_input(tmp_path, transcript), extra_env=base_env(tmp_path)
+        )
+        assert "以後の作業を打ち切ること" in context_of(result)
+
     def test_usage3フィールドは合算される(self, tmp_path: Path) -> None:
         transcript = tmp_path / "t.jsonl"
         entry = assistant_usage(0)
@@ -362,6 +371,21 @@ class TestPostToolRateLimitWatch:
         # 段の違いが文面に出ることを pin する。同じ文面なら緊急度が伝わらない
         assert "直ちに" in context
         assert "メモリ" in context
+
+    def test_緊急しきい値では打ち切って判断を仰ぐよう求める(self, tmp_path: Path) -> None:
+        # 残りの枠で途中の操作が切られ、半端な状態が残るのを防ぐ
+        result = run_ratelimit(
+            tmp_path, {"five_hour": {"used_percentage": 95, "resets_at": FUTURE_RESET}}
+        )
+        context = context_of(result)
+        assert "以後の作業を打ち切" in context
+        assert "ユーザーの判断を仰ぐこと" in context
+
+    def test_警告しきい値では作業の打ち切りを求めない(self, tmp_path: Path) -> None:
+        result = run_ratelimit(
+            tmp_path, {"five_hour": {"used_percentage": 90, "resets_at": FUTURE_RESET}}
+        )
+        assert "打ち切" not in context_of(result)
 
     def test_両方の段を超えたとき緊急の側だけが出る(self, tmp_path: Path) -> None:
         result = run_ratelimit(
@@ -559,6 +583,7 @@ class TestStopBrokenCount:
         output = json.loads(result.stdout)
         assert output["decision"] == "block"
         assert "session-handoff" in output["reason"]
+        assert "停止すること" in output["reason"]
         assert (tmp_path / "state" / "sess-1.blocked").is_file()
 
     def test_破損4件では発火しない(self, tmp_path: Path) -> None:
