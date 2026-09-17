@@ -68,15 +68,6 @@
     ],
     "SessionStart": [
       {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "echo '{\"additionalContext\": \"今日は '$(TZ=Asia/Tokyo date '+%Y年%m月%d日')' です。\"}'"
-          }
-        ]
-      },
-      {
         "matcher": "^(startup|resume|clear|compact|fork)$",
         "hooks": [
           {
@@ -141,7 +132,7 @@
     ],
     "InstructionsLoaded": [
       {
-        "matcher": "",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
