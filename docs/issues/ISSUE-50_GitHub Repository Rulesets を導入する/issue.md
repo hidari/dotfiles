@@ -73,11 +73,9 @@ classic だけを見ると今も 404 なので、上の判定手順を使わな�
   なる。着手順に影響する
 - ISSUE-54 が gitleaks の検出網の穴を扱う。うち 1 件は merge commit の内容が CI の走査から
   漏れる問題で、本 Issue の「Allow merge commits を OFF にする」が入口を塞ぐのに対し、
-  そちらは検査側の層を足す。両方あって多層になるので、どちらかで代替しない。
-  なお本 Issue の現状評価の表にある「許可されたマージ方式が squash のみなので merge commit は
-  既に入らない」は実測と食い違う (2026-08-28 に確認したところ `allow_merge_commit` は true の
-  ままで、履歴にも merge commit が 2 件ある)。上のタスクが未完なのと整合しているので、
-  表の側を訂正する必要がある
+  そちらは検査側の層を足す。両方あって多層になるので、どちらかで代替しない
+- ISSUE-98: Python 系の job を matrix でまとめる案が job 名を変える。どちらが先でもよく、
+  後から着手する側が名前を合わせる (影響の範囲はあちらが持つ)
 - agentic-coding-tools の ISSUE-48: 保護ブランチの判定手順が in-repo-issue skill の
   ライフサイクル節の内側にあり、Issue を扱っていない文脈からは到達しない。この Issue が
   ruleset を足すほど classic API だけの判定は外れるので、手順へ入る辺はあちらが作る
