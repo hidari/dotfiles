@@ -32,7 +32,8 @@ workflow に共通する。
 - config-guard は pyyaml を依存に持ち、pytest と scan が pre-commit で走る
 - bats は pre-commit で走らないので、`test.yml` から shell を消す編集は CI の bats job まで検出されない
 - 判定のモデル (job の `defaults.run` が workflow 側を丸ごと置き換える) の pin も、YAML を
-  書き出して別プロセスで読む遠回りになっている
+  書き出して別プロセスで読む遠回りになっている。モデル自体は CI のログで確かめてある
+  (根拠はプローブの docstring)
 - `ast-grep-wiring-probe.py` も同じ形なので、移すなら両方を扱う
 
 ### 3. Python job の形
@@ -50,21 +51,24 @@ working-directory と pytest の引数以外がほぼ同じである。
   各 step の `set -euo pipefail` に残る意味は `-u` だけになる
 - **置き場。**bats とプローブのまま残すか、config-guard の check にするか。config-guard へ移すと、
   判定の関数を dict の fixture で直接テストでき、違反は commit 時に止まる
-- **job の形。**次のどちらかで job 側の `defaults.run` を無くせる
+- **job の形。**次のどちらかで、job ごとに `defaults.run` を書く形を無くせる
   - (a) step から `uv run --directory scripts/<project>` で呼ぶ。`.pre-commit-config.yaml` は
     既にこの形で呼んでいる
   - (b) matrix でまとめる。job 名が変わるので、必須ステータスチェックの名前 (ISSUE-50) に
     影響しうる。ISSUE-50 が集約ジョブを必須チェックにする形で先に入れば、影響は集約ジョブの
     `needs` だけに閉じる。`jobs.<id>.defaults.run` で matrix の値を使えるかは確かめていない
-- job を減らすと setup-uv の取得回数も減る。Issue 37 の影響範囲 (本文の「8 job」は、2026-09-17
-  時点の `test.yml` では 6 job) に効く
+  - job 側に `defaults.run` が残らなくなるなら、検査が守るものはモデルの pin から「job 側に
+    `defaults.run` を置かない」まで単純にできる。そのため job の形を置き場より先に決める
 
 ## タスク
 
 - [ ] 射程を決め、対象になる run step を数える (composite action を含めるなら `runs.steps` も)
+- [ ] job の形を決める。matrix にするなら、ISSUE-50 の必須チェックが先に入っていればその名前に
+      合わせる。入っていなければ、後から入る ISSUE-50 の側が合わせる
+- [ ] job の形の結果から、検査が守る不変条件を決める
 - [ ] 検査の置き場を決める。`ast-grep-wiring-probe.py` の扱いも同時に決める
-- [ ] job の形を決める。matrix にするなら ISSUE-50 との前後を決める
-- [ ] 決めた形で実装し、対象を壊す / 機構を壊す / 取り付けを外すの 3 種の変異で赤を確かめる
+- [ ] job の形を実装する
+- [ ] 検査を実装し、対象を壊す / 機構を壊す / 取り付けを外すの 3 種の変異で赤を確かめる
 - [ ] 検査が対象集合のどこまでを覆うかを数える
 
 ## 関連
@@ -75,4 +79,5 @@ working-directory と pytest の引数以外がほぼ同じである。
 - Issue 38: 同じ 4 プロジェクト (claude-hooks 以外) へ一斉に適用する作業。job の見直しと着手を揃えられる
 - Issue 26: uv ハーネス 3 本を claude-hooks の 1 job へまとめた前例
 - ISSUE-60 と ISSUE-85: config-guard に置く検査の候補で、置き場の議論が重なる
-- ISSUE-57: YAML などに埋め込んだシェルの構文検査。こちらは構文ではなく実効の shell を見るので観点が違う
+- ISSUE-57: `.sh` のヒアドキュメントと `settings.json` の hooks.command に埋め込んだ他言語の構文検査。
+  こちらは構文ではなく実効の shell を見るので観点が違う

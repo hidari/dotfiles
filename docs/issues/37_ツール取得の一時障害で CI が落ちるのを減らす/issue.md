@@ -46,8 +46,9 @@ mise は exact pin で運用している。uv だけが action の pin だけで
 
 ## 影響範囲
 
-`setup-uv` composite action は `.github/workflows/test.yml` の 8 job から呼ばれる。
-この 1 つの取得が失敗すると 8 job が落ちうる。
+`setup-uv` composite action は `.github/workflows/test.yml` の、uv を使う全 job から呼ばれる
+(2026-09-17 時点で 6 job)。この 1 つの取得が失敗すると、それらがまとめて落ちうる。
+週次の `mise-update-check.yml` も同じ composite action を呼ぶので、失敗するとその週の更新通知が止まる。
 
 ## タスク
 
@@ -62,9 +63,10 @@ mise は exact pin で運用している。uv だけが action の pin だけで
 
 ## 関連
 
-- [ISSUE-5: CI のツール取得の curl-verify-extract を共通 composite action へ括り出す](../closed/5_CI%20のツール取得の%20curl-verify-extract%20を共通%20composite%20action%20へ括り出す/issue.md) (closed)。
+- Issue 5 (closed): CI のツール取得の curl-verify-extract を共通 composite action へ括り出す。
   - 取得手順の重複を `scripts/ci/download-and-verify.sh` へ寄せた Issue。本 Issue は
     その取得が失敗したときの振る舞いを扱う
 - PR #115 と PR #116 の CI で観測 (どちらも該当 job の再実行で緑)
 - ISSUE-50: GitHub Repository Rulesets を導入する。必須ステータスチェックを入れると、この
   Issue が扱う一時障害がそのままマージのブロックになる。あちらは本 Issue を先行に置いている
+- ISSUE-98: Python 系の job の形を見直す。job を減らすと setup-uv の取得回数も減る

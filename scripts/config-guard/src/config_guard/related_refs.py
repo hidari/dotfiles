@@ -112,8 +112,6 @@ _LINK_BASELINE_ENTRIES: dict[str, int] = {
     "31_spec が参照する bootstrap.sh の関数名と行番号を実体に合わせる/issue.md": 1,
     "33_設定から外した Claude 設定ディレクトリの symlink が撤去されない/issue.md": 2,
     "34_cppath 関数のテストを追加する/issue.md": 1,
-    "37_ツール取得の一時障害で CI が落ちるのを減らす/issue.md": 1,
-    "38_ruff の per-file-ignores に残る dead な S101 を掃除する/issue.md": 1,
     "39_config-guard の Markdown フェンス走査を 1 実装へ寄せる/issue.md": 2,
     "40_skill バンドルの command と agent の二重登録を止める/issue.md": 2,
     "41_語の検査の近似を減らし免除の粒度を上げる/issue.md": 1,

@@ -74,9 +74,8 @@ classic だけを見ると今も 404 なので、上の判定手順を使わな�
 - ISSUE-54 が gitleaks の検出網の穴を扱う。うち 1 件は merge commit の内容が CI の走査から
   漏れる問題で、本 Issue の「Allow merge commits を OFF にする」が入口を塞ぐのに対し、
   そちらは検査側の層を足す。両方あって多層になるので、どちらかで代替しない
-- ISSUE-98: Python 系の job をまとめる案 (matrix) は job 名を変えるので、必須ステータスチェックの
-  名前に影響しうる。集約ジョブを必須にする形が先に入れば、影響は集約ジョブの `needs` に閉じる。
-  どちらが先でもよいが、後から着手する側が名前の扱いを合わせる
+- ISSUE-98: Python 系の job を matrix でまとめる案が job 名を変える。どちらが先でもよく、
+  後から着手する側が名前を合わせる (影響の範囲はあちらが持つ)
 - agentic-coding-tools の ISSUE-48: 保護ブランチの判定手順が in-repo-issue skill の
   ライフサイクル節の内側にあり、Issue を扱っていない文脈からは到達しない。この Issue が
   ruleset を足すほど classic API だけの判定は外れるので、手順へ入る辺はあちらが作る

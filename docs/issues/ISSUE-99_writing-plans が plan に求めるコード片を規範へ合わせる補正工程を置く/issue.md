@@ -25,8 +25,9 @@ status: open
 ### 実測 (利用側リポジトリ)
 
 追跡下の plan 4 本と spec 3 本で、フェンスの中の行 (mermaid を除く) が占める比率を数えた。
+分母や、コマンドと出力のフェンスを分けたかは記録に無い。
 
-| 種類 | 実装コード片の比率 |
+| 種類 | フェンス内の行の比率 (mermaid を除く) |
 | --- | --- |
 | spec 3 本 | いずれも 0% |
 | plan 4 本 | 5% / 37% / 44% / 57% |
@@ -63,14 +64,19 @@ transcription plus testing: use the cheapest tier for that implementer」とし�
 - **「SDD」の語義。**グローバル CLAUDE.md はこの語を定義していない。リポジトリ内の他の箇所
   (Issue 16 の plan、上流 ISSUE-57 のたたき台) は subagent-driven-development の意味で使っている。
   規範が指すのが spec 駆動の文書全般なのか、subagent-driven-development の plan なのかを先に確定する。
-  確定した語義を CLAUDE.md 側で明示するかも決める
+  規範が置かれた親項目 (書かずに済むことで drift を防ぐ) も材料にする。確定した語義を CLAUDE.md 側で
+  明示するかも決める。常時層は予算に余裕が無く、足すなら `BUDGET_RAISES` への記録が要る
+  (複数 Issue の調整は ISSUE-88 が持つ)
+- **補正が防ぐもの。**上の実害は、実装後の plan が現状の説明として読まれたことによる。コード片を
+  減らしても、plan がその時点のスナップショットだと明示されていなければ同じ害は残りうる
 - **補正の形。**
   - (a) issue-scoped-artifacts のように、writing-plans の直前に発火する skill
   - (b) plan の書き出しを検査する hook
   - (c) 既存 skill への追記
   - issue-scoped-artifacts はプロジェクト CLAUDE.md のポインタで発火するので、意図的な opt-out と
     書き損ねを区別できない (上流 ISSUE-35)。同じ仕組みに載せるとこの性質も引き継ぐ
-- **subagent への到達。**補正が、subagent の書く plan に効く経路になっているか
+- **subagent への到達。**補正が、subagent の書く plan に効く経路になっているか。hook なら、
+  SubagentStart で subagent の文脈へ届く経路が ISSUE-71 にある
 - **どこまで減らすか。**コードの代わりに何を書くか (Mermaid / デシジョンテーブル / テスト技法)。
   テストのコードも減らすのか。実装役の階層が上がる費用をどう扱うか
 
@@ -79,8 +85,11 @@ transcription plus testing: use the cheapest tier for that implementer」とし�
 - [ ] 「SDD」の語義を確定する
 - [ ] 補正の形を決める
 - [ ] subagent が書く plan へ補正が届くことを実測で確かめる
+- [ ] 比べる指標の数え方を固定し、補正前の値を取る。候補は plan のコード片の比率 (分母と、実装・
+      コマンド・出力の区別)、plan の記述と出荷コードの食い違い、実装役の階層・費用。数え方を
+      決められない指標は比較から外す
 - [ ] agentic-coding-tools へ実装を委譲する
-- [ ] 補正の前後で、plan のコード片の比率と実装役の階層・費用を同じ数え方で比べる
+- [ ] 補正の後で同じ数え方の値を取り、前後を比べる
 
 ## 関連
 
@@ -88,5 +97,7 @@ transcription plus testing: use the cheapest tier for that implementer」とし�
 - Issue 16 (closed): 同じ上流 skill の出力 (置き場) を fork せずに補正した前例
 - Issue 17: plan の成果物名の検査。補正が plan を書き換えるなら、同じ置き場の規約に従う
 - Issue 30: plan のコードブロックが実際に壊れた記録を持つ。コード片が減れば検査の対象面も小さくなる
+- ISSUE-88: 常時層へ足す規範の予算調整 (`BUDGET_RAISES`) を持つ
+- ISSUE-71: SubagentStart で subagent の文脈へ届ける経路。実測は ISSUE-70 (closed)
 - agentic-coding-tools の ISSUE-35: CLAUDE.md のポインタで発火する仕組みが持つ性質
 - agentic-coding-tools の ISSUE-57: 「SDD」を subagent-driven-development の意味で使っている例
