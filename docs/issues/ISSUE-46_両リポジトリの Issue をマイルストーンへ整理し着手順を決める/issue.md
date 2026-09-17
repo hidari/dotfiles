@@ -112,7 +112,7 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | CI の安定性 | Issue 37、Issue 38 |
 | Raycast | Issue 22、Issue 23 |
 | PowerShell | Issue 27、Issue 28 |
-| 単独 | Issue 31、Issue 33、ISSUE-51、ISSUE-95、ISSUE-96 |
+| 単独 | Issue 31、Issue 33、ISSUE-51、ISSUE-95、ISSUE-96、ISSUE-102 |
 
 ### 数え方
 
@@ -150,6 +150,22 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
   `git show <ref>:<path>` で読む。数えた SHA は「件数の推移」節に残す。並行するセッションが上流の
   作業ツリーを feature ブランチへ切り替えていると、その枝でだけ status が動いた Issue の分がずれる
   (2026-09-17 に実例がある)
+
+### 割り当ての検算 (2026-09-18、ISSUE-102 の起票の後)
+
+dotfiles の active 63 件の全件がいずれかのマイルストーンへ入ることを数えて確かめた。M1 が 3、
+M2 が 5、M3 が 1、M4 が 3 (dotfiles 側のみ)、M5 が 13、M6 が 0 (上流のみ)、M7 が 17、M8 が 1、
+M9 が 10、M10 が 6、M11 が 3、この Issue 自身が 1 で合計 63。
+
+下の 09-17 の検算からの動きは、ISSUE-102 の起票だけである。
+
+| Issue | 所属 | 置いた理由 |
+| --- | --- | --- |
+| ISSUE-102 | M7 の単独 | 実装は hook だが、ツールの常駐という環境の話として扱う (ユーザーの指定) |
+
+順序制約表には ISSUE-83 と ISSUE-71 から ISSUE-102 への 2 行を足した。どちらも、サーバーの不在を
+SessionStart で告げる形を採るときだけ掛かる。ISSUE-97 と ISSUE-101 の行と同じ形の制約だが、
+条件を決めるのは後続の側なので、後続ごとに外せるよう行を分けた。
 
 ### 割り当ての検算 (2026-09-17、ISSUE-96 から ISSUE-101 の起票の後)
 
@@ -391,6 +407,8 @@ canonical で、マイルストーン表と細分表は所属だけを持つ。
 | ISSUE-98 | ISSUE-50 (逆でもよい) | job を matrix でまとめる案を採るときだけ、必須チェックの名前に影響しうる。後から着手する側が名前を合わせる |
 | ISSUE-83 | ISSUE-97 と ISSUE-101 (SessionStart で告げる形を採るときだけ) | プローブが逐次に走り、待ち時間の上限が積み上がる |
 | ISSUE-71 | ISSUE-97 と ISSUE-101 (SessionStart で告げる形を採るときだけ) | SessionStart の告知が subagent へ届かない |
+| ISSUE-83 | ISSUE-102 (サーバーの不在を SessionStart で告げる形を採るときだけ) | 不在の確認がプローブに加わり、待ち時間の上限が積み上がる |
+| ISSUE-71 | ISSUE-102 (サーバーの不在を SessionStart で告げる形を採るときだけ) | 不在の告知が subagent へ届かない |
 | agentic-coding-tools の ISSUE-47 | ISSUE-100 (同時が自然) | 起動数の写しの置き場が、テンプレート化で動く |
 | ISSUE-53 | agentic-coding-tools の ISSUE-32 の実地確認タスク | 層 3 のスイープが完成してから、規模の小さい配布先から取り付けを通す |
 
