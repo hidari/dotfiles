@@ -177,8 +177,9 @@ def identifier_matches(line: str) -> list[tuple[str, str]]:
     """行から自リポジトリの Issue 識別子を (書かれた形, 番号) で返す。
 
     GitHub の番号 (`PR #N` / `owner/repo#N`) と、リポジトリ名を前置した他リポジトリ参照は
-    除く。除外はいずれも識別子より前のテキストだけを見るので、同じ行の後続の識別子は
-    通常どおり読まれる。
+    除く。GitHub の番号の除外は識別子の直前だけを見るので、同じ行の後続の識別子は通常どおり
+    読まれる。リポジトリ名の前置は、同じ行でそれより後ろに在る識別子すべてに効く (理由は
+    モジュール docstring)。
     """
     body = strip_inline_links(line)
     found: list[tuple[str, str]] = []
