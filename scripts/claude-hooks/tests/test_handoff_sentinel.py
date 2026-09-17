@@ -112,6 +112,11 @@ def _git_init(path: Path) -> None:
     )
 
 
+def run_record(cwd: Path, state_dir: Path) -> subprocess.CompletedProcess[str]:
+    """skill と同じく cwd から record アクションを起動する。"""
+    return run_hook("record", None, extra_env={"HANDOFF_STATE_DIR": str(state_dir)}, cwd=cwd)
+
+
 def record_provenance(tmp_path: Path, *, cwd: Path | None = None) -> None:
     """real record アクションで handoff.md の provenance を確立する。
 
@@ -119,12 +124,7 @@ def record_provenance(tmp_path: Path, *, cwd: Path | None = None) -> None:
     (git サブディレクトリのテストのみ cwd を渡す)。repo-id 導出やハッシュ計算を複製せず
     本物の record -> session フローを黒箱で通す。
     """
-    run_hook(
-        "record",
-        None,
-        extra_env={"HANDOFF_STATE_DIR": str(tmp_path / "state")},
-        cwd=cwd or tmp_path,
-    )
+    assert run_record(cwd or tmp_path, tmp_path / "state").returncode == 0
 
 
 def rate_limits_path(tmp_path: Path) -> Path:
@@ -191,6 +191,19 @@ class TestPostToolContextWatch:
         assert output["hookSpecificOutput"]["hookEventName"] == "PostToolUse"
         assert "session-handoff" in output["hookSpecificOutput"]["additionalContext"]
         assert (tmp_path / "state" / "sess-1.notified").is_file()
+
+    def test_通知はセッション切替と自動注入の案内と作業の打ち切りを求める(
+        self, tmp_path: Path
+    ) -> None:
+        transcript = tmp_path / "t.jsonl"
+        write_transcript(transcript, [assistant_usage(500)])
+        result = run_hook(
+            "posttool", posttool_input(tmp_path, transcript), extra_env=base_env(tmp_path)
+        )
+        context = context_of(result)
+        assert "セッション切替 (/clear または新セッション)" in context
+        assert "開始時に自動で読み込まれる" in context
+        assert "以後の作業を打ち切ること" in context
 
     def test_usage3フィールドは合算される(self, tmp_path: Path) -> None:
         transcript = tmp_path / "t.jsonl"
@@ -362,6 +375,21 @@ class TestPostToolRateLimitWatch:
         # 段の違いが文面に出ることを pin する。同じ文面なら緊急度が伝わらない
         assert "直ちに" in context
         assert "メモリ" in context
+
+    def test_緊急しきい値では打ち切って判断を仰ぐよう求める(self, tmp_path: Path) -> None:
+        # 残りの枠で途中の操作が切られ、半端な状態が残るのを防ぐ
+        result = run_ratelimit(
+            tmp_path, {"five_hour": {"used_percentage": 95, "resets_at": FUTURE_RESET}}
+        )
+        context = context_of(result)
+        assert "以後の作業を打ち切" in context
+        assert "ユーザーの判断を仰ぐこと" in context
+
+    def test_警告しきい値では作業の打ち切りを求めない(self, tmp_path: Path) -> None:
+        result = run_ratelimit(
+            tmp_path, {"five_hour": {"used_percentage": 90, "resets_at": FUTURE_RESET}}
+        )
+        assert "打ち切" not in context_of(result)
 
     def test_両方の段を超えたとき緊急の側だけが出る(self, tmp_path: Path) -> None:
         result = run_ratelimit(
@@ -560,6 +588,14 @@ class TestStopBrokenCount:
         assert output["decision"] == "block"
         assert "session-handoff" in output["reason"]
         assert (tmp_path / "state" / "sess-1.blocked").is_file()
+
+    def test_破損の通知は再起動と停止を求める(self, tmp_path: Path) -> None:
+        transcript = tmp_path / "t.jsonl"
+        write_transcript(transcript, self.leaks(5))
+        result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=base_env(tmp_path))
+        reason = json.loads(result.stdout)["reason"]
+        assert "Claude Code の再起動" in reason
+        assert "停止すること" in reason
 
     def test_破損4件では発火しない(self, tmp_path: Path) -> None:
         transcript = tmp_path / "t.jsonl"
@@ -884,6 +920,28 @@ class TestStateFileSanitization:
         assert len(created) == 1
         assert created[0].name.endswith(".notified")
         assert "/" not in created[0].name
+
+
+class TestRecordExitCode:
+    """record は skill が呼ぶコマンドなので、記録できなかったことを終了コードと stderr で返す。
+
+    成功時の exit 0 は record_provenance が呼び出しのたびに確かめる。
+    """
+
+    def test_handoffが無ければ非0で終わり理由を出して何も残さない(self, tmp_path: Path) -> None:
+        result = run_record(tmp_path, tmp_path / "state")
+        assert result.returncode != 0
+        assert "handoff.md" in result.stderr
+        assert not (tmp_path / "state").exists()
+
+    def test_provenanceを書けなければ非0で終わり理由を出す(self, tmp_path: Path) -> None:
+        write_handoff(tmp_path, "引き継ぎ\n")
+        blocker = tmp_path / "blocker"
+        blocker.write_text("", encoding="utf-8")
+        # 通常ファイルの下には state ディレクトリを作れず、作成が NotADirectoryError になる
+        result = run_record(tmp_path, blocker / "state")
+        assert result.returncode != 0
+        assert "NotADirectoryError" in result.stderr
 
 
 class TestProvenanceGate:

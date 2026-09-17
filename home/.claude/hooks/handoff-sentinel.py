@@ -4,7 +4,10 @@
 第1引数で分岐する: posttool (コンテキスト使用率とレートリミットの監視) / stop (ツール呼び出し
 破損の通算検知) / session (.cache/handoff.md の自動注入) / record (skill からの provenance 記録)。
 しきい値等の canonical はこのファイルの定数であり、HANDOFF_* 環境変数で上書きできる。
-検知機構の故障で作業を止めないため、全経路 fail-safe (無出力 + exit 0)。
+各通知の文面は、session-handoff skill を呼んだ後の締めの行動と案内まで持つ。skill は行動を
+再掲せず、通知の文面に従う。
+hook として呼ばれる経路は、検知機構の故障で作業を止めないため fail-safe (無出力 + exit 0)。
+record だけは skill が呼ぶコマンドなので、記録できなかったことを非 0 と stderr の理由で返す。
 仕様: docs/superpowers/archive/2026-07-03-session-handoff-design.md
 """
 
@@ -262,7 +265,8 @@ def _ratelimit_message(name: str, pct: float, threshold: int, *, urgent: bool) -
     """段の違いは求める行動に出す。しきい値との大小関係はどちらの段でも同じなので書き分けない。"""
     action = (
         "他の作業を中断し、直ちに session-handoff スキルを発動して引き継ぎを "
-        ".cache/handoff.md へ書き出し、記憶すべきことをメモリへ保存すること。"
+        ".cache/handoff.md に書き出し、記憶すべきことをメモリへ保存したうえで、"
+        "以後の作業を打ち切ってユーザーの判断を仰ぐこと。"
         if urgent
         else "区切りの良いところで session-handoff スキルを発動し、引き継ぎを "
         ".cache/handoff.md に書き出すこと。"
@@ -287,7 +291,8 @@ def _context_notices(session_id: str, transcript_path: str) -> list[str]:
     return [
         f"コンテキスト使用率がしきい値を超えた (推定 {tokens} tokens)。"
         "session-handoff スキルを発動して引き継ぎを .cache/handoff.md に書き出し、"
-        "ユーザーにセッション切替 (/clear または新セッション) を促すこと。"
+        "ユーザーにセッション切替 (/clear または新セッション) を促すこと。record が成功していれば、"
+        "切り替えた先の開始時に自動で読み込まれると伝えたうえで、以後の作業を打ち切ること。"
     ]
 
 
@@ -514,20 +519,23 @@ def _created_at(handoff: Path) -> str:
     return datetime.fromtimestamp(handoff.stat().st_mtime, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def handle_record(cwd: str) -> None:
+def handle_record(cwd: str) -> bool:
     """session-handoff skill が書き出した handoff.md の provenance (内容ハッシュ) を記録する。
 
     SessionStart はこの記録に一致する handoff.md のみ注入する。リポにコミットされた第三者作成の
     handoff.md を信頼された引き継ぎとして注入しない (prompt injection 防御) ための user スコープの
     provenance。skill が書き出し直後に `handoff-sentinel.py record` として呼ぶ。
+    記録したときだけ True を返す。
     """
     repo_root = _repo_root(cwd)
     handoff = _handoff_path(repo_root)
     if not handoff.is_file():
-        return
+        print(f"record: {handoff} が無いので記録しなかった", file=sys.stderr)
+        return False
     prov = _provenance_path(repo_root)
     prov.parent.mkdir(parents=True, exist_ok=True)
     prov.write_text(_hash_bytes(handoff.read_bytes()) + "\n", encoding="utf-8")
+    return True
 
 
 def _inject_handoff(repo_root: Path, session_id: str) -> str | None:
@@ -600,12 +608,12 @@ HANDLERS: dict[str, Callable[[dict[str, Any]], dict[str, Any] | None]] = {
 
 
 def main() -> int:
+    action = sys.argv[1] if len(sys.argv) > 1 else ""
+    if action == "record":
+        # skill から呼ばれる副作用コマンド (hook JSON は受けず cwd から解決する)。
+        # 例外は握らない。Python が非 0 で終わり、理由が stderr に残る
+        return 0 if handle_record(os.getcwd()) else 1
     try:
-        action = sys.argv[1] if len(sys.argv) > 1 else ""
-        if action == "record":
-            # skill から呼ばれる副作用コマンド (hook JSON は受けず cwd から解決する)
-            handle_record(os.getcwd())
-            return 0
         handler = HANDLERS.get(action)
         if handler is None:
             return 0
