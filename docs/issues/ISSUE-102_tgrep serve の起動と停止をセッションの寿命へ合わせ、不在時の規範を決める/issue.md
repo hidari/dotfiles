@@ -150,15 +150,32 @@ launchd でリポジトリごとにサーバーを常駐させる案。対象が
 
 ## タスク
 
-- [ ] 並行するセッション、取り残し、起動のコスト、セキュリティの論点を決める
-- [ ] SessionStart / SessionEnd の hook を実装し、テストで挙動を固定する
-- [ ] hook の配線を headless の別プロセスで確かめる
-- [ ] worktree で隔離した subagent での挙動を測る
-- [ ] observation.md の tgrep 節を書き直す。常駐サーバーの前提、3 つ目の経路、サーバーが無いときの
+- [x] 並行するセッション、取り残し、起動のコスト、セキュリティの論点を決める
+  - spec (`ISSUE-102-spec.md`) の決定 D1〜D6 と「追加実測」節が答えを持つ
+- [x] SessionStart / SessionEnd の hook を実装し、テストで挙動を固定する (commits f2bd031, 10eeec6, 22928b9)
+- [x] hook の配線を headless の別プロセスで確かめる
+  - 使い捨ての `CLAUDE_CONFIG_DIR` に SessionStart hook を 2 本配線した。本番の `start $PPID`
+    形と、`ps -o pid=,ppid=,comm= -p $PPID` を実行するだけの形。`ps` は `84340 84337 claude`
+    を返し、同じ実行で状態ファイルが pid 84340 を記録した。`$PPID` が展開され、記録される
+    のは claude プロセス自身であることを確認した
+- [x] worktree で隔離した subagent での挙動を測る (射程の限定あり)
+  - `isolation: worktree` の subagent (cwd と `git rev-parse --show-toplevel` がどちらも
+    `.claude/worktrees/agent-<id>` 配下) は `cppath` / `claude` について親セッションと同じ
+    シェルスナップショットのパスを報告した。`.zshrc` の関数が worktree で隔離した subagent
+    にも cwd に依存せず届くことは確認できたが、プローブに使ったのは既存の関数で、tgrep の
+    ラッパー自体は測っていない (このセッションのシェルスナップショットがラッパーのコミット
+    より古く、構造上ラッパーを含められないため)。測ったのは配信の機構であって、ラッパー
+    そのものの worktree 内での挙動ではない
+- [x] observation.md の tgrep 節を書き直す。常駐サーバーの前提、3 つ目の経路、サーバーが無いときの
       規範を入れる。`-r` の罠の置き場は ISSUE-100 の決定と揃える。上流 main の README は
       `--hidden` の扱いが 1.0.8 と違うと読める (1.0.8 では `serve --hidden` が今も rc 2 で、検索時の
       `--hidden` は `Brute-force` に落ちる) ので、書き直すときは版を確かめて既存の実測も取り直す
-- [ ] user CLAUDE.md の tgrep 項目が、サーバーの無いときにも成り立つ形になっているか見直す
+      (commits 340d7b6, 18eb3bd)
+- [x] user CLAUDE.md の tgrep 項目が、サーバーの無いときにも成り立つ形になっているか見直す
+  - 見直した結果、変更は不要と判断した。4 つの箇条書き (索引の dot 除外・`--hidden` の挙動・
+    経路判定に `--stats` を使うこと・stdin を読まない挙動) はどれも常駐の有無に依存しない
+    tgrep の性質を述べている。サーバー不在時に既定の検索が古い索引を黙って返す問題は、
+    spec の決定 D5 どおりラッパー機構 (`home/.zshrc` の `tgrep` 関数) が塞ぐ形にした
 
 ## 関連
 
