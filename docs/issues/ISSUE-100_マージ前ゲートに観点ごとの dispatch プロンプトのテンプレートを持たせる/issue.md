@@ -104,8 +104,7 @@ PUBLIC 漏洩スイープだけで、Boy Scout は 0 件の明示だけ、code-r
 ## 関連
 
 - ISSUE-99: 同じ委譲元からの依頼 (plan のコード片)
-- ISSUE-102: observation.md の tgrep 節を書き直す。6 の canonical の置き場の候補になる。
-  `-E` (`--encoding`) の実測も持つ
+- ISSUE-102: observation.md の tgrep 節を書き直す。`-E` (`--encoding`) の実測も持つ
 - agentic-coding-tools の ISSUE-47: gate の起動数の写し。テンプレート化で置き場が動く
 - agentic-coding-tools の ISSUE-33: gate の出力フォーマット節が空虚な合格を許す件。受け欄の形に関わる
 - agentic-coding-tools の ISSUE-59: E2E の skip の根拠が集約出力へ流れない件。skip の根拠を受ける形を決めるタスクを持ち、受け欄の形に関わる
