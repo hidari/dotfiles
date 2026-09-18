@@ -105,6 +105,28 @@
             "command": "cat \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.hidari/private-ops/PRIVATE_CLAUDE.md\" 2>/dev/null"
           }
         ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.claude/hooks/tgrep-serve.py\" start $PPID",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.claude/hooks/tgrep-serve.py\" end $PPID",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PostToolUse": [
