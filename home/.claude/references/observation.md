@@ -216,13 +216,16 @@ ruff の isort が `src` 設定に依存するか確かめるプローブを対�
 「設定では変えられない」まで広げないこと。
 
 dot 配下にしか無い語 (実測時点では nvim 設定の `vim.opt`) をディレクトリ走査で引くと 0 件で rc 1、
-その dot ディレクトリを明示パスで渡すと `git grep` と同じ 10 行になる。
+その dot ディレクトリ `home/.config` を明示パスで渡すと、同じパスに絞った `git grep` と同じ 10 行になる。
+対照の `git grep` は明示パスと同じパスに絞ること。この節自身が dot 配下にあって語を含むので、
+絞らない `git grep` はこの節の分だけ多く返る。
 stderr は 0 行で、索引の外を見ていないことは既定の出力に現れない。
 
 対照として可視ファイルにも現れる語を同じディレクトリ走査で引くと非 0 が返るので、
 0 件は「経路が壊れている」ではなく「索引が dot を持たない」を意味する。
-その対照自身も同じ穴を踏んでいて、走査の行数に dot ファイル自身を明示した行数を足すと
-`git grep` の行数になる (`serve_json` で 10 + 4 = 14)。差は hidden 配下の分にあたる。
+可視と dot の両方に現れる語では、その対照自身も同じ穴を踏んでいて、走査の行数に dot 配下の行数を
+足して初めて `git grep` の行数になる (`serve_json` で走査 10 行、dot 配下は `home/.zshrc` の 4 行と
+この節のこの 1 行、`git grep` は 15 行)。差は hidden 配下の分にあたる。
 
 積荷が dot 始まりに寄っているリポジトリでは影響が大きく、dotfiles は `home/.claude/`
 `home/.config/` `.github/` がそれにあたる。追跡ファイルの 2 割強が索引の外にある。
@@ -238,13 +241,15 @@ stderr は 0 行で、索引の外を見ていないことは既定の出力に�
 
 | 渡したパス | 走査 | 結果 |
 | --- | --- | --- |
-| 可視の親ディレクトリ (`home`) | 2 files | 配下の dot を見ない (`git grep` が 10 行返す `vim.opt` で 0 件) |
+| 可視の親ディレクトリ (`home`) | 2 files | 配下の dot を見ない (`home/.config` に絞った `git grep` が 10 行返す `vim.opt` で 0 件) |
 | dot ディレクトリ (`home/.claude`) | 27 files | 配下の可視ファイルは全部見る (`--files` の列挙が追跡下の可視 27 件と一致) |
 | 別の dot ディレクトリ (`home/.config`) | 33 files | 配下の dot ファイルは見ない (`.luarc.json` にしか無い語で 0 件) |
 | dot ファイル自身 (`home/.zshrc`) | 1 file | 見る |
 
-`--stats` の `(N files)` は読んだ数で、binary と判定して飛ばした分だけ `--files` の列挙より少ない
-(`home/.config` は列挙 35 件に対し 33 files)。この差を hidden 除外と読み違えないこと。
+`--stats` の `(N files)` は読んだ数で、`--files` の列挙より少ないことがある。差の内訳は
+`tgrep count-files <dir>` が binary / too large / errors の 3 つに分けて出す
+(`home/.config` は列挙 35 件に対し 33 files で、内訳は binary 2 / too large 0 / errors 0 だった)。
+この差を hidden 除外と読み違えないこと。
 
 dot ファイルを見たいときは、そのファイル自身を渡すしかない。
 可視の親を渡して「明示パスで引いた」つもりになると、同じ無言の 0 件を掴む。
@@ -260,7 +265,7 @@ dot ファイルを見たいときは、そのファイル自身を渡すしか�
 | --- | --- | --- |
 | 常駐あり、既定 | `N matches ... (via server)` | 無し |
 | 常駐なし・索引あり、既定 | `Query plan: ...` と `Search completed in ...`。経路の語が無い | 止まった常駐の `serve.json` が残っていれば `Server unreachable, falling back to local index`、無ければ無し |
-| 常駐なし・索引なし、既定 | `Brute-force search completed ... (N files)` | `warning: no index at ...` |
+| 常駐なし・索引なし、既定 | `Brute-force search completed ... (N files)` | `warning: no index at ...` と `note: if a server is running with ...` の 2 行 |
 | `--no-index` | 同じく `Brute-force` | 無し |
 | `--hidden` | 同じく `Brute-force` で、N が hidden 込みの数になる | 無し |
 
@@ -271,8 +276,11 @@ SIGTERM でも同じ。保存の閾値は `tgrep serve --help` の `--auto-save-
 常駐が直前に 1 件返していた語を、停止後の直読みは 0 件で返す。
 「経路の語が無い」を「常駐経由で速く返った」と読むと、この古い答えを最新だと信じる。
 
-`--stats` の申告では `(via server)` 0.3-5.1 ms、索引直読み 1.9-2.6 ms、`--no-index` 36-133 ms、
-`--hidden` 1803-1923 ms (314 files に対し 672 files)。
+`--stats` の申告では、dotfiles の常駐に対して `(via server)` 0.3-5.1 ms、`--no-index` 63-133 ms、
+`--hidden` 1513-1923 ms (314 files に対し 2 倍あまりの N)。N は `.git/` 配下を含むのでコミットのたびに
+動くが、`--hidden --files` の列挙から `.git/` 配下を除くと追跡ファイル数 402 にちょうど一致する。
+常駐を止めずに直読みを測るため追跡ファイルの複製で取った側は、索引直読み 1.9-2.6 ms に対し
+`--no-index` 36-51 ms。
 時間で分けられるのは走査の有無だけで、常駐経由と索引直読みは分けられない。
 
 `--no-index` は `search` サブコマンドの前に置いても効く (`tgrep --no-index --stats search PATTERN` が
@@ -312,10 +320,15 @@ DIR という語で検索して一致部分を PATTERN で置き換えた行を�
 `--no-index` を足す。挙動の pin は `scripts/tests/zshrc-tgrep.bats` が持つ。
 
 届くのは関数を読み込んだ zsh からの呼び出しだけで、Claude Code の Grep ツール・`command tgrep`・
-バイナリを直接起動するスクリプトや hook には届かない。Claude Code の Bash ツールへは
-セッション開始時に取られるシェルスナップショット経由で届くので、`.zshrc` を変えたセッション自身には
-届かず次のセッションからになる (ラッパーを入れたセッションのスナップショットには既存の関数があって
-`tgrep ()` は無く、`type tgrep` はバイナリを返した)。
+バイナリを直接起動するスクリプトや hook には届かない。Claude Code の Bash ツールが読むのは
+セッション開始時に取られるシェルスナップショットである。
+
+観測したのはここまで。ラッパーを入れたセッションのスナップショット (ラッパーのコミットより古い) に
+`tgrep ()` は無く、`type tgrep` はバイナリを返した。同じ `.zshrc` に並ぶ `port-proc` `kill-port` `cppath`
+`claude` `claude-dev` の 5 関数は全部 1 回ずつ入っていて、その中の `claude` は `tgrep` と同じく
+バイナリを影に隠す関数である。
+そこから「無いのはスナップショットが古いからで、生成側が落としたのではない」と推定している。
+次のセッションのスナップショットに入ることは測っていない。確かめ方は新しいセッションで `type tgrep` を引くこと。
 
 届く場所でも、ラッパーが見るのは pid の生死だけである。構築中の常駐 (`0 matches ... (via server)`)、
 索引の hidden 除外、明示パスの全走査はどれも黙って素通しする (構築中の実測でラッパーの stderr は
