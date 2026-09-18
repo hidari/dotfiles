@@ -4,13 +4,14 @@
 # =============================================================================
 #
 # ラッパーが守る仕様は以下の通り。
-#   1. サブコマンド (serve/index/status/count-files/help) は素通しする。
-#      ここに索引回避のフラグを足すと serve 自身が壊れる
+#   1. サブコマンドは素通しする。素通しする集合の canonical は home/.zshrc の tgrep 関数の
+#      case で、ここには再掲しない。索引回避のフラグを足すと serve 自身が壊れる
 #   2. 検索のとき、serve が生きていなければ --no-index を足して stderr に 1 行告げる
 #      (search はサブコマンドの形を取るが中身は検索であり、素通しリストへは
 #      意図して含めない。素の PATTERN 形も search 形も同じ扱いを受ける)
 #   3. serve が生きていれば素通しする
 #   4. 判定はプロセス起動を挟まない (serve.json と PID の生死だけを見る)
+#   5. 呼び出し側が --no-index を渡していれば、serve の判定より前に素通しして stderr にも出さない
 
 load test_helper
 
@@ -92,6 +93,29 @@ write_serve_json() {
     cd "$REPO" || return 1
     run tgrep PATTERN
     grep -q -- "--no-index" "$TGREP_ARGS_FILE"
+}
+
+@test "tgrep: passes the search through untouched when the caller already gave --no-index" {
+    # 索引が古いときの手当てが --no-index そのもので、ラッパーが重ねて足すと tgrep は
+    # 「cannot be used multiple times」の rc 2 で止まる (実測)。位置は問わない
+    # (tgrep は PATTERN の後ろの --no-index も受ける、実測)。呼び出し側が既に索引を
+    # 捨てているので stderr にも出さない。記録された argv を要素数まで完全一致で見る
+    load_zshrc_tgrep_function
+    cd "$REPO" || return 1
+    run --separate-stderr tgrep --no-index PATTERN
+    [ "$status" -eq 0 ]
+    [ -z "$stderr" ]
+    run cat "$TGREP_ARGS_FILE"
+    [ "${#lines[@]}" -eq 2 ]
+    [ "${lines[0]}" = "--no-index" ]
+    [ "${lines[1]}" = "PATTERN" ]
+    run --separate-stderr tgrep PATTERN --no-index
+    [ "$status" -eq 0 ]
+    [ -z "$stderr" ]
+    run cat "$TGREP_ARGS_FILE"
+    [ "${#lines[@]}" -eq 2 ]
+    [ "${lines[0]}" = "PATTERN" ]
+    [ "${lines[1]}" = "--no-index" ]
 }
 
 @test "tgrep: leaves the search untouched when the server is alive" {
