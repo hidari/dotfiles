@@ -217,7 +217,10 @@ function tgrep() {
   pid=""
   if [ -f "$serve_json" ]; then
     # serve.json は SIGTERM / SIGKILL で止まると古い pid を残すので、生死まで見る。
-    # プロセス起動を挟まないよう、kill -0 で確かめる
+    # プロセス起動を挟まないよう、kill -0 で確かめる。PID が再利用されていると
+    # 無関係なプロセスに真を返し、警告無しで古い索引のまま素通してしまうが、
+    # 検索のたび起動するこのラッパーでは、プロセス名まで見る hook 側の serve_pid
+    # (セッションあたり 2 回) と釣り合わせてこの軽さを選んでいる。ps は足さない。
     pid="$(sed -n 's/.*"pid":[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$serve_json")"
     if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
       command tgrep "$@"

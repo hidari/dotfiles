@@ -7,8 +7,8 @@
 #   1. サブコマンド (serve/index/status/count-files/help) は素通しする。
 #      ここに索引回避のフラグを足すと serve 自身が壊れる
 #   2. 検索のとき、serve が生きていなければ --no-index を足して stderr に 1 行告げる
-#      (素の tgrep も PATTERN 無しの subcommand 形 (search) も検索であり、
-#      どちらも同じ扱いを受ける)
+#      (search はサブコマンドの形を取るが中身は検索であり、素通しリストへは
+#      意図して含めない。素の PATTERN 形も search 形も同じ扱いを受ける)
 #   3. serve が生きていれば素通しする
 #   4. 判定はプロセス起動を挟まない (serve.json と PID の生死だけを見る)
 
@@ -58,6 +58,9 @@ write_serve_json() {
     load_zshrc_tgrep_function
     cd "$REPO" || return 1
     run tgrep status .
+    [ "$status" -eq 0 ]
+    run cat "$TGREP_ARGS_FILE"
+    [ "${lines[0]}" = "status" ]
     run ! grep -q -- "--no-index" "$TGREP_ARGS_FILE"
 }
 
@@ -70,9 +73,9 @@ write_serve_json() {
 }
 
 @test "tgrep: adds --no-index before the search subcommand when no server is running" {
-    # search はパターン無しの検索であり、case の素通しリストへ足すと serve が生きて
-    # いないときも索引回避されないまま検索してしまう。素の PATTERN 形だけでなく
-    # search 形もこのテストで別に pin する
+    # search はサブコマンドの形を取るが中身は検索であり、case の素通しリストへ
+    # 足すと serve が生きていないときも索引回避されないまま検索してしまう。
+    # 素の PATTERN 形だけでなく search 形もこのテストで別に pin する
     load_zshrc_tgrep_function
     cd "$REPO" || return 1
     run --separate-stderr tgrep search PATTERN
@@ -96,7 +99,10 @@ write_serve_json() {
     write_serve_json "$REPO" live
     cd "$REPO" || return 1
     run --separate-stderr tgrep PATTERN
+    [ "$status" -eq 0 ]
     [ -z "$stderr" ]
+    run cat "$TGREP_ARGS_FILE"
+    [ "${lines[0]}" = "PATTERN" ]
     run ! grep -q -- "--no-index" "$TGREP_ARGS_FILE"
 }
 
