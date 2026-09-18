@@ -184,12 +184,14 @@ launchd でリポジトリごとにサーバーを常駐させる案。対象が
     いることを確認済み (証跡は observation.md の「ラッパーの射程」節が持つ)。dot 除外の箇条は
     「常駐索引は」という主語がサーバー依存の誤読 (不在時に dot が見えるようになる、という逆の
     読み) を招くため、`home/.claude/CLAUDE.md` の表現だけ tgrep 全体の性質として言い直した
-    (常時層の予算は増やしていない。config-guard の出力が示す実バイト数が canonical)
+    (常時層の予算は増やしていない。config-guard の出力が示す実バイト数が canonical)。
+    最終レビューで、`--hidden` が dot を含む次の箇条と食い違わないよう両方の主語を「既定は」へ
+    揃えた (CLAUDE.md はバイト数据え置き)
 
 ## 関連
 
 - ISSUE-93 (closed): 検索の既定を tgrep にした。実測はサーバーが動いている状態で取っている
-- ISSUE-100: テンプレートの共通要素 6 (`-r` の罠) の canonical の置き場を未決で持つ。この Issue が
-  書き直す observation.md の tgrep 節がその候補になる
+- ISSUE-100: テンプレートの共通要素 6 (`-r` の罠) の canonical は、この Issue が書き直した
+  observation.md の tgrep 節 (「`-r` と `-E` は grep と別物」節) に決まった
 - ISSUE-83: セッション頭のプローブの待ち時間の積み上げ。不在を告げる形を採るときは先行する
 - ISSUE-71: SessionStart の告知が subagent に届かない。不在を告げる形を採るときは先行する
