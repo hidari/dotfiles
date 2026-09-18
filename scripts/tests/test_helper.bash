@@ -196,6 +196,11 @@ load_zshrc_claude_functions() {
     load_marker_block "$ZSHRC_FILE" '^# Claude Code 起動$' "$ZSHRC_SECTION_END"
 }
 
+# .zshrc の tgrep ラッパーを読み込む。
+load_zshrc_tgrep_function() {
+    load_marker_block "$ZSHRC_FILE" '^# tgrep$' "$ZSHRC_SECTION_END"
+}
+
 # .zshrc のブロックを dest へ書き出す。bash へ source する上の 2 つと違い、
 # zsh 専用の構文 (setopt / [[ -o ... ]] / print -rnD 等) を含むブロックを
 # 実際の zsh へ渡して評価させるための入口。bash で解釈すると、構文は通るのに

@@ -198,6 +198,37 @@ function cppath() {
 }
 
 ########################################
+# tgrep
+
+# 常駐サーバーが無いとき、既定の tgrep は索引を直読みして最後に保存された後の変更を
+# 持たない答えを返す。--stats は経路の語を出さないので、この落ち方は出力に現れない。
+# ラッパーで索引を使わない経路へ落とし、落ちたことを stderr に残す。
+# サブコマンドは素通しする。serve に索引回避のフラグを渡すと serve 自身が壊れる。
+function tgrep() {
+  case "$1" in
+    serve|index|status|count-files|help|--help|-h|--version|-V|"")
+      command tgrep "$@"
+      return
+      ;;
+  esac
+  local root serve_json pid
+  root="$(git rev-parse --show-toplevel 2>/dev/null)" || root="$(pwd -P)"
+  serve_json="$root/.tgrep/serve.json"
+  pid=""
+  if [ -f "$serve_json" ]; then
+    # serve.json は SIGTERM / SIGKILL で止まると古い pid を残すので、生死まで見る。
+    # プロセス起動を挟まないよう、kill -0 で確かめる
+    pid="$(sed -n 's/.*"pid":[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$serve_json")"
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+      command tgrep "$@"
+      return
+    fi
+  fi
+  echo "tgrep: 常駐サーバーが無いため索引を使わずに検索します ($root)" >&2
+  command tgrep --no-index "$@"
+}
+
+########################################
 # Claude Code 起動
 
 # タスクリスト ID の妥当性はシェル側では検査しない。SessionStart hook の
