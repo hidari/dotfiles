@@ -153,6 +153,10 @@ launchd でリポジトリごとにサーバーを常駐させる案。対象が
 - [x] 並行するセッション、取り残し、起動のコスト、セキュリティの論点を決める
   - spec (`ISSUE-102-spec.md`) の決定 D1〜D6 と「追加実測」節が答えを持つ
 - [x] SessionStart / SessionEnd の hook を実装し、テストで挙動を固定する (commits f2bd031, 10eeec6, 22928b9)
+- [x] リポジトリ単位で serve の自動起動を断るマーカーを持つ (最終レビューでのユーザー判断。
+      既定は git リポジトリ全部で起動する D1 のまま)。名前の canonical は
+      `home/.claude/hooks/tgrep-serve.py` の定数で、git root に置いた存在だけを見て中身は読まない。
+      断るのは起動だけで、孤児の回収と SessionEnd の停止経路は変わらない
 - [x] hook の配線を headless の別プロセスで確かめる
   - 使い捨ての `CLAUDE_CONFIG_DIR` に SessionStart hook を 2 本配線した。本番の `start $PPID`
     形と、`ps -o pid=,ppid=,comm= -p $PPID` を実行するだけの形。`ps` は `84340 84337 claude`

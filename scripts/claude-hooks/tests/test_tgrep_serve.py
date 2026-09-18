@@ -439,8 +439,71 @@ def test_handle_start_は登録と起動の両方を行う(
     assert root is not None
     # register の効果 (状態ファイルに自分の pid が入る)
     assert state.live_pids(root) == [os.getpid()]
-    # start_serve の効果 (serve が未起動なので Popen が呼ばれる)
+    # start_serve の効果 (serve が未起動で、断りのマーカーも無いので Popen が呼ばれる)。
+    # マーカー側のテストの対照
+    assert not (root / hook.NO_SERVE_MARKER).exists()
     assert launched and launched[0][:3] == [hook.tgrep_bin(), "serve", str(root)]
+
+
+def test_断りのマーカーがある_root_では登録だけ行い起動しない(
+    tmp_path: Path, state_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hook = _load_hook()
+    repo = make_git_repo(tmp_path / "repo")
+    (repo / hook.NO_SERVE_MARKER).touch()
+    launched: list[list[str]] = []
+    real_popen = hook.subprocess.Popen
+
+    def fake_popen(cmd: list[str], **kwargs: object) -> object:
+        if cmd and cmd[0] == hook.tgrep_bin():
+            launched.append(cmd)
+            return None
+        return real_popen(cmd, **kwargs)
+
+    monkeypatch.setattr(hook.subprocess, "Popen", fake_popen)
+    hook.handle_start({"cwd": str(repo)}, os.getpid())
+    root = hook.resolve_root({"cwd": str(repo)})
+    assert root is not None
+    # 登録までは通っている (対照。ここが空だと下の空は resolve_root で落ちただけと区別できない)
+    assert state.live_pids(root) == [os.getpid()]
+    # 断りが止めるのは起動だけ。起動の試み (Popen) が無いことを見る
+    assert launched == []
+
+
+def test_断りのマーカーがある_root_の_SessionEnd_は停止経路を通るが何も止めない(
+    tmp_path: Path, state_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hook = _load_hook()
+    repo = make_git_repo(tmp_path / "repo")
+    (repo / hook.NO_SERVE_MARKER).touch()
+    root = hook.resolve_root({"cwd": str(repo)})
+    assert root is not None
+    state.register(root, os.getpid())
+    # 停止経路が実際に通ったことと、通った先が空振り (起動していないので serve.json が無い)
+    # で終わることの両方を見る。stop_serve は本物へ委譲して結果だけ記録する
+    real_stop = hook.stop_serve
+    results: list[tuple[Path, bool]] = []
+
+    def spy_stop(r: Path) -> bool:
+        results.append((r, real_stop(r)))
+        return results[-1][1]
+
+    monkeypatch.setattr(hook, "stop_serve", spy_stop)
+    sent: list[int] = []
+    real_kill = os.kill
+
+    def fake_kill(pid: int, sig: int) -> None:
+        # 生存確認のプローブ (sig=0) は本物へ委譲し、SIGINT だけを記録する
+        if sig == hook.signal.SIGINT:
+            sent.append(pid)
+            return
+        real_kill(pid, sig)
+
+    monkeypatch.setattr(hook.os, "kill", fake_kill)
+    hook.handle_end({"cwd": str(repo)}, os.getpid())
+    assert results == [(root, False)]
+    assert sent == []
+    assert not state.state_file(root).exists()
 
 
 def _fake_ps_script(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str) -> Path:

@@ -120,6 +120,16 @@ def serve_pid(root: Path) -> int | None:
     return pid
 
 
+# この名前のファイルが git root にあるリポジトリでは serve を立てない。存在だけを見て
+# 中身は読まない (書式を持たせない)。回収と SessionEnd の停止経路には影響しない。
+NO_SERVE_MARKER = ".tgrep-no-serve"
+
+
+def serve_opted_out(root: Path) -> bool:
+    """このリポジトリが serve の自動起動を断っているか。"""
+    return (root / NO_SERVE_MARKER).exists()
+
+
 def start_serve(root: Path) -> bool:
     """serve を detach で起動する。起動したら True、既に動いていれば False。
 
@@ -222,6 +232,10 @@ def handle_start(payload: dict[str, Any], pid: int) -> None:
     if root is None:
         return
     state.register(root, pid)
+    # 登録は断りの有無によらず行う。SessionEnd の判定 (自分を除いて数える) を root ごとに
+    # 変えないため。断りが止めるのは起動だけで、start_serve の生存判定には混ぜない
+    if serve_opted_out(root):
+        return
     start_serve(root)
 
 
