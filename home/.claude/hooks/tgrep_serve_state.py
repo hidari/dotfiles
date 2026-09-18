@@ -14,7 +14,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeGuard
 
 # 状態ファイル名に使うハッシュの桁数。衝突を避けるのが目的なので短くしない。
 DIGEST_CHARS = 16
@@ -46,6 +46,18 @@ def state_file(root: Path) -> Path:
     """
     digest = hashlib.sha256(str(root).encode("utf-8")).hexdigest()[:DIGEST_CHARS]
     return state_dir() / f"{digest}.json"
+
+
+def is_pid(value: object) -> TypeGuard[int]:
+    """シグナルを送ってよい PID の形か。正の int だけを通す。
+
+    kill(2) にとって 0 は自分のプロセスグループ、-1 は送れる全プロセスを指すので、
+    そのまま is_alive (kill -0) へ渡すと生存として通り、その先の SIGINT がユーザーの
+    全プロセスへ届く。serve.json はリポジトリの中にあって clone がそのまま持ち込めるため、
+    ps による同一性確認とは別の層としてここで落とす。bool は int のサブクラスなので
+    明示的に外す (True は 1 = launchd に化ける)。
+    """
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
 
 def is_alive(pid: int) -> bool:
@@ -89,7 +101,7 @@ def live_pids(root: Path) -> list[int]:
     recorded = _read(state_file(root)).get("pids")
     if not isinstance(recorded, list):
         return []
-    return [p for p in recorded if isinstance(p, int) and is_alive(p)]
+    return [p for p in recorded if is_pid(p) and is_alive(p)]
 
 
 def register(root: Path, pid: int) -> list[int]:

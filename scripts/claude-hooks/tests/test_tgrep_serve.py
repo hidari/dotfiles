@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -440,6 +441,149 @@ def test_handle_start_は登録と起動の両方を行う(
     assert state.live_pids(root) == [os.getpid()]
     # start_serve の効果 (serve が未起動なので Popen が呼ばれる)
     assert launched and launched[0][:3] == [hook.tgrep_bin(), "serve", str(root)]
+
+
+def _fake_ps_script(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str) -> Path:
+    """任意の本文を持つ偽 ps を置き、TGREP_PS_BIN を向ける。_fake_ps の一般形。"""
+    script = tmp_path / "fake-ps"
+    script.write_text(f"#!/bin/sh\n{body}\n", encoding="utf-8")
+    script.chmod(0o755)
+    monkeypatch.setenv("TGREP_PS_BIN", str(script))
+    return script
+
+
+def _fake_ps_with_marker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """呼ばれた痕跡をファイルに残してから tgrep を返す偽 ps。戻り値は痕跡のパス。"""
+    marker = tmp_path / "ps-invoked"
+    _fake_ps_script(tmp_path, monkeypatch, f"touch {shlex.quote(str(marker))}\necho tgrep")
+    return marker
+
+
+@pytest.mark.parametrize("pid", [-1, 0, True, "12"], ids=["negative", "zero", "bool", "str"])
+def test_serve_pid_は正でない_pid_を外部確認の手前で落とす(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pid: object
+) -> None:
+    hook = _load_hook()
+    idx = tmp_path / ".tgrep"
+    idx.mkdir()
+    (idx / "serve.json").write_text(json.dumps({"pid": pid, "port": 1}), encoding="utf-8")
+    marker = _fake_ps_with_marker(tmp_path, monkeypatch)
+    # is_alive を常に True に固定し、残る層を ps だけにする。本物の ps は -1 と 0 を拒む
+    # (実測) ので「常に失敗する偽 ps」では guard の有無で戻り値が変わらず dead pin になる。
+    # guard が ps より手前で止めていることを、ps が呼ばれた痕跡の不在で見る
+    monkeypatch.setattr(state, "is_alive", lambda p: True)
+    assert hook.serve_pid(tmp_path) is None
+    assert not marker.exists()
+
+
+def test_serve_pid_は正の_pid_なら外部確認まで進む(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # 上の「痕跡が無い」の対照。同じ偽 ps が正の pid では呼ばれて痕跡を残す
+    hook = _load_hook()
+    idx = tmp_path / ".tgrep"
+    idx.mkdir()
+    (idx / "serve.json").write_text(json.dumps({"pid": os.getpid(), "port": 1}), encoding="utf-8")
+    marker = _fake_ps_with_marker(tmp_path, monkeypatch)
+    assert hook.serve_pid(tmp_path) == os.getpid()
+    assert marker.exists()
+
+
+def test_live_pids_は正でない_pid_を生存確認の手前で落とす(
+    state_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = Path("/tmp/repo-eight")
+    path = state.state_file(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"root": str(root), "pids": [-1, 0, True, "7", os.getpid()]}) + "\n",
+        encoding="utf-8",
+    )
+    probed: list[int] = []
+
+    def fake_alive(pid: int) -> bool:
+        probed.append(pid)
+        return True
+
+    monkeypatch.setattr(state, "is_alive", fake_alive)
+    assert state.live_pids(root) == [os.getpid()]
+    # kill -0 のプローブ自体が正の pid にしか届いていない
+    assert probed == [os.getpid()]
+
+
+def test_serve_pid_は_comm_が絶対パスでも_basename_で_tgrep_と認める(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hook = _load_hook()
+    idx = tmp_path / ".tgrep"
+    idx.mkdir()
+    (idx / "serve.json").write_text(json.dumps({"pid": os.getpid(), "port": 1}), encoding="utf-8")
+    # 絶対パスで起動したプロセスの comm はそのパスになる (実測: /bin/sleep で起動すると
+    # /bin/sleep)。文字列比較のままだと TGREP_BIN を絶対パスにした環境の serve が hook から
+    # 見えなくなり、止められないうえに start_serve が 2 本目を起こす
+    _fake_ps_script(tmp_path, monkeypatch, "echo /usr/local/bin/tgrep")
+    assert hook.serve_pid(tmp_path) == os.getpid()
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        ("echo tgrep", "tgrep"),
+        ("echo tgrep; exit 1", None),
+        ("exit 0", None),
+    ],
+    ids=["ok", "nonzero-exit-with-output", "empty-stdout"],
+)
+def test_pid_command_name_は_ps_の失敗を_None_に潰す(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str, expected: str | None
+) -> None:
+    # 非 0 終了は stdout に名前があっても None (rc を見ていることの pin)。空の stdout も None
+    hook = _load_hook()
+    _fake_ps_script(tmp_path, monkeypatch, body)
+    assert hook._pid_command_name(os.getpid()) == expected
+
+
+def test_pid_command_name_は_ps_が無ければ_None(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hook = _load_hook()
+    monkeypatch.setenv("TGREP_PS_BIN", str(tmp_path / "missing-ps"))
+    assert hook._pid_command_name(os.getpid()) is None
+
+
+def test_pid_command_name_は_ps_のタイムアウトを_None_に潰す(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hook = _load_hook()
+    # exec で sh を sleep に置き換え、timeout 時の kill が sleep 自身へ届くようにする
+    # (sh を殺しても子の sleep が残ると、テスト終了後まで孤児が生きる)
+    _fake_ps_script(tmp_path, monkeypatch, "exec sleep 5")
+    monkeypatch.setattr(hook, "PS_IDENTITY_TIMEOUT", 0.2)
+    assert hook._pid_command_name(os.getpid()) is None
+
+
+@pytest.mark.parametrize(
+    ("exc", "expected"),
+    [(ProcessLookupError, False), (PermissionError, True), (OSError, False)],
+    ids=["not-found", "permission", "other-oserror"],
+)
+def test_is_alive_は_kill_の失敗の種類で生死を分ける(
+    monkeypatch: pytest.MonkeyPatch, exc: type[OSError], expected: bool
+) -> None:
+    # 他ユーザーのプロセス (PermissionError) は「存在する」ので生存、それ以外の OSError は
+    # 確認できないので死亡側へ倒す。os.kill は共有シングルトン (state が呼ぶ os.kill も
+    # ここで差し替える os.kill も同じ) なので、番兵の pid にだけ例外を返し、他のプローブは
+    # 本物へ委譲する
+    sentinel = 2**22 - 2
+    real_kill = os.kill
+
+    def fake_kill(pid: int, sig: int) -> None:
+        if pid == sentinel:
+            raise exc
+        real_kill(pid, sig)
+
+    monkeypatch.setattr(os, "kill", fake_kill)
+    assert state.is_alive(sentinel) is expected
 
 
 def test_フックは_stdin_を読んで_exit_0_で終わる(tmp_path: Path, state_dir: Path) -> None:

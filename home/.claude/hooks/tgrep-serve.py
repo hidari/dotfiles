@@ -99,6 +99,11 @@ def serve_pid(root: Path) -> int | None:
     誤りの向きが逆で、ここでの誤りは「無関係のプロセスを操作する」側 (start_serve が
     黙ってスキップする / stop_serve が無関係の pid へ SIGINT を送る) に落ちるため、
     comm 名が tgrep であることまで確認する。
+
+    pid の形は is_alive より手前で state.is_pid が見る。ps は -1 と 0 を拒む (実測) が、
+    それが唯一の層だと serve.json の {"pid": -1} 1 つで os.kill(-1, SIGINT) まで届く。
+    comm は絶対パスで起動したプロセスではそのパスを返す (実測: /bin/sleep で起動すると
+    /bin/sleep、PATH 経由なら sleep) ので、basename で比べる。
     """
     try:
         data = json.loads((root / ".tgrep" / "serve.json").read_text(encoding="utf-8"))
@@ -107,9 +112,10 @@ def serve_pid(root: Path) -> int | None:
     if not isinstance(data, dict):
         return None
     pid = data.get("pid")
-    if not isinstance(pid, int) or not state.is_alive(pid):
+    if not state.is_pid(pid) or not state.is_alive(pid):
         return None
-    if _pid_command_name(pid) != "tgrep":
+    name = _pid_command_name(pid)
+    if name is None or os.path.basename(name) != "tgrep":
         return None
     return pid
 
@@ -221,10 +227,11 @@ def handle_start(payload: dict[str, Any], pid: int) -> None:
 
 def handle_end(payload: dict[str, Any], pid: int) -> None:
     if payload.get("reason") == "clear":
-        # /clear は同一セッション内で SessionEnd(reason=clear) の直後に
-        # SessionStart(reason=clear) が発火する。ここで unregister すると、続く
-        # start_serve が shutting-down 中の pid をまだ alive と見て起動を見送り、
-        # そのセッションは以後 serve 無しで無言のフォールバックへ落ちる (実測)。
+        # 公式ドキュメントでは /clear は同一セッション内で SessionEnd(reason=clear) の直後に
+        # SessionStart(source=clear) を発火させる (バイナリの列挙に双方 clear があることまで
+        # 確認し、発火はさせていない)。ここで unregister して止めると、続く start_serve が
+        # shutting-down 中の pid をまだ alive と見て起動を見送り、そのセッションは以後
+        # serve 無しで無言のフォールバックへ落ちる (この誤認は SIGKILL 後の再起動で実測)。
         # /clear では何もしない
         return
     root = resolve_root(payload)
