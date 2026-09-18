@@ -56,11 +56,49 @@ def serve_argv(root: Path) -> list[str]:
     ]
 
 
-def serve_pid(root: Path) -> int | None:
-    """索引ディレクトリの serve.json が指す PID。生きていなければ None。
+# serve_pid の pid 同一性確認 (ps -o comm=) のタイムアウト (秒)。hook_git.RESOLVE_TIMEOUT と
+# 同じ理由: 「応答しない」を判定するための上限であって通常経路の待ち時間ではない。
+PS_IDENTITY_TIMEOUT = 5.0
 
-    SIGTERM / SIGKILL で止まった serve は serve.json を古いまま残すので、
-    ファイルの存在だけでは判定できない。
+
+def _ps_bin() -> str:
+    """serve_pid の pid 同一性確認に使う ps の実体。テストは偽コマンドを環境変数で差し込む
+    (TGREP_BIN と同じ形)。"""
+    return os.environ.get("TGREP_PS_BIN") or "ps"
+
+
+def _pid_command_name(pid: int) -> str | None:
+    """pid の実行コマンド名 (comm) を返す。取得できなければ None。
+
+    ps が使えない・タイムアウト・非 0 終了、いずれも None (= 同一性を確認できないので
+    serve 無しとして扱う安全側) に潰す。
+    """
+    try:
+        result = subprocess.run(
+            [_ps_bin(), "-o", "comm=", "-p", str(pid)],
+            capture_output=True,
+            text=True,
+            timeout=PS_IDENTITY_TIMEOUT,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    name = result.stdout.strip()
+    return name or None
+
+
+def serve_pid(root: Path) -> int | None:
+    """索引ディレクトリの serve.json が指す PID。生きていて、かつ tgrep 自身でなければ None。
+
+    SIGTERM / SIGKILL で止まった serve は serve.json を古いまま残すので、ファイルの存在
+    だけでは判定できない。生存確認 (is_alive) だけでも足りない: このマシンの ~/Develop
+    配下で実際に観測したとおり stale な serve.json (pid は死亡済み) が複数実在し、
+    pid が別プロセスへ再利用される可能性も排除できない。session pid の is_alive とは
+    誤りの向きが逆で、ここでの誤りは「無関係のプロセスを操作する」側 (start_serve が
+    黙ってスキップする / stop_serve が無関係の pid へ SIGINT を送る) に落ちるため、
+    comm 名が tgrep であることまで確認する。
     """
     try:
         data = json.loads((root / ".tgrep" / "serve.json").read_text(encoding="utf-8"))
@@ -70,6 +108,8 @@ def serve_pid(root: Path) -> int | None:
         return None
     pid = data.get("pid")
     if not isinstance(pid, int) or not state.is_alive(pid):
+        return None
+    if _pid_command_name(pid) != "tgrep":
         return None
     return pid
 
@@ -152,20 +192,27 @@ def stop_if_unused(root: Path) -> bool:
     return True
 
 
-def reap() -> list[Path]:
-    """生存セッションが 0 の root をすべて止める。止めた root を返す。
+def reap(exclude: Path | None = None) -> list[Path]:
+    """生存セッションが 0 の root をすべて止める。exclude で指定した root は対象から外す。
+    止めた root を返す。
 
     SIGKILL では SessionEnd が発火せず、hook が起こした子も孤児として残る (実測)。
     停止を SessionEnd だけに賭けられないので、SessionStart でも回収する。
+    exclude には呼び出し元がこれから使う root を渡す。除外しないと、クラッシュ
+    (SIGKILL) 直後の再起動で自分の root に残っている健全な孤児 serve を reap が
+    先に止めてしまい、続く start_serve の生存確認が shutting-down 中の pid を
+    まだ alive と誤認して起動を見送る (無言のフォールバック、実測)。
     """
-    return [root for root in state.known_roots() if stop_if_unused(root)]
+    return [root for root in state.known_roots() if root != exclude and stop_if_unused(root)]
 
 
 def handle_start(payload: dict[str, Any], pid: int) -> None:
-    # 回収を先に行う。自分が使う root は登録前なので、この時点の生存 0 判定に自分は入らない。
-    # 順序を逆にすると、自分が登録した直後に自分を数えて回収が空振りする
-    reap()
     root = resolve_root(payload)
+    # 回収は登録より先に、かつ自分の root を除いて行う。
+    # 先に行う理由: 自分が使う root は登録前なので、順序を逆にすると自分を登録した
+    # 直後に自分を数えてしまい回収が空振りする。
+    # 除く理由は reap() の docstring 参照
+    reap(exclude=root)
     if root is None:
         return
     state.register(root, pid)
@@ -173,6 +220,13 @@ def handle_start(payload: dict[str, Any], pid: int) -> None:
 
 
 def handle_end(payload: dict[str, Any], pid: int) -> None:
+    if payload.get("reason") == "clear":
+        # /clear は同一セッション内で SessionEnd(reason=clear) の直後に
+        # SessionStart(reason=clear) が発火する。ここで unregister すると、続く
+        # start_serve が shutting-down 中の pid をまだ alive と見て起動を見送り、
+        # そのセッションは以後 serve 無しで無言のフォールバックへ落ちる (実測)。
+        # /clear では何もしない
+        return
     root = resolve_root(payload)
     if root is None:
         return

@@ -100,23 +100,21 @@ def test_cache_root_は_XDG_CACHE_HOME_に従う(
     assert state.cache_root() == tmp_path / "xdg" / "claude"
 
 
-def test_起動コマンドに_ignore_無視のフラグを渡さない() -> None:
+def test_起動コマンドは_argv_全体が完全一致する() -> None:
     hook = _load_hook()
-    argv = hook.serve_argv(Path("/tmp/repo"))
-    # 「含まれない」ことが安全側の決定なので、部分一致ではなく集合として見る。
-    # 部分一致だと変異でフラグを足しても赤くならない
-    assert "--no-ignore" not in argv
-    assert "--no-ignore-parent" not in argv
-    assert "--no-ignore-vcs" not in argv
-    assert "--hidden" not in argv
-
-
-def test_起動コマンドに資源上限が渡る() -> None:
-    hook = _load_hook()
-    argv = hook.serve_argv(Path("/tmp/repo"))
-    assert "--max-memory" in argv
-    assert "--max-cpu" in argv
-    assert argv[:3] == [hook.tgrep_bin(), "serve", "/tmp/repo"]
+    # 「特定のフラグが含まれない」という部分一致だと、tgrep が受け付ける ignore 無視系の
+    # 別綴り (-u / -uu / --no-ignore-dot / --no-ignore-exclude / --no-ignore-files /
+    # --no-ignore-global) を足す変異が生き残る。argv 全体を完全一致で固定して pin する
+    # (資源上限が渡ることも同時に検証する)
+    assert hook.serve_argv(Path("/tmp/repo")) == [
+        hook.tgrep_bin(),
+        "serve",
+        "/tmp/repo",
+        "--max-memory",
+        hook.MAX_MEMORY_MB,
+        "--max-cpu",
+        hook.MAX_CPU_PERCENT,
+    ]
 
 
 def test_serve_pid_は生きていない_pid_を_None_に落とす(tmp_path: Path) -> None:
@@ -127,12 +125,28 @@ def test_serve_pid_は生きていない_pid_を_None_に落とす(tmp_path: Pat
     assert hook.serve_pid(tmp_path) is None
 
 
-def test_serve_pid_は生きている_pid_を返す(tmp_path: Path) -> None:
+def test_serve_pid_は生きている_pid_を返す(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     hook = _load_hook()
     idx = tmp_path / ".tgrep"
     idx.mkdir()
     (idx / "serve.json").write_text(json.dumps({"pid": os.getpid(), "port": 1}), encoding="utf-8")
+    _fake_ps(tmp_path, monkeypatch, "tgrep")
     assert hook.serve_pid(tmp_path) == os.getpid()
+
+
+def test_serve_pid_は_comm_が_tgrep_でなければ_None_に落とす(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hook = _load_hook()
+    idx = tmp_path / ".tgrep"
+    idx.mkdir()
+    # 生存している (このテストプロセス自身の) pid だが、別プロセスへ再利用されていた
+    # 想定。このマシンの ~/Develop 配下に実在した「serve.json は残るが指す pid は
+    # 死んでいる」状態から、さらに一歩進めて「pid が生きてはいるが tgrep ではない」
+    # ケースを再現する
+    (idx / "serve.json").write_text(json.dumps({"pid": os.getpid(), "port": 1}), encoding="utf-8")
+    _fake_ps(tmp_path, monkeypatch, "python3")
+    assert hook.serve_pid(tmp_path) is None
 
 
 def test_serve_が動いていれば起動しない(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -140,8 +154,20 @@ def test_serve_が動いていれば起動しない(tmp_path: Path, monkeypatch:
     idx = tmp_path / ".tgrep"
     idx.mkdir()
     (idx / "serve.json").write_text(json.dumps({"pid": os.getpid(), "port": 1}), encoding="utf-8")
+    _fake_ps(tmp_path, monkeypatch, "tgrep")
     launched: list[list[str]] = []
-    monkeypatch.setattr(hook.subprocess, "Popen", lambda cmd, **kw: launched.append(cmd))
+    real_popen = hook.subprocess.Popen
+
+    def fake_popen(cmd: list[str], **kwargs: object) -> object:
+        # serve_pid の pid 同一性確認 (subprocess.run 経由の ps 呼び出し) も同じ
+        # subprocess.Popen を通るため、無条件に差し替えると壊れる (実測)。
+        # tgrep serve の起動だけを横取りし、それ以外は本物へ委譲する
+        if cmd and cmd[0] == hook.tgrep_bin():
+            launched.append(cmd)
+            return None
+        return real_popen(cmd, **kwargs)
+
+    monkeypatch.setattr(hook.subprocess, "Popen", fake_popen)
     assert hook.start_serve(tmp_path) is False
     assert launched == []
 
@@ -193,6 +219,7 @@ def test_停止は_SIGINT_を送る(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     idx = tmp_path / ".tgrep"
     idx.mkdir()
     (idx / "serve.json").write_text(json.dumps({"pid": os.getpid(), "port": 1}), encoding="utf-8")
+    _fake_ps(tmp_path, monkeypatch, "tgrep")
     sent: list[tuple[int, int]] = []
     # hook.os は os モジュールそのもの (共有シングルトン) なので、ここを差し替えると
     # tgrep_serve_state.is_alive が内部で呼ぶ os.kill(pid, 0) の生存確認プローブも一緒に
@@ -203,6 +230,31 @@ def test_停止は_SIGINT_を送る(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     assert hook.stop_serve(tmp_path) is True
     # SIGTERM は graceful handler を通らず serve.json を古いまま残す (実測)
     assert sent == [(os.getpid(), hook.signal.SIGINT)]
+
+
+def test_停止は_死んでいる_pid_には送らない(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hook = _load_hook()
+    idx = tmp_path / ".tgrep"
+    idx.mkdir()
+    # 実在しない pid を直接書き込む。stop_serve が serve_pid を経由せず serve.json を
+    # 直読みする変異が入ると、mutant も except OSError で False を返すので戻り値だけでは
+    # 区別できない (実測)。SIGINT を伴う os.kill 呼び出しが実際に無かったことまで見る
+    dead_pid = 2**22 - 1
+    (idx / "serve.json").write_text(json.dumps({"pid": dead_pid, "port": 1}), encoding="utf-8")
+    sent: list[tuple[int, int]] = []
+
+    def fake_kill(pid: int, sig: int) -> None:
+        # is_alive の生存確認プローブ (sig=0) も同じ os.kill を通るため、本物同様に
+        # ProcessLookupError を送出して「死んでいる」という判定結果を保つ。そのうえで
+        # 呼び出し自体は記録し、SIGINT を伴う呼び出しの有無を後で検証する
+        sent.append((pid, sig))
+        raise ProcessLookupError
+
+    monkeypatch.setattr(hook.os, "kill", fake_kill)
+    assert hook.stop_serve(tmp_path) is False
+    assert hook.signal.SIGINT not in [sig for _pid, sig in sent]
 
 
 def test_生存セッションが残っていれば止めない(
@@ -276,13 +328,133 @@ def test_回収は生存_0_の_root_だけを止める(
     assert state.state_file(alive).exists()
 
 
-def test_フックは_stdin_を読んで_exit_0_で終わる(tmp_path: Path) -> None:
+def test_clear_では停止も回収もしない(
+    tmp_path: Path, state_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hook = _load_hook()
+    repo = make_git_repo(tmp_path / "repo")
+    root = hook.resolve_root({"cwd": str(repo)})
+    assert root is not None
+    state.register(root, os.getpid())
+    stopped: list[Path] = []
+
+    def _fake_stop(r: Path) -> bool:
+        stopped.append(r)
+        return True
+
+    monkeypatch.setattr(hook, "stop_serve", _fake_stop)
+    hook.handle_end({"cwd": str(repo), "reason": "clear"}, os.getpid())
+    assert stopped == []
+    # /clear では unregister 自体も走らない (登録がそのまま残る) ことまで確認する。
+    # ここが空だと上の空も意味を持たない
+    assert state.live_pids(root) == [os.getpid()]
+
+
+def _fake_ps(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, comm: str) -> None:
+    """serve_pid の pid 同一性確認に使う ps を、常に comm を返す偽コマンドへ差し替える。
+
+    既存の TGREP_BIN と同じ形。引数 (`-o comm= -p <pid>`) は無視して固定文字列を返すだけの
+    偽コマンドにする。本物の ps を叩くと、テスト実行中の pytest プロセス自身の comm
+    (python/Python 等) が返り、"tgrep" と一致しない。
+    """
+    script = tmp_path / f"fake-ps-{comm}"
+    script.write_text(f"#!/bin/sh\necho {comm}\n", encoding="utf-8")
+    script.chmod(0o755)
+    monkeypatch.setenv("TGREP_PS_BIN", str(script))
+
+
+def test_reap_は自分の_root_を除外する(
+    tmp_path: Path, state_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hook = _load_hook()
+    repo = make_git_repo(tmp_path / "repo")
+    root = hook.resolve_root({"cwd": str(repo)})
+    assert root is not None
+    # クラッシュ (SIGKILL) したセッションの痕跡: 登録された生存 pid は 0 件だが、
+    # serve 自体はまだ生きている (孤児)
+    state_file = state.state_file(root)
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(
+        json.dumps({"root": str(root), "pids": [2**22 - 1]}) + "\n", encoding="utf-8"
+    )
+    idx = root / ".tgrep"
+    idx.mkdir()
+    (idx / "serve.json").write_text(json.dumps({"pid": os.getpid(), "port": 1}), encoding="utf-8")
+    _fake_ps(tmp_path, monkeypatch, "tgrep")
+
+    stopped: list[Path] = []
+
+    def _fake_stop(r: Path) -> bool:
+        stopped.append(r)
+        return True
+
+    monkeypatch.setattr(hook, "stop_serve", _fake_stop)
+    launched: list[list[str]] = []
+    real_popen = hook.subprocess.Popen
+
+    def fake_popen(cmd: list[str], **kwargs: object) -> object:
+        # subprocess.Popen は os.kill と同じ共有シングルトンなので、無条件に差し替えると
+        # handle_start 内部の resolve_root が使う git (subprocess.run 経由) まで壊れる
+        # (実測: subprocess.run が None を返す Popen を with 文へ渡し TypeError になる)。
+        # tgrep serve の起動だけを横取りし、それ以外 (git) は本物へ委譲する
+        if cmd and cmd[0] == hook.tgrep_bin():
+            launched.append(cmd)
+            return None
+        return real_popen(cmd, **kwargs)
+
+    monkeypatch.setattr(hook.subprocess, "Popen", fake_popen)
+
+    # register する新セッションの pid は state.live_pids がアライブ判定するので、
+    # 実在しない値 (4242 等) ではなく実際に生きている pid を使う
+    new_pid = os.getppid()
+    hook.handle_start({"cwd": str(repo)}, new_pid)
+
+    # 自分の root は reap の対象から除外されるので、健全な孤児 serve を誤って
+    # 止めない。除外しなければ stopped == [root] になり、続く start_serve が
+    # shutting-down の pid をまだ alive と見て起動を見送る (無言のフォールバック)
+    assert stopped == []
+    assert launched == []  # 既に生きている serve があるので新規起動もしない
+    assert state.live_pids(root) == [new_pid]
+
+
+def test_handle_start_は登録と起動の両方を行う(
+    tmp_path: Path, state_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hook = _load_hook()
+    repo = make_git_repo(tmp_path / "repo")
+    launched: list[list[str]] = []
+    real_popen = hook.subprocess.Popen
+
+    def fake_popen(cmd: list[str], **kwargs: object) -> object:
+        # test_reap_は自分の_root_を除外する と同じ理由で、git 呼び出しは本物へ委譲する
+        if cmd and cmd[0] == hook.tgrep_bin():
+            launched.append(cmd)
+            return None
+        return real_popen(cmd, **kwargs)
+
+    monkeypatch.setattr(hook.subprocess, "Popen", fake_popen)
+    hook.handle_start({"cwd": str(repo)}, os.getpid())
+    root = hook.resolve_root({"cwd": str(repo)})
+    assert root is not None
+    # register の効果 (状態ファイルに自分の pid が入る)
+    assert state.live_pids(root) == [os.getpid()]
+    # start_serve の効果 (serve が未起動なので Popen が呼ばれる)
+    assert launched and launched[0][:3] == [hook.tgrep_bin(), "serve", str(root)]
+
+
+def test_フックは_stdin_を読んで_exit_0_で終わる(tmp_path: Path, state_dir: Path) -> None:
+    # 元は非 git の tmp_path を cwd にしていたため resolve_root が None を返し、
+    # register にも start_serve にも到達しない dead setup だった
+    # (state.register(root, pid) の行を消しても 22 件すべて緑のままだったことを実測で確認済み)。
+    # git リポジトリにして handle_start の効果まで検証する
+    repo = make_git_repo(tmp_path / "repo")
     env = dict(os.environ)
-    env["TGREP_SERVE_STATE_DIR"] = str(tmp_path / "state")
+    env["TGREP_SERVE_STATE_DIR"] = str(state_dir)
     env["TGREP_BIN"] = "/usr/bin/false"
-    payload = json.dumps({"hook_event_name": "SessionStart", "cwd": str(tmp_path)})
+    pid = os.getpid()
+    payload = json.dumps({"hook_event_name": "SessionStart", "cwd": str(repo)})
     result = subprocess.run(
-        [sys.executable, str(HOOK), "start", str(os.getpid())],
+        [sys.executable, str(HOOK), "start", str(pid)],
         input=payload,
         capture_output=True,
         text=True,
@@ -291,3 +463,6 @@ def test_フックは_stdin_を読んで_exit_0_で終わる(tmp_path: Path) -> 
     )
     assert result.returncode == 0
     assert result.stdout == ""
+    # register の効果を状態ファイル越しに確認する (親プロセスとサブプロセスで
+    # TGREP_SERVE_STATE_DIR を揃えているので同じ状態ファイルを見る)
+    assert state.live_pids(repo.resolve()) == [pid]
