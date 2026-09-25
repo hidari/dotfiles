@@ -1,5 +1,5 @@
 ---
-status: open
+status: closed
 ---
 
 # fix(hooks): handoff-sentinel のコンテキスト推定が advisor 呼び出しで executor 2 回分を合算して誤発火する
