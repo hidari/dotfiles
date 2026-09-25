@@ -92,12 +92,12 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | M2 | 検査を配布先で走る状態にする | ISSUE-53、ISSUE-72、ISSUE-86、ISSUE-97、ISSUE-101、agentic-coding-tools の ISSUE-32 |
 | M3 | skill バンドルの二重登録を止める | Issue 40 |
 | M4 | PUBLIC 露出の scrub | Issue 21、Issue 29、ISSUE-87 |
-| M5 | 静的検査の基盤を寄せ射程の穴を塞ぐ | Issue 39、Issue 30、ISSUE-57、ISSUE-60、Issue 41、ISSUE-47、Issue 17、Issue 18、ISSUE-75、ISSUE-85、ISSUE-90、ISSUE-94、ISSUE-98、ISSUE-104 |
+| M5 | 静的検査の基盤を寄せ射程の穴を塞ぐ | Issue 39、Issue 30、ISSUE-57、ISSUE-60、Issue 41、ISSUE-47、Issue 17、Issue 18、ISSUE-75、ISSUE-85、ISSUE-90、ISSUE-94、ISSUE-98、ISSUE-104、ISSUE-110 |
 | M6 | winvm の実装品質 | 上流の winvm 系 Issue |
 | M7 | 環境とテスト網の個別 | 下の細分表 |
 | M8 | CI の必須チェックを実効化する | ISSUE-50 |
 | M9 | フックの共通基盤とガードの穴 | Issue 26、ISSUE-58、ISSUE-67、ISSUE-71、ISSUE-62、ISSUE-63、ISSUE-66、ISSUE-77、ISSUE-83、ISSUE-84、ISSUE-107 |
-| M10 | 規範層の構造を直す | ISSUE-48、ISSUE-61、ISSUE-88、ISSUE-89、ISSUE-99、ISSUE-100、ISSUE-106 |
+| M10 | 規範層の構造を直す | ISSUE-48、ISSUE-61、ISSUE-88、ISSUE-89、ISSUE-99、ISSUE-100、ISSUE-108 |
 | M11 | セッションの取り違えを検出する | ISSUE-78、ISSUE-82、ISSUE-91 |
 
 ### M7 の細分 (2026-09-02)
@@ -112,7 +112,7 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | CI の安定性 | Issue 37、Issue 38 |
 | Raycast | Issue 22、Issue 23 |
 | PowerShell | Issue 27、Issue 28 |
-| 単独 | Issue 31、Issue 33、ISSUE-51、ISSUE-95、ISSUE-96 |
+| 単独 | Issue 31、Issue 33、ISSUE-51、ISSUE-95、ISSUE-96、ISSUE-109 |
 
 ### 数え方
 
@@ -150,6 +150,19 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
   `git show <ref>:<path>` で読む。数えた SHA は「件数の推移」節に残す。並行するセッションが上流の
   作業ツリーを feature ブランチへ切り替えていると、その枝でだけ status が動いた Issue の分がずれる
   (2026-09-17 に実例がある)
+
+### 割り当ての検算 (2026-09-26、ISSUE-108・109・110 の起票と ISSUE-106 のクローズの後)
+
+dotfiles の active な Issue は67件 (open が65件、in_progress が2件) で、その全件がいずれかのマイルストーンへ入ることを、この変更の tree で数えて確かめた。M1 は3件、M2 は5件 (dotfiles 側のみ)、M3 は1件、M4 は3件、M5 は15件、M6 は0件 (上流のみ)、M7 は17件、M8 は1件、M9 は11件、M10 は7件、M11 は3件で、この Issue 自身の1件と合わせて67件になる。表の腐りは0件、未割り当てはこの Issue 自身の1件だけだった。
+
+下の 09-25 の検算からの動きは次のとおり。ISSUE-108・109・110 は PR #233 で起票したが、所属はこの検算まで決めていなかった。
+
+- ISSUE-106 は PR #233 でクローズしたので、M10 から外した
+- ISSUE-108 を M10 へ入れた。新しく書く文面の規範と、それを強制する形を決める話で、規範層にあたる。検査を足す案も含むが、先に決めるのは規範の側である
+- ISSUE-109 を M7 の単独へ入れた。ホストに残った mise の shim の扱いで、ISSUE-102 と同じくツールの常駐という環境の話として扱う
+- ISSUE-110 を M5 へ入れた。config-guard へ検査を足す Issue で、ISSUE-90 と同じく、検査の対象が規範層のファイルでも M5 に置く
+
+順序制約表は動かしていない。
 
 ### 割り当ての検算 (2026-09-25、ISSUE-104・106・107 の起票と ISSUE-102 のクローズの後)
 
@@ -496,6 +509,16 @@ ISSUE-55 (apm ガードの判定点) / ISSUE-56 (tirith の fail-open) を 2026-
 数えるときは他リポジトリ参照を除くこと。前置を無視して数えると
 `agentic-coding-tools の ISSUE-22` のような正しい参照まで拾い、この Issue の作業では
 実際に 23 件と過大に出した (正しくは 10 件)。
+
+### 着手順の裁定 (2026-09-26)
+
+ISSUE-107 を、下の 09-11 の裁定で次に来る Issue 29 より先に置く。ユーザーの判断である。
+
+09-11 の裁定の順序のうち Issue 45 は closed になっており、次は Issue 29 だった。ISSUE-107 はその前へ入る。Issue 29 と ISSUE-50 の並びは 09-11 の裁定のまま変わらない。
+
+ISSUE-107 が直すのは、advisor を呼んだ応答でコンテキストの推定が占有量の約2倍になり、しきい値の通知が誤って鳴る欠陥である。通知は作業の打ち切りを求めるので、誤発火はそのままセッションの作業を止める。2026-09-25には別リポジトリのセッションで実際に作業が打ち切られている。
+
+同じフックを触る ISSUE-67 とは組まない。ISSUE-107 は `_context_tokens` の推定を harness 自身の選び方へ揃える修正で、正解の基準がある。ISSUE-67 は3つの案が未決で、今のモデルでこのしきい値によって作業を打ち切る必要がまだあるかという判断をユーザーに要する。触る箇所も、ISSUE-67 は通知を1回に絞る `_notify_once` と `_context_notices` の側で、推定の関数とは分かれている。順序制約表の ISSUE-107 から ISSUE-67 への行は、ISSUE-107 のクローズで満たされる。
 
 ### 着手順の裁定 (2026-09-11)
 
