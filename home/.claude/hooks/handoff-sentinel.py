@@ -44,6 +44,12 @@ _WINDOW_LABELS = {
     "seven_day": "週次",
 }
 
+# usage のうちコンテキストの占有を表すフィールド。トップレベルにも iterations の段にも現れる
+_OCCUPANCY_KEYS = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
+# iterations の段の型。前者は占有を表さないので飛ばし、後者だけを占有量として数える
+_SKIPPED_STAGES = frozenset({"advisor_message", "compaction"})
+_OCCUPANCY_STAGES = frozenset({"message", "fallback_message"})
+
 # 本文に漏れた tool-call の開始署名 (破損イベントの判定に使う)。
 # 実漏洩は崩れたトークンに続いて桁0の行頭に tool-call ブロックが現れる構造なので、
 # `<invoke name=` / `<parameter name=` (antml: 付き含む) が桁0の行頭に来る場合のみ数える。
@@ -157,8 +163,44 @@ def _read_tail_entries(transcript_path: str) -> list[dict[str, Any]]:
     return entries
 
 
+def _occupied_tokens(usage: dict[str, Any]) -> int:
+    """usage (トップレベルか iterations の1段) が表すコンテキストの占有量。"""
+    return sum(v for key in _OCCUPANCY_KEYS if isinstance(v := usage.get(key), int))
+
+
+def _is_count(value: Any) -> bool:
+    """トークン数として使える値か。bool は int の派生なので明示的に外す。"""
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _last_occupancy_stage(iterations: Any) -> dict[str, Any] | None:
+    """usage.iterations から占有量を表す最後の段を選ぶ。使える段が無ければ None。
+
+    選び方は harness が statusline の used_percentage を出すときのものに揃えてある
+    (Claude Code 2.1.282のバイナリで読んだ)。占有を表さない段を後ろから飛ばし、最初に
+    当たった段が占有を表す型で値が揃っているときだけ使う。そこより前は探さない。
+    """
+    if not isinstance(iterations, list):
+        return None
+    for stage in reversed(iterations):
+        if isinstance(stage, dict) and stage.get("type") in _SKIPPED_STAGES:
+            continue
+        usable = (
+            isinstance(stage, dict)
+            and stage.get("type") in _OCCUPANCY_STAGES
+            and all(_is_count(stage.get(key)) for key in (*_OCCUPANCY_KEYS, "output_tokens"))
+            and _occupied_tokens(stage) > 0
+        )
+        return stage if usable else None
+    return None
+
+
 def _context_tokens(entries: list[dict[str, Any]]) -> int:
-    """最後の assistant メッセージの usage からコンテキスト占有量 (tokens) を推定する。"""
+    """最後の assistant メッセージの usage からコンテキスト占有量 (tokens) を推定する。
+
+    advisor を挟んだ応答では、トップレベルの usage が executor の推論の和になり占有量の
+    約2倍になる。iterations に占有量を表す段があればそちらを数え、無ければトップレベルを数える。
+    """
     for entry in reversed(entries):
         if entry.get("type") != "assistant":
             continue
@@ -168,12 +210,8 @@ def _context_tokens(entries: list[dict[str, Any]]) -> int:
         usage = message.get("usage")
         if not isinstance(usage, dict):
             continue
-        total = 0
-        for key in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"):
-            value = usage.get(key)
-            if isinstance(value, int):
-                total += value
-        return total
+        stage = _last_occupancy_stage(usage.get("iterations"))
+        return _occupied_tokens(stage if stage is not None else usage)
     return 0
 
 
