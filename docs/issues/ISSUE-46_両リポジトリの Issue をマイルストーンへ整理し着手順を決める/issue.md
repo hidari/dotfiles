@@ -92,12 +92,12 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | M2 | 検査を配布先で走る状態にする | ISSUE-53、ISSUE-72、ISSUE-86、ISSUE-97、ISSUE-101、agentic-coding-tools の ISSUE-32 |
 | M3 | skill バンドルの二重登録を止める | Issue 40 |
 | M4 | PUBLIC 露出の scrub | Issue 21、Issue 29、ISSUE-87 |
-| M5 | 静的検査の基盤を寄せ射程の穴を塞ぐ | Issue 39、Issue 30、ISSUE-57、ISSUE-60、Issue 41、ISSUE-47、Issue 17、Issue 18、ISSUE-75、ISSUE-85、ISSUE-90、ISSUE-94、ISSUE-98 |
+| M5 | 静的検査の基盤を寄せ射程の穴を塞ぐ | Issue 39、Issue 30、ISSUE-57、ISSUE-60、Issue 41、ISSUE-47、Issue 17、Issue 18、ISSUE-75、ISSUE-85、ISSUE-90、ISSUE-94、ISSUE-98、ISSUE-104 |
 | M6 | winvm の実装品質 | 上流の winvm 系 Issue |
 | M7 | 環境とテスト網の個別 | 下の細分表 |
 | M8 | CI の必須チェックを実効化する | ISSUE-50 |
-| M9 | フックの共通基盤とガードの穴 | Issue 26、ISSUE-58、ISSUE-67、ISSUE-71、ISSUE-62、ISSUE-63、ISSUE-66、ISSUE-77、ISSUE-83、ISSUE-84 |
-| M10 | 規範層の構造を直す | ISSUE-48、ISSUE-61、ISSUE-88、ISSUE-89、ISSUE-99、ISSUE-100 |
+| M9 | フックの共通基盤とガードの穴 | Issue 26、ISSUE-58、ISSUE-67、ISSUE-71、ISSUE-62、ISSUE-63、ISSUE-66、ISSUE-77、ISSUE-83、ISSUE-84、ISSUE-107 |
+| M10 | 規範層の構造を直す | ISSUE-48、ISSUE-61、ISSUE-88、ISSUE-89、ISSUE-99、ISSUE-100、ISSUE-106 |
 | M11 | セッションの取り違えを検出する | ISSUE-78、ISSUE-82、ISSUE-91 |
 
 ### M7 の細分 (2026-09-02)
@@ -112,7 +112,7 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | CI の安定性 | Issue 37、Issue 38 |
 | Raycast | Issue 22、Issue 23 |
 | PowerShell | Issue 27、Issue 28 |
-| 単独 | Issue 31、Issue 33、ISSUE-51、ISSUE-95、ISSUE-96、ISSUE-102 |
+| 単独 | Issue 31、Issue 33、ISSUE-51、ISSUE-95、ISSUE-96 |
 
 ### 数え方
 
@@ -150,6 +150,19 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
   `git show <ref>:<path>` で読む。数えた SHA は「件数の推移」節に残す。並行するセッションが上流の
   作業ツリーを feature ブランチへ切り替えていると、その枝でだけ status が動いた Issue の分がずれる
   (2026-09-17 に実例がある)
+
+### 割り当ての検算 (2026-09-25、ISSUE-104・106・107 の起票と ISSUE-102 のクローズの後)
+
+dotfiles の active 65 件 (open 63、in_progress 2) の全件がいずれかのマイルストーンへ入ることを、起票とクローズを含む変更の tree で数えて確かめた。M1 が 3、M2 が 5 (dotfiles 側のみ)、M3 が 1、M4 が 3、M5 が 14、M6 が 0 (上流のみ)、M7 が 16、M8 が 1、M9 が 11、M10 が 7、M11 が 3、この Issue 自身が 1 で合計 65。表の腐りは 0 件、未割り当てはこの Issue 自身の 1 件だけだった。
+
+下の 09-18 の検算からの動きは次のとおり。ISSUE-103 と ISSUE-105 は起票とクローズが同じ PR なので表に入れていない。
+
+- ISSUE-104 を M5 へ入れた。shellcheck の対象から `.bats` が外れている欠陥で、静的検査の射程の穴にあたる
+- ISSUE-106 を M10 へ入れた。指示文と設定を今のモデルへ合わせる、規範層の話である
+- ISSUE-107 を M9 へ入れた。handoff-sentinel の推定の誤りで、ISSUE-67 と同じフックを扱う
+- ISSUE-102 は tgrep の撤去で closed になったので、M7 の単独から外した
+
+順序制約表からは ISSUE-102 を後続にしていた 2 行 (ISSUE-83 と ISSUE-71 から) を消し、ISSUE-107 から ISSUE-67 への 1 行 (再通知する案を採るときだけ) を足した。
 
 ### 割り当ての検算 (2026-09-18、ISSUE-102 の起票の後)
 
@@ -410,8 +423,7 @@ canonical で、マイルストーン表と細分表は所属だけを持つ。
 | ISSUE-83 | ISSUE-101 (SessionStart で告げる形を採るときだけ) | プローブが逐次に走り、待ち時間の上限が積み上がる |
 | ISSUE-71 | ISSUE-97 (SessionStart で告げる形を採るときだけ) | SessionStart の告知が subagent へ届かない |
 | ISSUE-71 | ISSUE-101 (SessionStart で告げる形を採るときだけ) | SessionStart の告知が subagent へ届かない |
-| ISSUE-83 | ISSUE-102 (サーバーの不在を SessionStart で告げる形を採るときだけ) | 不在の確認がプローブに加わり、待ち時間の上限が積み上がる |
-| ISSUE-71 | ISSUE-102 (サーバーの不在を SessionStart で告げる形を採るときだけ) | 不在の告知が subagent へ届かない |
+| ISSUE-107 | ISSUE-67 (再通知する案を採るときだけ) | advisor を呼んだ応答で推定が占有量の約 2 倍になり、再通知のたびに誤発火が繰り返される |
 | agentic-coding-tools の ISSUE-47 | ISSUE-100 (同時が自然) | 起動数の写しの置き場が、テンプレート化で動く |
 | ISSUE-53 | agentic-coding-tools の ISSUE-32 の実地確認タスク | 層 3 のスイープが完成してから、規模の小さい配布先から取り付けを通す |
 
