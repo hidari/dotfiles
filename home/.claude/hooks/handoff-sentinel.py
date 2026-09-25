@@ -8,7 +8,8 @@
 再掲せず、通知の文面に従う。
 hook として呼ばれる経路は、検知機構の故障で作業を止めないため fail-safe (無出力 + exit 0)。
 record だけは skill が呼ぶコマンドなので、記録できなかったことを非 0 と stderr の理由で返す。
-仕様: docs/superpowers/archive/2026-07-03-session-handoff-design.md
+設計の起点 (当時のスナップショットで、今の挙動はこのファイルとテストが持つ):
+docs/superpowers/archive/2026-07-03-session-handoff-design.md
 """
 
 from __future__ import annotations
@@ -43,6 +44,12 @@ _WINDOW_LABELS = {
     "five_hour": "5 時間",
     "seven_day": "週次",
 }
+
+# usage のうちコンテキストの占有を表すフィールド。トップレベルにも iterations の段にも現れる
+_OCCUPANCY_KEYS = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
+# iterations の段の型。前者は占有を表さないので飛ばし、後者だけを占有量として数える
+_SKIPPED_STAGES = frozenset({"advisor_message", "compaction"})
+_OCCUPANCY_STAGES = frozenset({"message", "fallback_message"})
 
 # 本文に漏れた tool-call の開始署名 (破損イベントの判定に使う)。
 # 実漏洩は崩れたトークンに続いて桁0の行頭に tool-call ブロックが現れる構造なので、
@@ -157,8 +164,44 @@ def _read_tail_entries(transcript_path: str) -> list[dict[str, Any]]:
     return entries
 
 
+def _occupied_tokens(usage: dict[str, Any]) -> int:
+    """usage (トップレベルか iterations の1段) が表すコンテキストの占有量。"""
+    return sum(v for key in _OCCUPANCY_KEYS if isinstance(v := usage.get(key), int))
+
+
+def _is_count(value: Any) -> bool:
+    """トークン数として使える値か。bool は int の派生なので明示的に外す。"""
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _last_occupancy_stage(iterations: Any) -> dict[str, Any] | None:
+    """usage.iterations から占有量を表す最後の段を選ぶ。使える段が無ければ None。
+
+    選び方は harness が statusline の used_percentage を出すときのものに揃えてある
+    (Claude Code 2.1.282のバイナリで読んだ)。占有を表さない段を後ろから飛ばし、最初に
+    当たった段が占有を表す型で値が揃っているときだけ使う。そこより前は探さない。
+    """
+    if not isinstance(iterations, list):
+        return None
+    for stage in reversed(iterations):
+        if isinstance(stage, dict) and stage.get("type") in _SKIPPED_STAGES:
+            continue
+        usable = (
+            isinstance(stage, dict)
+            and stage.get("type") in _OCCUPANCY_STAGES
+            and all(_is_count(stage.get(key)) for key in (*_OCCUPANCY_KEYS, "output_tokens"))
+            and _occupied_tokens(stage) > 0
+        )
+        return stage if usable else None
+    return None
+
+
 def _context_tokens(entries: list[dict[str, Any]]) -> int:
-    """最後の assistant メッセージの usage からコンテキスト占有量 (tokens) を推定する。"""
+    """最後の assistant メッセージの usage からコンテキスト占有量 (tokens) を推定する。
+
+    advisor を挟んだ応答では、トップレベルの usage が executor の推論の和になり占有量の
+    約2倍になる。_last_occupancy_stage が段を選べばその段を数え、選べなければトップレベルを数える。
+    """
     for entry in reversed(entries):
         if entry.get("type") != "assistant":
             continue
@@ -168,12 +211,8 @@ def _context_tokens(entries: list[dict[str, Any]]) -> int:
         usage = message.get("usage")
         if not isinstance(usage, dict):
             continue
-        total = 0
-        for key in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"):
-            value = usage.get(key)
-            if isinstance(value, int):
-                total += value
-        return total
+        stage = _last_occupancy_stage(usage.get("iterations"))
+        return _occupied_tokens(stage if stage is not None else usage)
     return 0
 
 
@@ -370,7 +409,7 @@ def _broken_count(entries: list[dict[str, Any]]) -> int:
 
     連続 (streak) ではなく累積。破損の間に成功実行や通常会話が挟まってもリセットしない。
     実セッションの劣化はモデルが「壊れる→出し直して成功→また壊れる」を繰り返すため、
-    連続判定では成功のたびにリセットされ、破損が多数あるセッションでも一度も発火しなかった。
+    連続判定では成功のたびにリセットされるので、破損が多数あるセッションでも発火しない。
     通算なら劣化を取りこぼさない。tail ウィンドウ (DEFAULT_TAIL_BYTES) が古い破損を自然に
     スクロールアウトさせるため、完全復調した長寿命セッションで古い破損まで数え続けることはない。
     """

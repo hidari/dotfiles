@@ -75,22 +75,23 @@ class TestFailSafeSkeleton:
         assert result.stdout == ""
 
 
-def assistant_usage(tokens: int, *, sidechain: bool = False) -> dict[str, object]:
-    """usage 合算が tokens になる assistant entry を作る (input に全量を寄せる)。"""
+def assistant_entry(usage: Mapping[str, object], *, sidechain: bool = False) -> dict[str, object]:
+    """usage をそのまま持つ assistant entry を作る。"""
     entry: dict[str, object] = {
         "type": "assistant",
-        "message": {
-            "usage": {
-                "input_tokens": tokens,
-                "cache_read_input_tokens": 0,
-                "cache_creation_input_tokens": 0,
-            },
-            "content": [],
-        },
+        "message": {"usage": dict(usage), "content": []},
     }
     if sidechain:
         entry["isSidechain"] = True
     return entry
+
+
+def assistant_usage(tokens: int, *, sidechain: bool = False) -> dict[str, object]:
+    """usage 合算が tokens になる assistant entry を作る (input に全量を寄せる)。"""
+    return assistant_entry(
+        {"input_tokens": tokens, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0},
+        sidechain=sidechain,
+    )
 
 
 def write_transcript(path: Path, entries: list[dict[str, object]]) -> None:
@@ -169,7 +170,11 @@ def context_of(result: subprocess.CompletedProcess[str]) -> str:
 
 
 class TestPostToolContextWatch:
-    """posttool: 最後の assistant usage 合算がしきい値以上のとき、1 回だけ通知する。"""
+    """posttool: 最後の assistant の占有量の推定がしきい値以上のとき、1回だけ通知する。
+
+    推定の選び方は TestContextEstimate が持つ。ここの fixture は iterations を持たないので、
+    トップレベルの合計がそのまま推定になる。
+    """
 
     def test_しきい値直下では発火しない(self, tmp_path: Path) -> None:
         transcript = tmp_path / "t.jsonl"
@@ -215,23 +220,6 @@ class TestPostToolContextWatch:
         assert "コンテキスト使用率がしきい値を超えた" in context
         # 残量の数値を見たモデルは早すぎる切り上げに寄るので、発火の事実と行動だけを渡す
         assert re.search(r"\d", context) is None
-
-    def test_usage3フィールドは合算される(self, tmp_path: Path) -> None:
-        transcript = tmp_path / "t.jsonl"
-        entry = assistant_usage(0)
-        message = entry["message"]
-        assert isinstance(message, dict)
-        message["usage"] = {
-            "input_tokens": 100,
-            "cache_read_input_tokens": 300,
-            "cache_creation_input_tokens": 100,
-        }
-        write_transcript(transcript, [entry])
-        result = run_hook(
-            "posttool", posttool_input(tmp_path, transcript), extra_env=base_env(tmp_path)
-        )
-        # 合計500はしきい値ちょうどなので、1フィールドでも落ちると発火しない
-        assert "session-handoff" in context_of(result)
 
     def test_通知済みセッションでは再発火しない(self, tmp_path: Path) -> None:
         transcript = tmp_path / "t.jsonl"
@@ -291,7 +279,7 @@ class TestPostToolContextWatch:
         """JSONL 行の JSON 文字列値に生の U+2028 が含まれても、その行を分割・欠落させない。
 
         Node の transcript writer は U+2028/U+2029/NEL をエスケープせず素通しする。
-        str.splitlines() はこれらでも分割するため最新 entry を取りこぼし過少検知する回帰があった。
+        str.splitlines() はこれらでも分割するので、使うと最新 entry を取りこぼして過少検知になる。
         """
         transcript = tmp_path / "t.jsonl"
         older = json.dumps(assistant_usage(200))
@@ -321,6 +309,167 @@ class TestPostToolContextWatch:
             env = base_env(tmp_path) | {"HANDOFF_CONTEXT_WINDOW_TOKENS": bad}
             result = run_hook("posttool", posttool_input(tmp_path, transcript), extra_env=env)
             assert result.stdout == "", f"window={bad!r} で誤発火した (既定へ落ちていない)"
+
+
+def counts(input_: int, cache_read: int, cache_creation: int, output: int) -> dict[str, object]:
+    """usage の4フィールド。トップレベルにも iterations の段にも同じ形で現れる。"""
+    return {
+        "input_tokens": input_,
+        "cache_read_input_tokens": cache_read,
+        "cache_creation_input_tokens": cache_creation,
+        "output_tokens": output,
+    }
+
+
+def stage(
+    kind: str, input_: int, cache_read: int, cache_creation: int, output: int
+) -> dict[str, object]:
+    """usage.iterations の1段。"""
+    return {"type": kind, **counts(input_, cache_read, cache_creation, output)}
+
+
+# advisor を挟んだ応答の実測 (2026-09-25)。トップレベルは2つの message の段の和 (928518) で、
+# advisor の段は入らない。直後の PostToolUse が既定のしきい値で誤って鳴った
+ADVISOR_BETWEEN_MESSAGES: dict[str, object] = {
+    **counts(4, 924918, 3596, 1514),
+    "iterations": [
+        stage("message", 2, 461841, 1236, 700),
+        stage("advisor_message", 408513, 0, 0, 9495),
+        stage("message", 2, 463077, 2360, 814),
+    ],
+}
+
+# advisor を呼んだが advisor の段が記録されなかった応答の実測 (2026-09-25)。
+# これもトップレベルは2つの段の和 (363534) になる
+TWO_MESSAGES: dict[str, object] = {
+    **counts(404, 362646, 484, 6504),
+    "iterations": [
+        stage("message", 2, 181081, 484, 374),
+        stage("message", 402, 181565, 0, 6130),
+    ],
+}
+
+# advisor を挟まない、本物のしきい値超えの実測 (2026-09-25)
+SINGLE_MESSAGE: dict[str, object] = {
+    **counts(2, 496425, 5025, 705),
+    "iterations": [stage("message", 2, 496425, 5025, 705)],
+}
+
+# 段を使えないときに戻る先。どの段の値とも違う合計 (450) にして、どちらを数えたかを区別する
+TOP_LEVEL = counts(100, 300, 50, 7)
+
+
+def posttool_fires(tmp_path: Path, usage: Mapping[str, object], env: Mapping[str, str]) -> bool:
+    """usage を最後に持つ transcript で posttool を走らせ、コンテキストの通知が出たかを返す。"""
+    transcript = tmp_path / "t.jsonl"
+    write_transcript(transcript, [assistant_entry(usage)])
+    result = run_hook("posttool", posttool_input(tmp_path, transcript), extra_env=dict(env))
+    assert result.returncode == 0
+    return result.stdout != ""
+
+
+def fires_at(tmp_path: Path, usage: Mapping[str, object], window: int) -> bool:
+    """窓を window、しきい値を100%にしたとき鳴るか。推定が window 以上のときだけ鳴る。
+
+    1回鳴ると同じ session は二度と鳴らないので、state は窓ごとに分ける。
+    """
+    env = base_env(tmp_path) | {
+        "HANDOFF_STATE_DIR": str(tmp_path / f"state-{window}"),
+        "HANDOFF_CONTEXT_WINDOW_TOKENS": str(window),
+        "HANDOFF_CONTEXT_THRESHOLD_PCT": "100",
+    }
+    return posttool_fires(tmp_path, usage, env)
+
+
+def assert_estimate(tmp_path: Path, usage: Mapping[str, object], expected: int) -> None:
+    """推定がちょうど expected であることを、しきい値の境界の両側で確かめる。"""
+    assert fires_at(tmp_path, usage, expected), f"推定が{expected}に届かない"
+    assert not fires_at(tmp_path, usage, expected + 1), f"推定が{expected}を超える"
+
+
+def fires_with_defaults(tmp_path: Path, usage: Mapping[str, object]) -> bool:
+    """窓としきい値を既定のままにしたとき鳴るか。"""
+    overrides = ("HANDOFF_CONTEXT_WINDOW_TOKENS", "HANDOFF_CONTEXT_THRESHOLD_PCT")
+    env = {k: v for k, v in base_env(tmp_path).items() if k not in overrides}
+    return posttool_fires(tmp_path, usage, env)
+
+
+class TestContextEstimate:
+    """推定は、最後の応答の usage.iterations から harness と同じ段を選んで出す。
+
+    advisor を挟んだ応答では、トップレベルの usage が executor の推論の和になり占有量の
+    約2倍になる。harness は statusline の used_percentage を、占有を表さない段
+    (advisor_message と compaction) を除いた最後の段から出しており、推定もそれに揃える。
+    その段が使えない形なら、トップレベルの合計へ戻る。
+    """
+
+    def test_advisorを挟んだ応答は最後のmessageの段だけを数える(self, tmp_path: Path) -> None:
+        assert_estimate(tmp_path, ADVISOR_BETWEEN_MESSAGES, 465439)
+
+    def test_advisorの段が記録されない2段でも最後の段だけを数える(self, tmp_path: Path) -> None:
+        assert_estimate(tmp_path, TWO_MESSAGES, 181967)
+
+    def test_advisorを挟んで誤って鳴った応答は既定のしきい値で鳴らない(
+        self, tmp_path: Path
+    ) -> None:
+        assert not fires_with_defaults(tmp_path, ADVISOR_BETWEEN_MESSAGES)
+
+    def test_advisorを挟まない本物のしきい値超えは既定のしきい値で鳴る(
+        self, tmp_path: Path
+    ) -> None:
+        assert fires_with_defaults(tmp_path, SINGLE_MESSAGE)
+
+    def test_iterationsが無ければトップレベルの合計を使う(self, tmp_path: Path) -> None:
+        assert_estimate(tmp_path, TOP_LEVEL, 450)
+
+    def test_iterationsが空ならトップレベルの合計を使う(self, tmp_path: Path) -> None:
+        assert_estimate(tmp_path, {**TOP_LEVEL, "iterations": []}, 450)
+
+    def test_advisorの段しか無ければトップレベルの合計を使う(self, tmp_path: Path) -> None:
+        usage = {**TOP_LEVEL, "iterations": [stage("advisor_message", 900, 0, 0, 9)]}
+        assert_estimate(tmp_path, usage, 450)
+
+    @pytest.mark.parametrize("kind", ["advisor_message", "compaction"])
+    def test_占有を表さない最後の段は飛ばしてその前の段を数える(
+        self, tmp_path: Path, kind: str
+    ) -> None:
+        iterations = [stage("message", 10, 200, 30, 5), stage(kind, 1000, 0, 0, 40)]
+        assert_estimate(tmp_path, {**TOP_LEVEL, "iterations": iterations}, 240)
+
+    def test_fallback_messageの段も数える(self, tmp_path: Path) -> None:
+        iterations = [stage("message", 10, 200, 30, 5), stage("fallback_message", 20, 210, 0, 6)]
+        assert_estimate(tmp_path, {**TOP_LEVEL, "iterations": iterations}, 230)
+
+    def test_最後の段が未知の型ならその前の段を探さずトップレベルへ戻る(
+        self, tmp_path: Path
+    ) -> None:
+        iterations = [stage("message", 10, 200, 30, 5), stage("unknown_kind", 20, 210, 0, 6)]
+        assert_estimate(tmp_path, {**TOP_LEVEL, "iterations": iterations}, 450)
+
+    @pytest.mark.parametrize(
+        "key",
+        ["input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens", "output_tokens"],
+    )
+    def test_段のフィールドが欠けていればトップレベルへ戻る(self, tmp_path: Path, key: str) -> None:
+        last = stage("message", 10, 200, 30, 5)
+        del last[key]
+        assert_estimate(tmp_path, {**TOP_LEVEL, "iterations": [last]}, 450)
+
+    @pytest.mark.parametrize("value", [-1, True, "10"])
+    def test_段のフィールドが数として使えなければトップレベルへ戻る(
+        self, tmp_path: Path, value: object
+    ) -> None:
+        last = stage("message", 10, 200, 30, 5)
+        last["input_tokens"] = value
+        assert_estimate(tmp_path, {**TOP_LEVEL, "iterations": [last]}, 450)
+
+    def test_最後の段がオブジェクトでなければトップレベルへ戻る(self, tmp_path: Path) -> None:
+        iterations = [stage("message", 10, 200, 30, 5), None]
+        assert_estimate(tmp_path, {**TOP_LEVEL, "iterations": iterations}, 450)
+
+    def test_占有が0の段ならトップレベルへ戻る(self, tmp_path: Path) -> None:
+        iterations = [stage("message", 0, 0, 0, 5)]
+        assert_estimate(tmp_path, {**TOP_LEVEL, "iterations": iterations}, 450)
 
 
 # 実時刻に依存させないための固定 epoch。窓の有効/失効はこの 2 値で作る。
@@ -616,9 +765,9 @@ class TestStopBrokenCount:
         """破損→成功→破損…と成功ツール実行が挟まっても、破損の通算が閾値でblockする。
 
         実セッションの劣化 (モデルが壊れる→出し直して成功→また壊れる) を再現する。連続 (streak)
-        判定は成功ツール実行で毎回リセットされ、破損14件のセッションでも streak=1 に留まり一度も
-        発火しなかった実バグの回帰テスト。末尾を成功で終える (旧 streak なら末尾から遡り即 0 に
-        なる最難ケース) ことで、成功で通算をリセットしないことを exact に固定する。
+        判定は成功ツール実行のたびにリセットされるので、破損が多数あっても発火しない。末尾を成功で
+        終える (streak 判定なら末尾から遡って即0になる最難ケース) ことで、成功で通算をリセット
+        しないことを exact に固定する。
         """
         transcript = tmp_path / "t.jsonl"
         interspersed: list[dict[str, object]] = []
@@ -673,7 +822,7 @@ class TestStopBrokenCount:
 
         本物の漏れは崩れたトークンに続いて行頭に tool-call ブロックが現れる。この dotfiles
         自体が hook のマーカー (name= 付き署名) を散文で扱う題材のため、行頭に漏れた本物の
-        ブロックのみを破損とみなす。通算化で顕在化した実セッションの自己誤検知の回帰テスト。
+        ブロックのみを破損とみなす。
         """
         transcript = tmp_path / "t.jsonl"
         prose = "署名 `<invoke name=` を厳格化し `<parameter name=` も検知対象にする話"
