@@ -7,7 +7,8 @@
   },
   "attribution": {
     "commit": "",
-    "pr": ""
+    "pr": "",
+    "sessionUrl": false
   },
   "permissions": {
     "allow": [
@@ -185,6 +186,7 @@
   "alwaysThinkingEnabled": true,
   "effortLevel": "xhigh",
   "ultracode": true,
+  "advisorModel": "fable",
   "promptSuggestionEnabled": false,
   "awaySummaryEnabled": false,
   "dialogExpiry": "never",
