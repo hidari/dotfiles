@@ -37,7 +37,7 @@ brew "yt-dlp"                             # 動画ダウンローダー
 brew "jq"                                 # JSONプロセッサ (フィルタと変換)
 brew "rsync"                              # ファイル同期ツール
 brew "tree"                               # ディレクトリツリー表示
-brew "tgrep"                              # trigram 索引付き grep
+brew "ripgrep"                            # 高速・AI Friendly grep
 brew "yusukebe/tap/ax", trusted: true     # The AI-era curl
 brew "hidari/tap/rip"                     # zipアーカイバ
 

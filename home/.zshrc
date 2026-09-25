@@ -198,53 +198,6 @@ function cppath() {
 }
 
 ########################################
-# tgrep
-
-# 常駐サーバーが無いとき、既定の tgrep は索引を直読みして最後に保存された後の変更を
-# 持たない答えを返す。--stats は経路の語を出さないので、この落ち方は出力に現れない。
-# ラッパーで索引を使わない経路へ落とし、落ちたことを stderr に残す。
-# サブコマンドは素通しする。serve に索引回避のフラグを渡すと serve 自身が壊れる。
-# 呼び出し側が --no-index を渡しているときも素通しする。重ねて足すと tgrep が
-# 「cannot be used multiple times」の rc 2 で止まり (実測)、索引が古いときの手当て
-# そのものが壊れる。呼び出し側が既に索引を捨てているので、告げることも無い。
-function tgrep() {
-  case "$1" in
-    serve|index|status|count-files|help|--help|-h|--version|-V|"")
-      command tgrep "$@"
-      return
-      ;;
-  esac
-  local arg
-  for arg in "$@"; do
-    if [ "$arg" = "--no-index" ]; then
-      command tgrep "$@"
-      return
-    fi
-  done
-  local root serve_json pid
-  root="$(git rev-parse --show-toplevel 2>/dev/null)" || root="$(pwd -P)"
-  serve_json="$root/.tgrep/serve.json"
-  pid=""
-  if [ -f "$serve_json" ]; then
-    # serve.json は SIGTERM / SIGKILL で止まると古い pid を残すので、生死まで見る。
-    # プロセス起動を挟まないよう、kill -0 で確かめる。PID が再利用されていると
-    # 無関係なプロセスに真を返して素通ししてしまう。ただしそのとき tgrep 自身が
-    # 「Server unreachable, falling back to local index」を stderr に出してから
-    # 索引直読みへ落ちる (実測) ので、古い索引を読むことは変わらないが無言にはならず、
-    # 素のバイナリより悪くはならない。検索のたび起動するこのラッパーでは、プロセス名
-    # まで見る hook 側の serve_pid (セッションあたり 2 回) と釣り合わせてこの軽さを
-    # 選んでいる。ps は足さない。
-    pid="$(sed -n 's/.*"pid":[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$serve_json")"
-    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-      command tgrep "$@"
-      return
-    fi
-  fi
-  echo "tgrep: 常駐サーバーが無いため索引を使わずに検索します ($root)" >&2
-  command tgrep --no-index "$@"
-}
-
-########################################
 # Claude Code 起動
 
 # タスクリスト ID の妥当性はシェル側では検査しない。SessionStart hook の

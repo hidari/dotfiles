@@ -39,7 +39,6 @@ ignore = ["RUF002", "RUF003"]
 "tests/test_hook_git.py" = ["N802"]
 "tests/test_instructions_loaded_log.py" = ["N802"]
 "tests/test_pretooluse.py" = ["N802"]
-"tests/test_tgrep_serve.py" = ["N802"]
 
 [tool.mypy]
 strict = true
