@@ -289,7 +289,7 @@ def _context_notices(session_id: str, transcript_path: str) -> list[str]:
     if not _notify_once(notified):
         return []
     return [
-        f"コンテキスト使用率がしきい値を超えた (推定 {tokens} tokens)。"
+        "コンテキスト使用率がしきい値を超えた。"
         "session-handoff スキルを発動して引き継ぎを .cache/handoff.md に書き出し、"
         "ユーザーにセッション切替 (/clear または新セッション) を促すこと。record が成功していれば、"
         "切り替えた先の開始時に自動で読み込まれると伝えたうえで、以後の作業を打ち切ること。"

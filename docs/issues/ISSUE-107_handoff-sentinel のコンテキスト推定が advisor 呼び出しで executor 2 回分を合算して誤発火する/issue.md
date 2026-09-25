@@ -21,6 +21,12 @@ status: open
 - 直前のエントリ (advisor なし) は `iterations` が 1 段で、トップレベルと一致する (合計 270026)
 - 直後の advisor を含まないエントリは 280121 に戻っている
 
+dotfiles のセッション (2026-09-25) でも同じ形を観測した。transcript から引き直した値である。
+
+- 15:34:45Z の assistant エントリ: `iterations` は `message` 463079 / `advisor_message` (`claude-fable-5-1`) 408513 / `message` 465439 の3段で、トップレベル928518は2つの `message` の段の和と一致する。直後の PostToolUse が「推定 928518 tokens」と通知した。実際の占有は最後の `message` の段の465439 (窓の約47%) で、下の「最後の `message` の段から取る」直し方なら鳴らなかった
+- 同じセッションの 08:23:41Z にも同じ形があった (213714 + 215704 = 429418、`advisor_message` 199964 は入らない)。しきい値未満だったので鳴っていない
+- 対照として、その前のセッションの 07:49:23Z に鳴った「推定 501452 tokens」は `iterations` が `message` 1段だけで、advisor を挟まない本物のしきい値超えだった。直し方を当ててもこちらは鳴る
+
 通知は PostToolUse で鳴るため、advisor を含む応答の直後のツール呼び出しで発火する。推定が占有量のほぼ 2 倍になるので、既定の窓としきい値 (`DEFAULT_CONTEXT_WINDOW_TOKENS` と `DEFAULT_CONTEXT_THRESHOLD_PCT`) のままでも、占有量がしきい値の半分を超えたあたりから advisor を呼ぶたびに誤発火しうる。
 
 ## タスク
