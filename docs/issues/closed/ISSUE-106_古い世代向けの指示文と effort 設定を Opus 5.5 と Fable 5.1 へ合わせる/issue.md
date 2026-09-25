@@ -1,5 +1,5 @@
 ---
-status: open
+status: closed
 ---
 
 # agent: 古い世代向けの指示文と effort 設定を Opus 5.5 と Fable 5.1 へ合わせる
