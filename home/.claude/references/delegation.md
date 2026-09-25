@@ -2,13 +2,13 @@
 
 `~/.claude/CLAUDE.md` の「委譲先の報告を自分の実測の代わりにせず派生は 1 段に留める」カテゴリが持つ規範の、手当ての詳細と一次実測。
 
-規範の遵守そのものには要らない。手当ての具体が要るとき、規範を疑うとき、似た失敗を踏んで「これは既知か」を確かめるときに読む。規範の文面はここに再掲しない。
+規範の遵守そのものには要らない。手当ての具体が要るとき、規範を疑うとき、似た失敗を踏んで「これは既知か」を確かめるときに読む。
 
 ## Agent tool と Workflow の許可
 
 Claude Code 2.1.229では「Do not call the AgentTool unless the user requested it」「Do not use workflows or deep-research unless the user requested it」の2行がバイナリに定数として埋まり、settings.json でも起動引数でも消せなかった (2026-08-13実測)。2.1.280と2.1.282のバイナリでは2行とも文字列どおりには見つからず、代わりに「Do not use the ${mt} tool, workflows, or deep-research unless the user, a CLAUDE.md file, or a skill asks for it」の1行があり、許可の出どころとして CLAUDE.md が名指しされている (2026-09-24と2026-09-26に実測。`${mt}` へは `"Agent"` を代入する箇所があるがスコープは未確認で、この行がどの条件で注入されるかも確かめていない)。
 
-消せない側ではなく条件を満たす側を CLAUDE.md で明示する方針は変わらない。ただし Workflow ツールの説明は別に opt-in の経路を列挙しており (プロンプト中の ultracode、セッションで ultracode が有効、ユーザー自身の言葉、Workflow を呼ぶよう指示する skill や slash command、名前付きの保存済み workflow)、そこに CLAUDE.md は含まれない。この環境では settings の `ultracode` が true なので、Workflow は「セッションで ultracode が有効」の経路で opt-in されている。CLAUDE.md の許可だけで Workflow の条件を満たすかは確かめていない。
+消せない側ではなく、条件を満たす側を CLAUDE.md で明示する。Workflow ツールの説明 (2.1.282) が挙げる opt-in の経路に CLAUDE.md は無い。settings の `ultracode` が有効な間は、「セッションで ultracode が有効」の経路で opt-in される。CLAUDE.md の許可だけで Workflow の条件を満たすかは確かめていない。
 
 ## 派生を 1 段に留める
 

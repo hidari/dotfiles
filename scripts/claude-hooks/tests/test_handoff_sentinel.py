@@ -2,7 +2,7 @@
 
 フックを subprocess 起動し、stdin に hook JSON を、HANDOFF_* 環境変数にテスト用の
 しきい値・state ディレクトリを与えて stdout (hook output JSON) と exit code を
-exact 検証する。transcript は一時ファイルに JSONL で生成する（CLAUDE.md: モック回避）。
+exact 検証する。transcript はモックせず一時ファイルに JSONL で生成する。
 """
 
 from __future__ import annotations
@@ -214,7 +214,7 @@ class TestPostToolContextWatch:
         context = context_of(result)
         assert "コンテキスト使用率がしきい値を超えた" in context
         # 残量の数値を見たモデルは早すぎる切り上げに寄るので、発火の事実と行動だけを渡す
-        assert "500" not in context
+        assert re.search(r"\d", context) is None
 
     def test_usage3フィールドは合算される(self, tmp_path: Path) -> None:
         transcript = tmp_path / "t.jsonl"
@@ -1157,7 +1157,7 @@ class TestUnreadHandoffNotice:
         """記録を消すのは出力を組み立て切ってから。
 
         先に消すと、注入側の例外を main の包括 except が握った瞬間に告知だけが誰にも
-        届かないまま失われる。この Issue が塞ごうとしている事故を関数の内側で再現する形。
+        届かないまま失われる。消費した引き継ぎの未読が誰にも告げられずに失われる事故を、関数の内側で再現する形。
         """
         self.consume(tmp_path)
         handoff_dir = write_handoff(tmp_path, "二本目の引き継ぎ\n")
