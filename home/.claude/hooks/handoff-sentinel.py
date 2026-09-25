@@ -8,7 +8,8 @@
 再掲せず、通知の文面に従う。
 hook として呼ばれる経路は、検知機構の故障で作業を止めないため fail-safe (無出力 + exit 0)。
 record だけは skill が呼ぶコマンドなので、記録できなかったことを非 0 と stderr の理由で返す。
-仕様: docs/superpowers/archive/2026-07-03-session-handoff-design.md
+設計の起点 (当時のスナップショットで、今の挙動はこのファイルとテストが持つ):
+docs/superpowers/archive/2026-07-03-session-handoff-design.md
 """
 
 from __future__ import annotations
@@ -199,7 +200,7 @@ def _context_tokens(entries: list[dict[str, Any]]) -> int:
     """最後の assistant メッセージの usage からコンテキスト占有量 (tokens) を推定する。
 
     advisor を挟んだ応答では、トップレベルの usage が executor の推論の和になり占有量の
-    約2倍になる。iterations に占有量を表す段があればそちらを数え、無ければトップレベルを数える。
+    約2倍になる。_last_occupancy_stage が段を選べばその段を数え、選べなければトップレベルを数える。
     """
     for entry in reversed(entries):
         if entry.get("type") != "assistant":
@@ -408,7 +409,7 @@ def _broken_count(entries: list[dict[str, Any]]) -> int:
 
     連続 (streak) ではなく累積。破損の間に成功実行や通常会話が挟まってもリセットしない。
     実セッションの劣化はモデルが「壊れる→出し直して成功→また壊れる」を繰り返すため、
-    連続判定では成功のたびにリセットされ、破損が多数あるセッションでも一度も発火しなかった。
+    連続判定では成功のたびにリセットされるので、破損が多数あるセッションでも発火しない。
     通算なら劣化を取りこぼさない。tail ウィンドウ (DEFAULT_TAIL_BYTES) が古い破損を自然に
     スクロールアウトさせるため、完全復調した長寿命セッションで古い破損まで数え続けることはない。
     """

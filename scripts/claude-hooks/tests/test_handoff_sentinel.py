@@ -221,23 +221,6 @@ class TestPostToolContextWatch:
         # 残量の数値を見たモデルは早すぎる切り上げに寄るので、発火の事実と行動だけを渡す
         assert re.search(r"\d", context) is None
 
-    def test_usage3フィールドは合算される(self, tmp_path: Path) -> None:
-        transcript = tmp_path / "t.jsonl"
-        entry = assistant_usage(0)
-        message = entry["message"]
-        assert isinstance(message, dict)
-        message["usage"] = {
-            "input_tokens": 100,
-            "cache_read_input_tokens": 300,
-            "cache_creation_input_tokens": 100,
-        }
-        write_transcript(transcript, [entry])
-        result = run_hook(
-            "posttool", posttool_input(tmp_path, transcript), extra_env=base_env(tmp_path)
-        )
-        # 合計500はしきい値ちょうどなので、1フィールドでも落ちると発火しない
-        assert "session-handoff" in context_of(result)
-
     def test_通知済みセッションでは再発火しない(self, tmp_path: Path) -> None:
         transcript = tmp_path / "t.jsonl"
         write_transcript(transcript, [assistant_usage(999)])
@@ -296,7 +279,7 @@ class TestPostToolContextWatch:
         """JSONL 行の JSON 文字列値に生の U+2028 が含まれても、その行を分割・欠落させない。
 
         Node の transcript writer は U+2028/U+2029/NEL をエスケープせず素通しする。
-        str.splitlines() はこれらでも分割するため最新 entry を取りこぼし過少検知する回帰があった。
+        str.splitlines() はこれらでも分割するので、使うと最新 entry を取りこぼして過少検知になる。
         """
         transcript = tmp_path / "t.jsonl"
         older = json.dumps(assistant_usage(200))
@@ -479,6 +462,10 @@ class TestContextEstimate:
         last = stage("message", 10, 200, 30, 5)
         last["input_tokens"] = value
         assert_estimate(tmp_path, {**TOP_LEVEL, "iterations": [last]}, 450)
+
+    def test_最後の段がオブジェクトでなければトップレベルへ戻る(self, tmp_path: Path) -> None:
+        iterations = [stage("message", 10, 200, 30, 5), None]
+        assert_estimate(tmp_path, {**TOP_LEVEL, "iterations": iterations}, 450)
 
     def test_占有が0の段ならトップレベルへ戻る(self, tmp_path: Path) -> None:
         iterations = [stage("message", 0, 0, 0, 5)]
@@ -778,9 +765,9 @@ class TestStopBrokenCount:
         """破損→成功→破損…と成功ツール実行が挟まっても、破損の通算が閾値でblockする。
 
         実セッションの劣化 (モデルが壊れる→出し直して成功→また壊れる) を再現する。連続 (streak)
-        判定は成功ツール実行で毎回リセットされ、破損14件のセッションでも streak=1 に留まり一度も
-        発火しなかった実バグの回帰テスト。末尾を成功で終える (旧 streak なら末尾から遡り即 0 に
-        なる最難ケース) ことで、成功で通算をリセットしないことを exact に固定する。
+        判定は成功ツール実行のたびにリセットされるので、破損が多数あっても発火しない。末尾を成功で
+        終える (streak 判定なら末尾から遡って即0になる最難ケース) ことで、成功で通算をリセット
+        しないことを exact に固定する。
         """
         transcript = tmp_path / "t.jsonl"
         interspersed: list[dict[str, object]] = []
@@ -835,7 +822,7 @@ class TestStopBrokenCount:
 
         本物の漏れは崩れたトークンに続いて行頭に tool-call ブロックが現れる。この dotfiles
         自体が hook のマーカー (name= 付き署名) を散文で扱う題材のため、行頭に漏れた本物の
-        ブロックのみを破損とみなす。通算化で顕在化した実セッションの自己誤検知の回帰テスト。
+        ブロックのみを破損とみなす。
         """
         transcript = tmp_path / "t.jsonl"
         prose = "署名 `<invoke name=` を厳格化し `<parameter name=` も検知対象にする話"
