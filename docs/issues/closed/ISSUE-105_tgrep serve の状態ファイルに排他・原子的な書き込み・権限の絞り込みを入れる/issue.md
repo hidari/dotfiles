@@ -1,8 +1,13 @@
 ---
-status: open
+status: closed
 ---
 
 # fix: tgrep serve の状態ファイルに排他・原子的な書き込み・権限の絞り込みを入れる
+
+## クローズ理由 (2026-09-24)
+
+直す対象のコードが無くなったので閉じる。tgrep を環境から撤去し (rg で検索の速度が足りるという判断による)、同じ変更で `home/.claude/hooks/tgrep_serve_state.py` と serve を起動・停止する hook を削除した。
+ISSUE-102 の実装は作業ブランチ上にあるうちに撤去したので、main へは一度も入っていない。
 
 ## 背景
 

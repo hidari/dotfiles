@@ -70,7 +70,7 @@ status: open
 
 ## タスク
 
-- [ ] 起票時点の未コミット変更 (tgrep の撤去、CLAUDE.md の整理、Markdown の規範の移設) を先にコミットする
+- [x] 起票時点の未コミット変更 (tgrep の撤去、CLAUDE.md の整理、Markdown の規範の移設) を先にコミットする
 - [ ] F01・F03・F06・F09・F10・F11 を `home/.claude/CLAUDE.md` へ反映し、config-guard の scan と pytest の両方を通す
 - [ ] F02 を `home/.claude/references/delegation.md` へ反映する
 - [ ] F04 の effort の段を決めて `home/.claude/settings.json` へ反映する
