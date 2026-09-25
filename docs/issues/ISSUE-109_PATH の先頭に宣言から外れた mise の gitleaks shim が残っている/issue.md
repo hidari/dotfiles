@@ -15,7 +15,7 @@ status: open
 - `~/.local/share/mise/installs/gitleaks` に 8.30.1 の実体が残っている。同じ installs には、global 設定に無い道具がほかに8つある (一覧は `ls ~/.local/share/mise/installs` で引ける)
 - dotfiles の中で `gitleaks` を叩くと、shim は `MISE_LOG_LEVEL=trace` の出力で `shim[gitleaks] SYSTEM /opt/homebrew/bin/gitleaks` と解決し、Homebrew 版が走る。pre-commit の gitleaks hook は `language: system` なので同じ経路を通る。今のところ動作は正しく、版もどちらも 8.30.1
 
-今は実害が無い。ただし shim は cwd から見える mise の設定で解決先を変えるので、gitleaks を pin する mise 設定の配下では別の版へ静かに落ちる。shim が残った理由 (過去に dotfiles が pin していたのか、別リポジトリの設定から入ったのか) は確かめていない。別リポジトリの pin はそのリポジトリにとっての版の canonical なので、残りの8つを消してよいかは道具ごとに違う。
+ただし shim は cwd から見える mise の設定で解決先を変えるので、gitleaks を pin する mise 設定の配下では別の版へ静かに落ちる。shim が残った理由 (過去に dotfiles が pin していたのか、別リポジトリの設定から入ったのか) は確かめていない。別リポジトリの pin はそのリポジトリにとっての版の canonical なので、残りの8つを消してよいかは道具ごとに違う。
 
 ## 決めること
 

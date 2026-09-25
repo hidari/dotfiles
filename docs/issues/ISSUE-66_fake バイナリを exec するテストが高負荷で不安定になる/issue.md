@@ -11,10 +11,8 @@ ISSUE-59 の作業中、claude-hooks のテストが同一コミットに対し�
 
 赤くなったのは次の 2 件で、どちらも fake の tirith スクリプトを一時ディレクトリへ書いて実行するテストである。
 
-| テスト | ファイル | 由来 |
-| --- | --- | --- |
-| `test_tirith_が_clean_へ応答すれば健全` | `scripts/claude-hooks/tests/test_guard_probes.py` | ISSUE-59 で追加 |
-| `test_clean_command_allows_silently` | `scripts/claude-hooks/tests/test_tirith_hook.py` | 既存 (main から変更なし) |
+- `test_tirith_が_clean_へ応答すれば健全` (`scripts/claude-hooks/tests/test_guard_probes.py`、ISSUE-59 で追加)
+- `test_clean_command_allows_silently` (`scripts/claude-hooks/tests/test_tirith_hook.py`、既存で main から変更なし)
 
 失敗時の文面は `tirith: check timed out — blocked for safety` で、壁時計のタイムアウトに当たっている。`probe_tirith` の上限は 5 秒、tirith-check.py 側は既定 10 秒である。
 即座に終了する fake スクリプトがこの上限を超えるのは、実行そのものではなく起動が遅れていることを意味する。
@@ -33,7 +31,7 @@ ISSUE-106 の着手前ゲートで同じ形を踏んだ。別のリポジトリ�
 - 起動の遅れを直接測った (`#!/bin/sh` と `exit 0` だけのスクリプトを新しく書いて exec する)。新しいファイルの初回は0.12〜1.4秒で、1回だけ41.8秒かかった。同じファイルの2回目は6〜33ms、`/bin/sh -c` の直接起動も6〜30msだった
 - 混雑が引いたあとは `test_guard_probes.py` の43件が4.33秒で全部緑になった (混雑中は68秒)
 
-「実行ではなく、新しい実行ファイルの初回の起動が遅れる」ところまでは、同じファイルの2回目を対照に置いて確かめられた。一方で、遅れの原因が `syspolicyd` か `XprotectService` か、負荷を制御した対照はまだ取っていない。負荷の出どころも、2026-08-31は並列 subagent、今回は別セッションの cargo test で、この repo の作業に限らない。
+「実行ではなく、新しい実行ファイルの初回の起動が遅れる」ところまでは、同じファイルの2回目を対照に置いて確かめられた。一方で、遅れの原因が `syspolicyd` か `XprotectService` か、負荷を制御した対照はまだ取っていない。
 
 ## 実害の範囲
 
