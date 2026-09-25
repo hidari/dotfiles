@@ -78,6 +78,7 @@ status: open
 - [ ] state ファイルの後始末を決める。消すなら消す契機を、残すなら残す理由を書く
 - [ ] 選んだ案を実装する。変異注入で、ラッチの機構を壊したテストが確かに赤くなることを見る
       (現在この経路を pin しているテストが何を見ているかを先に確かめること)
+- [ ] 用語「再武装」を「再通知」へ置き換える (2026-09-25 のユーザー判断)。対象はこの Issue のタイトルとディレクトリ名と本文、ISSUE-71 と ISSUE-106 でこの Issue を指す箇所、`home/.claude/hooks/handoff-sentinel.py` の docstring、`scripts/claude-hooks/tests/test_handoff_sentinel.py` のテスト名。closed の Issue はその時点の記録なので触らない
 
 ## 関連
 
