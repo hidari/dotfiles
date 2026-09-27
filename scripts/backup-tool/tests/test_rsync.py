@@ -1,16 +1,25 @@
-"""rsync モジュールの純粋関数に対するテスト。
+"""rsync モジュールのテスト。
 
-build_options / is_suppressible_error / summarize_filtered_errors を検証。
-subprocess.Popen を使う run() の検証は統合テストで行う。
+build_options / is_suppressible_error / summarize_filtered_errors を検証し、
+run() は偽の rsync を PATH に置いて失敗の返し方を確かめる。
 """
 
 from __future__ import annotations
 
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+import pytest
+
 from backup_tool.rsync import (
     build_options,
     is_suppressible_error,
+    run,
     summarize_filtered_errors,
 )
+
+if TYPE_CHECKING:
+    from tests.conftest import FakeCommand
 
 
 class TestBuildOptions:
@@ -91,3 +100,44 @@ class TestSummarizeFilteredErrors:
 
     def test_returns_empty_dict_when_no_matches(self) -> None:
         assert summarize_filtered_errors([]) == {}
+
+
+class TestRun:
+    def test_propagates_nonzero_exit_code_with_stderr_lines(
+        self, fake_command: FakeCommand, tmp_path: Path
+    ) -> None:
+        # 失敗の理由は stderr に出るので、stdout と同じ経路で上位へ渡ることまで確かめる
+        fake_command(
+            "rsync",
+            "printf '%s\\n' 'sending incremental file list'\n"
+            "printf '%s\\n' 'rsync: connection unexpectedly closed' >&2\n"
+            "exit 12",
+        )
+        lines: list[str] = []
+
+        result = run(
+            source=tmp_path / "src",
+            destination=tmp_path / "dst",
+            options=[],
+            on_output=lines.append,
+        )
+
+        assert result.exit_code == 12
+        assert result.filtered_errors == ()
+        assert lines == [
+            "sending incremental file list",
+            "rsync: connection unexpectedly closed",
+        ]
+
+    @pytest.mark.usefixtures("empty_path")
+    def test_raises_when_rsync_is_missing(self, tmp_path: Path) -> None:
+        # rsync が無いことは終了コードに畳まず、FileNotFoundError として呼び出し元へ渡す
+        lines: list[str] = []
+        with pytest.raises(FileNotFoundError):
+            run(
+                source=tmp_path / "src",
+                destination=tmp_path / "dst",
+                options=[],
+                on_output=lines.append,
+            )
+        assert lines == []

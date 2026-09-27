@@ -297,8 +297,7 @@ def test_main_prints_the_budget_summary(tmp_path: Path, capsys: pytest.CaptureFi
     # 問題が無いときも出す。移設の効果は「赤くならなかった」では見えない
     repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
 
-    main([str(repo)])
-
+    assert main([str(repo)]) == 0
     assert "常時" in capsys.readouterr().out
 
 
@@ -314,3 +313,36 @@ def test_main_prints_the_related_refs_summary(
     main([str(repo)])
 
     assert "識別子 1 件" in capsys.readouterr().out
+
+
+def test_main_prints_each_finding_and_returns_1(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # 問題は 1 件ずつ出して件数で締め、非 0 で終わる。pre-commit と CI はこの終了コードで止まる。
+    # 期待行を scan の結果から組むのは、理由の文面の canonical が tool_refs 側にあるため
+    repo = _make_repo(tmp_path, "bad", BAD_SKILL, GOOD_SETTINGS)
+    findings = scan(str(repo))
+    assert [f.detail for f in findings] == ["Git", "mcp__chrome-devtools__navigate_page"]
+
+    rc = main([str(repo)])
+
+    # 先頭の 2 行は問題の有無に関わらず出る要約行で、別のテストが見る
+    assert capsys.readouterr().out.splitlines()[2:] == [
+        *(f"config-guard: {f.source}: {f.message} [{f.detail}]" for f in findings),
+        "config-guard: 2 件の問題を検出しました",
+    ]
+    assert rc == 1
+
+
+def test_main_without_args_scans_the_cwd(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # 問題を持つ repo を cwd にする。clean な repo だと、cwd を見ていなくても
+    # 同じ「問題なし」で終わりうるので、rc 1 で cwd を実際に走査したことを確かめる
+    repo = _make_repo(tmp_path, "bad", BAD_SKILL, GOOD_SETTINGS)
+    monkeypatch.chdir(repo)
+
+    assert main([]) == 1
+    from_cwd = capsys.readouterr().out
+    assert main([str(repo)]) == 1
+    assert capsys.readouterr().out == from_cwd
