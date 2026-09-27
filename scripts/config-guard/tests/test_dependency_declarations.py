@@ -32,7 +32,7 @@ SOURCE_ROOT = PACKAGE_ROOT / "src" / "config_guard"
 _NORMALIZE = re.compile(r"[-_.]+")
 
 # requirement 文字列の先頭の名前だけを取る。version 指定子 / extras / marker の手前で切れる
-_REQUIREMENT_NAME = re.compile(r"^[A-Za-z0-9._-]+")
+_LEADING_NAME = re.compile(r"^[A-Za-z0-9._-]+")
 
 
 def _canonical(name: str) -> str:
@@ -40,7 +40,7 @@ def _canonical(name: str) -> str:
 
 
 def _requirement_name(requirement: str) -> str:
-    match = _REQUIREMENT_NAME.match(requirement.strip())
+    match = _LEADING_NAME.match(requirement.strip())
     assert match is not None, f"依存宣言から名前を取れない: {requirement!r}"
     return _canonical(match.group())
 

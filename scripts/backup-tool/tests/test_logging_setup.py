@@ -34,9 +34,9 @@ class TestRotateOldLogs:
         os.utime(old, (old_mtime, old_mtime))
         os.utime(fresh, (fresh_mtime, fresh_mtime))
 
-        deleted = rotate_old_logs(tmp_path, retention_days=90, now=now)
+        deleted_count = rotate_old_logs(tmp_path, retention_days=90, now=now)
 
-        assert deleted == 1
+        assert deleted_count == 1
         assert not old.exists()
         assert fresh.exists()
 
@@ -45,9 +45,9 @@ class TestRotateOldLogs:
         unrelated.write_text("x")
         os.utime(unrelated, (time.time() - 1000 * 86400, time.time() - 1000 * 86400))
 
-        deleted = rotate_old_logs(tmp_path, retention_days=30, now=time.time())
+        deleted_count = rotate_old_logs(tmp_path, retention_days=30, now=time.time())
 
-        assert deleted == 0
+        assert deleted_count == 0
         assert unrelated.exists()
 
     def test_returns_zero_when_directory_missing(self, tmp_path: Path) -> None:
@@ -61,9 +61,9 @@ class TestRotateOldLogs:
         boundary_mtime = now - 30 * 86400
         os.utime(target, (boundary_mtime, boundary_mtime))
 
-        deleted = rotate_old_logs(tmp_path, retention_days=30, now=now)
+        deleted_count = rotate_old_logs(tmp_path, retention_days=30, now=now)
 
-        assert deleted == 0
+        assert deleted_count == 0
         assert target.exists()
 
 

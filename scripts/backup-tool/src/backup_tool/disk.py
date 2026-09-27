@@ -2,7 +2,7 @@
 
 純粋関数 (required_total_kb / check_capacity) と
 副作用境界 (measure_source_size_kb / measure_dest_total_kb) を分離する。
-issue #3 で修正した「総容量ベース判定」のロジックを踏襲する。
+容量の判定は、空き容量ではなくバックアップ先の総容量で行う。
 """
 
 from __future__ import annotations
@@ -38,7 +38,10 @@ def required_total_kb(*, source_size_kb: int, margin_gb: int) -> int:
 
 
 def check_capacity(*, dest_total_kb: int, required_kb: int) -> CapacityReport:
-    """バックアップ先の総容量が必要容量を満たすか判定する。"""
+    """バックアップ先の総容量と必要容量を CapacityReport にまとめる。
+
+    充足しているかの判定は CapacityReport.is_sufficient が持つ。
+    """
     return CapacityReport(dest_total_kb=dest_total_kb, required_kb=required_kb)
 
 

@@ -268,7 +268,7 @@ def _ratelimit_notices(session_id: str) -> list[str]:
     urgent_pct = _env_int("HANDOFF_RATELIMIT_URGENT_PCT", DEFAULT_RATELIMIT_URGENT_PCT)
     now = datetime.now(UTC).timestamp()
     state_path = _session_state_file(session_id, "ratelimit")
-    fired = _read_json_dict(state_path)
+    fired_resets = _read_json_dict(state_path)
     notices: list[str] = []
     for name in sorted(windows):
         info = windows[name]
@@ -290,13 +290,13 @@ def _ratelimit_notices(session_id: str) -> list[str]:
         else:
             continue
         key = f"{name}:{threshold}"
-        if fired.get(key) == resets_at:
+        if fired_resets.get(key) == resets_at:
             continue
-        fired[key] = resets_at
+        fired_resets[key] = resets_at
         notices.append(_ratelimit_message(name, pct, threshold, urgent=urgent))
     if notices:
         state_path.parent.mkdir(parents=True, exist_ok=True)
-        state_path.write_text(json.dumps(fired), encoding="utf-8")
+        state_path.write_text(json.dumps(fired_resets), encoding="utf-8")
     return notices
 
 
@@ -317,15 +317,15 @@ def _ratelimit_message(name: str, pct: float, threshold: int, *, urgent: bool) -
 def _context_notices(session_id: str, transcript_path: str) -> list[str]:
     # 通知は 1 セッション 1 回なので、鳴った後は transcript を読む意味が無い。
     # posttool はツール呼び出しのたびに走るため、この stat 1 回が末尾 1MB の読み込みを丸ごと省く
-    notified = _session_state_file(session_id, "notified")
-    if notified.exists():
+    notified_marker = _session_state_file(session_id, "notified")
+    if notified_marker.exists():
         return []
     window = _env_int("HANDOFF_CONTEXT_WINDOW_TOKENS", DEFAULT_CONTEXT_WINDOW_TOKENS)
     threshold_pct = _env_int("HANDOFF_CONTEXT_THRESHOLD_PCT", DEFAULT_CONTEXT_THRESHOLD_PCT)
     tokens = _context_tokens(_read_tail_entries(transcript_path))
     if tokens * 100 < window * threshold_pct:
         return []
-    if not _notify_once(notified):
+    if not _notify_once(notified_marker):
         return []
     return [
         "コンテキスト使用率がしきい値を超えた。"

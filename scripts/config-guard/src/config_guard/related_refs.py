@@ -154,9 +154,9 @@ def related_lines(text: str) -> list[str]:
     lines: list[str] = []
     inside = False
     for line in prose_lines(text):
-        heading = _HEADING.match(line)
-        if heading:
-            if len(heading.group(1)) <= 2:
+        heading_match = _HEADING.match(line)
+        if heading_match:
+            if len(heading_match.group(1)) <= 2:
                 inside = line.strip() == RELATED_HEADING
             continue
         if inside and line.strip():

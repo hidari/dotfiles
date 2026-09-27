@@ -98,12 +98,12 @@ def _check_declarations(rules: dict[str, str]) -> list[Finding]:
     findings: list[Finding] = []
     for name, text in rules.items():
         source = f"{RULES_DIR}/{name}"
-        declared = malformed_defines(text)
-        if declared is not None:
+        malformed = malformed_defines(text)
+        if malformed is not None:
             findings.append(
                 Finding(
                     source,
-                    f"defines: {declared!r}",
+                    f"defines: {malformed!r}",
                     "defines が文字列のリストではない。この形は黙って捨てられるので、"
                     "宣言したつもりの語がどこからも検査されない状態になる",
                 )
