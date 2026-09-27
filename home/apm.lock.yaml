@@ -1,12 +1,12 @@
 lockfile_version: '1'
-generated_at: '2026-09-25T08:36:48.541008+00:00'
+generated_at: '2026-09-27T18:57:29.627448+00:00'
 apm_version: 0.30.0
 dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: dev-workflow
   host: github.com
-  resolved_commit: 66231adcca4c9d1e1c9cf48e69fe2e2cd8c0002b
-  resolved_ref: 66231adcca4c9d1e1c9cf48e69fe2e2cd8c0002b
+  resolved_commit: b44ae283e9dde8231707776ab10a8e0a1aa00965
+  resolved_ref: b44ae283e9dde8231707776ab10a8e0a1aa00965
   version: 0.2.0
   virtual_path: plugins/dev-workflow
   is_virtual: true
@@ -56,26 +56,26 @@ dependencies:
   - .claude/skills/retrospective-codify/SKILL.md
   deployed_file_hashes:
     .claude/skills/commit-and-pr-message/SKILL.md: sha256:f38709bffc215c06305c8e68c9c961315340867a8be20150a3f605289c9479fd
-    .claude/skills/commit-and-pr-message/scripts/check-leak-guard-denylist.py: sha256:babbbb0322520d9727b144a709e886603b2c8839f2b14607ed43a1c50625cf8d
+    .claude/skills/commit-and-pr-message/scripts/check-leak-guard-denylist.py: sha256:909a89edb82ec56f34b47c9ab600c946f64dfecc56045e6b5b50a6bb6a8659e7
     .claude/skills/commit-and-pr-message/scripts/check-outgoing-text.py: sha256:eb79b0df4782fe80a3d68a5e4ddab7d440fefe6ae1f0cbee577467bcf7162911
     .claude/skills/commit-and-pr-message/scripts/leak-guard-default.gitleaks.toml: sha256:f67e347e99f4755ab8c1c61f6572b9a4f3371f2c83e2533928da03c43f5bd402
     .claude/skills/commit-and-pr-message/scripts/leak-guard.gitleaks.toml: sha256:90abb45a3c9f764065de5a4c66eaac166a216b9e7e90839d37870ff2d34a8120
-    .claude/skills/commit-and-pr-message/scripts/test_check_leak_guard_denylist.py: sha256:69c10a4b91c071a31d974527a9a88a227af5b7999e7c3f74ddf401b12bd6f8ae
+    .claude/skills/commit-and-pr-message/scripts/test_check_leak_guard_denylist.py: sha256:488879c79b5582b72b68bc0bab83a318225f40d22ec72a14fdf920144274846d
     .claude/skills/commit-and-pr-message/scripts/test_check_outgoing_text.py: sha256:e14b8659131ebe4498fa1c745a0dc6d376aeb97466e6b160953c0269a92d7ba4
     .claude/skills/dev-workflow/.claude-plugin/plugin.json: sha256:b3f089a7afe6662bb94187addc20bafd34152c265688ca9c5ee1599473e32f5e
     .claude/skills/dev-workflow/SKILL.md: sha256:7a3c358b3c7e71f8cbd57d85c641f748fdb187e44dbcd9b50901416f2f8b5d0e
     .claude/skills/dev-workflow/skills/commit-and-pr-message/SKILL.md: sha256:f38709bffc215c06305c8e68c9c961315340867a8be20150a3f605289c9479fd
-    .claude/skills/dev-workflow/skills/commit-and-pr-message/scripts/check-leak-guard-denylist.py: sha256:babbbb0322520d9727b144a709e886603b2c8839f2b14607ed43a1c50625cf8d
+    .claude/skills/dev-workflow/skills/commit-and-pr-message/scripts/check-leak-guard-denylist.py: sha256:909a89edb82ec56f34b47c9ab600c946f64dfecc56045e6b5b50a6bb6a8659e7
     .claude/skills/dev-workflow/skills/commit-and-pr-message/scripts/check-outgoing-text.py: sha256:eb79b0df4782fe80a3d68a5e4ddab7d440fefe6ae1f0cbee577467bcf7162911
     .claude/skills/dev-workflow/skills/commit-and-pr-message/scripts/leak-guard-default.gitleaks.toml: sha256:f67e347e99f4755ab8c1c61f6572b9a4f3371f2c83e2533928da03c43f5bd402
     .claude/skills/dev-workflow/skills/commit-and-pr-message/scripts/leak-guard.gitleaks.toml: sha256:90abb45a3c9f764065de5a4c66eaac166a216b9e7e90839d37870ff2d34a8120
-    .claude/skills/dev-workflow/skills/commit-and-pr-message/scripts/test_check_leak_guard_denylist.py: sha256:69c10a4b91c071a31d974527a9a88a227af5b7999e7c3f74ddf401b12bd6f8ae
+    .claude/skills/dev-workflow/skills/commit-and-pr-message/scripts/test_check_leak_guard_denylist.py: sha256:488879c79b5582b72b68bc0bab83a318225f40d22ec72a14fdf920144274846d
     .claude/skills/dev-workflow/skills/commit-and-pr-message/scripts/test_check_outgoing_text.py: sha256:e14b8659131ebe4498fa1c745a0dc6d376aeb97466e6b160953c0269a92d7ba4
     .claude/skills/dev-workflow/skills/e2e-scenario-impact-check/SKILL.md: sha256:327ef11acc4ffb2c6861f758dff22176231233924e15791fd1c4c30b31e6cad9
     .claude/skills/dev-workflow/skills/git-branch-switcher/SKILL.md: sha256:3f501bbd9155e61312e14cbf5fbd78e189860a1a88a2f996e429bc9c50025649
     .claude/skills/dev-workflow/skills/in-repo-issue/SKILL.md: sha256:7a5b376527f5d4038d27837641b607fd8bf58874a4772a8b91cd8aabf3f52224
-    .claude/skills/dev-workflow/skills/in-repo-issue/scripts/issue-id.py: sha256:e7c184afb5dbd142fc5eb647266420d137ceb7396034072b66d048f7d9eb1a26
-    .claude/skills/dev-workflow/skills/in-repo-issue/scripts/test_issue_id.py: sha256:50b6955e20ae77714ac3ca11e19cd4b204c96f1b990607415f6da9bd8bcff514
+    .claude/skills/dev-workflow/skills/in-repo-issue/scripts/issue-id.py: sha256:a3a62f14ae0a308211fe8c5033e61224294fdc1a782d9c3ce0f1c2b1a804fdda
+    .claude/skills/dev-workflow/skills/in-repo-issue/scripts/test_issue_id.py: sha256:ea40e6e869999d82f7364015cc1e28c326423f962c4ed3ea3edc747ab164331f
     .claude/skills/dev-workflow/skills/in-repo-issue/templates/issue.md: sha256:00e88d65690b43fbf34a735a12aa581da9f000cb8030452368bae8e9dbbde948
     .claude/skills/dev-workflow/skills/issue-scoped-artifacts/SKILL.md: sha256:636957cd93ed49eb3cfa6570a268271b9a1098bb14a0cee520294a66a91ec967
     .claude/skills/dev-workflow/skills/pre-merge-quality-gate/SKILL.md: sha256:288f08def13cd4db5b8b94eddb10a4302b762142cb3763a7ced894f29930f758
@@ -83,18 +83,18 @@ dependencies:
     .claude/skills/e2e-scenario-impact-check/SKILL.md: sha256:327ef11acc4ffb2c6861f758dff22176231233924e15791fd1c4c30b31e6cad9
     .claude/skills/git-branch-switcher/SKILL.md: sha256:3f501bbd9155e61312e14cbf5fbd78e189860a1a88a2f996e429bc9c50025649
     .claude/skills/in-repo-issue/SKILL.md: sha256:7a5b376527f5d4038d27837641b607fd8bf58874a4772a8b91cd8aabf3f52224
-    .claude/skills/in-repo-issue/scripts/issue-id.py: sha256:e7c184afb5dbd142fc5eb647266420d137ceb7396034072b66d048f7d9eb1a26
-    .claude/skills/in-repo-issue/scripts/test_issue_id.py: sha256:50b6955e20ae77714ac3ca11e19cd4b204c96f1b990607415f6da9bd8bcff514
+    .claude/skills/in-repo-issue/scripts/issue-id.py: sha256:a3a62f14ae0a308211fe8c5033e61224294fdc1a782d9c3ce0f1c2b1a804fdda
+    .claude/skills/in-repo-issue/scripts/test_issue_id.py: sha256:ea40e6e869999d82f7364015cc1e28c326423f962c4ed3ea3edc747ab164331f
     .claude/skills/in-repo-issue/templates/issue.md: sha256:00e88d65690b43fbf34a735a12aa581da9f000cb8030452368bae8e9dbbde948
     .claude/skills/issue-scoped-artifacts/SKILL.md: sha256:636957cd93ed49eb3cfa6570a268271b9a1098bb14a0cee520294a66a91ec967
     .claude/skills/pre-merge-quality-gate/SKILL.md: sha256:288f08def13cd4db5b8b94eddb10a4302b762142cb3763a7ced894f29930f758
     .claude/skills/retrospective-codify/SKILL.md: sha256:0de6cf497cf6d71db3430b83990f646d4e585a275601820b82ca00ddc0d4e419
-  content_hash: sha256:e2af9d11e009e450a0a785b1f695ba4b4b494254437ef710b1ffe39576d18471
+  content_hash: sha256:1bb94755520621251ceb675681c73fe64cb4c205227220959eb6910bffab97a3
 - repo_url: hidari/agentic-coding-tools
   name: security-blue-red-team
   host: github.com
-  resolved_commit: 66231adcca4c9d1e1c9cf48e69fe2e2cd8c0002b
-  resolved_ref: 66231adcca4c9d1e1c9cf48e69fe2e2cd8c0002b
+  resolved_commit: b44ae283e9dde8231707776ab10a8e0a1aa00965
+  resolved_ref: b44ae283e9dde8231707776ab10a8e0a1aa00965
   version: 0.5.0
   virtual_path: plugins/security-blue-red-team
   is_virtual: true
@@ -146,8 +146,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: web-monkey-qa
   host: github.com
-  resolved_commit: 66231adcca4c9d1e1c9cf48e69fe2e2cd8c0002b
-  resolved_ref: 66231adcca4c9d1e1c9cf48e69fe2e2cd8c0002b
+  resolved_commit: b44ae283e9dde8231707776ab10a8e0a1aa00965
+  resolved_ref: b44ae283e9dde8231707776ab10a8e0a1aa00965
   version: 0.2.0
   virtual_path: plugins/web-monkey-qa
   is_virtual: true
@@ -181,8 +181,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: macos-vm-verification
   host: github.com
-  resolved_commit: 66231adcca4c9d1e1c9cf48e69fe2e2cd8c0002b
-  resolved_ref: 66231adcca4c9d1e1c9cf48e69fe2e2cd8c0002b
+  resolved_commit: b44ae283e9dde8231707776ab10a8e0a1aa00965
+  resolved_ref: b44ae283e9dde8231707776ab10a8e0a1aa00965
   version: unknown
   virtual_path: skills/devops/macos-vm-verification
   is_virtual: true
@@ -206,8 +206,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: windows-vm-verification
   host: github.com
-  resolved_commit: 66231adcca4c9d1e1c9cf48e69fe2e2cd8c0002b
-  resolved_ref: 66231adcca4c9d1e1c9cf48e69fe2e2cd8c0002b
+  resolved_commit: b44ae283e9dde8231707776ab10a8e0a1aa00965
+  resolved_ref: b44ae283e9dde8231707776ab10a8e0a1aa00965
   version: unknown
   virtual_path: skills/devops/windows-vm-verification
   is_virtual: true
@@ -233,8 +233,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: context-loading-mechanics
   host: github.com
-  resolved_commit: 66231adcca4c9d1e1c9cf48e69fe2e2cd8c0002b
-  resolved_ref: 66231adcca4c9d1e1c9cf48e69fe2e2cd8c0002b
+  resolved_commit: b44ae283e9dde8231707776ab10a8e0a1aa00965
+  resolved_ref: b44ae283e9dde8231707776ab10a8e0a1aa00965
   version: unknown
   virtual_path: skills/meta/context-loading-mechanics
   is_virtual: true
@@ -248,8 +248,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: session-handoff
   host: github.com
-  resolved_commit: 66231adcca4c9d1e1c9cf48e69fe2e2cd8c0002b
-  resolved_ref: 66231adcca4c9d1e1c9cf48e69fe2e2cd8c0002b
+  resolved_commit: b44ae283e9dde8231707776ab10a8e0a1aa00965
+  resolved_ref: b44ae283e9dde8231707776ab10a8e0a1aa00965
   version: unknown
   virtual_path: skills/meta/session-handoff
   is_virtual: true
@@ -265,8 +265,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: chrome-devtools-debugger
   host: github.com
-  resolved_commit: 66231adcca4c9d1e1c9cf48e69fe2e2cd8c0002b
-  resolved_ref: 66231adcca4c9d1e1c9cf48e69fe2e2cd8c0002b
+  resolved_commit: b44ae283e9dde8231707776ab10a8e0a1aa00965
+  resolved_ref: b44ae283e9dde8231707776ab10a8e0a1aa00965
   version: unknown
   virtual_path: skills/tooling/chrome-devtools-debugger
   is_virtual: true
@@ -280,8 +280,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: herdr
   host: github.com
-  resolved_commit: 66231adcca4c9d1e1c9cf48e69fe2e2cd8c0002b
-  resolved_ref: 66231adcca4c9d1e1c9cf48e69fe2e2cd8c0002b
+  resolved_commit: b44ae283e9dde8231707776ab10a8e0a1aa00965
+  resolved_ref: b44ae283e9dde8231707776ab10a8e0a1aa00965
   version: unknown
   virtual_path: skills/tooling/herdr
   is_virtual: true
@@ -293,10 +293,45 @@ dependencies:
     .claude/skills/herdr/SKILL.md: sha256:75826452ca09623a7309c0a0d9bd6b29b24c55cf100632fc83bd69a685241f17
   content_hash: sha256:69d3762de6941e5632e7cbcaeea3584b47ce906a9275afb333d5405ff5480b80
 - repo_url: hidari/agentic-coding-tools
+  name: jev-lint-curated
+  host: github.com
+  resolved_commit: b44ae283e9dde8231707776ab10a8e0a1aa00965
+  resolved_ref: b44ae283e9dde8231707776ab10a8e0a1aa00965
+  version: unknown
+  virtual_path: skills/tooling/jev-lint-curated
+  is_virtual: true
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/jev-lint-curated
+  - .claude/skills/jev-lint-curated/SKILL.md
+  - .claude/skills/jev-lint-curated/scripts/jevlint.py
+  - .claude/skills/jev-lint-curated/scripts/jevlint_compat.py
+  - .claude/skills/jev-lint-curated/scripts/jevlint_host.py
+  - .claude/skills/jev-lint-curated/scripts/jevlint_result.py
+  - .claude/skills/jev-lint-curated/scripts/jevlint_tree.py
+  - .claude/skills/jev-lint-curated/scripts/test_jevlint.py
+  - .claude/skills/jev-lint-curated/scripts/test_jevlint_compat.py
+  - .claude/skills/jev-lint-curated/scripts/test_jevlint_host.py
+  - .claude/skills/jev-lint-curated/scripts/test_jevlint_result.py
+  - .claude/skills/jev-lint-curated/scripts/test_jevlint_tree.py
+  deployed_file_hashes:
+    .claude/skills/jev-lint-curated/SKILL.md: sha256:70cd0f6e51f67b4fe56ac454173da7b5827a40d8a3950d71a379a9ca799eb15c
+    .claude/skills/jev-lint-curated/scripts/jevlint.py: sha256:78d861ee688fd11692c8bdb993f8ba9e8526790a0f0f5617686027abb8c01e30
+    .claude/skills/jev-lint-curated/scripts/jevlint_compat.py: sha256:2d2adba0b44f350c890eae31df30cb86e4441eccd478c533b512c2913964265b
+    .claude/skills/jev-lint-curated/scripts/jevlint_host.py: sha256:e4a2e765275ecfe57ed89415fbbf59390fb49f9f04c188b084fcf1626184f0ff
+    .claude/skills/jev-lint-curated/scripts/jevlint_result.py: sha256:776a2eeb16dd50a50553373a08d2f56a4609f34d1b44f6489d6d8a5868173e83
+    .claude/skills/jev-lint-curated/scripts/jevlint_tree.py: sha256:f99b6bca966e351e6a74d9ec8b3f4607fefce2cdd0aa82e1c224b099a8a7f48e
+    .claude/skills/jev-lint-curated/scripts/test_jevlint.py: sha256:d6589e323296475b62eed9eafdff598c54048f2984faf8288c17505528e38186
+    .claude/skills/jev-lint-curated/scripts/test_jevlint_compat.py: sha256:29df6ec74d620d36903582d24fdf1ca829fc7f500bfa3ca7c48dfdf68850f23e
+    .claude/skills/jev-lint-curated/scripts/test_jevlint_host.py: sha256:8d5bc5a8f9cae955ef24f653e437e658b222ee207bcec1b6aebbb9ad475b1ddb
+    .claude/skills/jev-lint-curated/scripts/test_jevlint_result.py: sha256:4fcd7120c3739822cd6364afa9ef0518a6d0c394e69c4ee4dcd5dc4e4110da72
+    .claude/skills/jev-lint-curated/scripts/test_jevlint_tree.py: sha256:f2580bdd75629ca2bd7324e5b8f35e66ef9b556a28c091209851cd9127132c3c
+  content_hash: sha256:91b02083143527038d59443fab4d1c45220e000fc38b0b6bbc61321c0ff524d2
+- repo_url: hidari/agentic-coding-tools
   name: markdown-to-pdf
   host: github.com
-  resolved_commit: 66231adcca4c9d1e1c9cf48e69fe2e2cd8c0002b
-  resolved_ref: 66231adcca4c9d1e1c9cf48e69fe2e2cd8c0002b
+  resolved_commit: b44ae283e9dde8231707776ab10a8e0a1aa00965
+  resolved_ref: b44ae283e9dde8231707776ab10a8e0a1aa00965
   version: unknown
   virtual_path: skills/tooling/markdown-to-pdf
   is_virtual: true
@@ -715,7 +750,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/dev-workflow
   active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
-  content_hash: sha256:babbbb0322520d9727b144a709e886603b2c8839f2b14607ed43a1c50625cf8d
+  content_hash: sha256:909a89edb82ec56f34b47c9ab600c946f64dfecc56045e6b5b50a6bb6a8659e7
 - kind: project-relative
   target: claude
   value: .claude/skills/commit-and-pr-message/scripts/check-outgoing-text.py
@@ -751,7 +786,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/dev-workflow
   active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
-  content_hash: sha256:69c10a4b91c071a31d974527a9a88a227af5b7999e7c3f74ddf401b12bd6f8ae
+  content_hash: sha256:488879c79b5582b72b68bc0bab83a318225f40d22ec72a14fdf920144274846d
 - kind: project-relative
   target: claude
   value: .claude/skills/commit-and-pr-message/scripts/test_check_outgoing_text.py
@@ -823,7 +858,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/dev-workflow
   active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
-  content_hash: sha256:babbbb0322520d9727b144a709e886603b2c8839f2b14607ed43a1c50625cf8d
+  content_hash: sha256:909a89edb82ec56f34b47c9ab600c946f64dfecc56045e6b5b50a6bb6a8659e7
 - kind: project-relative
   target: claude
   value: .claude/skills/dev-workflow/skills/commit-and-pr-message/scripts/check-outgoing-text.py
@@ -859,7 +894,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/dev-workflow
   active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
-  content_hash: sha256:69c10a4b91c071a31d974527a9a88a227af5b7999e7c3f74ddf401b12bd6f8ae
+  content_hash: sha256:488879c79b5582b72b68bc0bab83a318225f40d22ec72a14fdf920144274846d
 - kind: project-relative
   target: claude
   value: .claude/skills/dev-workflow/skills/commit-and-pr-message/scripts/test_check_outgoing_text.py
@@ -904,7 +939,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/dev-workflow
   active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
-  content_hash: sha256:e7c184afb5dbd142fc5eb647266420d137ceb7396034072b66d048f7d9eb1a26
+  content_hash: sha256:a3a62f14ae0a308211fe8c5033e61224294fdc1a782d9c3ce0f1c2b1a804fdda
 - kind: project-relative
   target: claude
   value: .claude/skills/dev-workflow/skills/in-repo-issue/scripts/test_issue_id.py
@@ -913,7 +948,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/dev-workflow
   active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
-  content_hash: sha256:50b6955e20ae77714ac3ca11e19cd4b204c96f1b990607415f6da9bd8bcff514
+  content_hash: sha256:ea40e6e869999d82f7364015cc1e28c326423f962c4ed3ea3edc747ab164331f
 - kind: project-relative
   target: claude
   value: .claude/skills/dev-workflow/skills/in-repo-issue/templates/issue.md
@@ -1066,7 +1101,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/dev-workflow
   active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
-  content_hash: sha256:e7c184afb5dbd142fc5eb647266420d137ceb7396034072b66d048f7d9eb1a26
+  content_hash: sha256:a3a62f14ae0a308211fe8c5033e61224294fdc1a782d9c3ce0f1c2b1a804fdda
 - kind: project-relative
   target: claude
   value: .claude/skills/in-repo-issue/scripts/test_issue_id.py
@@ -1075,7 +1110,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/dev-workflow
   active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
-  content_hash: sha256:50b6955e20ae77714ac3ca11e19cd4b204c96f1b990607415f6da9bd8bcff514
+  content_hash: sha256:ea40e6e869999d82f7364015cc1e28c326423f962c4ed3ea3edc747ab164331f
 - kind: project-relative
   target: claude
   value: .claude/skills/in-repo-issue/templates/issue.md
@@ -1103,6 +1138,114 @@ deployments:
   - hidari/agentic-coding-tools/plugins/dev-workflow
   active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
   content_hash: sha256:636957cd93ed49eb3cfa6570a268271b9a1098bb14a0cee520294a66a91ec967
+- kind: project-relative
+  target: claude
+  value: .claude/skills/jev-lint-curated
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  active_owner: hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/jev-lint-curated/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  active_owner: hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  content_hash: sha256:70cd0f6e51f67b4fe56ac454173da7b5827a40d8a3950d71a379a9ca799eb15c
+- kind: project-relative
+  target: claude
+  value: .claude/skills/jev-lint-curated/scripts/jevlint.py
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  active_owner: hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  content_hash: sha256:78d861ee688fd11692c8bdb993f8ba9e8526790a0f0f5617686027abb8c01e30
+- kind: project-relative
+  target: claude
+  value: .claude/skills/jev-lint-curated/scripts/jevlint_compat.py
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  active_owner: hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  content_hash: sha256:2d2adba0b44f350c890eae31df30cb86e4441eccd478c533b512c2913964265b
+- kind: project-relative
+  target: claude
+  value: .claude/skills/jev-lint-curated/scripts/jevlint_host.py
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  active_owner: hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  content_hash: sha256:e4a2e765275ecfe57ed89415fbbf59390fb49f9f04c188b084fcf1626184f0ff
+- kind: project-relative
+  target: claude
+  value: .claude/skills/jev-lint-curated/scripts/jevlint_result.py
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  active_owner: hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  content_hash: sha256:776a2eeb16dd50a50553373a08d2f56a4609f34d1b44f6489d6d8a5868173e83
+- kind: project-relative
+  target: claude
+  value: .claude/skills/jev-lint-curated/scripts/jevlint_tree.py
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  active_owner: hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  content_hash: sha256:f99b6bca966e351e6a74d9ec8b3f4607fefce2cdd0aa82e1c224b099a8a7f48e
+- kind: project-relative
+  target: claude
+  value: .claude/skills/jev-lint-curated/scripts/test_jevlint.py
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  active_owner: hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  content_hash: sha256:d6589e323296475b62eed9eafdff598c54048f2984faf8288c17505528e38186
+- kind: project-relative
+  target: claude
+  value: .claude/skills/jev-lint-curated/scripts/test_jevlint_compat.py
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  active_owner: hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  content_hash: sha256:29df6ec74d620d36903582d24fdf1ca829fc7f500bfa3ca7c48dfdf68850f23e
+- kind: project-relative
+  target: claude
+  value: .claude/skills/jev-lint-curated/scripts/test_jevlint_host.py
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  active_owner: hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  content_hash: sha256:8d5bc5a8f9cae955ef24f653e437e658b222ee207bcec1b6aebbb9ad475b1ddb
+- kind: project-relative
+  target: claude
+  value: .claude/skills/jev-lint-curated/scripts/test_jevlint_result.py
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  active_owner: hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  content_hash: sha256:4fcd7120c3739822cd6364afa9ef0518a6d0c394e69c4ee4dcd5dc4e4110da72
+- kind: project-relative
+  target: claude
+  value: .claude/skills/jev-lint-curated/scripts/test_jevlint_tree.py
+  runtime: null
+  scope: project
+  owners:
+  - hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  active_owner: hidari/agentic-coding-tools/skills/tooling/jev-lint-curated
+  content_hash: sha256:f2580bdd75629ca2bd7324e5b8f35e66ef9b556a28c091209851cd9127132c3c
 - kind: project-relative
   target: claude
   value: .claude/skills/justfile
