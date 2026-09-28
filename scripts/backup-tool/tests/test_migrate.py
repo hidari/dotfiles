@@ -87,7 +87,85 @@ BACKUP_PAIRS=(
     "名前だけで壊れてる"
 )
 """
-        with pytest.raises(MigrationError, match="BACKUP_PAIRS"):
+        with pytest.raises(MigrationError, match="BACKUP_PAIRS のエントリが不正"):
+            parse_bash_conf(text)
+
+    def test_raises_when_pair_has_empty_field(self) -> None:
+        text = """
+MINIMUM_FREE_SPACE_GB=100
+LOG_RETENTION_DAYS=90
+BACKUP_PAIRS=(
+    "p||/Volumes/B"
+)
+"""
+        with pytest.raises(MigrationError, match="空フィールド"):
+            parse_bash_conf(text)
+
+    def test_raises_when_backup_pairs_is_not_an_array(self) -> None:
+        text = """
+MINIMUM_FREE_SPACE_GB=100
+LOG_RETENTION_DAYS=90
+BACKUP_PAIRS="p|/Volumes/A|/Volumes/B"
+"""
+        with pytest.raises(MigrationError, match="BACKUP_PAIRS が配列"):
+            parse_bash_conf(text)
+
+    def test_raises_on_unclosed_array(self) -> None:
+        text = """
+MINIMUM_FREE_SPACE_GB=100
+LOG_RETENTION_DAYS=90
+BACKUP_PAIRS=(
+    "p|/Volumes/A|/Volumes/B"
+"""
+        with pytest.raises(MigrationError, match="閉じられていません"):
+            parse_bash_conf(text)
+
+    def test_raises_when_additional_exclude_is_not_an_array(self) -> None:
+        text = """
+MINIMUM_FREE_SPACE_GB=100
+LOG_RETENTION_DAYS=90
+BACKUP_PAIRS=(
+    "p|/Volumes/A|/Volumes/B"
+)
+ADDITIONAL_EXCLUDE="node_modules"
+"""
+        with pytest.raises(MigrationError, match="ADDITIONAL_EXCLUDE"):
+            parse_bash_conf(text)
+
+    def test_raises_on_unknown_error_behavior(self) -> None:
+        text = """
+MINIMUM_FREE_SPACE_GB=100
+LOG_RETENTION_DAYS=90
+ERROR_BEHAVIOR="abort"
+BACKUP_PAIRS=(
+    "p|/Volumes/A|/Volumes/B"
+)
+"""
+        with pytest.raises(MigrationError, match="ERROR_BEHAVIOR"):
+            parse_bash_conf(text)
+
+    def test_raises_when_log_base_dir_is_an_array(self) -> None:
+        # 値は文字列か配列にしかならないので、文字列でない形は配列で書かれたときだけ
+        text = """
+MINIMUM_FREE_SPACE_GB=100
+LOG_RETENTION_DAYS=90
+LOG_BASE_DIR=("/Volumes/Primary/.backup_logs")
+BACKUP_PAIRS=(
+    "p|/Volumes/A|/Volumes/B"
+)
+"""
+        with pytest.raises(MigrationError, match="LOG_BASE_DIR"):
+            parse_bash_conf(text)
+
+    def test_raises_when_numeric_field_is_not_a_number(self) -> None:
+        text = """
+MINIMUM_FREE_SPACE_GB=many
+LOG_RETENTION_DAYS=90
+BACKUP_PAIRS=(
+    "p|/Volumes/A|/Volumes/B"
+)
+"""
+        with pytest.raises(MigrationError, match="数値項目"):
             parse_bash_conf(text)
 
     def test_raises_when_required_missing(self) -> None:
@@ -119,7 +197,6 @@ class TestToTomlString:
             ),
         )
         toml_str = to_toml_string(config)
-        # 生成された TOML を load_config でロードし直して同値性を確認
         assert load_config(toml_str.encode("utf-8")) == config
 
     def test_omits_log_base_dir_when_none(self) -> None:
@@ -143,7 +220,6 @@ class TestMigrateFile:
         assert dst.exists()
         backup = tmp_path / "backup.conf.bak"
         assert backup.exists()
-        # 新旧ファイルとも存在 (旧 backup.conf はリネーム済み)
         assert not conf.exists()
 
     def test_refuses_to_overwrite_existing_toml(self, tmp_path: Path) -> None:

@@ -114,7 +114,7 @@ def test_check_index_flags_raises_on_git_error(tmp_path: Path) -> None:
         raise AssertionError("git エラー時は RuntimeError が送出されるべき")
 
 
-def test_check_index_flags_scans_every_tracked_file(tmp_path: Path) -> None:
+def test_tracked_index_entries_lists_every_tracked_file(tmp_path: Path) -> None:
     # 走査が空振りしていないことの対照。列挙数が追跡ファイル数と一致する
     names = ["a.txt", "b c.txt", "日本語.txt"]
     _init_committed_repo(tmp_path, names)

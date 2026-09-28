@@ -109,8 +109,8 @@ def _notify_once(state_file: Path) -> bool:
 def _session_state_file(session_id: str, suffix: str) -> Path:
     """session_id 起点の state ファイルパスを作る唯一の経路。必ず _sanitize を通す。
 
-    .notified / .blocked を両方これ経由にすることで、traversal ガード (_sanitize) の適用を
-    call site の記憶に依存させず構造的に強制する (_provenance_path と対称)。
+    session_id から作る state ファイルをすべてこれ経由にすることで、traversal ガード
+    (_sanitize) の適用を call site の記憶に依存させず構造的に強制する (_provenance_path と対称)。
     """
     return _state_dir() / f"{_sanitize(session_id)}.{suffix}"
 
@@ -268,7 +268,7 @@ def _ratelimit_notices(session_id: str) -> list[str]:
     urgent_pct = _env_int("HANDOFF_RATELIMIT_URGENT_PCT", DEFAULT_RATELIMIT_URGENT_PCT)
     now = datetime.now(UTC).timestamp()
     state_path = _session_state_file(session_id, "ratelimit")
-    fired = _read_json_dict(state_path)
+    fired_resets = _read_json_dict(state_path)
     notices: list[str] = []
     for name in sorted(windows):
         info = windows[name]
@@ -290,13 +290,13 @@ def _ratelimit_notices(session_id: str) -> list[str]:
         else:
             continue
         key = f"{name}:{threshold}"
-        if fired.get(key) == resets_at:
+        if fired_resets.get(key) == resets_at:
             continue
-        fired[key] = resets_at
+        fired_resets[key] = resets_at
         notices.append(_ratelimit_message(name, pct, threshold, urgent=urgent))
     if notices:
         state_path.parent.mkdir(parents=True, exist_ok=True)
-        state_path.write_text(json.dumps(fired), encoding="utf-8")
+        state_path.write_text(json.dumps(fired_resets), encoding="utf-8")
     return notices
 
 
@@ -316,16 +316,17 @@ def _ratelimit_message(name: str, pct: float, threshold: int, *, urgent: bool) -
 
 def _context_notices(session_id: str, transcript_path: str) -> list[str]:
     # 通知は 1 セッション 1 回なので、鳴った後は transcript を読む意味が無い。
-    # posttool はツール呼び出しのたびに走るため、この stat 1 回が末尾 1MB の読み込みを丸ごと省く
-    notified = _session_state_file(session_id, "notified")
-    if notified.exists():
+    # posttool はツール呼び出しのたびに走るため、この stat 1 回が末尾 (DEFAULT_TAIL_BYTES) の
+    # 読み込みを丸ごと省く
+    notified_marker = _session_state_file(session_id, "notified")
+    if notified_marker.exists():
         return []
     window = _env_int("HANDOFF_CONTEXT_WINDOW_TOKENS", DEFAULT_CONTEXT_WINDOW_TOKENS)
     threshold_pct = _env_int("HANDOFF_CONTEXT_THRESHOLD_PCT", DEFAULT_CONTEXT_THRESHOLD_PCT)
     tokens = _context_tokens(_read_tail_entries(transcript_path))
     if tokens * 100 < window * threshold_pct:
         return []
-    if not _notify_once(notified):
+    if not _notify_once(notified_marker):
         return []
     return [
         "コンテキスト使用率がしきい値を超えた。"
@@ -658,7 +659,7 @@ def main() -> int:
             return 0
         payload = json.loads(sys.stdin.read())
         if not isinstance(payload, dict) or payload.get("agent_id"):
-            # subagent では動かない (spec: 共通ガード)
+            # subagent では動かない
             return 0
         output = handler(payload)
         if output is not None:

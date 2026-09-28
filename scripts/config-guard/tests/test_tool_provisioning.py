@@ -239,7 +239,7 @@ def test_exemptions_and_extra_requirements_are_disjoint() -> None:
     assert not set(ALSO_REQUIRED) & set(NOT_PROVISIONED)
 
 
-def test_silently_failing_extras_are_pinned_by_name() -> None:
+def test_also_required_includes_the_silently_failing_extras() -> None:
     # ALSO_REQUIRED から名前が消えても、他のテストは期待値をこの dict 自身から導出して
     # いるため両辺が同時に縮んで緑のままになる (実測: tirith を消して 413 passed / rc 0)。
     # 欠けても実行時にエラーが出ない 3 つだけを literal で縛る。増やす分は自由。

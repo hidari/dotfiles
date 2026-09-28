@@ -15,7 +15,7 @@ from typing import Literal
 
 from backup_tool.config import BackupPair, Config
 from backup_tool.disk import (
-    check_capacity,
+    CapacityReport,
     format_gb,
     measure_dest_total_kb,
     measure_source_size_kb,
@@ -165,7 +165,7 @@ def _verify_capacity(
         )
         return
     required = required_total_kb(source_size_kb=source_size_kb, margin_gb=minimum_free_space_gb)
-    report = check_capacity(dest_total_kb=dest_total_kb, required_kb=required)
+    report = CapacityReport(dest_total_kb=dest_total_kb, required_kb=required)
 
     logger.info("[%s] ソース使用量: %s", pair_name, format_gb(source_size_kb))
     logger.info("[%s] 宛先総容量:   %s", pair_name, format_gb(dest_total_kb))

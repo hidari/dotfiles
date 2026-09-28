@@ -2,8 +2,7 @@
 
 規範を rules へ切り出すと、語の操作的定義も一緒に移る。移設先の rules が注入されない
 文脈では語だけが常時層に残り、定義が届かない。実際に `変異注入` が委譲カテゴリに残った
-まま定義だけ testing-practices へ移った状態が起き、レビューで見つかった
-(「移した先にしか定義が無い語が常時層に残る」節に記録がある)。
+まま定義だけ testing-practices へ移った状態が起き、レビューで見つかった。
 
 母集団は `instruction_refs` が参照検査に使う集合をそのまま使う。再宣言すると参照検査と
 語の検査が別の規約で別の集合を見たまま両方緑になる。母集団から外すのは宣言元の rules
@@ -98,12 +97,12 @@ def _check_declarations(rules: dict[str, str]) -> list[Finding]:
     findings: list[Finding] = []
     for name, text in rules.items():
         source = f"{RULES_DIR}/{name}"
-        declared = malformed_defines(text)
-        if declared is not None:
+        malformed = malformed_defines(text)
+        if malformed is not None:
             findings.append(
                 Finding(
                     source,
-                    f"defines: {declared!r}",
+                    f"defines: {malformed!r}",
                     "defines が文字列のリストではない。この形は黙って捨てられるので、"
                     "宣言したつもりの語がどこからも検査されない状態になる",
                 )

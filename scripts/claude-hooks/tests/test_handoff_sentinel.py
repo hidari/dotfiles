@@ -585,13 +585,13 @@ class TestPostToolRateLimitWatch:
     def test_窓がリセットされたら再武装する(self, tmp_path: Path) -> None:
         # resets_at が変われば別の窓なので鳴り直す。ここがラッチだと 5 時間ごとの
         # 逼迫を 1 セッションで一度しか知らせない
-        rate_limits = write_rate_limits(
+        rate_limits_file = write_rate_limits(
             tmp_path, {"five_hour": {"used_percentage": 91, "resets_at": FUTURE_RESET}}
         )
         env = base_env(tmp_path)
         hook_input = posttool_input(tmp_path, quiet_transcript(tmp_path))
         first = run_hook("posttool", hook_input, extra_env=env)
-        rate_limits.write_text(
+        rate_limits_file.write_text(
             json.dumps({"five_hour": {"used_percentage": 91, "resets_at": FUTURE_RESET + 18000}}),
             encoding="utf-8",
         )
@@ -600,13 +600,13 @@ class TestPostToolRateLimitWatch:
         assert second.stdout != ""
 
     def test_段が進めば同じ窓でも鳴る(self, tmp_path: Path) -> None:
-        rate_limits = write_rate_limits(
+        rate_limits_file = write_rate_limits(
             tmp_path, {"five_hour": {"used_percentage": 91, "resets_at": FUTURE_RESET}}
         )
         env = base_env(tmp_path)
         hook_input = posttool_input(tmp_path, quiet_transcript(tmp_path))
         warn = run_hook("posttool", hook_input, extra_env=env)
-        rate_limits.write_text(
+        rate_limits_file.write_text(
             json.dumps({"five_hour": {"used_percentage": 96, "resets_at": FUTURE_RESET}}),
             encoding="utf-8",
         )
@@ -643,8 +643,8 @@ class TestPostToolRateLimitWatch:
         assert result.stdout == ""
 
     def test_壊れたJSONは無出力でexit0(self, tmp_path: Path) -> None:
-        broken = rate_limits_path(tmp_path)
-        broken.write_text("{not json", encoding="utf-8")
+        rate_limits_file = rate_limits_path(tmp_path)
+        rate_limits_file.write_text("{not json", encoding="utf-8")
         env = base_env(tmp_path)
         result = run_hook(
             "posttool", posttool_input(tmp_path, quiet_transcript(tmp_path)), extra_env=env
@@ -1314,9 +1314,9 @@ class TestUnreadHandoffNotice:
         handoff = handoff_dir / "handoff.md"
         handoff.chmod(0o000)  # is_file は通り read_bytes だけが落ちる
         try:
-            blocked = run_session(tmp_path, session_id=NEXT)
-            assert blocked.returncode == 0
-            assert blocked.stdout == ""  # 例外は fail-safe に握られる
+            unreadable_run = run_session(tmp_path, session_id=NEXT)
+            assert unreadable_run.returncode == 0
+            assert unreadable_run.stdout == ""  # 例外は fail-safe に握られる
         finally:
             handoff.chmod(0o644)
         assert "読まれないまま" in run_session(tmp_path, session_id="sess-next-2").stdout
@@ -1348,11 +1348,11 @@ def test_posttool_は_git_の解決モジュールを読み込まない(tmp_path
     handoff-sentinel は hook_git を関数の内側で import することでこの性質を持たせている。
     トップレベルへ動かしても機能は変わらないので、ここで pin しないと静かに失われる。
     """
-    quiet = run_hook_with_importtime(
+    posttool = run_hook_with_importtime(
         "posttool", posttool_input(tmp_path, quiet_transcript(tmp_path), "sess-1"), tmp_path
     )
     session = run_hook_with_importtime("session", session_input(tmp_path, "sess-1"), tmp_path)
 
-    assert "hook_git" not in quiet.stderr
+    assert "hook_git" not in posttool.stderr
     # 対照。session 経路は根の解決を通るので読み込まれる。出ないなら観測の方が壊れている
     assert "hook_git" in session.stderr

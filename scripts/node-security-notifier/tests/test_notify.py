@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+from pathlib import Path
+
+import pytest
+
 from node_security_notifier.models import FeedEntry
 from node_security_notifier.notify import (
     Notification,
     build_notifications,
     build_osascript_args,
+    send_notification,
 )
 
 E1 = FeedEntry("g1", "June 2026 Security Releases", "https://x/1", "d")
@@ -54,3 +61,20 @@ class TestBuildOsascriptArgs:
             "T",
             "S",
         ]
+
+
+class TestSendNotification:
+    def test_raises_on_nonzero_exit(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        # 偽の osascript を PATH の先頭に置く。終了コードを1以外にするのは、実物の
+        # osascript ではなくこの偽物が失敗したことを returncode で確かめるため
+        fake = tmp_path / "osascript"
+        fake.write_text("#!/bin/sh\nexit 3\n", encoding="utf-8")
+        fake.chmod(0o755)
+        monkeypatch.setenv("PATH", str(tmp_path), prepend=os.pathsep)
+        n = Notification(title="T", subtitle="S", body="B")
+
+        with pytest.raises(subprocess.CalledProcessError) as exc_info:
+            send_notification(n)
+
+        assert exc_info.value.returncode == 3
+        assert exc_info.value.cmd == build_osascript_args(n)

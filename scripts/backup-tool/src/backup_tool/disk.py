@@ -1,8 +1,8 @@
 """ディスク容量計算と測定。
 
-純粋関数 (required_total_kb / check_capacity) と
+純粋な計算 (required_total_kb / CapacityReport) と
 副作用境界 (measure_source_size_kb / measure_dest_total_kb) を分離する。
-issue #3 で修正した「総容量ベース判定」のロジックを踏襲する。
+容量の判定は、空き容量ではなくバックアップ先の総容量で行う。
 """
 
 from __future__ import annotations
@@ -35,11 +35,6 @@ def required_total_kb(*, source_size_kb: int, margin_gb: int) -> int:
     if margin_gb < 0:
         raise ValueError(f"margin_gb は 0 以上である必要があります: {margin_gb}")
     return source_size_kb + margin_gb * _GB_TO_KB
-
-
-def check_capacity(*, dest_total_kb: int, required_kb: int) -> CapacityReport:
-    """バックアップ先の総容量が必要容量を満たすか判定する。"""
-    return CapacityReport(dest_total_kb=dest_total_kb, required_kb=required_kb)
 
 
 def measure_source_size_kb(path: Path) -> int | None:
