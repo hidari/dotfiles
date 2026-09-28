@@ -284,7 +284,7 @@ def test_scan_は配線済みフックを孤児と誤検出しない(tmp_path: P
 
 def test_hook_mode_shebang_mismatch_is_detected(tmp_path: Path) -> None:
     # shebang/実行ビット対応検査が scan に配線されていること。配線を忘れると、実行ビットを
-    # 落として孤児検出の母集団から静かに外れたフックを誰も検出できない (M14 の穴)
+    # 落として孤児検出の母集団から静かに外れたフックを誰も検出できない
     repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
     path = write_file(repo, "home/.claude/hooks/guard-health.py", "#!/usr/bin/env python3\n")
     path.chmod(0o644)
@@ -320,7 +320,7 @@ def test_main_prints_the_related_refs_summary(
 def test_main_prints_each_finding_and_returns_1(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    # 問題は 1 件ずつ出して件数で締め、非 0 で終わる。pre-commit と CI はこの終了コードで止まる。
+    # 問題は1件ずつ出して件数で締め、非0で終わる。pre-commit と CI はこの終了コードで止まる。
     # 期待行を scan の結果から組むのは、理由の文面の canonical が tool_refs 側にあるため
     repo = _make_repo(tmp_path, "bad", BAD_SKILL, GOOD_SETTINGS)
     findings = scan(str(repo))
@@ -328,7 +328,7 @@ def test_main_prints_each_finding_and_returns_1(
 
     rc = main([str(repo)])
 
-    # 先頭の 2 行は問題の有無に関わらず出る要約行で、別のテストが見る
+    # 先頭の2行は問題の有無に関わらず出る要約行で、別のテストが見る
     assert capsys.readouterr().out.splitlines()[2:] == [
         *(f"config-guard: {f.source}: {f.message} [{f.detail}]" for f in findings),
         "config-guard: 2 件の問題を検出しました",

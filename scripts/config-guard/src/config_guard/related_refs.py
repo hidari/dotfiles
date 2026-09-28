@@ -132,7 +132,7 @@ _LINK_BASELINE_ENTRIES: dict[str, int] = {
 }
 
 # 突き合わせと Finding の source はリポジトリ相対パスで扱う。上のキーが
-# ISSUE_ROOT からの相対なのは、32 行に同じ接頭辞を書くとそこが 2 つ目の canonical に
+# ISSUE_ROOT からの相対なのは、各行に同じ接頭辞を書くとそこが 2 つ目の canonical に
 # なるため (ISSUE_ROOT を変えたときに片方だけが残る)
 LINK_BASELINE: dict[str, int] = {
     f"{ISSUE_ROOT}/{rel}": count for rel, count in _LINK_BASELINE_ENTRIES.items()

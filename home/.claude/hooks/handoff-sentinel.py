@@ -109,8 +109,8 @@ def _notify_once(state_file: Path) -> bool:
 def _session_state_file(session_id: str, suffix: str) -> Path:
     """session_id 起点の state ファイルパスを作る唯一の経路。必ず _sanitize を通す。
 
-    .notified / .blocked を両方これ経由にすることで、traversal ガード (_sanitize) の適用を
-    call site の記憶に依存させず構造的に強制する (_provenance_path と対称)。
+    session_id から作る state ファイルをすべてこれ経由にすることで、traversal ガード
+    (_sanitize) の適用を call site の記憶に依存させず構造的に強制する (_provenance_path と対称)。
     """
     return _state_dir() / f"{_sanitize(session_id)}.{suffix}"
 
@@ -316,7 +316,8 @@ def _ratelimit_message(name: str, pct: float, threshold: int, *, urgent: bool) -
 
 def _context_notices(session_id: str, transcript_path: str) -> list[str]:
     # 通知は 1 セッション 1 回なので、鳴った後は transcript を読む意味が無い。
-    # posttool はツール呼び出しのたびに走るため、この stat 1 回が末尾 1MB の読み込みを丸ごと省く
+    # posttool はツール呼び出しのたびに走るため、この stat 1 回が末尾 (DEFAULT_TAIL_BYTES) の
+    # 読み込みを丸ごと省く
     notified_marker = _session_state_file(session_id, "notified")
     if notified_marker.exists():
         return []
@@ -658,7 +659,7 @@ def main() -> int:
             return 0
         payload = json.loads(sys.stdin.read())
         if not isinstance(payload, dict) or payload.get("agent_id"):
-            # subagent では動かない (spec: 共通ガード)
+            # subagent では動かない
             return 0
         output = handler(payload)
         if output is not None:

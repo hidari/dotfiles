@@ -27,7 +27,6 @@ class TestClassify:
         assert classify("/Volumes/Primary") == "volume"
 
     def test_volume_with_trailing_slash(self) -> None:
-        # ボリューム直下にスラッシュが付いていても volume 扱い
         assert classify("/Volumes/Primary/") == "volume"
 
     def test_directory_under_volume(self) -> None:

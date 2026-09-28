@@ -65,7 +65,7 @@ class TestBuildOsascriptArgs:
 
 class TestSendNotification:
     def test_raises_on_nonzero_exit(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        # 偽の osascript を PATH の先頭に置く。終了コードを 1 以外にするのは、実物の
+        # 偽の osascript を PATH の先頭に置く。終了コードを1以外にするのは、実物の
         # osascript ではなくこの偽物が失敗したことを returncode で確かめるため
         fake = tmp_path / "osascript"
         fake.write_text("#!/bin/sh\nexit 3\n", encoding="utf-8")

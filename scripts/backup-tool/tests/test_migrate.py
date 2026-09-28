@@ -197,7 +197,6 @@ class TestToTomlString:
             ),
         )
         toml_str = to_toml_string(config)
-        # 生成された TOML を load_config でロードし直して同値性を確認
         assert load_config(toml_str.encode("utf-8")) == config
 
     def test_omits_log_base_dir_when_none(self) -> None:
@@ -221,7 +220,6 @@ class TestMigrateFile:
         assert dst.exists()
         backup = tmp_path / "backup.conf.bak"
         assert backup.exists()
-        # 新旧ファイルとも存在 (旧 backup.conf はリネーム済み)
         assert not conf.exists()
 
     def test_refuses_to_overwrite_existing_toml(self, tmp_path: Path) -> None:
