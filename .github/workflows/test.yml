@@ -117,7 +117,7 @@ jobs:
       # .pre-commit-config.yaml の shellcheck hook と揃える (理由は向こうのコメント)。
       # -z/-0 でファイル名を null 区切りにし空白安全化、-r で0件時の空実行を防ぐ。
       - name: Run shellcheck
-        run: git ls-files -z '*.sh' '*.bash' 'scripts/apm-guard/apm' | xargs -0 -r shellcheck -x -P SCRIPTDIR
+        run: git ls-files -z '*.sh' '*.bash' 'scripts/apm-guard/apm' 'scripts/repo-wiring/repo-wiring' | xargs -0 -r shellcheck -x -P SCRIPTDIR
 
   pester:
     name: Pester (PowerShell)
@@ -149,7 +149,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install uv
+      - name: Setup uv
         uses: ./.github/actions/setup-uv
 
       - name: Sync dependencies
@@ -217,7 +217,7 @@ jobs:
       - name: Fetch main for the budget ratchet baseline
         run: git fetch --depth=1 origin main:refs/remotes/origin/main
 
-      - name: Install uv
+      - name: Setup uv
         uses: ./.github/actions/setup-uv
 
       - name: Sync dependencies
@@ -249,7 +249,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install uv
+      - name: Setup uv
         uses: ./.github/actions/setup-uv
 
       - name: Sync dependencies
@@ -277,7 +277,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install uv
+      - name: Setup uv
         uses: ./.github/actions/setup-uv
 
       - name: Sync dependencies
@@ -305,7 +305,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install uv
+      - name: Setup uv
         uses: ./.github/actions/setup-uv
 
       - name: Sync dependencies
