@@ -19,9 +19,9 @@ defaults:
 jobs:
   bats:
     name: all suites (bats)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Setup Bats
         uses: ./.github/actions/setup-bats
@@ -75,9 +75,9 @@ jobs:
 
   ast-grep:
     name: ast-grep (syntax lint)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Setup ast-grep
         uses: ./.github/actions/setup-ast-grep
@@ -96,11 +96,11 @@ jobs:
 
   shellcheck:
     name: shellcheck (shell static analysis)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      # shellcheck を dev(brew) と同 version に pin する。ubuntu-latest 同梱版は古く (0.9.0)
+      # shellcheck を dev(brew) と同 version に pin する。ランナー同梱版は古く
       # 同じコードでも警告集合が変わり (SC2120 の FP 等)、pin しないと dev 緑 / CI 赤の skew になる。
       - name: Install shellcheck
         run: |
@@ -121,11 +121,11 @@ jobs:
 
   pester:
     name: Pester (PowerShell)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      # pwsh は ubuntu-latest 同梱だが Pester は含まれない。PSGallery から取るので
+      # pwsh はランナーに同梱されているが Pester は含まれない。PSGallery から取るので
       # 版を固定して開発機と揃える (固定しないと破壊的変更が黙って降ってくる)。
       - name: Install Pester
         shell: pwsh
@@ -141,13 +141,13 @@ jobs:
 
   backup-tool:
     name: backup-tool (python)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         shell: bash
         working-directory: scripts/backup-tool
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Install uv
         uses: ./.github/actions/setup-uv
@@ -169,12 +169,12 @@ jobs:
 
   gitleaks:
     name: gitleaks (leak guard)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # ルール検証 (scripts/tests/gitleaks.bats) は bats job が全スイートの一部として走らせる。
     # この job が受け持つのは範囲スキャンだけ。
     steps:
       # 範囲の走査に履歴が要る
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
 
@@ -203,13 +203,13 @@ jobs:
 
   config-guard:
     name: config-guard (python)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         shell: bash
         working-directory: scripts/config-guard
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       # 予算ラチェットの baseline は origin/main の定数。checkout は既定 (fetch-depth: 1) で
       # PR の merge ref しか作らないため refs/remotes/origin/main を明示的に取る。
@@ -235,19 +235,19 @@ jobs:
       - name: Pytest
         run: uv run pytest -q
 
-      # リポジトリ全体に対して guard を実行する（cwd は scripts/config-guard、引数は repo root）
+      # 引数はリポジトリルート。cwd は job の working-directory に移っているので相対で遡る
       - name: Run config-guard on repo
         run: uv run config-guard ../..
 
   mise-update-notifier:
     name: mise-update-notifier (python)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         shell: bash
         working-directory: scripts/mise-update-notifier
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Install uv
         uses: ./.github/actions/setup-uv
@@ -269,13 +269,13 @@ jobs:
 
   node-security-notifier:
     name: node-security-notifier (python)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         shell: bash
         working-directory: scripts/node-security-notifier
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Install uv
         uses: ./.github/actions/setup-uv
@@ -297,13 +297,13 @@ jobs:
 
   claude-hooks:
     name: claude-hooks (python)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         shell: bash
         working-directory: scripts/claude-hooks
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Install uv
         uses: ./.github/actions/setup-uv
