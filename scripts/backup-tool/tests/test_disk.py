@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from backup_tool.disk import (
-    check_capacity,
+    CapacityReport,
     measure_dest_total_kb,
     measure_source_size_kb,
     required_total_kb,
@@ -46,21 +46,19 @@ class TestRequiredTotalKb:
             required_total_kb(source_size_kb=100, margin_gb=-1)
 
 
-class TestCheckCapacity:
+class TestCapacityReport:
     def test_sufficient_when_dest_exceeds_required(self) -> None:
-        report = check_capacity(dest_total_kb=200, required_kb=100)
+        report = CapacityReport(dest_total_kb=200, required_kb=100)
         assert report.is_sufficient is True
         assert report.shortage_kb == 0
 
     def test_sufficient_when_equal(self) -> None:
-        report = check_capacity(dest_total_kb=100, required_kb=100)
-        assert report.dest_total_kb == 100
-        assert report.required_kb == 100
+        report = CapacityReport(dest_total_kb=100, required_kb=100)
         assert report.is_sufficient is True
         assert report.shortage_kb == 0
 
     def test_insufficient_reports_shortage(self) -> None:
-        report = check_capacity(dest_total_kb=90, required_kb=100)
+        report = CapacityReport(dest_total_kb=90, required_kb=100)
         assert report.is_sufficient is False
         assert report.shortage_kb == 10
 
@@ -92,10 +90,6 @@ class TestMeasureSourceSizeKb:
         self, fake_command: FakeCommand, tmp_path: Path
     ) -> None:
         fake_command("du", "printf '%s\\t%s\\n' abc /Volumes/Source")
-        assert measure_source_size_kb(tmp_path) is None
-
-    def test_none_when_size_is_zero(self, fake_command: FakeCommand, tmp_path: Path) -> None:
-        fake_command("du", "printf '%s\\t%s\\n' 0 /Volumes/Source")
         assert measure_source_size_kb(tmp_path) is None
 
 

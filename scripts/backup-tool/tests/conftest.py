@@ -24,7 +24,7 @@ def fake_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> FakeCommand
     """
     bin_dir = tmp_path / "fake-bin"
     bin_dir.mkdir()
-    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setenv("PATH", str(bin_dir), prepend=os.pathsep)
 
     def install(name: str, body: str) -> None:
         command = bin_dir / name

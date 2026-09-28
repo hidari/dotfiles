@@ -111,11 +111,7 @@ def _install_tools(fake_command: FakeCommand, tmp_path: Path, *, rsync_exit: int
     """
     calls = tmp_path / "rsync-calls"
     fake_command("du", "printf '%s\\t%s\\n' 1 /src")
-    fake_command(
-        "df",
-        "printf '%s\\n' 'Filesystem 1024-blocks Used Available Capacity Mounted on'"
-        " 'fakefs 1000000 1 999999 1% /dst'",
-    )
+    fake_command("df", "printf '%s\\n' 'fakefs 1000000 1 999999 1% /dst'")
     fake_command("rsync", f"printf '%s\\n' called >> '{calls}'\nexit {rsync_exit}")
     return calls
 
