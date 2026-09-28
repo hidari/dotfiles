@@ -76,6 +76,50 @@ EOF
     assert_array_contains "RUN_STEP_DISALLOWED_SHELL=replaced/without shell,inherited/explicit sh" "${lines[@]}"
 }
 
+@test "every job in the workflows pins its runner image" {
+    # 浮動ラベルの判定は ci-runner-probe.py が持つ
+    require_command_or_skip uv || return 1
+
+    run_yaml_probe ci-runner-probe.py "$REPO_ROOT/.github/workflows"
+    [ "$status" -eq 0 ] || return 1
+
+    assert_positive_count RUNNER_JOB_COUNT "${lines[@]}"
+    assert_array_contains "RUNNER_FLOATING=" "${lines[@]}"
+}
+
+@test "the runner probe finds floating labels in string, list and group forms" {
+    # 上のテストの判定を pin する。文字列だけを見る判定だと、配列や group 形の浮動ラベルを通してしまう。
+    # GitHub は .yaml のワークフローも読むので、拡張子の両方を置く
+    require_command_or_skip uv || return 1
+
+    local workflows="$BATS_TEST_TMPDIR/workflows"
+    mkdir -p "$workflows"
+    cat > "$workflows/workflow.yml" << 'EOF'
+jobs:
+  pinned:
+    runs-on: ubuntu-24.04
+  floating:
+    runs-on: ubuntu-latest
+  listed:
+    runs-on: [self-hosted, macos-latest-xlarge]
+  called:
+    uses: ./.github/workflows/reusable.yml
+EOF
+    cat > "$workflows/grouped.yaml" << 'EOF'
+jobs:
+  grouped:
+    runs-on:
+      group: runners
+      labels: ubuntu-latest
+EOF
+
+    run_yaml_probe ci-runner-probe.py "$workflows"
+    [ "$status" -eq 0 ] || return 1
+
+    assert_array_contains "RUNNER_JOB_COUNT=4" "${lines[@]}"
+    assert_array_contains "RUNNER_FLOATING=grouped.yaml/grouped,workflow.yml/floating,workflow.yml/listed" "${lines[@]}"
+}
+
 @test "every shell script under scripts/ci is executable in the index" {
     # workflow は shebang 経由で直接実行するので、実行ビットが落ちると Permission denied で
     # 止まる。テストは bash 経由で呼ぶため、この面はテストからは一切見えない。
