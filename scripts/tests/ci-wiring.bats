@@ -120,6 +120,53 @@ EOF
     assert_array_contains "RUNNER_FLOATING=grouped.yaml/grouped,workflow.yml/floating,workflow.yml/listed" "${lines[@]}"
 }
 
+@test "dependabot updates every place that uses external actions" {
+    # 覆う範囲の判定は dependabot-probe.py が持つ
+    require_command_or_skip uv || return 1
+
+    run_yaml_probe dependabot-probe.py "$REPO_ROOT"
+    [ "$status" -eq 0 ] || return 1
+
+    assert_positive_count ACTION_DIR_COUNT "${lines[@]}"
+    assert_array_contains "UNCOVERED_ACTION_DIRS=" "${lines[@]}"
+}
+
+@test "the dependabot probe reports action directories left out of the config" {
+    # 上のテストの判定を pin する。数えるのは外部 action を uses で使う場所だけで (e は run だけ)、
+    # * は1段だけに一致し (c/d は actions/* の外)、単数形の directory は glob にならず、
+    # 他の ecosystem の directories では覆ったことにならない。.yaml も GitHub は読む
+    require_command_or_skip uv || return 1
+
+    local root="$BATS_TEST_TMPDIR/repo"
+    local actions="$root/.github/actions"
+    mkdir -p "$root/.github/workflows" "$actions/a" "$actions/b" "$actions/c/d" "$actions/e"
+    printf 'jobs: {x: {steps: [{uses: actions/checkout@v1}, {uses: ./.github/actions/a}]}}\n' \
+        > "$root/.github/workflows/ci.yaml"
+    local composite='runs: {using: composite, steps: [{uses: actions/cache@v1}]}'
+    printf '%s\n' "$composite" > "$actions/a/action.yml"
+    printf '%s\n' "$composite" > "$actions/b/action.yaml"
+    printf '%s\n' "$composite" > "$actions/c/d/action.yml"
+    printf 'runs: {using: composite, steps: [{run: "true", shell: bash}]}\n' > "$actions/e/action.yml"
+    cat > "$root/.github/dependabot.yml" << 'EOF'
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directories:
+      - /.github/actions/*
+  - package-ecosystem: github-actions
+    directory: /.github/actions/c/*
+  - package-ecosystem: npm
+    directories:
+      - /
+EOF
+
+    run_yaml_probe dependabot-probe.py "$root"
+    [ "$status" -eq 0 ] || return 1
+
+    assert_array_contains "ACTION_DIR_COUNT=4" "${lines[@]}"
+    assert_array_contains "UNCOVERED_ACTION_DIRS=/,/.github/actions/c/d" "${lines[@]}"
+}
+
 @test "every shell script under scripts/ci is executable in the index" {
     # workflow は shebang 経由で直接実行するので、実行ビットが落ちると Permission denied で
     # 止まる。テストは bash 経由で呼ぶため、この面はテストからは一切見えない。

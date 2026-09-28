@@ -1,0 +1,21 @@
+# GitHub Actions の pin (SHA と行末の版の注記) を上流の新しい版へ上げる PR を作らせる。
+# 外部 action を使う場所をすべて覆うことは scripts/tests/ci-wiring.bats が pin する。
+# minor と patch はディレクトリごとに1本の PR へまとめて CI の回数を抑え、major は破壊的変更を個別に読めるよう分ける。
+# 公開直後の版を提案しない cooldown は github-actions では使えないので、PR は中身を読んでからマージする。
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /.github/actions/*
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: depends
