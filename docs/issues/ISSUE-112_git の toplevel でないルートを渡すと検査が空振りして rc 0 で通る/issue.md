@@ -23,6 +23,7 @@ jev-lint-curated の tests-cover-failure-paths が指した config-guard の `cl
 
 - ルートが toplevel でないときに、拒否して非0で終えるか、toplevel へ解決し直して続けるか
 - 非0で終えるなら、問題を検出した1と区別する終了コードを持つか
+- どこで直すか。root を `resolve()` しているのは scan だけで、main は要約行を作る `budget_summary` と `related_refs_summary` へ受け取った値をそのまま渡している。上の証拠は要約行なので、scan だけを直すと要約行は直らない。main の入口で1回だけ検査する形が候補
 
 ## タスク
 
