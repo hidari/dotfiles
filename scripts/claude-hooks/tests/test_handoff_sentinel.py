@@ -643,8 +643,8 @@ class TestPostToolRateLimitWatch:
         assert result.stdout == ""
 
     def test_壊れたJSONは無出力でexit0(self, tmp_path: Path) -> None:
-        broken = rate_limits_path(tmp_path)
-        broken.write_text("{not json", encoding="utf-8")
+        rate_limits_file = rate_limits_path(tmp_path)
+        rate_limits_file.write_text("{not json", encoding="utf-8")
         env = base_env(tmp_path)
         result = run_hook(
             "posttool", posttool_input(tmp_path, quiet_transcript(tmp_path)), extra_env=env
@@ -1348,11 +1348,11 @@ def test_posttool_は_git_の解決モジュールを読み込まない(tmp_path
     handoff-sentinel は hook_git を関数の内側で import することでこの性質を持たせている。
     トップレベルへ動かしても機能は変わらないので、ここで pin しないと静かに失われる。
     """
-    quiet = run_hook_with_importtime(
+    posttool = run_hook_with_importtime(
         "posttool", posttool_input(tmp_path, quiet_transcript(tmp_path), "sess-1"), tmp_path
     )
     session = run_hook_with_importtime("session", session_input(tmp_path, "sess-1"), tmp_path)
 
-    assert "hook_git" not in quiet.stderr
+    assert "hook_git" not in posttool.stderr
     # 対照。session 経路は根の解決を通るので読み込まれる。出ないなら観測の方が壊れている
     assert "hook_git" in session.stderr
