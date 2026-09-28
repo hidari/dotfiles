@@ -29,6 +29,15 @@ ISSUE-97 のタスクと実例を切り出し、ISSUE-53 を待たずに進め�
 上流 ISSUE-32 の設計表は、層 0 に「消費側 pin の鮮度」を置き、担当を両リポジトリとしている。
 一方で spec は、層 3 (横断スイープ) の報告項目にも「pin と上流 main の距離」を置いている。
 
+### GitHub Actions の pin (2026-09-29に射程へ足した)
+
+ワークフローと composite action が SHA で pin した GitHub Actions も、同じく上流から黙って遅れる。ユーザーの判断で、この Issue の射程を広げた。
+
+- 実例: actions/checkout は v7.0.1 が2026-07-20に出ていたのに、v7.0.0 の pin のまま約2か月気づかなかった。気づいたのは別の変更のレビューでの偶然で、PR #239 で上げた。同じ日の時点で、setup-uv の composite は v8.3.1 を pin しているが、上流の最新は v10.2.0 (2026-09-21公開) でメジャー版が2つ進んでいる
+- dotfiles の Actions の pin は Dependabot で扱うと決めた (ユーザーの判断)。`.github/dependabot.yml` が github-actions の更新を週次で PR にし、SHA と行末の版の注記を一緒に上げる。外部 action を使う場所をすべて覆うことは `scripts/tests/ci-wiring.bats` が pin する。Dependabot の PR ごとに CI が回るので、minor と patch はディレクトリごとに1本の PR へまとめている (groups はディレクトリをまたがない)
+- Dependabot が上げるのは uses で参照した action だけである。.github/actions の composite のうち、ツールを curl で取得して版と sha256 をシェル変数で固定しているもの (2026-09-29時点で ast-grep、neovim、mise、bats、gitleaks の5つ) は Dependabot の外にあり、鮮度を知らせる経路が無いまま残る
+- Dependabot の cooldown (公開直後の版を提案しない) は、github-actions では使えない (公式ドキュメントの対応表)。改ざんされた版がすぐに PR になりうるので、Dependabot の PR も中身を読んでからマージする
+
 ### 切り出した理由
 
 ISSUE-53 は、配布先の母数の定義から始まる。この Issue が見るのは dotfiles の manifest なので、
@@ -48,7 +57,7 @@ ISSUE-53 は、配布先の母数の定義から始まる。この Issue が見�
 
 - **対象の範囲。**manifest は agentic-coding-tools のほかに、第三者の上流 (mizchi/skills と
   yusukebe/ax) も SHA で pin している。mizchi/skills は別製品の接頭辞付き tag しか持たないので、
-  tag の差では距離を表せない
+  tag の差では距離を表せない。GitHub Actions の pin は、dotfiles では Dependabot で扱うと決めた。ISSUE-97 で開発環境のベースを配る先のリポジトリも Dependabot に揃えるか、CI の費用に合わせて別の経路にするかは未決
 - **基準点。**上流 main か、最新の release か。spec の報告項目は main との距離で、release を
   切った直後以外は両者が分かれる。決めた方へ、ISSUE-53 の記述も揃える
 - **鳴る条件と黙る条件。**agentic-coding-tools の release は 0.x で、毎回 minor が上がる。前例の
@@ -75,6 +84,7 @@ ISSUE-53 は、配布先の母数の定義から始まる。この Issue が見�
 
 - [ ] SHA で pin した manifest に対して `apm outdated` が何を報告するかを確かめ、結果に合わせて
       README の「apm による skill 配信」節を直す
+- [x] dotfiles の GitHub Actions の pin に Dependabot を入れる
 - [ ] 対象の範囲、基準点、鳴る条件と黙る条件を決める
 - [ ] 告げる経路と上流との分担を決める
 - [ ] 実装し、鳴る側と鳴らない側の対照で確かめる。上流はどちらも v0.8.0 に固定する。鳴る側は
