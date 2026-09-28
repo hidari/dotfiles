@@ -21,7 +21,7 @@ jobs:
     name: all suites (bats)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Bats
         uses: ./.github/actions/setup-bats
@@ -77,7 +77,7 @@ jobs:
     name: ast-grep (syntax lint)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup ast-grep
         uses: ./.github/actions/setup-ast-grep
@@ -98,7 +98,7 @@ jobs:
     name: shellcheck (shell static analysis)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # shellcheck を dev(brew) と同 version に pin する。ランナー同梱版は古く
       # 同じコードでも警告集合が変わり (SC2120 の FP 等)、pin しないと dev 緑 / CI 赤の skew になる。
@@ -123,7 +123,7 @@ jobs:
     name: Pester (PowerShell)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # pwsh はランナーに同梱されているが Pester は含まれない。PSGallery から取るので
       # 版を固定して開発機と揃える (固定しないと破壊的変更が黙って降ってくる)。
@@ -147,7 +147,7 @@ jobs:
         shell: bash
         working-directory: scripts/backup-tool
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
         uses: ./.github/actions/setup-uv
@@ -174,7 +174,7 @@ jobs:
     # この job が受け持つのは範囲スキャンだけ。
     steps:
       # 範囲の走査に履歴が要る
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -209,7 +209,7 @@ jobs:
         shell: bash
         working-directory: scripts/config-guard
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # 予算ラチェットの baseline は origin/main の定数。checkout は既定 (fetch-depth: 1) で
       # PR の merge ref しか作らないため refs/remotes/origin/main を明示的に取る。
@@ -247,7 +247,7 @@ jobs:
         shell: bash
         working-directory: scripts/mise-update-notifier
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
         uses: ./.github/actions/setup-uv
@@ -275,7 +275,7 @@ jobs:
         shell: bash
         working-directory: scripts/node-security-notifier
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
         uses: ./.github/actions/setup-uv
@@ -303,7 +303,7 @@ jobs:
         shell: bash
         working-directory: scripts/claude-hooks
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
         uses: ./.github/actions/setup-uv
