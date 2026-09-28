@@ -92,7 +92,7 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | M2 | 検査を配布先で走る状態にする | ISSUE-53、ISSUE-72、ISSUE-86、ISSUE-97、ISSUE-101、agentic-coding-tools の ISSUE-32 |
 | M3 | skill バンドルの二重登録を止める | Issue 40 |
 | M4 | PUBLIC 露出の scrub | Issue 21、Issue 29、ISSUE-87 |
-| M5 | 静的検査の基盤を寄せ射程の穴を塞ぐ | Issue 39、Issue 30、ISSUE-57、ISSUE-60、Issue 41、ISSUE-47、Issue 17、Issue 18、ISSUE-75、ISSUE-85、ISSUE-90、ISSUE-94、ISSUE-98、ISSUE-104、ISSUE-110 |
+| M5 | 静的検査の基盤を寄せ射程の穴を塞ぐ | Issue 39、Issue 30、ISSUE-57、ISSUE-60、Issue 41、ISSUE-47、Issue 17、Issue 18、ISSUE-75、ISSUE-85、ISSUE-90、ISSUE-94、ISSUE-98、ISSUE-104、ISSUE-110、ISSUE-112 |
 | M6 | winvm の実装品質 | 上流の winvm 系 Issue |
 | M7 | 環境とテスト網の個別 | 下の細分表 |
 | M8 | CI の必須チェックを実効化する | ISSUE-50 |
@@ -112,7 +112,7 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | CI の安定性 | Issue 37、Issue 38 |
 | Raycast | Issue 22、Issue 23 |
 | PowerShell | Issue 27、Issue 28 |
-| 単独 | Issue 31、Issue 33、ISSUE-51、ISSUE-95、ISSUE-96、ISSUE-109 |
+| 単独 | Issue 31、Issue 33、ISSUE-51、ISSUE-95、ISSUE-96、ISSUE-109、ISSUE-111 |
 
 ### 数え方
 
@@ -150,6 +150,15 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
   `git show <ref>:<path>` で読む。数えた SHA は「件数の推移」節に残す。並行するセッションが上流の
   作業ツリーを feature ブランチへ切り替えていると、その枝でだけ status が動いた Issue の分がずれる
   (2026-09-17 に実例がある)
+
+### 割り当ての検算 (2026-09-29、ISSUE-111・112 の起票の後)
+
+dotfiles の active な Issue は68件 (open が66件、in_progress が2件) で、その全件がいずれかのマイルストーンへ入ることを、この変更の tree で数えて確かめた。M1 は3件、M2 は5件 (dotfiles 側のみ)、M3 は1件、M4 は3件、M5 は16件、M6 は0件 (上流のみ)、M7 は18件、M8 は1件、M9 は10件、M10 は7件、M11 は3件で、この Issue 自身の1件と合わせて68件になる。表の腐りは0件、未割り当てはこの Issue 自身の1件だけだった。
+
+下の09-26の検算からの動きは次の2件だけで、ほかに起票もクローズも無かった。所属はユーザーが決めた。
+
+- ISSUE-111 を M7 の単独へ入れた。backup-tool の失敗経路で見つかった欠陥で、backup-tool を主題にした active な Issue はほかに無いので、群を切らずに単独へ置く
+- ISSUE-112 を M5 へ入れた。config-guard が誤ったルートでは検査の射程を黙って失う欠陥で、ISSUE-110 と ISSUE-90 と同じく config-guard の検査の話として M5 に置く
 
 ### 割り当ての検算 (2026-09-26、ISSUE-108・109・110 の起票と ISSUE-106・107 のクローズの後)
 
