@@ -108,6 +108,15 @@ def test_read_pins_rejects_non_string_spec(tmp_path: Path) -> None:
         read_pins(config)
 
 
+def test_read_pins_rejects_non_table_tools(tmp_path: Path) -> None:
+    # テーブルでない [tools] を空扱いにすると、全ツールが監視から静かに外れる
+    config = tmp_path / "config.toml"
+    config.write_text('tools = "oops"\n', encoding="utf-8")
+
+    with pytest.raises(ValueError, match=r"\[tools\] がテーブルではありません: 'oops'"):
+        read_pins(config)
+
+
 def test_read_pins_without_tools_table(tmp_path: Path) -> None:
     config = tmp_path / "config.toml"
     config.write_text("[settings]\nexperimental = true\n", encoding="utf-8")

@@ -1,8 +1,10 @@
-"""cli.scan の統合テスト。実 git リポジトリで検証する。"""
+"""cli.scan と cli.main の統合テスト。実 git リポジトリで検証する。"""
 
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -346,3 +348,31 @@ def test_main_without_args_scans_the_cwd(
     from_cwd = capsys.readouterr().out
     assert main([str(repo)]) == 1
     assert capsys.readouterr().out == from_cwd
+
+
+def test_console_script_scans_the_root_given_on_the_command_line(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # console script は main を引数なしで呼ぶので、本番 (pre-commit と CI) は必ず sys.argv を
+    # 読む側を通る。上のテストはどれも argv を渡すのでこの側を壊しても緑のままになり、本番だけが
+    # cwd を走査して「問題なし」の rc 0 で通る。cwd を clean な repo にして、引数の repo を
+    # 走査したことを rc と出力で確かめる
+    bad = tmp_path / "bad"
+    clean = tmp_path / "clean"
+    bad.mkdir()
+    clean.mkdir()
+    _make_repo(bad, "bad", BAD_SKILL, GOOD_SETTINGS)
+    _make_repo(clean, "good", GOOD_SKILL, GOOD_SETTINGS)
+
+    proc = subprocess.run(
+        [str(Path(sys.executable).with_name("config-guard")), str(bad)],
+        cwd=clean,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+
+    assert main([str(bad)]) == 1
+    assert proc.stdout == capsys.readouterr().out
+    assert proc.returncode == 1
