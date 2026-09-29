@@ -3,10 +3,9 @@
 CI ミラーを持たない hook や、健全時の出力が「何も見ていない」と区別できない hook は、
 配線が外れても誰も気づかない。ここで構造として縛る。
 
-YAML は safe_load で構造として読む (グローバル CLAUDE.md の MUST: 設定のデータ構造を
-検証するときは定義を source / import して言語自身に解釈させる。行パースの前例は
-scripts/tests/ast-grep-wiring-probe.py の docstring にある通り false pass / false fail
-の両方を起こした)。
+YAML は safe_load で構造として読む (規範は home/.claude/rules/testing-practices.md。
+行パースの前例は scripts/tests/ast-grep-wiring-probe.py の docstring にある通り
+false pass / false fail の両方を起こした)。
 """
 
 from __future__ import annotations

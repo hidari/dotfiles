@@ -7,8 +7,7 @@ job に defaults.run があると workflow 側の defaults.run は丸ごと使�
 ログで確認した).
 
 判定はここで行い, 呼び出し側 (scripts/tests/ci-wiring.bats) は件数と一覧を照合するだけ.
-
-実行: uv run --quiet --no-project --with pyyaml python3 <このファイル> <workflow のパス>
+実行は scripts/tests/test_helper.bash の run_yaml_probe を通し, ワークフローのファイルを渡す.
 """
 
 from __future__ import annotations

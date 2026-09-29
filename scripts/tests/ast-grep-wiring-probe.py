@@ -3,13 +3,11 @@
 判定は呼び出し側 (scripts/tests/ast-grep.bats) が行う.
 
 regex での text-parse を避け, YAML を safe_load して言語自身に解釈させる
-(グローバル CLAUDE.md の MUST: 設定のデータ構造を検証するときは定義を
-source / import して言語自身に解釈させる).
+(規範は home/.claude/rules/testing-practices.md).
 regex 版は行頭錨が無く, コメントアウトした run 行を false pass し,
 run: | のブロックスカラーを false fail していた.
 
-実行: uv run --quiet --no-project --with pyyaml python3 <このファイル>
-(--no-project の理由は scripts/tests/test_helper.bash の run_yaml_probe).
+実行は scripts/tests/test_helper.bash の run_yaml_probe を通し, 引数は渡さない.
 """
 
 from __future__ import annotations

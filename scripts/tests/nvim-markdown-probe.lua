@@ -303,7 +303,7 @@ local surfaces_guard_ok = pcall(function()
 end)
 print("SURFACES_UNKNOWN_KEY_ERRORS=" .. (surfaces_guard_ok and 0 or 1))
 
--- 色だけに頼らない情報伝達 (グローバル CLAUDE.md の MUST) を固定する。
+-- 色だけに頼らない情報伝達 (規範は home/.claude/rules/frontend-practices.md) を固定する。
 -- 適用結果 (highlight) から直接読むので、写像の bold / italic 宣言を消しても
 -- 検査が空回りして緑になることはない。fg 比較だけを見る NEOTREE_APPLIED では守れない不変条件。
 -- 検査対象が 0 件だと空回りするので件数も出す

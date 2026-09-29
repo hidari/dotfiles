@@ -30,8 +30,8 @@ def _repo(tmp_path: Path, hooks: dict[str, int]) -> Path:
     """フックを持つ使い捨てリポジトリを作って commit する。
 
     hooks は「ファイル名 -> mode」。mode は 0o755 か 0o644 を渡す。
-    check_hook_wiring は _executable_hooks で git ls-files を使うため、
-    フック本体の commit 自体は settings の受け渡し方を変えても引き続き要る。
+    check_hook_wiring は _executable_hooks で git ls-files -s (index) を読むため、
+    フック本体は少なくとも git add まで要る。
     """
     root = tmp_path / "repo"
     root.mkdir()
@@ -113,7 +113,7 @@ def _repo_with_content(tmp_path: Path, files: dict[str, tuple[str, int]]) -> Pat
 
 
 def test_shebang_があり実行ビットが無ければ検出する(tmp_path: Path) -> None:
-    """実行ビットを落とすフック本体を、孤児検出の母集団から漏れても shebang 側で拾う (M14)。"""
+    """実行ビットを落とすフック本体を、孤児検出の母集団から漏れても shebang 側で拾う。"""
     root = _repo_with_content(tmp_path, {"guard-health.py": ("#!/usr/bin/env python3\n", 0o644)})
     findings = check_hook_mode_shebang(str(root))
     assert [f.detail for f in findings] == ["home/.claude/hooks/guard-health.py"]

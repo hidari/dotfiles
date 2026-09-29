@@ -7,7 +7,7 @@ requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [{ name = "Hidari" }]
 # src/config_guard/apm_pins.py が apm.yml / apm.lock.yaml を構造として読む。行パースは
-# YAML のパーサが無視する要素を誤読するので使わない (グローバル CLAUDE.md の MUST)。
+# YAML のパーサが無視する要素を誤読するので使わない (規範は home/.claude/rules/testing-practices.md)。
 # ここへ足さずに src/ で import すると、dev グループを持つテスト環境だけが緑になり
 # 配布側で ModuleNotFoundError になる (tests/test_dependency_declarations.py が pin する)
 dependencies = ["pyyaml>=6.0"]
