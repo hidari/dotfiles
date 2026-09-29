@@ -8,8 +8,7 @@ source / import して言語自身に解釈させる).
 regex 版は行頭錨が無く, コメントアウトした run 行を false pass し,
 run: | のブロックスカラーを false fail していた.
 
-実行: uv run --quiet --no-project --with pyyaml python3 <このファイル>
-(--no-project の理由は scripts/tests/test_helper.bash の run_yaml_probe).
+実行は scripts/tests/test_helper.bash の run_yaml_probe を通し, 引数は渡さない.
 """
 
 from __future__ import annotations

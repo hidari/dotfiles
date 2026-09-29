@@ -113,7 +113,7 @@ def _repo_with_content(tmp_path: Path, files: dict[str, tuple[str, int]]) -> Pat
 
 
 def test_shebang_があり実行ビットが無ければ検出する(tmp_path: Path) -> None:
-    """実行ビットを落とすフック本体を、孤児検出の母集団から漏れても shebang 側で拾う (M14)。"""
+    """実行ビットを落とすフック本体を、孤児検出の母集団から漏れても shebang 側で拾う。"""
     root = _repo_with_content(tmp_path, {"guard-health.py": ("#!/usr/bin/env python3\n", 0o644)})
     findings = check_hook_mode_shebang(str(root))
     assert [f.detail for f in findings] == ["home/.claude/hooks/guard-health.py"]
