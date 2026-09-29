@@ -101,8 +101,7 @@ scan_exit() {
     # --no-ignore hidden が無いと nvim の Lua を 1 件も検査しないまま緑になる。
     # ルールの検出力は上のテストが守るが、呼び出し側の配線を守るのはここだけである。
     #
-    # 配線は YAML を safe_load して構造として読む (グローバル CLAUDE.md の MUST:
-    # 設定のデータ構造を検証するときは regex ではなく言語自身に解釈させる)。
+    # 配線は YAML を safe_load して構造として読む (規範は home/.claude/rules/testing-practices.md)。
     require_command_or_skip uv || return 1
 
     run_yaml_probe ast-grep-wiring-probe.py

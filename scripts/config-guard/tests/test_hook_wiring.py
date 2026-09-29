@@ -30,8 +30,8 @@ def _repo(tmp_path: Path, hooks: dict[str, int]) -> Path:
     """フックを持つ使い捨てリポジトリを作って commit する。
 
     hooks は「ファイル名 -> mode」。mode は 0o755 か 0o644 を渡す。
-    check_hook_wiring は _executable_hooks で git ls-files を使うため、
-    フック本体の commit 自体は settings の受け渡し方を変えても引き続き要る。
+    check_hook_wiring は _executable_hooks で git ls-files -s (index) を読むため、
+    フック本体は少なくとも git add まで要る。
     """
     root = tmp_path / "repo"
     root.mkdir()
