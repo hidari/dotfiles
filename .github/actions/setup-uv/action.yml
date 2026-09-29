@@ -6,4 +6,6 @@ runs:
   steps:
     # enable-cache は既定の auto に任せる。明示の true は、キャッシュ汚染を避けるために auto が
     # キャッシュを止めるイベント (pull_request_target など) でもキャッシュを使ってしまう
+    # uv のマニフェスト (uv.ndjson) の取得は、接続の失敗なら setup-uv 自身がバックオフ付きで
+    # 再試行するので、自前の再試行は足さない (HTTP のエラー応答は再試行されない)
     - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
