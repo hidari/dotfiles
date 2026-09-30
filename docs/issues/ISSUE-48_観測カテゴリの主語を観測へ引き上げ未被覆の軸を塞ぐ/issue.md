@@ -168,4 +168,6 @@ Bash の項と同型の親子構造を持っており、片方だけを消す構
   再構成対象である `references/observation.md` に触るので、先に足すと再構成のたたき台が動く。
   着手順はあちらの未決が持つ
 - ISSUE-89: Rust のビルド規範を rules と references へ入れる。BP-01 が軸A、BP-02 のプローブの
-  節が軸C に対応する。再構成を先に通すと Cargo 側の草案から一般形を落とせる
+  節が軸C に対応する。ISSUE-89 を先に通した (2026-10-01) ので、`rules/cargo-build-practices.md`
+  の BP-01 と BP-02 は Cargo の形のまま入っている。再構成で一般形へ引き上げたら、Cargo 側には
+  具体だけを残す

@@ -35,7 +35,7 @@ status: open
 
 ### 取り込む規範
 
-識別子は検証ワークフローの採番。材料は `.cache/` 配下に残してある (追跡外)。
+識別子は検証ワークフローの採番。材料は追跡外の非公開の置き場に復元済み (2026-10-01)。
 
 既存の `rules/rust-practices.md` へ入れるもの:
 
@@ -78,62 +78,58 @@ BP-05 / BP-06、枠は BP-07):
 
 ## タスク
 
-- [ ] RUST-01 / RUST-02 / RUST-03 / RUST-04 / RUST-05 を `rules/rust-practices.md` へ入れる
-- [ ] BP-16 / BP-17 で `rules/rust-practices.md` の既存 2 項を締める
-- [ ] `rules/cargo-build-practices.md` を新設し BP-01〜BP-07 を入れる
-- [ ] `config_guard.rules_paths.EXPECTED_PATHS` へ新設 rules の pin を理由コメント付きで足す (BP-18)
-- [ ] RUST-09 / RUST-10 を `references/observation.md` へ足す
-- [ ] 新設 references を作り BP-08〜BP-13 を入れる
-- [ ] 第三者 org の内部識別子と数値を落とす。機構と桁だけを残して抽象化する
-- [ ] 新設 rules の `paths` が実マッチャで発火することを確かめる。pin だけでは沈黙する rules が
+- [x] RUST-01 / RUST-02 / RUST-03 / RUST-04 / RUST-05 を `rules/rust-practices.md` へ入れる
+- [x] BP-16 / BP-17 で `rules/rust-practices.md` の既存 2 項を締める
+- [x] `rules/cargo-build-practices.md` を新設し BP-01〜BP-07 を入れる
+- [x] `config_guard.rules_paths.EXPECTED_PATHS` へ新設 rules の pin を理由コメント付きで足す (BP-18)
+- [x] RUST-09 / RUST-10 を `references/observation.md` へ足す
+- [x] 新設 references を作り BP-08〜BP-13 を入れる
+- [x] 第三者 org の内部識別子と数値を落とす。機構と桁だけを残して抽象化する
+- [x] 新設 rules の `paths` が実マッチャで発火することを確かめる。pin だけでは沈黙する rules が
       できる (`rules_paths.py` は glob の意味論を検証しないと明記している)
+
+## 取り込みで分かったこと (2026-10-01)
+
+- 検証ワークフローが unverifiable とした Cargo のセマンティクスを定義元で確かめた。上書きの優先順位は Cargo Book の Overrides 節と一致した。`package."*"` の射程は「workspace member 以外のすべて」で、これを本文に足した
+- RUST-04 の「`CARGO_BUILD_JOBS` は上限ではなく絶対値」は、Cargo の config リファレンスが `build.jobs` を「並列に走らせるコンパイラプロセスの最大数」と書いており、そのままでは誤読を招く。実効的な述語は「固定値はコア数で頭打ちにならない」なので、そちらで書いた
+- 「sccache は incremental と非互換」は、sccache の README の記述「incremental でコンパイルされる crate はキャッシュできない」へ寄せた。非互換なのは crate 単位で、Cargo の dev 既定では workspace member と path 依存が incremental になる
+
+### paths の live probe
+
+新しい headless の `claude -p` (2.1.286) を 1 セルにつき 1 プロセス起動し、リポジトリの外に `git init` した使い捨ての fixture の中で Read させた。注入は transcript の `nested_memory` の attachment に rule の本文が現れるかで判定した (stream-json の出力には現れない)。
+
+| 宣言 | 直下の `Cargo.toml` (陽性の対照) | 直下の `.cargo/config.toml` | ネストした `.cargo/config.toml` | `cargo/config.toml` (陰性の対照) |
+| --- | --- | --- | --- | --- |
+| `**/.cargo/config.toml` | 発火 | 発火 | 発火 | 発火しない |
+| `.cargo/config.toml` | 発火 | 発火 | 発火しない | 発火しない |
+
+判定の規則は測る前に決めた (`**/` の形が両方で発火すればそれを採る)。管理下のリポジトリの `.cargo/config.toml` は直下よりネストした位置に多く、prefix の無い形では大半が沈黙するので `**/.cargo/config.toml` にした。
+
+## 決定 (2026-10-01)
+
+着手前に未決だったものを、ユーザーとの確認と上の probe で決めた。
+
+- 射程は Rust に閉じる。RUST-01 / RUST-02 は Rust 固有ではないが、実証が集まるまでは `rules/rust-practices.md` に置く。常時層は +0B で、`BUDGET_RAISES` は要らない
+  - 新設 references は `references/rust-build.md` とし、ホスト OS の節もここへ置く。到達の契機は `Cargo.toml` / `.cargo/config.toml` / `.rs` の Read に限られ、「ローカルのビルドが遅い」と感じた瞬間には届かないことがある。この穴は承知のうえで、`host-environment.md` の射程を広げる案 (`BUDGET_RAISES` が要る) は採らない
+  - `references/observation.md` の伸びは許す。RUST-09 / RUST-10 は既存節の追記と 2 例目で、節は増やしていない
+  - references を 1 枚増やすことは許す。ISSUE-48 の「採らない案」は常時層からの移設の収支の話で、新規の追加には当たらない
+- `rules/rust-practices.md` には、コスト側の H1 を 2 本目として立てた。既存の見出しの述語は正しさの側で、射程が違う
+- `.cargo/config.toml` の `paths` は `**/.cargo/config.toml` にした (上の probe)
+- `rules/rust-practices.md` の `paths` は広げない
+- ISSUE-48 より先にこの Issue を通した。BP-01 / BP-02 は Cargo の形のまま入れてある
+- 第三者 org のデータは機構と桁だけを残した。org 名・リポジトリ名・Issue と PR の番号・commit・パッケージ数・課金額・ヒット率の実数は書いていない
 
 ## 未決
 
-着手前に決める。
-
-- **2 つ目の H1 を立てるか。** 既存見出し (コンパイルが通ったことを証拠にしない) の述語は
-  正しさの側で、今回はコストの側なので射程が違う。H1 の本数を縛る機械検査は無いことを確認済みで、
-  判断は読みやすさだけで決まる
-- **RUST-01 / RUST-02 は Rust 固有ではない。** pnpm store・turbo・gradle・ccache でも同じ形。
-  Rust の rules に置くと他言語では届かないが、常時層は余裕 0 なので CLAUDE.md へは置けない。
-  言語横断の置き場 (paths 無し rules の新設 = 予算の引き上げ、または references への追記) を
-  別途決めるか、今回は Rust 側に置いて実証が集まってから考えるか
-- **新設 references の名前。** `rust-build.md` だとホスト OS の節と CI キャッシュの節が名前の
-  射程から外れる。`build-performance.md` の方が中身に合うが、そうすると Rust 以外からも
-  指されうる置き場になる
-- **ホスト OS 側 (Spotlight / Gatekeeper) の置き場と到達性。** references へ置けば常時層 0B で
-  済むが、到達契機が「Cargo.toml か .cargo/config.toml を Read したとき」に限られる。
-  「ローカルのビルドが遅い」と感じた瞬間に Cargo.toml を開くとは限らないので、到達できない委譲に
-  なる恐れがある。`references/host-environment.md` へ節を足す案は CLAUDE.md のカテゴリ見出しの
-  射程を広げることになり `BUDGET_RAISES` が要る
-- **`paths` の形。** `.cargo/config.toml` は `EXPECTED_PATHS` の既存パターンで唯一の非 `**/` 形に
-  なる。`**/.cargo/config.toml` へ寄せるか、非 prefix 形が実マッチャで発火するかを live probe で
-  測るか
-- **`rust-practices.md` の `paths` を広げるか** (推奨: 今回は広げない)。広げるなら唯一の候補は
-  `**/rust-toolchain*` だが、管理下のリポジトリでの限界カバレッジを測っていない (dotfiles には
-  無い)。測るには dotfiles の外を走査する必要がある
-- **第三者 org の内部データの扱い。** 委譲元は PUBLIC でない org のリポジトリで、dotfiles は
-  PUBLIC。現行の指示層にはプロジェクト名が 1 件も無い。内部識別子・PR 番号・commit・パッケージ数・
-  課金分・ヒット率をどこまで落とすか。メモリ no-private-project-data-in-repo は「PRIVATE リポ名
-  そのものは前例あり、線が引かれているのはタスク内容の側」と記録しているが、指示層に限れば前例は 0 件
-- **`references/observation.md` を伸ばし続けることの是非。** RUST-09 / RUST-10 を足すと予算には
-  当たらないが、同ファイルは既に大きい。読まれる単位が大きくなることを許すか
-- **ISSUE-48 との順序。** BP-01 は ISSUE-48 の軸A、BP-02 のプローブの節は軸C に対応する。
-  ISSUE-48 の再構成を先に通すと Cargo 側の草案から一般形を落とせるが、着手が先送りになる。
-  並行させると同じ規範を 2 箇所で書き直すことになる
-- **references を 1 枚増やすことの是非。** ISSUE-48 の「採らない案」は references 全面移設の
-  収支が合わないと結論している。あれは常時層からの移設の話で新規追加とは前提が違うが、新設が
-  4,500B 規模になると同じ論点に当たる
-- **委譲元への返信の粒度。** 材料に書かれた件数と実測が既に食い違っている (pin が 12 本と
-  書かれていたが実測 41 件)。件数の訂正まで伝えるか、述語の採否だけ伝えるか
+- 委譲元への返信の粒度。材料に書かれた件数と実測が食い違っている (pin が 12 本と書かれていたが実測 41 件)。件数の訂正まで伝えるか、述語の採否だけ伝えるか。dotfiles の外の作業なので、この Issue のタスクには含めない
 
 ## 関連
 
 - ISSUE-88 — 検査機構の作り方の知見。常時層の予算を共有するので配分をまとめて決める
 - ISSUE-48 — 観測カテゴリの主語を観測へ引き上げ未被覆の軸を塞ぐ。BP-01 と BP-02 が軸A / 軸C に
-  対応する。着手順は上の未決
+  対応する。この Issue を先に通したので、`rules/cargo-build-practices.md` の BP-01 と BP-02 は
+  ISSUE-48 の再構成で一般形へ引き上げる候補になる (引き上げたら Cargo 側には具体だけを残す)
 - ISSUE-46 — 両リポジトリの Issue をマイルストーンへ整理し着手順を決める。所属の canonical は
   あちらの表
 - ISSUE-97 — 「試験」節に、この Issue の主張と候補を Jev で仕分けた記録がある
-- 2 つの委譲元の原文と検証結果 (反証・配置提案・予算影響) は `.cache/` 配下に残してある (追跡外)
+- 2 つの委譲元の原文と検証結果 (反証・配置提案・予算影響) は追跡外の非公開の置き場に復元済み (2026-10-01)
