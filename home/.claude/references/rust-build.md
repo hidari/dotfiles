@@ -1,19 +1,18 @@
 # Rust のビルドコストの一次実測
 
-`~/.claude/rules/cargo-build-practices.md` と `~/.claude/rules/rust-practices.md` のビルドコストの見出しが持つ規範の、手当ての詳細と一次実測。
-親が CLAUDE.md のカテゴリではなく rules なので、到達するのは `Cargo.toml` か `.cargo/config.toml` か `.rs` を Read したときだけになる。
+`~/.claude/rules/cargo-build-practices.md` の「ビルドの遅さも設定の効果も、観測しやすい量を証拠にしない」カテゴリと、`~/.claude/rules/rust-practices.md` の「ビルドのコストに手を入れる前に律速を測り、入れた後は効いていることを別の量で確かめる」カテゴリが持つ規範の、手当ての詳細と一次実測。
 
 規範の遵守そのものには要らない。手当ての具体が要るとき、規範を疑うとき、似た失敗を踏んで「これは既知か」を確かめるときに読む。
 
-数値は別のリポジトリでの一次実測を桁に丸めたもので、ここで効く量の見積もりには使わない (下の「削減率を持ち込まない」節)。
+数値は桁の目安で、ここで効く量の見積もりには使わない (下の「削減率を持ち込まない」節)。
 
 ## コンパイルキャッシュと incremental の取引
 
-sccache は incremental でコンパイルされる crate をキャッシュしない。Cargo の dev 既定では workspace member と path 依存が incremental になるので、常に cold な CI では incremental を捨てて採り、反復編集が主なローカルでは採らない。
+Cargo の dev 既定では workspace member と path 依存が incremental になり、sccache はその crate をキャッシュしない。
 
-効いたかは機構自身のヒット統計で見る。ヒット率0%でもビルドは緑になり、wall は他の要因で動く。統計をログへ出す工程は機構と同じ変更で入れる。後から足すと、効いていなかった期間が観測できなくなる。
+ヒット率0%でもビルドは緑になり、wall は他の要因で動く。
 
-リンク・テスト実行・依存のインストール・toolchain の setup はキャッシュの対象外なので床が残る。ヒット率を0%から8割台まで上げても CI の wall は4分の1ほどしか縮まず、残りは MSVC のリンク (sccache の対象外) と setup とテストが占めていた。別の OS ではヒット率100%に達しており、「100%」は「もうキャッシュでは縮まない」の意味であって「速い」の意味ではない。
+リンク・テスト実行・依存のインストール・toolchain の setup はキャッシュの対象外なので床が残る。ヒット率を0%から8割台まで上げても wall が4分の1ほどしか縮まず、残りをリンクと setup とテストが占めた例がある。ヒット率100%は「もうキャッシュでは縮まない」の意味であって「速い」の意味ではない。
 
 ## 削減率を持ち込まない
 
@@ -40,7 +39,7 @@ TCC の権限はプロセスの起動時に決まるので、除外を入れた�
 
 素の `[profile.<name>]` が依存グラフ全体へ降りることを、走行中の `ps` から rustc の実引数を採取して確かめた。変更前は自作も依存も `-C debuginfo=2`、変更後は自作が `-C debuginfo=line-tables-only`、依存が `-C strip=debuginfo` になった。
 
-release の `codegen-units = 1` も、足場のコミットで実測も理由も無く置かれたまま、数百ある依存パッケージの全部に降りていた。proc macro と build script だけが `build-override` の既定へ落ちて無傷だった。
+release の `codegen-units = 1` のような素の設定も、依存が数百あれば数百すべてに降りる。無傷で残るのは `build-override` の既定へ落ちる proc macro と build script だけになる。
 
 dev profile の3軸 (workspace は line-tables-only、依存と build script は debug を落とす) の効果は、`target/debug/deps` が4割強、target 全体が4割弱、user CPU が3割ほど減った。real は2割ほど縮んだが参考値に留める。
 
@@ -52,12 +51,12 @@ dev profile の3軸 (workspace は line-tables-only、依存と build script は
 
 `inherits` の退避先が片肺になる事故を、1つのブランチの中で2回踏んだ。1回目は依存の軸が戻らず、2回目は build script の軸だけが取り残された。
 
-`incremental = true` がプロジェクトの初期から `[profile.dev]` にあり「検討済み」に見え続けていたが、cargo の dev 既定の再掲で何も変えていなかった。
+`incremental = true` が `[profile.dev]` にあると「検討済み」に見え続けるが、cargo の dev 既定の再掲で何も変えていない。
 
 ## CI キャッシュ
 
-GitHub Actions の cache は branch scope を持つ。PR ブランチが復元できるのは自ブランチの scope か default branch の scope だけなので、ラベルで起動する (default branch では走らない) ゲートは default branch の scope を持てず、全 PR が構造的に cold になる。
+GitHub Actions の run が復元できるのは、自ブランチ・default branch・(pull_request で起動したときは) PR の base branch の scope に限られる。pull_request で起動した run が保存したキャッシュの scope は merge ref (`refs/pull/.../merge`) で、同じ PR の再実行からしか復元できない。
 
-PR ブランチの scope へ数分かけて保存していた GB 級のキャッシュは、マージのたびに蒸発していた。死んだキャッシュを書いて捨てていただけなので、保存を止めた (rust-cache の `save-if: false`)。
-
-一度だけ観測された短い wall は、保存を止める前に同じブランチの scope へ保存されたキャッシュを復元できた1回限りのもので、steady-state ではなかった。
+- default branch で一度も走らないジョブは、base が default branch の PR から見て復元できるキャッシュを持てず、構造的に cold になる
+- PR の run から数分かけて GB 級のキャッシュを保存しても、マージ後は誰も復元できない。保存を止める (rust-cache なら `save-if`) ほうが時間を返す
+- 同じ PR の再実行が保存済みのキャッシュを拾って1回だけ短くなることがあり、steady-state と取り違えやすい

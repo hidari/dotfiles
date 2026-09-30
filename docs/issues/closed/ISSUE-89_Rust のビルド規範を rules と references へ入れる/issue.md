@@ -6,24 +6,24 @@ status: closed
 
 ## 背景
 
-2 つの委譲元から独立に届いた Rust のビルド規範を統合して取り込む。**別々に起票しない。**
+2 つの委譲元から独立に届いた Rust のビルド規範を統合して取り込む。別々に起票しない。
 両者は同じ規範へ収束しており (RUST-01 と BP-01、RUST-02 と BP-05)、分けると同じ規範を
 2 箇所へ書くことになる。
 
-材料は検証ワークフローで委譲元の追跡下 canonical と突き合わせてある。**委譲元の主張のうち
-5 件が反証されているので、そのまま規範として書かないこと。**
+材料は検証ワークフローで委譲元の追跡下 canonical と突き合わせてある。委譲元の主張のうち
+5 件が反証されているので、そのまま規範として書かないこと。
 
 ### 反証された前提
 
 - 「`[profile.*]` を workspace root へ集約する理由は rust-cache の lockfile ハッシュで
   正規化対象外だから」は委譲元の推論。委譲元の canonical が記録する理由は別の 2 点で、
   (1) `[profile.dev.package."*"]` には環境変数形が存在しない (2) 設定漏れのビルド経路が
-  4 つあった。しかも canonical の実効的な半分「workflow や Dockerfile の `CARGO_PROFILE_*`
+  複数あった。しかも canonical の実効的な半分「workflow や Dockerfile の `CARGO_PROFILE_*`
   環境変数で上書きしない」が材料から落ちている
-- 「リンカを明示選択すると効く (aarch64 で lld にして 2.4 倍)」は汎用規範として成立しない。
+- 「リンカを明示選択すると効く (aarch64 で lld にすると数倍)」は汎用規範として成立しない。
   rustc 1.90 以降 `x86_64-unknown-linux-gnu` は self-contained rust-lld が既定で CI 側は既に
-  lld で動く。効き目はローカル arm64 との非対称だけで、2.4 倍は集約前の構成での測定。
-  委譲元が pin (`rust-toolchain.toml` の channel) で条件成立を再確認済み。**RUST-07 は取らない**
+  lld で動く。効き目はローカル arm64 との非対称だけで、倍率は集約前の構成での測定。
+  委譲元が pin (`rust-toolchain.toml` の channel) で条件成立を再確認済み。RUST-07 は取らない
 - 「まだ存在しない `.cargo/config.toml` も path-filter に先に含める」は成立しない。委譲元の
   canonical が「このリポジトリでは使えない」と結論しており、限界カバレッジが 0
 - 「`references/` にビルド性能に触れる行は 0 件」は再現しない。同じ語で引くと hit する。
@@ -68,13 +68,12 @@ BP-05 / BP-06、枠は BP-07):
 コンパイルキャッシュと incremental の取引、削減率を他環境から持ち込まない、ホスト OS 由来の
 遅さの一次実測、profile の射程の一次実測、CI キャッシュの一次実測。
 
-**取らないもの**: RUST-06 / RUST-07 / RUST-08 / RUST-11 / BP-14 / BP-15。
+取らないもの: RUST-06 / RUST-07 / RUST-08 / RUST-11 / BP-14 / BP-15。
 
 ### 予算
 
 常時層 +0B / scoped +7,800B / references +5,130B。常時層に触らないので `BUDGET_RAISES` は
-この Issue の範囲では要らない。ただし未決のいくつか (言語横断の置き場、ホスト OS 側の置き場) を
-常時層へ倒すと要る。
+この Issue の範囲では要らない。言語横断の置き場とホスト OS 側の置き場も常時層へは倒さなかった (「決定」節)。
 
 ## タスク
 
@@ -96,7 +95,7 @@ BP-05 / BP-06、枠は BP-07):
 
 ### paths の live probe
 
-新しい headless の `claude -p` (2.1.286) を 1 セルにつき 1 プロセス起動し、リポジトリの外に `git init` した使い捨ての fixture の中で Read させた。注入は transcript の `nested_memory` の attachment に rule の本文が現れるかで判定した (stream-json の出力には現れない)。
+新しい headless の `claude -p` (2.1.286) を1セルにつき1プロセス起動し、リポジトリの外に `git init` した使い捨ての fixture の中で Read させた。注入は transcript の `nested_memory` の attachment に rule の本文が現れるかで判定した (stream-json の出力には現れない)。
 
 | 宣言 | 直下の `Cargo.toml` (陽性の対照) | 直下の `.cargo/config.toml` | ネストした `.cargo/config.toml` | `cargo/config.toml` (陰性の対照) |
 | --- | --- | --- | --- | --- |
@@ -111,24 +110,22 @@ BP-05 / BP-06、枠は BP-07):
 
 - 射程は Rust に閉じる。RUST-01 / RUST-02 は Rust 固有ではないが、実証が集まるまでは `rules/rust-practices.md` に置く。常時層は +0B で、`BUDGET_RAISES` は要らない
   - 新設 references は `references/rust-build.md` とし、ホスト OS の節もここへ置く。到達の契機は `Cargo.toml` / `.cargo/config.toml` / `.rs` の Read に限られ、「ローカルのビルドが遅い」と感じた瞬間には届かないことがある。この穴は承知のうえで、`host-environment.md` の射程を広げる案 (`BUDGET_RAISES` が要る) は採らない
-  - `references/observation.md` の伸びは許す。RUST-09 / RUST-10 は既存節の追記と 2 例目で、節は増やしていない
-  - references を 1 枚増やすことは許す。ISSUE-48 の「採らない案」は常時層からの移設の収支の話で、新規の追加には当たらない
+  - `references/observation.md` の伸びは許す。RUST-09 / RUST-10 は既存節の追記と2例目で、節は増やしていない
+  - references を1枚増やすことは許す。ISSUE-48 の「採らない案」は常時層からの移設の収支の話で、新規の追加には当たらない
 - `rules/rust-practices.md` には、コスト側の H1 を 2 本目として立てた。既存の見出しの述語は正しさの側で、射程が違う
 - `.cargo/config.toml` の `paths` は `**/.cargo/config.toml` にした (上の probe)
 - `rules/rust-practices.md` の `paths` は広げない
 - ISSUE-48 より先にこの Issue を通した。BP-01 / BP-02 は Cargo の形のまま入れてある
-- 第三者 org のデータは機構と桁だけを残した。org 名・リポジトリ名・Issue と PR の番号・commit・パッケージ数・課金額・ヒット率の実数は書いていない
+- 委譲元の固有の情報は落とし、機構と桁だけを残した
 
 ## 未決
 
-- 委譲元への返信の粒度。材料に書かれた件数と実測が食い違っている (pin が 12 本と書かれていたが実測 41 件)。件数の訂正まで伝えるか、述語の採否だけ伝えるか。dotfiles の外の作業なので、この Issue のタスクには含めない
+- 委譲元への返信の粒度。材料に書かれた件数と実測が食い違っている。件数の訂正まで伝えるか、述語の採否だけ伝えるか。dotfiles の外の作業なので、この Issue のタスクには含めない
 
 ## 関連
 
 - ISSUE-88 — 検査機構の作り方の知見。常時層の予算を共有するので配分をまとめて決める
-- ISSUE-48 — 観測カテゴリの主語を観測へ引き上げ未被覆の軸を塞ぐ。BP-01 と BP-02 が軸A / 軸C に
-  対応する。この Issue を先に通したので、`rules/cargo-build-practices.md` の BP-01 と BP-02 は
-  ISSUE-48 の再構成で一般形へ引き上げる候補になる (引き上げたら Cargo 側には具体だけを残す)
+- ISSUE-48 — 観測カテゴリの主語を観測へ引き上げ未被覆の軸を塞ぐ。BP-01 と BP-02 が軸A / 軸C に対応する。この Issue を先に通したので、`rules/cargo-build-practices.md` の BP-01 と BP-02 は ISSUE-48 の再構成で一般形へ引き上げる候補になる (引き上げたら Cargo 側には具体だけを残す)
 - ISSUE-46 — 両リポジトリの Issue をマイルストーンへ整理し着手順を決める。所属の canonical は
   あちらの表
 - ISSUE-97 — 「試験」節に、この Issue の主張と候補を Jev で仕分けた記録がある

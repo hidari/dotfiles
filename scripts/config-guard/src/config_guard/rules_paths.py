@@ -27,7 +27,7 @@ from config_guard.models import Finding
 # DELIBERATELY_EXCLUDED が除外の根拠にする「限界カバレッジ 0」には当たらない。
 # cargo-build の .cargo/config.toml は、管理下のリポジトリで直下よりネストした位置に多く
 # 置かれている。prefix の無い形はリポジトリ直下でしか発火しないことを live probe で確かめ、
-# 既存と同じ `**/` の形にした (測定は ISSUE-89)。
+# 既存と同じ `**/` の形にした (測定は「paths の live probe」節)。
 EXPECTED_PATHS: dict[str, list[str]] = {
     "cargo-build-practices.md": [
         "**/Cargo.toml",

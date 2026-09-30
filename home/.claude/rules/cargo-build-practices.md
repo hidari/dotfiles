@@ -14,7 +14,7 @@ paths: ["**/Cargo.toml", "**/.cargo/config.toml"]
   - 素の `[profile.<name>]` は per-package の上書きが無い限り依存グラフ全体へ降りる。配布物を最適化したつもりで、依存全部のコンパイル時間を払う形になりやすい
   - 上書きは `package.<名前>` → `package."*"`（workspace member 以外のすべて）→ `build-override` → `[profile.<name>]` の順に探され、最初に一致したものが勝つ。`package."*"` を置くと、`build-override` が追加で効くのは自 workspace の build script と proc macro だけになる
   - 既定値の再掲は何も変えないのに「検討済み」に見え続ける
-  - profile を1行変えると全ユニットの fingerprint が変わり、直後に1回だけフルビルドが入る。回帰と読まず、その回では測らない
+  - 依存グラフ全体へ降りる profile の行を変えると全ユニットの fingerprint が変わり、直後に1回だけフルビルドが入る。回帰と読まず、その回では測らない
 - デバッグ情報などを落としたら、落とした軸と対称な退避先 profile を置くこと
   - `inherits` は継承元の per-package 設定と override テーブルをまとめて引き継ぐ。退避先で軸を1つ戻し忘れるとその範囲だけデバッガで中へ入れず、コンパイルもテストも緑のままなので実引数を見るまで気づけない
   - 到達する入口と成果物の回収経路を同時に決める。profile ごとに target ツリーが別に積み上がるうえ、日常の入口から通らない設定は緑のまま腐る
