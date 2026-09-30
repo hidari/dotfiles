@@ -1,5 +1,5 @@
 ---
-status: open
+status: closed
 ---
 
 # docs(rules): Rust のビルド規範を rules と references へ入れる
