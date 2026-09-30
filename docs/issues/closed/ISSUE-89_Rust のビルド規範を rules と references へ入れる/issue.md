@@ -20,10 +20,7 @@ status: closed
   (1) `[profile.dev.package."*"]` には環境変数形が存在しない (2) 設定漏れのビルド経路が
   複数あった。しかも canonical の実効的な半分「workflow や Dockerfile の `CARGO_PROFILE_*`
   環境変数で上書きしない」が材料から落ちている
-- 「リンカを明示選択すると効く (aarch64 で lld にすると数倍)」は汎用規範として成立しない。
-  rustc 1.90 以降 `x86_64-unknown-linux-gnu` は self-contained rust-lld が既定で CI 側は既に
-  lld で動く。効き目はローカル arm64 との非対称だけで、倍率は集約前の構成での測定。
-  委譲元が pin (`rust-toolchain.toml` の channel) で条件成立を再確認済み。RUST-07 は取らない
+- 「リンカを明示選択すると効く」は汎用規範として成立しない。rustc 1.90 以降の `x86_64-unknown-linux-gnu` は self-contained rust-lld が既定なので、効き目は既定が異なるターゲットとの非対称に限られ、倍率は構成に依存する。RUST-07 は取らない
 - 「まだ存在しない `.cargo/config.toml` も path-filter に先に含める」は成立しない。委譲元の
   canonical が「このリポジトリでは使えない」と結論しており、限界カバレッジが 0
 - 「`references/` にビルド性能に触れる行は 0 件」は再現しない。同じ語で引くと hit する。
