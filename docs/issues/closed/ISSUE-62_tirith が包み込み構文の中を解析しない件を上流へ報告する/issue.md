@@ -42,9 +42,9 @@ tirith のドキュメントは tirith.dev ではなく tirith.sh にある (メ
 
 ## クローズの記録 (2026-10-02)
 
-報告する対象が消えたので、報告せずに閉じる。タスクの1〜4は実施していない。
+報告の主眼だった「包むだけで block が allow になる」形が、tirith 0.4.1 では再現しなかったので、報告せずに閉じる。タスクの1〜4は実施していない。包み込みで素通りする形を再び見つけたら、新しい Issue として起票する。
 
-tirith 0.4.1 をフックと同じ argv (`check --json --non-interactive --shell posix`) で呼んで測った。`curl … | sh` を `bash -c` / `sh -c` / `eval` / `nohup` / `timeout` / `$( )` で包むと、包まない形と同じ `curl_pipe_shell:HIGH` で block された。バッククォートと `xargs -I{} bash -c` の形は `analysis_incomplete:HIGH` で block された。無害なコマンドを `bash -c` で包んだ対照は allow だったので、包み込みそのものではなく中身で判定している。
+tirith 0.4.1 をフックと同じ argv (`check --json --non-interactive --shell posix`) で呼んで、`curl … | sh` を包む形で測った。`bash -c` / `sh -c` / `eval` / `nohup` / `timeout` / `$( )` で包むと、包まない形と同じ `curl_pipe_shell:HIGH` で block された。バッククォートと `xargs -I{} bash -c` の形は `analysis_incomplete:HIGH` で、`python3 -c` から `os.system` で呼ぶ形は `interpreter_suspicious_inline_exec:HIGH` で block された。無害なコマンドを `bash -c` で包んだ対照は allow だったので、包み込みそのものではなく中身で判定している。測ったのは `curl_pipe_shell` に当たる中身だけで、ほかの rule の中身を包んだ形は測っていない。
 
 タスク5の書き戻しは同じ PR で行った。`tirith-check.py` の docstring にあった「包み込みの中身は tirith が解析しないため素通りする」を直した。「allow は出さない」という方針は、`analysis_incomplete` を返す形が残るので変えていない。
 
