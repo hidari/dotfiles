@@ -1,5 +1,5 @@
 ---
-status: open
+status: closed
 ---
 
 # docs: tirith が包み込み構文の中を解析しない件を上流へ報告する
@@ -39,6 +39,18 @@ tirith のドキュメントは tirith.dev ではなく tirith.sh にある (メ
 - [ ] 報告する。severity の退化 (CRITICAL が MEDIUM の warn になる) を含める
 - [ ] 上流の反応を ISSUE-56 か本 Issue へ書き戻す。修正が入ったら dotfiles 側の
       「包み込みは 2 層を同時にすり抜ける」という前提が変わる
+
+## クローズの記録 (2026-10-02)
+
+報告する対象が消えたので、報告せずに閉じる。タスクの1〜4は実施していない。
+
+tirith 0.4.1 をフックと同じ argv (`check --json --non-interactive --shell posix`) で呼んで測った。`curl … | sh` を `bash -c` / `sh -c` / `eval` / `nohup` / `timeout` / `$( )` で包むと、包まない形と同じ `curl_pipe_shell:HIGH` で block された。バッククォートと `xargs -I{} bash -c` の形は `analysis_incomplete:HIGH` で block された。無害なコマンドを `bash -c` で包んだ対照は allow だったので、包み込みそのものではなく中身で判定している。
+
+タスク5の書き戻しは同じ PR で行った。`tirith-check.py` の docstring にあった「包み込みの中身は tirith が解析しないため素通りする」を直した。「allow は出さない」という方針は、`analysis_incomplete` を返す形が残るので変えていない。
+
+確かめていないことが2つある。CRITICAL の finding が包み込みで MEDIUM へ退化するかは測っていない (相関ルールの時間窓を汚すため)。`ssh host '...'` の形も測っていない。
+
+タスク3の「pin は mise の config.toml が持つ」は古い。tirith は Homebrew へ移っている。
 
 ## 関連
 

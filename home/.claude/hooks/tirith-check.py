@@ -16,9 +16,9 @@ Exit code:
     {"hookSpecificOutput": {"hookEventName": "PreToolUse",
       "additionalContext": "..."}}
 
-  allow は出さない。この層は tirith のパーサの射程までしか見ておらず、包み込み
-  (bash -c '...' / バッククォート / eval '...') の中身は tirith が解析しないため素通りする
-  (実測)。完全になれない検査層が許可を出すと、その許可が permission プロンプトを飛ばし、
+  allow は出さない。この層は tirith のパーサの射程までしか見ておらず、tirith 自身も
+  解析しきれない形 (xargs 経由の bash -c など) を analysis_incomplete として返す。
+  完全になれない検査層が許可を出すと、その許可が permission プロンプトを飛ばし、
   「検査が何か言った」ことが「検査を省く」に化ける。差し控えることだけができる。
 
 Fail ポリシー:
