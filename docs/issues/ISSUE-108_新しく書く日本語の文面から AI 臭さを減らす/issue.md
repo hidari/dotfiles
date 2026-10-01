@@ -26,9 +26,18 @@ Hidari は、k16shikano の gist にある `japanese-tech-writing` skill (https:
 
 ## タスク
 
-- [ ] 上の各点を決める
+- [x] 上の各点を決める
 - [ ] 決めた形を実装する。検査を足すなら変異注入で pin を確かめる
 - [ ] markdown-practices と memory (feedback-no-space-around-digits-in-new-text) を、決めた形に合わせて直す
+
+## 裁定 (2026-10-02)
+
+2026-10-02の棚卸しのあと、ユーザーが次のとおり決めた。
+
+- japanese-tech-writing skill は入れない。書籍の原稿向けの規範を含み、gist の更新を追う手間もかかる
+- 空白をなくす範囲は数字の前後に限る (今のメモリの運用のまま)
+- 検査は、追加行だけを見る pre-commit の hook で、数字の前後の空白と文中の改行を見る形で強制する。既存の違反は数千行あるので、全体を見る形は採れない。closed の Issue は追加行が出ないので自然に外れる
+- 強調・表・区切り線も同じ仕組みに載せる。どれも静的に検査でき、散文のままでは Write で新しく書く場面に届かない
 
 ## 関連
 
