@@ -84,6 +84,7 @@ ISSUE-64 では取り付け前に両リポジトリの全 ref を gitleaks で�
 - [ ] 既存履歴の走査をどこまでやるかを決める
 - [ ] 決めた手順で展開する。1 リポジトリごとに live smoke まで通すこと
       (陽性検体で止まること、陰性側で通ることの両方)
+- [ ] 展開するリポジトリ (relay と studio を含む) では、`.pre-commit-config.yaml` の YAML の構文の誤りが CI のテストで赤くなる形も一緒に入れる。dotfiles では config-guard の `test_precommit_wiring.py` が `yaml.safe_load` で読む形がそれにあたる (ISSUE-85 から移した)
 
 ## 関連
 
@@ -97,8 +98,7 @@ ISSUE-53 が配布先の加入状況と写しの drift を見る層を扱う。�
 ISSUE-72 が取り付け済みだが一覧に無いリポを棚卸しで検出する。母集団の突き合わせは
 あちらが持つので、この Issue では数え直すだけにする
 
-ISSUE-85 が pre-commit 設定自身の構文検査を扱う。展開先が増えるほど同じ欠陥を持つ
-設定ファイルが増えるので、先に塞いでおく方が安い
+ISSUE-85 は pre-commit 設定自身の構文検査を扱っていた。dotfiles では塞がっていると確かめて閉じ、relay と studio への展開をこの Issue のタスクへ寄せた
 
 ISSUE-97 が写しか参照かの切り分けを扱う。`.gitleaks.toml` の写しを各リポジトリへ置く
 この Issue の方針は、その結論次第で変わりうる。変わるのは内容で、着手順ではない

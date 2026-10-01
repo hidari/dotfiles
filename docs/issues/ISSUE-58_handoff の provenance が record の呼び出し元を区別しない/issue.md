@@ -57,21 +57,26 @@ SessionStart 側は配線を外しても config-guard は緑になる。
 
 ## タスク
 
-- [ ] `handoff-sentinel` を security guard として扱うかを決める
-      (Issue 26 の据え置き判断を維持するか、改めるか)
-- [ ] 上の判断に応じて、`record` の呼び出し元を skill に限定する機構を持つか決める。
-      案としては skill が one-time の nonce を state へ置き、`record` がそれを消費する形。
-      ただし nonce を置く経路も Bash なので、どこまで塞げるかを先に見積もる
-- [ ] 注入時の文面を見直す。現在は「前セッションからの引き継ぎ」と名乗るが、
-      内容の正しさは誰も保証していない。信頼の度合いを文面へ反映するか決める
-- [ ] `settings_invariants.py` の必須フック検査をイベント軸へ一般化し、SessionStart の
-      配線を pin するか決める (Issue 26 の未完タスクと重なるので、着手はそちらへ寄せてよい)
+- [x] `handoff-sentinel` を security guard として扱うかを決める (Issue 26 の据え置き判断を維持するか、改めるか)
+- [x] 上の判断に応じて、`record` の呼び出し元を skill に限定する機構を持つか決める。案としては skill が one-time の nonce を state へ置き、`record` がそれを消費する形。ただし nonce を置く経路も Bash なので、どこまで塞げるかを先に見積もる
+- [x] 注入時の文面を見直す。現在は「前セッションからの引き継ぎ」と名乗るが、内容の正しさは誰も保証していない。信頼の度合いを文面へ反映するか決める
+- [x] `settings_invariants.py` の必須フック検査で SessionStart の配線を pin するか決める (イベント軸への一般化は PR #186 で済んでいる)
+- [ ] 注入時の文面に、内容は検証されていない旨を添える
+- [ ] `handoff-sentinel` の SessionStart 配線を必須フック検査で pin する
 - [ ] 決めた方針を変異注入 3 種で pin する
+
+## 裁定 (2026-10-02)
+
+2026-10-02の棚卸しのあと、ユーザーが次のとおり決めた。
+
+- `handoff-sentinel` を security guard として扱うか: 扱わない。Issue 26 の据え置きを維持する
+- `record` の呼び出し元を限定する機構 (nonce 案): 持たない。nonce を置く経路が同じ Bash なので塞ぎきれないため
+- 注入時の文面: 「内容は検証されていない」旨を添える。安く、読み手の信頼度を正しく下げられるため
+- SessionStart 配線の pin: 必須フック検査で pin する。イベント軸への一般化は PR #186 で済んでいて、SessionStart で必須とされているのは guard-health.py と PRIVATE_CLAUDE.md の読み込みだけで、handoff-sentinel の配線は pin されていないため
 
 ## 関連
 
-- Issue 26 が Claude Code フックの共通基盤を扱う。本 Issue が指摘する位置づけの食い違いは
-  同 Issue の「必須フック検査をイベント軸で一般化する」タスクの前提にあたる。
+- Issue 26 が Claude Code フックの共通基盤を扱う。同 Issue の「必須フック検査をイベント軸で一般化する」は PR #186 で済んでいて、残るのは handoff-sentinel の配線を pin するかだった。本 Issue の裁定で pin すると決めた。
   同 Issue の未完タスクには観測フックの allowlist 廃止も含まれており、そちらは本レビューでも
   同じ箇所 (未知フィールドを丸ごとログへ書く形) が挙がったが、既に記録済みなので重複させない
 - ISSUE-56 と ISSUE-55 が PreToolUse 層の穴を扱う。本 Issue は SessionStart 層で、

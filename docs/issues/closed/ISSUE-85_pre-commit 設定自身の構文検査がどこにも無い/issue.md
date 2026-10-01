@@ -1,12 +1,12 @@
 ---
-status: open
+status: closed
 ---
 
 # fix(ci): pre-commit 設定自身の構文検査がどこにも無い
 
 ## 背景
 
-2026-09-11 に studio へ pre-commit を取り付ける作業の live smoke で踏んだ。
+2026-09-11に studio へ pre-commit を取り付ける作業の live smoke で踏んだ。
 
 `.pre-commit-config.yaml` の `name` の値に裸のコロンがあると、YAML がそこを mapping と
 解釈して構文エラーになる。
@@ -70,12 +70,21 @@ pre-commit は起動時に `InvalidConfigError` を返し、hook を 1 つも実
 
 ## タスク
 
-- [ ] 検査の置き場を決める。3 案の比較に CI コストとテストの外部依存を含めること
+- [x] 検査の置き場を決める。3 案の比較に CI コストとテストの外部依存を含めること
 - [ ] 決めた形を 1 リポジトリで実装し、変異注入で pin する。壊した設定が実際に赤くなること、
       正しい設定で緑になることの両方を見る
-- [ ] 残る 2 リポジトリへ展開する。形を揃えるか、リポジトリごとに変えるかは上の判断に従う
+- [x] 不要 (ISSUE-86 へ寄せたため): 残る 2 リポジトリへ展開する。形を揃えるか、リポジトリごとに変えるかは上の判断に従う
 - [ ] dotfiles の `.pre-commit-config.yaml` にも同じ形の欠陥が無いかを確認する。
       現状は `name` に裸のコロンを持つ hook が無いだけで、機構として防いでいるわけではない
+
+## クローズの記録 (2026-10-02)
+
+2026-10-02の棚卸しのあと、ユーザーが閉じると決めた。
+
+- 検査の置き場: dotfiles は今のままでよいと認めた。config-guard のテスト (test_precommit_wiring.py) が .pre-commit-config.yaml を yaml.safe_load で読み、CI で毎回走る。2026-10-02に HEAD の複製で、hook の name に裸のコロンを入れる変異を入れると、このテストの3件が `yaml.scanner.ScannerError` で落ちることを確かめた (壊す前は3件とも通る)。CI の trigger にパスの絞り込みは無い。構文の穴は塞がっている
+- 対象の広げ方: relay と studio への展開は ISSUE-86 (pre-commit と gitleaks を残りのリポジトリへ展開) へ寄せた。schema 違反はローカルの pre-commit 実行で落ちるので、追加の層は要らない
+- ISSUE-86 へ寄せたもの: タスク3の「残る2リポジトリへ展開する」は、ISSUE-86 の展開の作業で扱う
+- タスク2とタスク4は箱を埋めていない。dotfiles の構文は上の config-guard のテストが検査している
 
 ## 関連
 
@@ -90,3 +99,5 @@ Issue 45 が「導入しないコマンドのテストが静かに全 skip す�
 
 Issue 30 が Markdown 内のシェルスニペットの構文検査を扱う。埋め込まれた別言語の構文が
 ホスト側の検査を素通りするという形はこの Issue と同型で、対象が違う
+
+ISSUE-86 が pre-commit と gitleaks を残りのリポジトリへ展開する。relay と studio への展開はあちらへ寄せた

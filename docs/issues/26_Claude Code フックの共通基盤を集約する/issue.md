@@ -67,7 +67,7 @@ Phase 3a のスコープを大きく超えるため別 Issue に分けた。
       両フックの入力異常テストを理由文まで見る形へ強化して塞いだ。
       あわせて symlink 経由 + PATH の `python3` (3.14.6) で live smoke を通した。pytest は
       `sys.executable` (3.12) で実パス起動するため、本番の起動形を覆っていない
-- [ ] `settings_invariants` の必須フック検査をイベント軸で一般化する
+- [x] `settings_invariants` の必須フック検査をイベント軸で一般化する (PR #186 で実装済み。`_REQUIRED_HOOKS` がイベントごとの dict になっている)
 - [ ] 全フックの JSON 出力の `ensure_ascii` 方針を 1 箇所で決める
       値としては 4 フックすべてが `ensure_ascii=False` で揃った (PreToolUse の 2 本は共有層
       経由、`handoff-sentinel` と `instructions-loaded-log` は元から)。ただし canonical はまだ
@@ -89,6 +89,7 @@ Phase 3a のスコープを大きく超えるため別 Issue に分けた。
       - `instructions-loaded-log` の JSONL が 301KB / 724 行。上限もローテーションも無い
       - どちらも実害は現時点でディスク使用のみだが、フック自身が消す形にするか、
         別の掃除経路を持つかを 1 箇所で決める (フックごとに別々の寿命規則を持たせない)
+      - ISSUE-67 の state ファイルの後始末をここへ寄せた (2026-10-02の裁定で、消す契機を作ると決めた)。2026-10-02に測ると state ディレクトリは579ファイルだった
 
 ## 関連
 
@@ -97,11 +98,8 @@ Phase 3a のスコープを大きく超えるため別 Issue に分けた。
 - [ISSUE-36: refactor: CLAUDE.md を rules と skill へ分割し常時ロード量を減らす](../closed/36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md)。
   - 観測フック `home/.claude/hooks/instructions-loaded-log.py` は ISSUE-36 で常設と決まり、集約と同時に
     `scripts/claude-hooks/` の 4 本目として取り込んだ
-- ISSUE-58 が `handoff-sentinel` の位置づけ (security guard として扱うか) の判断を扱う。
-  本 Issue は「個人ツールであり security guard ではない」として必須フック検査への追加を
-  据え置いているが、現物は provenance 照合を prompt injection 防御として fail-closed で
-  実装しており、台帳と現物が食い違っている。必須フック検査のイベント軸への一般化は
-  この判断の後に行うのが順序として正しい
+- ISSUE-58 が `handoff-sentinel` の位置づけ (security guard として扱うか) の判断を扱う。2026-10-02の裁定で、security guard としては扱わず (本 Issue の据え置きを維持)、SessionStart の配線は必須フック検査で pin すると決めた。必須フック検査のイベント軸への一般化は PR #186 で済んでいる
+- ISSUE-67: コンテキスト閾値の通知の state ファイルの後始末を、本 Issue の寿命のタスクへ寄せた
 - ISSUE-55 と ISSUE-56 が PreToolUse の 2 フックそれぞれの穴を扱う。どちらも共有層
   (`pretooluse.py`) ではなくフック固有の判定にあるため、本 Issue の集約とは独立して直せる
 - ISSUE-57 が `home/.claude/hooks/herdr-agent-state.sh` の埋め込み Python を構文検査する。

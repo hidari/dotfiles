@@ -63,13 +63,21 @@ working-directory と pytest の引数以外がほぼ同じである。
 ## タスク
 
 - [ ] 射程を決め、対象になる run step を数える (composite action を含めるなら `runs.steps` も)
-- [ ] job の形を決める。matrix にするなら、ISSUE-50 の必須チェックが先に入っていればその名前に
-      合わせる。入っていなければ、後から入る ISSUE-50 の側が合わせる
+- [x] job の形を決める。matrix にするなら、ISSUE-50 の必須チェックが先に入っていればその名前に合わせる。入っていなければ、後から入る ISSUE-50 の側が合わせる
 - [ ] job の形の結果から、検査が守る不変条件を決める
-- [ ] 検査の置き場を決める。`ast-grep-wiring-probe.py` の扱いも同時に決める
+- [x] 検査の置き場を決める。`ast-grep-wiring-probe.py` の扱いも同時に決める
 - [ ] job の形を実装する
 - [ ] 検査を実装し、対象を壊す / 機構を壊す / 取り付けを外すの 3 種の変異で赤を確かめる
 - [ ] 検査が対象集合のどこまでを覆うかを数える
+
+## 裁定 (2026-10-02)
+
+2026-10-02の棚卸しのあと、ユーザーが次のとおり決めた。
+
+- 射程: workflow の run step までにし、composite action は含めない
+- job の形: (a) の `uv run --directory` で呼ぶ形にする。matrix は job 名を変えて ISSUE-50 の必須チェックの名前に響くため。pre-commit も既に (a) の形である
+- 置き場: config-guard の check へ移す。判定を dict の fixture で直接テストでき、違反が commit 時に止まるため。同じ形のプローブは起票後に2本増えて計4本 (`ci-shell-probe.py`、`ast-grep-wiring-probe.py`、`ci-runner-probe.py`、`dependabot-probe.py`) あるので、移すなら4本まとめて移す
+- 検査が守る不変条件は job の形から導くもので、この裁定では決めていない
 
 ## 関連
 
@@ -78,6 +86,6 @@ working-directory と pytest の引数以外がほぼ同じである。
 - Issue 37: setup-uv の取得失敗。job を減らすと取得回数も減る
 - Issue 38: 同じ 4 プロジェクト (claude-hooks 以外) へ一斉に適用する作業。job の見直しと着手を揃えられる
 - Issue 26: uv ハーネス 3 本を claude-hooks の 1 job へまとめた前例
-- ISSUE-60 と ISSUE-85: config-guard に置く検査の候補で、置き場の議論が重なる
+- ISSUE-60 と ISSUE-85 (closed): config-guard に置く検査の候補で、置き場の議論が重なる。ISSUE-85 は、既存の test_precommit_wiring.py で足りると認めて閉じた
 - ISSUE-57: `.sh` のヒアドキュメントと `settings.json` の hooks.command に埋め込んだ他言語の構文検査。
   こちらは構文ではなく実効の shell を見るので観点が違う

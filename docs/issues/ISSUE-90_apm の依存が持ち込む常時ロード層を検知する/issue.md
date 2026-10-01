@@ -51,8 +51,7 @@ status: open
 
 ## 未決
 
-- **優先度。** 現状 0 件なので実害が無い。ISSUE-88 / ISSUE-89 より後でよいか、それとも
-  「面が生まれてからでは遅い」側と見るか
+- 優先度。現状 0 件なので実害が無い。ISSUE-88 / ISSUE-89 (ISSUE-89 は PR #245 で closed) より後でよいか、それとも「面が生まれてからでは遅い」側と見るか
 - **検査の置き場。** config-guard の既存検査 (`instruction_budget` / `rules_paths` /
   `instruction_refs` / `term_definitions`) のどれかへ足すか、新しい検査として独立させるか。
   `instruction_budget` は常時ロード層を数える検査なので近いが、`apm_modules` は ignore 済みの
@@ -61,6 +60,14 @@ status: open
 - **`claudeMdExcludes` を先に広げるか。** 面が生まれる前に `**/apm_modules/**/CLAUDE.md` を
   足しておく案。ただし効くかどうかが未検証の 3 点に依存するので、測る前に足すと「足したのに
   効かない」を沈黙で抱えることになる
+
+## 裁定 (2026-10-02)
+
+2026-10-02の棚卸しのあと、ユーザーが次のとおり決めた。
+
+- 優先度は後回しにする。2026-10-02の棚卸し時点で、apm_modules 配下の CLAUDE.md / AGENTS.md / GEMINI.md は0件だった (対照の .md は74件)
+- 検査の置き場は、着手時に config-guard の scan が ignore された apm_modules を見られるかを先に確かめてから決める
+- claudeMdExcludes は先に広げない。効くかどうかが未検証なので、測る前に足すと「足したのに効かない」を黙って抱える
 
 ## 関連
 

@@ -92,12 +92,12 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | M2 | 検査を配布先で走る状態にする | ISSUE-53、ISSUE-72、ISSUE-86、ISSUE-97、ISSUE-101、agentic-coding-tools の ISSUE-32 |
 | M3 | skill バンドルの二重登録を止める | Issue 40 |
 | M4 | PUBLIC 露出の scrub | Issue 21、Issue 29、ISSUE-87 |
-| M5 | 静的検査の基盤を寄せ射程の穴を塞ぐ | Issue 39、Issue 30、ISSUE-57、ISSUE-60、Issue 41、ISSUE-47、Issue 17、Issue 18、ISSUE-75、ISSUE-85、ISSUE-90、ISSUE-94、ISSUE-98、ISSUE-104、ISSUE-110、ISSUE-112 |
+| M5 | 静的検査の基盤を寄せ射程の穴を塞ぐ | Issue 39、Issue 30、ISSUE-57、ISSUE-60、Issue 41、ISSUE-47、Issue 17、Issue 18、ISSUE-75、ISSUE-90、ISSUE-94、ISSUE-98、ISSUE-104、ISSUE-110、ISSUE-112 |
 | M6 | winvm の実装品質 | 上流の winvm 系 Issue |
 | M7 | 環境とテスト網の個別 | 下の細分表 |
 | M8 | CI の必須チェックを実効化する | ISSUE-50 |
 | M9 | フックの共通基盤とガードの穴 | Issue 26、ISSUE-58、ISSUE-67、ISSUE-71、ISSUE-66、ISSUE-83、ISSUE-84 |
-| M10 | 規範層の構造を直す | ISSUE-48、ISSUE-61、ISSUE-88、ISSUE-99、ISSUE-100、ISSUE-108 |
+| M10 | 規範層の構造を直す | ISSUE-48、ISSUE-61、ISSUE-88、ISSUE-100、ISSUE-108 |
 | M11 | セッションの取り違えを検出する | ISSUE-78、ISSUE-82、ISSUE-91 |
 
 ### M7 の細分 (2026-09-02)
@@ -112,7 +112,7 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | CI の安定性 | Issue 37、Issue 38 |
 | Raycast | Issue 22、Issue 23 |
 | PowerShell | Issue 27、Issue 28 |
-| 単独 | Issue 31、Issue 33、ISSUE-51、ISSUE-95、ISSUE-96、ISSUE-109、ISSUE-111 |
+| 単独 | Issue 31、Issue 33、ISSUE-51、ISSUE-95、ISSUE-109、ISSUE-111 |
 
 ### 数え方
 
@@ -150,6 +150,16 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
   `git show <ref>:<path>` で読む。数えた SHA は「件数の推移」節に残す。並行するセッションが上流の
   作業ツリーを feature ブランチへ切り替えていると、その枝でだけ status が動いた Issue の分がずれる
   (2026-09-17 に実例がある)
+
+### 割り当ての検算 (2026-10-02、判断待ち18件の裁定と ISSUE-85・96・99 のクローズの後)
+
+dotfiles の active な Issue は61件 (open が59件、in_progress が2件) で、その全件がいずれかのマイルストーンへ入ることを、この変更の tree で数えて確かめた。M1 は3件、M2 は5件 (dotfiles 側のみ)、M3 は1件、M4 は3件、M5 は15件、M6 は0件 (上流のみ)、M7 は17件、M8 は1件、M9 は7件、M10 は5件、M11 は3件で、この Issue 自身の1件と合わせて61件になる。表の腐りは0件、未割り当てはこの Issue 自身の1件だけだった。
+
+下の検算からの動きはクローズ3件で、起票は無かった。棚卸しで判断待ちと仕分けた18件にユーザーが裁定を出し、各 Issue の「裁定」節に書き戻した。そのうち次の3件を閉じた。理由は各 Issue の「クローズの記録」節が持つ。
+
+- ISSUE-85 を M5 から外した。dotfiles では構文の穴が塞がっていると確かめ、relay と studio への展開を ISSUE-86 へ寄せた
+- ISSUE-96 を M7 の単独から外した。やらないと決めた
+- ISSUE-99 を M10 から外した。衝突の本体が上流で消えていた
 
 ### 割り当ての検算 (2026-10-02、全件の棚卸しと ISSUE-62・63・77 のクローズの後)
 

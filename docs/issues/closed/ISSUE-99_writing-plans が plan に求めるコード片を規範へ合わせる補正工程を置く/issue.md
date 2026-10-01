@@ -1,5 +1,5 @@
 ---
-status: open
+status: closed
 ---
 
 # agent: writing-plans が plan に求めるコード片を規範へ合わせる補正工程を置く
@@ -90,6 +90,14 @@ transcription plus testing: use the cheapest tier for that implementer」とし�
       決められない指標は比較から外す
 - [ ] agentic-coding-tools へ実装を委譲する
 - [ ] 補正の後で同じ数え方の値を取り、前後を比べる
+
+## クローズの記録 (2026-10-02)
+
+2026-10-02の棚卸しのあと、ユーザーが閉じると決めた。タスクは実施しておらず、箱は埋めていない。
+
+- 閉じる理由: 入っている superpowers 6.4.2 の writing-plans は、実装コードを「シグネチャだけ」にし、コードが大半なら置き換えよと自分で求めるようになった。この Issue が問題にした衝突の本体は上流で消えている
+- 残るもの: テスト名とアサーションのコードは plan に残るが、これは TDD の手順そのもので、減らす理由が薄い
+- 実施しないもの: 「SDD」の語義の確定、補正の形、指標の測定、agentic-coding-tools への委譲は、閉じるので行わない
 
 ## 関連
 
