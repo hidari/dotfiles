@@ -10,7 +10,6 @@ importlib で読む。
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import subprocess
 import sys
@@ -19,7 +18,7 @@ from types import ModuleType
 
 import guard_probes
 import pytest
-from conftest import HOOKS_DIR
+from conftest import HOOKS_DIR, load_hook
 
 HOOK = HOOKS_DIR / "guard-health.py"
 
@@ -29,12 +28,7 @@ SESSION_INPUT = json.dumps(
 
 
 def _load_hook() -> ModuleType:
-    """ハイフンを含むファイル名のフックをモジュールとして読む。"""
-    spec = importlib.util.spec_from_file_location("guard_health", HOOK)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return load_hook(HOOK.name)
 
 
 def _ok() -> guard_probes.ProbeResult:

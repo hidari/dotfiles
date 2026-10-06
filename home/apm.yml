@@ -13,6 +13,7 @@ dependencies:
   - mizchi/skills/tooling/apm-usage#d7999453cdb4e0e09df1c7f82fd23752539c546c
   - mizchi/skills/tooling/justfile#d7999453cdb4e0e09df1c7f82fd23752539c546c
   - yusukebe/ax/skills/ax#8abbca2fc400c2ff4866248ba1ec9309b948812f
+  - cloudflare/security-audit-skill/skills/security-audit#c1c8a8c1471069fb0e188eeaff69b8e8db6564a8
   - hidari/agentic-coding-tools/skills/devops/macos-vm-verification#9bc82e67ba810da51d7a387622765b9f3ef66922 # v0.14.0
   - hidari/agentic-coding-tools/skills/devops/windows-vm-verification#9bc82e67ba810da51d7a387622765b9f3ef66922 # v0.14.0
   - hidari/agentic-coding-tools/skills/meta/context-loading-mechanics#9bc82e67ba810da51d7a387622765b9f3ef66922 # v0.14.0

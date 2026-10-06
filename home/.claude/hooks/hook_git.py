@@ -1,8 +1,9 @@
 """フックから git へ問い合わせる leaf。
 
-同じリポジトリルートの解決を 2 つのフックが要る。handoff-sentinel は状態ファイルの名前を
-作るために、guard_probes はタスクリスト識別子の導出元を決めるために呼ぶ。同じ規則を
-2 箇所へ書くと片方だけ直したときに沈黙して食い違うので、この 2 つの canonical をここへ置く。
+同じリポジトリルートの解決を複数のフックが要る。handoff-sentinel は状態ファイルの名前を
+作るために、guard_probes はタスクリスト識別子の導出元を決めるために、feedbacks-box は箱の
+位置を決めるために呼ぶ。同じ規則を 2 箇所へ書くと片方だけ直したときに沈黙して食い違うので、
+これらの canonical をここへ置く。
 
 リポジトリ全体の canonical ではない。config_guard は venv を持つので自前の同じ集合を持ち、
 両者が drift しないことは config-guard 側の import 照合が pin する。apm-install-guard は
@@ -86,3 +87,17 @@ def repo_root(cwd: str | Path) -> Path:
     """
     top = rev_parse(cwd, "--show-toplevel")
     return Path(top) if top else Path(cwd)
+
+
+def main_checkout_root(cwd: str | Path) -> Path | None:
+    """cwd が属する本体のチェックアウトのルート。辿れなければ None。
+
+    linked worktree の common dir は本体の `.git` を指すので、その親が本体のルートになる。
+    本体の中では自分の `.git` を返すので、どちらから呼んでも同じ値になる。common dir が
+    `.git` という名前でないとき (submodule の `.git/modules/<name>` や `--separate-git-dir`)
+    その親はチェックアウトではないので None を返す。落とし先は呼び出し側の都合で決まる。
+    """
+    common = rev_parse(cwd, "--path-format=absolute", "--git-common-dir")
+    if common is None or Path(common).name != ".git":
+        return None
+    return Path(common).parent

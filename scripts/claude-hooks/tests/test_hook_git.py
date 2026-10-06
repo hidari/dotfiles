@@ -6,11 +6,12 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import hook_git
 import pytest
-from conftest import make_git_repo
+from conftest import git_scope_free_env, make_git_repo
 
 
 def test_リポジトリのルートを返す(tmp_path: Path, git_location_vars_stripped: None) -> None:
@@ -99,6 +100,51 @@ def test_文字列でもパスでも同じ根を返す(tmp_path: Path, git_locat
     repo = make_git_repo(tmp_path / "myrepo")
 
     assert hook_git.repo_root(str(repo)) == hook_git.repo_root(repo)
+
+
+def _commit_and_add_worktree(repo: Path, worktree: Path) -> None:
+    env = git_scope_free_env()
+    for args in (
+        ["commit", "-q", "--allow-empty", "-m", "init"],
+        ["worktree", "add", "-q", "-b", worktree.name, str(worktree)],
+    ):
+        subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, env=env)
+
+
+def test_本体のチェックアウトは本体の中からも_worktree_からも同じ根を返す(
+    tmp_path: Path, git_location_vars_stripped: None
+) -> None:
+    repo = make_git_repo(tmp_path / "myrepo")
+    worktree = tmp_path / "wt"
+    _commit_and_add_worktree(repo, worktree)
+    (repo / "sub").mkdir()
+
+    assert hook_git.main_checkout_root(repo / "sub") == repo.resolve()
+    assert hook_git.main_checkout_root(worktree) == repo.resolve()
+
+
+def test_git_dir_を分けたリポジトリでは本体のチェックアウトを辿れない(
+    tmp_path: Path, git_location_vars_stripped: None
+) -> None:
+    """common dir が .git という名前でないと、その親はチェックアウトではない。"""
+    repo = tmp_path / "myrepo"
+    subprocess.run(
+        ["git", "init", "-q", "--separate-git-dir", str(tmp_path / "gitdir"), str(repo)],
+        check=True,
+        capture_output=True,
+        env=git_scope_free_env(),
+    )
+
+    assert hook_git.main_checkout_root(repo) is None
+
+
+def test_リポジトリ外では本体のチェックアウトを返さない(
+    tmp_path: Path, git_location_vars_stripped: None
+) -> None:
+    plain = tmp_path / "plain"
+    plain.mkdir()
+
+    assert hook_git.main_checkout_root(plain) is None
 
 
 def test_答えが得られなければ_None_を返す(tmp_path: Path, git_location_vars_stripped: None) -> None:

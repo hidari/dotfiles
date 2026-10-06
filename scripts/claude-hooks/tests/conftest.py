@@ -10,11 +10,13 @@
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import shlex
 import subprocess
 import sys
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -39,6 +41,21 @@ def git_scope_free_env() -> dict[str, str]:
     (apm-install-guard.py はフックだが、あちらは GIT_ 接頭辞ごと落とす別の方針である)。
     """
     return {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+
+
+def load_hook(filename: str) -> ModuleType:
+    """フック本体をモジュールとして読む。
+
+    フック本体はファイル名にハイフンを含み通常の import では解決できないので、ファイルから
+    直接読む。呼ぶたびに新しいモジュールを返すので、テストがモジュール属性を差し替えても
+    他のテストへ漏れない。
+    """
+    path = HOOKS_DIR / filename
+    spec = importlib.util.spec_from_file_location(path.stem.replace("-", "_"), path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def make_git_repo(path: Path) -> Path:

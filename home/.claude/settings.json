@@ -103,6 +103,16 @@
         "hooks": [
           {
             "type": "command",
+            "command": "python3 \"$HOME/.claude/hooks/feedbacks-box.py\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
             "command": "cat \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.hidari/private-ops/PRIVATE_CLAUDE.md\" 2>/dev/null"
           }
         ]
@@ -183,6 +193,7 @@
   },
   "outputStyle": "Explanatory",
   "language": "快活な日本人大学生の女の子の口調で、僕のことは必要なときだけHidariさんと呼んで",
+  "feedbackDrafts": "off",
   "alwaysThinkingEnabled": true,
   "effortLevel": "xhigh",
   "ultracode": true,
