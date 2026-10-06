@@ -241,3 +241,4 @@ dev-workflow / security-blue-red-team / web-monkey-qa の `.apm/` に入って�
   [microsoft/apm](https://github.com/microsoft/apm) へ報告する余地がある。ノブが入れば dotfiles
   側の後始末は不要になるが、本 Issue は上流の変更を待たずに閉じられる。skills 面は事情が違い、
   既知のノブが 0.30.0 で効かなくなった回帰にあたるので、出すなら機能要望ではなく回帰報告になる
+- ISSUE-114: security-blue-red-team の静的監査の部分を cloudflare の security-audit へ寄せる検討。寄せる範囲によっては本 Issue の対象 bundle の形が変わる
