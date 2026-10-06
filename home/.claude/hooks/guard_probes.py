@@ -226,22 +226,14 @@ def derive_task_list_id(directory: str | Path) -> str:
 def _main_worktree_name(directory: Path) -> str | None:
     """linked worktree が属する本体の作業ツリーの名前。決められなければ None。
 
-    `--git-common-dir` は linked worktree でも本体の `.git` を返す (実測)。本体の中では
-    自分の `.git` を返すので、どちらから呼んでも同じ値になる。
+    本体の解決規則は hook_git.main_checkout_root が持つ。
 
     導出そのものには使わない。シェル側は worktree の名前を返すので、こちらを導出値にすると
     同値でなくなる。ここで足すのは「本体の名前を名乗るセッションも正しい」という許容だけで、
     別プロジェクトの名前はどちらの正解にも当たらないため検出は緩まない。
     """
-    common = hook_git.rev_parse(directory, "--git-common-dir")
-    if common is None:
-        return None
-
-    # 相対で返ることがある。その場合は -C で渡した側から解決する。
-    path = Path(common)
-    if not path.is_absolute():
-        path = directory / path
-    return path.resolve().parent.name
+    root = hook_git.main_checkout_root(directory)
+    return root.name if root else None
 
 
 def probe_task_list_id() -> ProbeResult:

@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 import guard_resolve
-from conftest import BOOTSTRAP, HOOKS_DIR, REPO_ROOT, git_scope_free_env
+from conftest import BOOTSTRAP, HOOKS_DIR, REPO_ROOT, git_scope_free_env, load_hook
 
 HOOK = HOOKS_DIR / "apm-install-guard.py"
 GUARD_LIB = REPO_ROOT / "scripts" / "apm-guard" / "lib.sh"
@@ -27,13 +27,7 @@ GUARD_LIB = REPO_ROOT / "scripts" / "apm-guard" / "lib.sh"
 
 def load_guard_module() -> Any:
     """フック本体をモジュールとして読み込む。定数を突き合わせるテストが使う。"""
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location("guard", HOOK)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return load_hook(HOOK.name)
 
 
 # フックは PATH 上の apm が配布した shim へ解決されることを要求する。テストは shim が

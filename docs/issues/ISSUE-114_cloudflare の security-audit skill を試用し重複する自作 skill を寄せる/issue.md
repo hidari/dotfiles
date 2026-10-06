@@ -8,9 +8,9 @@ status: open
 
 cloudflare/security-audit-skill の `security-audit` を apm で user スコープへ入れた (pin は `home/apm.yml`)。しばらく実際のリポジトリで使い、良ければ自作の security-blue-red-team の重複する部分をこちらへ寄せる。寄せる側の canonical は agentic-coding-tools なので、整理そのものは agentic-coding-tools への委譲になる。dotfiles で行うのは試用の記録と、寄せたあとの pin の更新まで。
 
-### 導入時に読んだ既定の挙動 (2026-10-07 時点の上流の main 先頭)
+### 導入時に読んだ既定の挙動 (pin した上流のコミットは2026-09-14のもので、2026-10-07に確認した時点の main 先頭)
 
-こちらの運用と合わない既定が 2 つある。試用ではこれを手当てしながら回す。
+こちらの運用と合わない既定が2つある。試用ではこれを手当てしながら回す。
 
 - full audit の出力先の既定がホーム直下の新規ディレクトリ (`SKILL.md` の Full audit setup)。リポジトリ内で回すなら ignore 済みの `.cache/` 配下を明示して渡す
 - recon・hunter・verifier を上限なしで並列に起動する。上限は予算 (budget) を指定したときだけ掛かり、既定は null。並列の本数を事前に告げて確かめる運用と衝突するので、回すときは予算を指定する
@@ -34,7 +34,7 @@ cloudflare/security-audit-skill の `security-audit` を apm で user スコー�
 ## タスク
 
 - [ ] 実際のリポジトリで guidance mode を数回使い、指摘の質と誤検知を記録する
-- [ ] full audit を予算付き・出力先 `.cache/` 指定で 1 回回し、所要と指摘を記録する
+- [ ] full audit を予算付き・出力先 `.cache/` 指定で1回回し、所要と指摘を記録する
 - [ ] 採否を決める (Hidari の判断)
 - [ ] 採るなら、寄せる範囲と findings.json の扱いを決めて agentic-coding-tools へ委譲する
 - [ ] 寄せたあとの pin を dotfiles の `home/apm.yml` で更新する
