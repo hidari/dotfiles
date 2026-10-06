@@ -31,6 +31,10 @@ scripts/backup-tool/backup.toml
 .cache/
 tmp/
 
+# 他のリポジトリから届くフィードバックの受け口。私的なリポジトリの内容を含みうるので
+# 追跡しない。告知と処理の手順は home/.claude/hooks/feedbacks-box.py が持つ。
+docs/.feedbacks-box/
+
 # superpowers の作業領域。subagent-driven-development の workspace は自身で .gitignore を
 # 生成するが brainstorming の visual companion (.superpowers/brainstorm/) は生成しないため、
 # 前者を消すと後者が git status に出る。ここで両方まとめて隠す。
