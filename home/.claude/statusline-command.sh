@@ -4,9 +4,11 @@
 # Line 2: 5h rate limit progress bar
 # Line 3: 7d rate limit progress bar
 # Line 4: project [branch] | ± +added/-removed
+# Line 5: prompt cache の残り時間 (warm) か、cold で次に払う再キャッシュ量
 #
-# 行は情報の所有者で分ける。1〜3 行目は Claude が持つ状態 (アカウント・モデル・消費)、
-# 4 行目はリポジトリが持つ状態。git リポジトリの外では 4 行目ごと省く (空行を出さない)。
+# 1〜3 行目は Claude が持つ状態 (アカウント・モデル・消費)、4 行目はリポジトリが持つ状態。
+# キャッシュの行は Claude 側の状態だが、刻々と変わるので一番下に置く。
+# 4 行目と 5 行目は出すものが無ければ行ごと省く (空行を出さない)。
 #
 # アカウント (CLAUDE_CONFIG_DIR) ごとにキャッシュを分ける。
 # 分けないと片方のアカウントのレート制限がもう片方の statusLine に表示され、
@@ -15,6 +17,20 @@
 # =============================================================================
 # ヘルパー関数
 # =============================================================================
+
+# ---------- ANSI Colors ----------
+# テストが同じ値を source して期待値に使えるよう、ヘルパー関数と同じブロックに置く。
+GREEN=$'\e[38;2;151;201;195m'
+YELLOW=$'\e[38;2;229;192;123m'
+RED=$'\e[38;2;224;108;117m'
+GRAY=$'\e[38;2;74;88;92m'
+# 2 段階の text color（One Dark 系パレットに整合）
+TEXT=$'\e[38;2;220;223;228m'    # primary: model 名など主情報
+SUB=$'\e[38;2;168;178;195m'     # secondary: cost / reset 時刻など補助情報
+RESET=$'\e[0m'
+PURPLE=$'\e[38;5;141m'
+CYAN=$'\e[38;5;087m'
+PINK=$'\e[38;5;213m'
 
 # ---------- Color by percentage ----------
 color_for_pct() {
@@ -173,29 +189,69 @@ format_epoch_time() {
   echo "$result"
 }
 
+# ---------- Prompt cache (Claude Code 本体が stdin で渡す値) ----------
+# warm のうちに次を送れば再キャッシュを払わずに済むので、残り時間と、cold で払う量を出す。
+# 第 1 引数は prompt_cache の JSON、第 2 引数は現在時刻 (epoch 秒)。
+# 手元の版に無いフィールドや null のフィールドは、その部分だけ飛ばす。
+# cold の判定と丸めは jq に寄せ、シェルは並べるだけにする。
+prompt_cache_line() {
+  local pc_cold="" pc_remaining="" pc_ttl="" pc_hit="" pc_misses="" pc_recache_k="" pc_causes=""
+  local assignments
+  # warm が true でも期限に達していれば cold として扱う。本体は expires_at に達したときにも
+  # statusline を再実行するが、その時点の warm はまだ true のことがある。
+  # expires_at が null のときも cold になる。jq の順序では null がどの数よりも小さいので、
+  # 期限の比較がそのまま真になる。
+  assignments=$(printf '%s' "$1" | jq -r --argjson now "$2" '
+    def ttl_seconds:
+      if type == "string" and test("^[0-9]+[mh]$")
+      then (.[:-1] | tonumber) * {"m": 60, "h": 3600}[.[-1:]]
+      else null end;
+    .expires_at as $exp |
+    (.warm != true or $exp <= $now) as $cold |
+    "pc_cold=" + ($cold | tostring),
+    "pc_remaining=" + (if $cold then "" else ($exp - $now | floor | tostring) end | @sh),
+    "pc_ttl=" + ((.ttl | ttl_seconds // "") | tostring | @sh),
+    "pc_hit=" + (if .hit_ratio == null then "" else (.hit_ratio * 100 | round | tostring) end | @sh),
+    "pc_misses=" + ((.misses // "") | tostring | @sh),
+    "pc_recache_k=" + (if .recache_tokens_if_cold == null then ""
+                       else (.recache_tokens_if_cold / 1000 | round | tostring) end | @sh),
+    "pc_causes=" + ((.last_miss_cause.causes? // []) | map(tostring) | join(", ") | @sh)
+  ' 2>/dev/null) || return 0
+  eval "$assignments"
+
+  local line
+  if [ "$pc_cold" = "true" ]; then
+    line="${RED}cache cold"
+    [ -n "$pc_recache_k" ] && line+="  next message re-caches ${pc_recache_k}k tokens"
+    [ -n "$pc_causes" ] && line+="  last miss: ${pc_causes}"
+  else
+    local color="$GREEN"
+    [ "$pc_remaining" -le 600 ] && color="$YELLOW"
+    # 切り上げる。切り捨てると最後の 1 分未満を 0 分と出す
+    local mins=$(((pc_remaining + 59) / 60))
+    if [ -n "$pc_ttl" ]; then
+      line="${color}cache $(progress_bar $((pc_remaining * 100 / pc_ttl))) ${mins}/$((pc_ttl / 60))m"
+    else
+      line="${color}cache ${mins}m"
+    fi
+    local stats=""
+    [ -n "$pc_hit" ] && stats="hit ${pc_hit}%"
+    [ -n "$pc_misses" ] && stats+="${stats:+, }misses ${pc_misses}"
+    [ -n "$stats" ] && line+="  ${stats}"
+  fi
+  printf '%s' "${line}${RESET}"
+}
+
 # =============================================================================
 # メイン処理
 # =============================================================================
 
 input=$(cat)
 
-# ---------- ANSI Colors ----------
-GREEN=$'\e[38;2;151;201;195m'
-YELLOW=$'\e[38;2;229;192;123m'
-RED=$'\e[38;2;224;108;117m'
-GRAY=$'\e[38;2;74;88;92m'
-# 2 段階の text color（One Dark 系パレットに整合）
-TEXT=$'\e[38;2;220;223;228m'    # primary: model 名など主情報
-SUB=$'\e[38;2;168;178;195m'     # secondary: cost / reset 時刻など補助情報
-RESET=$'\e[0m'
-PURPLE=$'\e[38;5;141m'
-CYAN=$'\e[38;5;087m'
-PINK=$'\e[38;5;213m'
-
 # ---------- Parse stdin (single jq call) ----------
 # jq 出力を eval で一括代入するため shellcheck は代入を追えない。
 # ここで先に宣言して SC2154 (referenced but not assigned) の誤検出を防ぐ。
-model_name="" used_pct="" cwd="" lines_added="" lines_removed="" cost_usd="" duration_ms="" rate_limits=""
+model_name="" used_pct="" cwd="" lines_added="" lines_removed="" cost_usd="" duration_ms="" rate_limits="" prompt_cache=""
 FIVE_HOUR_PCT="" FIVE_HOUR_RESET="" SEVEN_DAY_PCT="" SEVEN_DAY_RESET=""
 eval "$(echo "$input" | jq -r '
   "model_name=" + (.model.display_name // "Unknown" | @sh),
@@ -205,7 +261,8 @@ eval "$(echo "$input" | jq -r '
   "lines_removed=" + (.cost.total_lines_removed // 0 | tostring),
   "cost_usd=" + (.cost.total_cost_usd // 0 | tostring),
   "duration_ms=" + (.cost.total_duration_ms // 0 | tostring),
-  "rate_limits=" + ((.rate_limits // {}) | tojson | @sh)
+  "rate_limits=" + ((.rate_limits // {}) | tojson | @sh),
+  "prompt_cache=" + ((.prompt_cache // {}) | tojson | @sh)
 ' 2>/dev/null)"
 
 # ---------- Account ----------
@@ -349,13 +406,16 @@ if [ -n "$git_stats" ]; then
   line4+="${GREEN}± ${git_stats}${RESET}"
 fi
 
-# ---------- Output ----------
-# 最終行にだけ改行を付けない。4 行目の有無で最終行が変わるため分岐する。
-printf '%s\n' "$line1"
-printf '%s\n' "$line2"
-if [ -n "$line4" ]; then
-  printf '%s\n' "$line3"
-  printf '%s' "$line4"
-else
-  printf '%s' "$line3"
+# ---------- Line 5 (prompt cache) ----------
+# 本体は最初の API 応答のあとから prompt_cache を渡す。それまでは行ごと出さない。
+line5=""
+if [ -n "$prompt_cache" ] && [ "$prompt_cache" != "{}" ]; then
+  line5=$(prompt_cache_line "$prompt_cache" "${STATUSLINE_NOW:-$(date +%s)}")
 fi
+
+# ---------- Output ----------
+# 空の行は省き、行のあいだにだけ改行を置く (最終行に改行を付けない)。
+out=("$line1" "$line2" "$line3")
+[ -n "$line4" ] && out+=("$line4")
+[ -n "$line5" ] && out+=("$line5")
+(IFS=$'\n'; printf '%s' "${out[*]}")

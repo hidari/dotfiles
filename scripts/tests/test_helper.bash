@@ -433,13 +433,15 @@ FAKE
 # statusline-command.sh へ渡す stdin JSON を組み立てる。
 # 第 1 引数は cwd。省くと git 探索経路へ入らないため、アカウント分離の観測に絞れる。
 # 第 2 引数に rate_limits オブジェクトを与えると、Claude Code 本体が渡す形を再現する。
+# 第 3 引数は prompt_cache オブジェクト (null も可)。
 # 引数が空のときはキーごと出さない。本体が渡してこない実状況を再現するため、
 # "rate_limits":null との区別を保つ。
 statusline_input_json() {
-    local rate_limits=""
+    local rate_limits="" prompt_cache=""
     [ -n "${2:-}" ] && rate_limits=",\"rate_limits\":$2"
-    printf '{"model":{"display_name":"Test"},"context_window":{"used_percentage":10},"cwd":"%s"%s}' \
-        "${1:-}" "$rate_limits"
+    [ -n "${3:-}" ] && prompt_cache=",\"prompt_cache\":$3"
+    printf '{"model":{"display_name":"Test"},"context_window":{"used_percentage":10},"cwd":"%s"%s%s}' \
+        "${1:-}" "$rate_limits" "$prompt_cache"
 }
 
 # 失効しない窓の reset。実時刻に依存させないために固定値を使う。
@@ -468,9 +470,10 @@ run_statusline_in() {
 # statusline-command.sh の生の出力をファイルへ落とす。
 # bats の $output は末尾改行を落とすため、「最終行に改行を付けない」規約は
 # $lines の要素数では原理的に観測できない。改行の数で見る必要がある。
+# 第 3 引数は statusline_input_json へ渡す prompt_cache。
 statusline_raw() {
     local dest="$1"
-    bash "$STATUSLINE_SCRIPT" > "$dest" 2>/dev/null <<< "$(statusline_input_json "${2:-}")"
+    bash "$STATUSLINE_SCRIPT" > "$dest" 2>/dev/null <<< "$(statusline_input_json "${2:-}" "" "${3:-}")"
 }
 
 # ファイル内の改行の数を返す。行数ではなく改行数なので、

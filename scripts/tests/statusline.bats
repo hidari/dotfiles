@@ -323,6 +323,7 @@ assert_statusline_feeds_hook() {
 #
 # 1〜3 行目は Claude が持つ状態、4 行目はリポジトリが持つ状態。
 # 情報の所有者で行を分けることが仕様なので、混ざっていないことまで検証する。
+# ここの入力は prompt_cache を持たない。キャッシュの行 (最下行) は statusline-prompt-cache.bats が見る。
 
 @test "statusline: collapses to three lines outside a repository" {
     # リポジトリ外で 4 行目を空のまま出すと、画面に無意味な空行が残る。
@@ -342,7 +343,7 @@ assert_statusline_feeds_hook() {
     [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 3 ]
 }
 
-@test "statusline: puts the repository line last" {
+@test "statusline: puts the repository line last without a prompt cache" {
     setup_test_repo "$TEST_HOME/myrepo"
 
     run_statusline_in "$TEST_HOME/myrepo"
