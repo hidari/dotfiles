@@ -9,6 +9,7 @@ from __future__ import annotations
 import atexit
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -18,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 import guard_resolve
+import pytest
 from conftest import BOOTSTRAP, HOOKS_DIR, REPO_ROOT, git_scope_free_env, load_hook
 
 HOOK = HOOKS_DIR / "apm-install-guard.py"
@@ -166,6 +168,8 @@ def test_dirty_tree_denies(tmp_path: Path) -> None:
     assert proc.returncode == 0
     assert decision(proc) == "deny"
     assert "a.txt" in reason(proc)
+    # 未コミット変更の理由文だけは接頭辞を付けずに出す
+    assert reason(proc).startswith("apm install は deploy 先を")
 
 
 def test_untracked_file_denies(tmp_path: Path) -> None:
@@ -502,30 +506,34 @@ def test_unrelated_command_passes_through(tmp_path: Path) -> None:
     assert proc.stdout.strip() == ""
 
 
-def test_non_bash_tool_passes_through(tmp_path: Path) -> None:
-    repo = init_repo(tmp_path / "repo")
-    (repo / "a.txt").write_text("changed\n")
+def missing_shim_env(tmp_path: Path) -> dict[str, str]:
+    """shim が見つからない環境。介在対象外の判定を素通りした入力が git を経ずに deny へ届く。
 
-    for tool in ("Read", "Edit"):
-        payload = body("apm install", str(repo))
-        payload["tool_name"] = tool
-
-        proc = run_hook(payload)
-
-        assert proc.stdout.strip() == "", tool
+    フックは介在対象外の入力を git に届く前に返すが、その判定が外れると git へ進み、
+    tmp_path はリポジトリではないので無音 allow に落ちる。それでは判定を壊しても緑のままに
+    なるので、素通りした先で必ず deny が出る形にしておく。
+    """
+    return {"APM_INSTALL_GUARD_SHIM": str(tmp_path / "nonexistent" / "apm")}
 
 
-def test_non_pretooluse_event_passes_through(tmp_path: Path) -> None:
-    repo = init_repo(tmp_path / "repo")
-    (repo / "a.txt").write_text("changed\n")
+@pytest.mark.parametrize("tool", ["Read", "Edit"])
+def test_non_bash_tool_passes_through(tmp_path: Path, tool: str) -> None:
+    payload = body("apm install", str(tmp_path))
+    payload["tool_name"] = tool
 
-    for event in ("PostToolUse", "SessionStart"):
-        payload = body("apm install", str(repo))
-        payload["hook_event_name"] = event
+    proc = run_hook(payload, missing_shim_env(tmp_path))
 
-        proc = run_hook(payload)
+    assert proc.stdout.strip() == ""
 
-        assert proc.stdout.strip() == "", event
+
+@pytest.mark.parametrize("event", ["PostToolUse", "SessionStart"])
+def test_non_pretooluse_event_passes_through(tmp_path: Path, event: str) -> None:
+    payload = body("apm install", str(tmp_path))
+    payload["hook_event_name"] = event
+
+    proc = run_hook(payload, missing_shim_env(tmp_path))
+
+    assert proc.stdout.strip() == ""
 
 
 def test_payload_without_event_and_tool_passes_through(tmp_path: Path) -> None:
@@ -599,64 +607,110 @@ def test_non_git_cwd_passes_through(tmp_path: Path) -> None:
     assert proc.stdout.strip() == ""
 
 
-def test_unusable_input_denies() -> None:
-    """入力が壊れているときは素通りさせない (fail-closed)。
+# 入力の壊れ方ごとの理由文。どれも deny なので、どの検査で倒れたかは理由文だけが区別する。
+# 対応付けがずれても deny のままになり、判定だけを見ていては捕まらない。
+_EMPTY = "フックの入力が空でした"
+_NOT_JSON = "フックの入力を JSON として解釈できませんでした"
+_NOT_OBJECT = "フックの入力が object ではありません"
+_BAD_TOOL_INPUT = "tool_input が object ではありません"
+_NO_COMMAND = "Bash コマンドを読み取れませんでした"
 
-    壊れ方ごとに違う理由を返すことも併せて見る。どれも deny なので、どの検査で倒れたかは
-    理由文だけが区別する。対応付けがずれても deny のままになり、判定だけを見ていては捕まらない。
-    """
-    bash: dict[str, Any] = {"hook_event_name": "PreToolUse", "tool_name": "Bash"}
-    empty = "フックの入力が空でした"
-    not_object = "フックの入力が object ではありません"
-    tool_input_not_object = "tool_input が object ではありません"
-    no_command = "Bash コマンドを読み取れませんでした"
-    cases = [
+_BASH: dict[str, Any] = {"hook_event_name": "PreToolUse", "tool_name": "Bash"}
+
+
+def _exactly(message: str) -> str:
+    """pytest.raises の match は部分一致の regex なので、全文一致の形にする。"""
+    return f"^{re.escape(message)}$"
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        pytest.param("", _EMPTY, id="empty"),
         # 空白だけの入力も空として扱い、JSON の壊れとは別の理由で返す
-        ("", empty),
-        ("   ", empty),
-        ("\n\t ", empty),
-        ("{not json", "JSON として解釈できませんでした"),
+        pytest.param("   ", _EMPTY, id="spaces-only"),
+        pytest.param("\n\t ", _EMPTY, id="newline-tab-space"),
+        pytest.param("{not json", _NOT_JSON, id="broken-json"),
         # object でない JSON。null や数値は json.loads を通るが dict ではない
-        ("[]", not_object),
-        ('["a"]', not_object),
-        ('"text"', not_object),
-        ("null", not_object),
-        ("42", not_object),
-        ("true", not_object),
+        pytest.param("[]", _NOT_OBJECT, id="json-empty-array"),
+        pytest.param('["a"]', _NOT_OBJECT, id="json-array"),
+        pytest.param('"text"', _NOT_OBJECT, id="json-string"),
+        pytest.param("null", _NOT_OBJECT, id="json-null"),
+        pytest.param("42", _NOT_OBJECT, id="json-number"),
+        pytest.param("true", _NOT_OBJECT, id="json-true"),
+    ],
+)
+def test_parse_payload_rejects_unusable_input(raw: str, expected: str) -> None:
+    guard = load_guard_module()
+
+    with pytest.raises(guard.HookInputError, match=_exactly(expected)):
+        guard.parse_payload(raw)
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected"),
+    [
         # falsy な非 object ([] や "" や 0) も型の誤りとして扱う。既定値へ化かすと
         # 「型が違う」が「コマンドが無い」に化けて、報告される理由が実態とずれる
-        (json.dumps({**bash, "tool_input": ["ls"]}), tool_input_not_object),
-        (json.dumps({**bash, "tool_input": []}), tool_input_not_object),
-        (json.dumps({**bash, "tool_input": ""}), tool_input_not_object),
-        (json.dumps({**bash, "tool_input": 0}), tool_input_not_object),
-        (json.dumps({**bash, "tool_input": "text"}), tool_input_not_object),
-        (json.dumps({**bash, "tool_input": 42}), tool_input_not_object),
+        pytest.param({**_BASH, "tool_input": ["ls"]}, _BAD_TOOL_INPUT, id="tool-input-list"),
+        pytest.param({**_BASH, "tool_input": []}, _BAD_TOOL_INPUT, id="tool-input-empty-list"),
+        pytest.param({**_BASH, "tool_input": ""}, _BAD_TOOL_INPUT, id="tool-input-empty-str"),
+        pytest.param({**_BASH, "tool_input": 0}, _BAD_TOOL_INPUT, id="tool-input-zero"),
+        pytest.param({**_BASH, "tool_input": "text"}, _BAD_TOOL_INPUT, id="tool-input-str"),
+        pytest.param({**_BASH, "tool_input": 42}, _BAD_TOOL_INPUT, id="tool-input-number"),
         # tool_input の欠落だけは既定値へ倒し、コマンドが無いとして報告する
-        (json.dumps(bash), no_command),
-        (json.dumps({**bash, "tool_input": {}}), no_command),
+        pytest.param(_BASH, _NO_COMMAND, id="tool-input-missing"),
+        pytest.param({**_BASH, "tool_input": {}}, _NO_COMMAND, id="tool-input-empty-object"),
         # command が文字列でないか、空白だけ
-        (json.dumps({**bash, "tool_input": {"command": None}}), no_command),
-        (json.dumps({**bash, "tool_input": {"command": 42}}), no_command),
-        (json.dumps({**bash, "tool_input": {"command": []}}), no_command),
-        (json.dumps({**bash, "tool_input": {"command": {}}}), no_command),
-        (json.dumps({**bash, "tool_input": {"command": ""}}), no_command),
-        (json.dumps({**bash, "tool_input": {"command": "   "}}), no_command),
-        (json.dumps({**bash, "tool_input": {"command": "\n"}}), no_command),
-    ]
-    for payload, expected in cases:
-        proc = run_hook_raw(payload)
+        pytest.param({**_BASH, "tool_input": {"command": None}}, _NO_COMMAND, id="command-null"),
+        pytest.param({**_BASH, "tool_input": {"command": 42}}, _NO_COMMAND, id="command-number"),
+        pytest.param({**_BASH, "tool_input": {"command": []}}, _NO_COMMAND, id="command-list"),
+        pytest.param({**_BASH, "tool_input": {"command": {}}}, _NO_COMMAND, id="command-object"),
+        pytest.param({**_BASH, "tool_input": {"command": ""}}, _NO_COMMAND, id="command-empty"),
+        pytest.param({**_BASH, "tool_input": {"command": "   "}}, _NO_COMMAND, id="command-spaces"),
+        pytest.param({**_BASH, "tool_input": {"command": "\n"}}, _NO_COMMAND, id="command-newline"),
+    ],
+)
+def test_bash_command_rejects_unusable_input(payload: dict[str, Any], expected: str) -> None:
+    guard = load_guard_module()
 
-        assert proc.returncode == 0, payload
-        assert decision(proc) == "deny", payload
-        assert expected in reason(proc), payload
+    with pytest.raises(guard.HookInputError, match=_exactly(expected)):
+        guard.bash_command(payload)
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        pytest.param("", _EMPTY, id="empty"),
+        pytest.param("{not json", _NOT_JSON, id="broken-json"),
+        pytest.param("[]", _NOT_OBJECT, id="not-object"),
+        pytest.param(
+            json.dumps({**_BASH, "tool_input": []}),
+            _BAD_TOOL_INPUT,
+            id="tool-input-not-object",
+        ),
+        pytest.param(
+            json.dumps({**_BASH, "tool_input": {"command": "   "}}),
+            _NO_COMMAND,
+            id="no-command",
+        ),
+    ],
+)
+def test_unusable_input_denies_with_its_reason(raw: str, expected: str) -> None:
+    """入力が壊れているときは素通りさせず (fail-closed)、壊れ方の理由文を deny で返す。
+
+    境界値の網羅は parse_payload / bash_command を直接呼ぶテストが持つ。ここは理由の種類
+    ごとに 1 件ずつ、main() が HookInputError を deny まで配線していることだけを見る。
+    """
+    proc = run_hook_raw(raw)
+
+    assert proc.returncode == 0
+    assert decision(proc) == "deny"
+    assert reason(proc) == f"apm-install-guard: {expected}"
 
 
 def test_deny_payload_has_the_exact_hook_specific_output_shape() -> None:
-    """deny の JSON は hookSpecificOutput の判定3フィールドだけで返る。
-
-    文脈のフィールド (additionalContext) を判定へ相乗りさせない。このガードの出力は
-    deny か無出力の2値で、判定を持たない文脈だけの出力は無い。
-    """
+    """deny の JSON は hookSpecificOutput の判定3フィールドだけで返る。"""
     proc = run_hook_raw("")
 
     assert json.loads(proc.stdout) == {

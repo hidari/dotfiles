@@ -11,8 +11,8 @@
 述語をここへ集めるのは、同じ判定を 2 箇所へ書くと片方だけ直したときに沈黙して食い違う
 ためである。それはこの層が扱っている欠陥そのものなので、canonical を 1 つにする。
 
-print と sys.exit は持たない。副作用を持ち込むとこの層だけを直接テストできなくなる
-(hook_git.py と同じ規則)。subprocess は持つので純関数ではない。
+print と sys.exit は持たない。副作用を持ち込むとこの層だけを直接テストできなくなる。
+subprocess は持つので純関数ではない。
 
 shim の解決そのものは guard_resolve.py (leaf) が持つ。あちらは PreToolUse (強制層) が
 ホットパスで import するため軽量に保つ必要があり、こちらは SessionStart (セッションに 1 回)
@@ -220,9 +220,7 @@ def _herdr_bin() -> str | None:
     統合を入れ直すたびに上書きする管理下のファイルである。上書きされる側の実装に合わせず、
     公開された CLI を使う。
 
-    guard_resolve へは寄せない。あちらは強制層がホットパスで import する leaf として射程を
-    apm の shim に絞っており、herdr は強制層が使わない。見つからなければ None を返し、
-    呼び出し側が対象外として通す。
+    見つからなければ None を返し、呼び出し側が対象外として通す。
     """
     return os.environ.get("HERDR_BIN_PATH") or shutil.which("herdr")
 

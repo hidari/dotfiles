@@ -46,8 +46,8 @@ install_apm_packages と shim の両方がそれを source する。この Pytho
 見る (bats 側にはこの一致を見るテストは無い)。
 
 hook 入力の解釈と判定 JSON の組み立てもこのファイルが持つ。PreToolUse のフックはこれ1つ
-なので共有層を置かない。入力を解釈できない形はすべて deny へ倒し、逃げ道は上の
-APM_INSTALL_GUARD_DISABLE だけである。
+なので共有層を置かない。PreToolUse の Bash 呼び出しで JSON・型・command を解釈できない形は
+deny へ倒す。イベントやツールが合わない・欠けている入力は介在対象外なので無出力で通す。
 """
 
 from __future__ import annotations
@@ -67,6 +67,9 @@ if TYPE_CHECKING:
 # 判定 JSON が名乗るイベント名と、介在する対象のツール。これ以外の入力は判定を出さずに通す。
 _HOOK_EVENT_NAME = "PreToolUse"
 _GUARDED_TOOL = "Bash"
+
+# deny の理由文の頭に付け、どのフックの判定かを示す。
+_REASON_PREFIX = "apm-install-guard: "
 
 # 読み取り専用と確認できた apm のサブコマンド。ここに無いものは書き込みうるものとして扱う。
 # 名前と性質は apm --help および各 --help (0.27.0) の実際の出力から採った。
@@ -121,7 +124,7 @@ _DROPPED_ENV_PREFIX = "GIT_"
 
 
 class HookInputError(Exception):
-    """フック入力を解釈できなかった。メッセージがそのまま deny の理由文になる。
+    """フック入力を解釈できなかった。メッセージに接頭辞を付けたものが deny の理由文になる。
 
     壊れ方ごとに理由文を変えるのは、どれも deny で返る以上、どの検査で倒れたかを読み手が
     理由文だけで区別するためである。
@@ -154,15 +157,13 @@ def parse_payload(raw: str) -> dict[str, Any]:
     検査できる。
     """
     if not raw.strip():
-        raise HookInputError("apm-install-guard: フックの入力が空でした")
+        raise HookInputError("フックの入力が空でした")
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise HookInputError(
-            "apm-install-guard: フックの入力を JSON として解釈できませんでした"
-        ) from exc
+        raise HookInputError("フックの入力を JSON として解釈できませんでした") from exc
     if not isinstance(payload, dict):
-        raise HookInputError("apm-install-guard: フックの入力が object ではありません")
+        raise HookInputError("フックの入力が object ではありません")
     return payload
 
 
@@ -184,27 +185,20 @@ def bash_command(payload: dict[str, Any]) -> str | None:
     if tool_input is None:
         tool_input = {}
     if not isinstance(tool_input, dict):
-        raise HookInputError("apm-install-guard: tool_input が object ではありません")
+        raise HookInputError("tool_input が object ではありません")
 
     command = tool_input.get("command")
     if not isinstance(command, str) or not command.strip():
-        raise HookInputError("apm-install-guard: Bash コマンドを読み取れませんでした")
+        raise HookInputError("Bash コマンドを読み取れませんでした")
     return command
 
 
-def deny(reason: str) -> NoReturn:
-    """deny の判定を出して終わる。このガードが出す判定は deny だけである。
-
-    allow を出さない理由はモジュール docstring にある。文脈だけを載せる形 (additionalContext)
-    も持たない。出力は deny か無出力の2値である。
-
-    ensure_ascii=False は判定理由をログでそのまま読むため。JSON としての意味は変わらない
-    (受け取り側はどちらでも同じ文字列を得る)。
-    """
+def deny(reason: str, *, prefixed: bool = True) -> NoReturn:
+    """ensure_ascii=False は判定理由をログでそのまま読むため。JSON としての意味は変わらない。"""
     output = {
         "hookEventName": _HOOK_EVENT_NAME,
         "permissionDecision": "deny",
-        "permissionDecisionReason": reason,
+        "permissionDecisionReason": f"{_REASON_PREFIX}{reason}" if prefixed else reason,
     }
     print(json.dumps({"hookSpecificOutput": output}, ensure_ascii=False))
     sys.exit(0)
@@ -429,7 +423,7 @@ def main() -> None:
     try:
         raw = sys.stdin.read()
     except OSError:
-        deny("apm-install-guard: フックの入力を読み取れませんでした")
+        deny("フックの入力を読み取れませんでした")
 
     try:
         payload = parse_payload(raw)
@@ -466,7 +460,7 @@ def main() -> None:
         # 確認してください」だけを求めており、起動元シェルが古いときは対話シェルで確かめると
         # 両方満たされているため、読んだ側が問題なしと判断してしまう形だった。
         deny(
-            f"apm-install-guard: apm ガードの shim が PATH 上に見つからないため apm {subcommand} は"
+            f"apm ガードの shim が PATH 上に見つからないため apm {subcommand} は"
             "許可しない。"
             f"期待する置き場は {guard_resolve.shim_path()} で、bootstrap.sh が SYMLINK_PAIRS で"
             "張り、.zshrc が mise activate の直後で PATH へ足す。"
@@ -475,21 +469,21 @@ def main() -> None:
 
     cwd = get(payload, "cwd")
     if not isinstance(cwd, str) or not cwd:
-        deny(f"apm-install-guard: cwd が取れないため apm {subcommand} を許可できません")
+        deny(f"cwd が取れないため apm {subcommand} を許可できません")
 
     try:
         blocked = blocked_repository([cwd, *cd_targets(tokens, cwd)])
     except GitUnavailableError as exc:
-        deny(f"apm-install-guard: 検査できませんでした: {exc}")
+        deny(f"検査できませんでした: {exc}")
 
     if blocked is None:
         allow_silently()
 
-    deny(format_reason(subcommand, *blocked))
+    deny(format_reason(subcommand, *blocked), prefixed=False)
 
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as exc:  # SystemExit は BaseException 直下なのでここを通らない
-        deny(f"apm-install-guard: 予期しない例外: {exc}")
+        deny(f"予期しない例外: {exc}")
