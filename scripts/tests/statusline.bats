@@ -321,8 +321,10 @@ assert_statusline_feeds_hook() {
 # 行構成
 # =============================================================================
 #
-# 1〜3 行目は Claude が持つ状態、4 行目はリポジトリが持つ状態。
+# 1〜3 行目は Claude が持つ状態、最終行はリポジトリが持つ状態。
 # 情報の所有者で行を分けることが仕様なので、混ざっていないことまで検証する。
+# ここの入力は prompt_cache を持たない。キャッシュの行 (7d とリポジトリの行のあいだ) は
+# statusline-prompt-cache.bats が見る。
 
 @test "statusline: collapses to three lines outside a repository" {
     # リポジトリ外で 4 行目を空のまま出すと、画面に無意味な空行が残る。
@@ -375,7 +377,7 @@ assert_statusline_feeds_hook() {
 }
 
 @test "statusline: keeps repository info out of the first line" {
-    # 4 行目へ移したのに 1 行目にも残っている二重表示を防ぐ
+    # リポジトリ情報を 1 行目と最終行に二重に出さない
     setup_test_repo "$TEST_HOME/myrepo"
 
     run_statusline_in "$TEST_HOME/myrepo"
@@ -385,7 +387,7 @@ assert_statusline_feeds_hook() {
 }
 
 @test "statusline: keeps the rate limit bars on the middle lines" {
-    # リポジトリ行を足したときに 5h / 7d が押し出されていないこと
+    # リポジトリ行があっても 5h / 7d が 2・3 行目に留まること
     setup_test_repo "$TEST_HOME/myrepo"
 
     run_statusline_in "$TEST_HOME/myrepo"

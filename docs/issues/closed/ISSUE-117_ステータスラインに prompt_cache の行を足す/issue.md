@@ -1,0 +1,32 @@
+---
+status: closed
+---
+
+# feat: ステータスラインに prompt_cache の行を足す
+
+## 背景
+
+Claude Code は statusLine の入力に `prompt_cache` を渡す (https://code.claude.com/docs/en/statusline#prompt-cache-fields)。
+キャッシュが warm のうちに次のメッセージを送れば再キャッシュのコストを払わずに済むので、残り時間と、cold になったときに払う量をステータスラインへ出す。
+
+仕様の canonical は `scripts/tests/statusline-prompt-cache.bats`。ここには判断の経緯だけを残す。
+
+- `prompt_cache` が無いあいだは行ごと出さない。手元の版に無いフィールドは、その部分だけ飛ばす
+- warm は緑、残り10分以下は黄色、cold は赤。warm のまま期限を過ぎたデータは cold として出す
+- カウントダウンを止めないため、settings.json の statusLine に `refreshInterval` を足す
+- キャッシュの行は 7d の行の直後に置き、リポジトリとブランチの行を常に最下行にする (ユーザーの依頼で、最初はリポジトリの行の下に置いていたのを入れ替えた)
+- warm は残りの割合のゲージ、切れるまでの分数、切れる時刻 (Asia/Tokyo) を出す。ラベルは pc にして 5h / 7d と列をそろえる。cold は [cold] と括る
+- 実セッションで1時間止めて記録したところ、Claude Code は期限の1秒後に warm を false へ切り替え、そのあとも prompt_cache を渡し続けた。行が消える場面は無かった
+
+## タスク
+
+- [x] 仕様を表す bats テストを先に書き、赤を確かめる
+- [x] statusline-command.sh にキャッシュの行を実装する
+- [x] 黄色の境界、cold の判定、k の丸め、欠けたフィールドを飛ばす分岐への変異注入で、狙ったテストが赤になることを確かめる
+- [x] settings.json の statusLine に `refreshInterval` を足し、config-guard の scan と pytest を通す
+- [x] warm / 期限切れ間近 / cold のサンプル JSON を実スクリプトに流して出力を確かめる
+- [x] /simplify と feature-dev:code-reviewer を通し、PR の CI を全ジョブ pass させる
+
+## 関連
+
+- ISSUE-91 (statusLine へ並行セッション数を出す。同じスクリプトの別の行)

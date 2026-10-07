@@ -3,10 +3,11 @@
 # Line 1: account | Model | ◔◑◕● Context% | cost · duration
 # Line 2: 5h rate limit progress bar
 # Line 3: 7d rate limit progress bar
-# Line 4: project [branch] | ± +added/-removed
+# Line 4: prompt cache の残りゲージ・分数・期限の時刻 (warm) か、cold で次に払う再キャッシュ量
+# Line 5: project [branch] | ± +added/-removed
 #
-# 行は情報の所有者で分ける。1〜3 行目は Claude が持つ状態 (アカウント・モデル・消費)、
-# 4 行目はリポジトリが持つ状態。git リポジトリの外では 4 行目ごと省く (空行を出さない)。
+# 1〜4行目は Claude が持つ状態 (アカウント・モデル・消費・キャッシュ)、最終行はリポジトリが持つ状態。
+# 4 行目と 5 行目は出すものが無ければ行ごと省く (空行を出さない)。
 #
 # アカウント (CLAUDE_CONFIG_DIR) ごとにキャッシュを分ける。
 # 分けないと片方のアカウントのレート制限がもう片方の statusLine に表示され、
@@ -15,6 +16,23 @@
 # =============================================================================
 # ヘルパー関数
 # =============================================================================
+
+# ---------- 表示の定数 ----------
+# テストが同じ値を source して期待値に使えるよう、ヘルパー関数と同じブロックに置く。
+# 時刻を出す行はすべてこのタイムゾーンで表示し、名前も添える。
+DISPLAY_TZ="Asia/Tokyo"
+
+GREEN=$'\e[38;2;151;201;195m'
+YELLOW=$'\e[38;2;229;192;123m'
+RED=$'\e[38;2;224;108;117m'
+GRAY=$'\e[38;2;74;88;92m'
+# 2 段階の text color（One Dark 系パレットに整合）
+TEXT=$'\e[38;2;220;223;228m'    # primary: model 名など主情報
+SUB=$'\e[38;2;168;178;195m'     # secondary: cost / reset 時刻など補助情報
+RESET=$'\e[0m'
+PURPLE=$'\e[38;5;141m'
+CYAN=$'\e[38;5;087m'
+PINK=$'\e[38;5;213m'
 
 # ---------- Color by percentage ----------
 color_for_pct() {
@@ -42,7 +60,8 @@ progress_bar() {
   [ "$filled" -gt 10 ] 2>/dev/null && filled=10
   [ "$filled" -lt 0 ] 2>/dev/null && filled=0
   local bar=""
-  for i in $(seq 1 10); do
+  local i
+  for ((i = 1; i <= 10; i++)); do
     if [ "$i" -le "$filled" ]; then
       bar="${bar}▰"
     else
@@ -168,9 +187,64 @@ format_epoch_time() {
   local format="$2"
   [ -z "$epoch" ] || [ "$epoch" = "0" ] && echo "" && return
   local result
-  result=$(TZ="Asia/Tokyo" date -j -f "%s" "$epoch" "$format" 2>/dev/null || \
-           TZ="Asia/Tokyo" date -d "@${epoch}" "$format" 2>/dev/null || echo "")
+  result=$(TZ="$DISPLAY_TZ" date -j -f "%s" "$epoch" "$format" 2>/dev/null || \
+           TZ="$DISPLAY_TZ" date -d "@${epoch}" "$format" 2>/dev/null || echo "")
   echo "$result"
+}
+
+# ---------- Prompt cache (Claude Code 本体が stdin で渡す値) ----------
+# warm のうちに次を送れば再キャッシュを払わずに済むので、残り時間と、cold で払う量を出す。
+# 引数は prompt_cache の JSON。現在時刻は STATUSLINE_NOW (epoch 秒) で差し替えられ、
+# 未設定なら jq の now を使う。
+# 手元の版に無いフィールドや null のフィールドは、その部分だけ飛ばす。
+# cold の判定と丸めは jq に寄せ、シェルは並べるだけにする。
+prompt_cache_line() {
+  local pc_cold="" pc_remaining="" pc_expires="" pc_ttl="" pc_stats="" pc_recache_k="" pc_causes=""
+  local assignments
+  # warm が true でも期限に達していれば cold として扱う。本体は expires_at に達したときにも
+  # statusline を再実行するが、その時点の warm はまだ true のことがある。
+  # expires_at が null のときも cold になる。jq の順序では null がどの数よりも小さいので、
+  # 期限の比較がそのまま真になる。
+  assignments=$(printf '%s' "$1" | jq -r --arg now "${STATUSLINE_NOW:-}" '
+    def ttl_seconds:
+      if type == "string" and test("^[1-9][0-9]*[mh]$")
+      then (.[:-1] | tonumber) * {"m": 60, "h": 3600}[.[-1:]]
+      else null end;
+    (if $now == "" then now else ($now | tonumber) end) as $now |
+    .expires_at as $exp |
+    (.warm != true or $exp <= $now) as $cold |
+    "pc_cold=" + ($cold | tostring),
+    "pc_remaining=" + (if $cold then "" else ($exp - $now | floor | tostring) end | @sh),
+    "pc_expires=" + (if $cold then "" else ($exp | floor | tostring) end | @sh),
+    "pc_ttl=" + ((.ttl | ttl_seconds // "") | tostring | @sh),
+    "pc_stats=" + ([if .hit_ratio == null then empty else "hit \(.hit_ratio * 100 | round)%" end,
+                    if .misses == null then empty else "misses \(.misses)" end] | join(", ") | @sh),
+    "pc_recache_k=" + (if .recache_tokens_if_cold == null then ""
+                       else (.recache_tokens_if_cold / 1000 | round | tostring) end | @sh),
+    "pc_causes=" + ((.last_miss_cause.causes? // []) | map(tostring) | join(", ") | @sh)
+  ' 2>/dev/null) || return 0
+  eval "$assignments"
+
+  local line
+  if [ "$pc_cold" = "true" ]; then
+    line="${RED}pc  [cold]"
+    [ -n "$pc_recache_k" ] && line+="  next message re-caches ${pc_recache_k}k tokens"
+    [ -n "$pc_causes" ] && line+="  last miss: ${pc_causes}"
+    printf '%s' "${line}${RESET}"
+    return 0
+  fi
+
+  local color="$GREEN"
+  [ "$pc_remaining" -le 600 ] && color="$YELLOW"
+  # ラベルと数字の幅を 5h / 7d の行にそろえ、ゲージ・数字・時刻を同じ列に並べる。
+  line="${color}pc  "
+  [ -n "$pc_ttl" ] && line+="$(progress_bar $((pc_remaining * 100 / pc_ttl)))  "
+  # 分数は切り上げる。切り捨てると最後の1分未満を0分と出す。
+  # 時刻は分で切り捨てる (format_epoch_time の %H:%M)。表示の時刻までに送れば間に合う。
+  line+="$(printf '%3dm' $(((pc_remaining + 59) / 60)))${RESET}"
+  line+="  ${SUB}Expires at $(format_epoch_time "$pc_expires" "+%H:%M") (${DISPLAY_TZ})${RESET}"
+  [ -n "$pc_stats" ] && line+="  ${color}${pc_stats}${RESET}"
+  printf '%s' "$line"
 }
 
 # =============================================================================
@@ -179,23 +253,10 @@ format_epoch_time() {
 
 input=$(cat)
 
-# ---------- ANSI Colors ----------
-GREEN=$'\e[38;2;151;201;195m'
-YELLOW=$'\e[38;2;229;192;123m'
-RED=$'\e[38;2;224;108;117m'
-GRAY=$'\e[38;2;74;88;92m'
-# 2 段階の text color（One Dark 系パレットに整合）
-TEXT=$'\e[38;2;220;223;228m'    # primary: model 名など主情報
-SUB=$'\e[38;2;168;178;195m'     # secondary: cost / reset 時刻など補助情報
-RESET=$'\e[0m'
-PURPLE=$'\e[38;5;141m'
-CYAN=$'\e[38;5;087m'
-PINK=$'\e[38;5;213m'
-
 # ---------- Parse stdin (single jq call) ----------
 # jq 出力を eval で一括代入するため shellcheck は代入を追えない。
 # ここで先に宣言して SC2154 (referenced but not assigned) の誤検出を防ぐ。
-model_name="" used_pct="" cwd="" lines_added="" lines_removed="" cost_usd="" duration_ms="" rate_limits=""
+model_name="" used_pct="" cwd="" lines_added="" lines_removed="" cost_usd="" duration_ms="" rate_limits="" prompt_cache=""
 FIVE_HOUR_PCT="" FIVE_HOUR_RESET="" SEVEN_DAY_PCT="" SEVEN_DAY_RESET=""
 eval "$(echo "$input" | jq -r '
   "model_name=" + (.model.display_name // "Unknown" | @sh),
@@ -205,7 +266,8 @@ eval "$(echo "$input" | jq -r '
   "lines_removed=" + (.cost.total_lines_removed // 0 | tostring),
   "cost_usd=" + (.cost.total_cost_usd // 0 | tostring),
   "duration_ms=" + (.cost.total_duration_ms // 0 | tostring),
-  "rate_limits=" + ((.rate_limits // {}) | tojson | @sh)
+  "rate_limits=" + ((.rate_limits // {}) | tojson | @sh),
+  "prompt_cache=" + ((.prompt_cache // {}) | tojson | @sh)
 ' 2>/dev/null)"
 
 # ---------- Account ----------
@@ -278,12 +340,12 @@ fi
 
 five_reset_display=""
 if [ -n "$FIVE_HOUR_RESET" ]; then
-  five_reset_display="Resets at $(format_epoch_time "$FIVE_HOUR_RESET" "+%H:%M") (Asia/Tokyo)"
+  five_reset_display="Resets at $(format_epoch_time "$FIVE_HOUR_RESET" "+%H:%M") (${DISPLAY_TZ})"
 fi
 
 seven_reset_display=""
 if [ -n "$SEVEN_DAY_RESET" ]; then
-  seven_reset_display="Resets at $(format_epoch_time "$SEVEN_DAY_RESET" "+%Y-%m-%d %H:%M") (Asia/Tokyo)"
+  seven_reset_display="Resets at $(format_epoch_time "$SEVEN_DAY_RESET" "+%Y-%m-%d %H:%M") (${DISPLAY_TZ})"
 fi
 
 # ---------- Format context used% ----------
@@ -334,28 +396,32 @@ else
   line3="${GRAY}7d  ▱▱▱▱▱▱▱▱▱▱   --%${RESET}"
 fi
 
-# ---------- Line 4 (repository) ----------
-# git リポジトリの外では空のまま。空文字なら行ごと出さず 3 行に畳む
+# ---------- Line 4 (prompt cache) ----------
+# 本体は最初の API 応答のあとから prompt_cache を渡す。それまでは行ごと出さない。
+cache_line=""
+if [ -n "$prompt_cache" ] && [ "$prompt_cache" != "{}" ]; then
+  cache_line=$(prompt_cache_line "$prompt_cache")
+fi
+
+# ---------- Line 5 (repository) ----------
+# git リポジトリの外では空のまま。空文字なら行ごと出さない
 # (空行を出すと画面に無意味な隙間が残る)。
-line4=""
+repo_line=""
 if [ -n "$git_branch" ]; then
-  line4="${PURPLE}${project}${RESET} ${CYAN}${git_staged}${git_unstaged}[${git_branch}]${RESET}"
+  repo_line="${PURPLE}${project}${RESET} ${CYAN}${git_staged}${git_unstaged}[${git_branch}]${RESET}"
 elif [ -n "$project" ]; then
-  line4="${PURPLE}${project}${RESET}"
+  repo_line="${PURPLE}${project}${RESET}"
 fi
 
 if [ -n "$git_stats" ]; then
-  [ -n "$line4" ] && line4+="${SEP}"
-  line4+="${GREEN}± ${git_stats}${RESET}"
+  [ -n "$repo_line" ] && repo_line+="${SEP}"
+  repo_line+="${GREEN}± ${git_stats}${RESET}"
 fi
 
 # ---------- Output ----------
-# 最終行にだけ改行を付けない。4 行目の有無で最終行が変わるため分岐する。
-printf '%s\n' "$line1"
-printf '%s\n' "$line2"
-if [ -n "$line4" ]; then
-  printf '%s\n' "$line3"
-  printf '%s' "$line4"
-else
-  printf '%s' "$line3"
-fi
+# 空の行は省き、行のあいだにだけ改行を置く (最終行に改行を付けない)。
+out=("$line1" "$line2" "$line3")
+[ -n "$cache_line" ] && out+=("$cache_line")
+[ -n "$repo_line" ] && out+=("$repo_line")
+IFS=$'\n'
+printf '%s' "${out[*]}"
