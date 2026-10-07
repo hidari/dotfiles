@@ -71,11 +71,14 @@ PROMPT='%F{141}[%D %*]%f %~ %F{087}$vcs_info_msg_0_%f
 # 補完
 
 # 補完機能を有効にする
-#for zsh-completions
-fpath=(/usr/local/share/zsh-completions $fpath)
+# Homebrew が入れる補完 (brew / gh / op など) を compinit より前に fpath へ載せる。
+# compinit は呼ばれた時点の fpath しか走査しないので、後段の brew shellenv が足すのを
+# 待つと補完表に入らない。brew shellenv がもう一度足す分は typeset -U が重複を落とす。
+typeset -U fpath
+fpath=(/opt/homebrew/share/zsh/site-functions(N-/) $fpath)
 
 autoload -Uz compinit
-if [ $(date +'%j') != $(stat -f '%Sm' -t '%j' ~/.zcompdump 2>/dev/null) ]; then
+if [[ $(date +'%j') != $(stat -f '%Sm' -t '%j' ~/.zcompdump 2>/dev/null) ]]; then
   compinit
 else
   compinit -C
@@ -407,10 +410,6 @@ eval "$(/opt/homebrew/bin/brew shellenv)"
 
 # miseのやつ
 eval "$(mise activate zsh)"
-
-# op (1Password CLI) の補完。op は Brewfile の管理外なので、未インストールのマシンで
-# command not found を出さないよう存在確認してから読む。
-command -v op >/dev/null 2>&1 && eval "$(op completion zsh)" && compdef _op op
 
 # apm ガードの shim を PATH の先頭へ置く。
 # path 配列 (このファイル上部) 側へ書いてはならない。mise activate が PATH を再構成する
