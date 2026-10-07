@@ -408,6 +408,10 @@ eval "$(/opt/homebrew/bin/brew shellenv)"
 # miseのやつ
 eval "$(mise activate zsh)"
 
+# op (1Password CLI) の補完。op は Brewfile の管理外なので、未インストールのマシンで
+# command not found を出さないよう存在確認してから読む。
+command -v op >/dev/null 2>&1 && eval "$(op completion zsh)" && compdef _op op
+
 # apm ガードの shim を PATH の先頭へ置く。
 # path 配列 (このファイル上部) 側へ書いてはならない。mise activate が PATH を再構成する
 # ため、配列へ足すと実物の apm より後ろへ落ちて一度も横取りできない。
