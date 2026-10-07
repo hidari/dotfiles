@@ -102,6 +102,9 @@ Phase 3a のスコープを大きく超えるため別 Issue に分けた。
 - ISSUE-67: コンテキスト閾値の通知の state ファイルの後始末を、本 Issue の寿命のタスクへ寄せた
 - ISSUE-55 と ISSUE-56 が PreToolUse の 2 フックそれぞれの穴を扱う。どちらも共有層
   (`pretooluse.py`) ではなくフック固有の判定にあるため、本 Issue の集約とは独立して直せる
+- ISSUE-115 で tirith の PreToolUse フックを撤去し、利用者が apm-install-guard.py だけになった
+  共有層 `pretooluse.py` を apm-install-guard.py へ畳んだ。上の「PreToolUse プロトコル層を共有モジュールへ
+  切り出し」タスクの成果は、共有の理由が消えたため撤去後は残っていない
 - ISSUE-57 が `home/.claude/hooks/herdr-agent-state.sh` の埋め込み Python を構文検査する。
   同ファイルは `scripts/claude-hooks/` の対象 (Python フック 4 本) に入っておらず、
   取り込むかどうかは本 Issue の範囲と重なる
