@@ -65,22 +65,27 @@ run_cache_line() {
     refute_contains "$(cat "$TEST_HOME/out.txt")" "cache"
 }
 
-@test "prompt_cache: appends the cache line last without a trailing newline" {
+@test "prompt_cache: appends the cache line last outside a repository" {
     statusline_raw "$TEST_HOME/out.txt" "" "$(prompt_cache_json)"
 
     [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 3 ]
     assert_contains "$(tail -n 1 "$TEST_HOME/out.txt")" "cache"
 }
 
-@test "prompt_cache: puts the cache line below the repository line" {
+@test "prompt_cache: puts the cache line between the rate limits and the repository line" {
+    # リポジトリの行は常に最下行。キャッシュの行は 7d の直後に挟まる
     setup_test_repo "$TEST_HOME/myrepo"
 
+    statusline_raw "$TEST_HOME/out.txt" "$TEST_HOME/myrepo" "$(prompt_cache_json)"
     run_statusline_in "$TEST_HOME/myrepo" "" "$(prompt_cache_json)"
 
     [ "$status" -eq 0 ]
     [ "${#lines[@]}" -eq 5 ]
-    assert_contains "${lines[3]}" "myrepo"
-    assert_contains "${lines[4]}" "cache"
+    assert_contains "${lines[2]}" "7d"
+    assert_contains "${lines[3]}" "cache"
+    assert_contains "${lines[4]}" "myrepo"
+    # 5 行 + 末尾改行なし = 改行 4 個
+    [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 4 ]
 }
 
 # =============================================================================

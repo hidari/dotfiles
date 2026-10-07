@@ -7,14 +7,14 @@ status: in_progress
 ## 背景
 
 Claude Code は statusLine の入力に `prompt_cache` を渡す (https://code.claude.com/docs/en/statusline#prompt-cache-fields)。
-キャッシュが warm のうちに次のメッセージを送れば再キャッシュのコストを払わずに済むので、残り時間と、cold になったときに払う量をステータスラインの最下行へ出す。
+キャッシュが warm のうちに次のメッセージを送れば再キャッシュのコストを払わずに済むので、残り時間と、cold になったときに払う量をステータスラインへ出す。
 
 仕様の canonical は `scripts/tests/statusline-prompt-cache.bats`。ここには判断の経緯だけを残す。
 
 - `prompt_cache` が無いあいだは行ごと出さない。手元の版に無いフィールドは、その部分だけ飛ばす
 - warm は緑、残り10分以下は黄色、cold は赤。warm のまま期限を過ぎたデータは cold として出す
 - カウントダウンを止めないため、settings.json の statusLine に `refreshInterval` を足す
-- 行の並びは情報の所有者で分けてきたが、キャッシュの行はユーザーの依頼どおりリポジトリの行の下に置く
+- キャッシュの行は 7d の行の直後に置き、リポジトリとブランチの行を常に最下行にする (ユーザーの依頼で、最初はリポジトリの行の下に置いていたのを入れ替えた)
 
 ## タスク
 

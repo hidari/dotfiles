@@ -3,12 +3,12 @@
 # Line 1: account | Model | ◔◑◕● Context% | cost · duration
 # Line 2: 5h rate limit progress bar
 # Line 3: 7d rate limit progress bar
-# Line 4: project [branch] | ± +added/-removed
-# Line 5: prompt cache の残り時間 (warm) か、cold で次に払う再キャッシュ量
+# Line 4: prompt cache の残り時間 (warm) か、cold で次に払う再キャッシュ量
+# Line 5: project [branch] | ± +added/-removed
 #
-# 1〜3 行目は Claude が持つ状態 (アカウント・モデル・消費)、4 行目はリポジトリが持つ状態。
-# キャッシュの行は Claude 側の状態だが、刻々と変わるので一番下に置く。
-# 4 行目と 5 行目は出すものが無ければ行ごと省く (空行を出さない)。
+# 1〜4 行目は Claude が持つ状態 (アカウント・モデル・消費・キャッシュ)、最終行はリポジトリが持つ状態。
+# 4 行目と 5 行目は出すものが無ければ行ごと省く (空行を出さない)。どちらを省いても
+# リポジトリの行が最下行に来る。
 #
 # アカウント (CLAUDE_CONFIG_DIR) ごとにキャッシュを分ける。
 # 分けないと片方のアカウントのレート制限がもう片方の statusLine に表示され、
@@ -391,32 +391,32 @@ else
   line3="${GRAY}7d  ▱▱▱▱▱▱▱▱▱▱   --%${RESET}"
 fi
 
-# ---------- Line 4 (repository) ----------
-# git リポジトリの外では空のまま。空文字なら行ごと出さず 3 行に畳む
+# ---------- Line 4 (prompt cache) ----------
+# 本体は最初の API 応答のあとから prompt_cache を渡す。それまでは行ごと出さない。
+cache_line=""
+if [ -n "$prompt_cache" ] && [ "$prompt_cache" != "{}" ]; then
+  cache_line=$(prompt_cache_line "$prompt_cache")
+fi
+
+# ---------- Line 5 (repository) ----------
+# git リポジトリの外では空のまま。空文字なら行ごと出さない
 # (空行を出すと画面に無意味な隙間が残る)。
-line4=""
+repo_line=""
 if [ -n "$git_branch" ]; then
-  line4="${PURPLE}${project}${RESET} ${CYAN}${git_staged}${git_unstaged}[${git_branch}]${RESET}"
+  repo_line="${PURPLE}${project}${RESET} ${CYAN}${git_staged}${git_unstaged}[${git_branch}]${RESET}"
 elif [ -n "$project" ]; then
-  line4="${PURPLE}${project}${RESET}"
+  repo_line="${PURPLE}${project}${RESET}"
 fi
 
 if [ -n "$git_stats" ]; then
-  [ -n "$line4" ] && line4+="${SEP}"
-  line4+="${GREEN}± ${git_stats}${RESET}"
-fi
-
-# ---------- Line 5 (prompt cache) ----------
-# 本体は最初の API 応答のあとから prompt_cache を渡す。それまでは行ごと出さない。
-line5=""
-if [ -n "$prompt_cache" ] && [ "$prompt_cache" != "{}" ]; then
-  line5=$(prompt_cache_line "$prompt_cache")
+  [ -n "$repo_line" ] && repo_line+="${SEP}"
+  repo_line+="${GREEN}± ${git_stats}${RESET}"
 fi
 
 # ---------- Output ----------
 # 空の行は省き、行のあいだにだけ改行を置く (最終行に改行を付けない)。
 out=("$line1" "$line2" "$line3")
-[ -n "$line4" ] && out+=("$line4")
-[ -n "$line5" ] && out+=("$line5")
+[ -n "$cache_line" ] && out+=("$cache_line")
+[ -n "$repo_line" ] && out+=("$repo_line")
 IFS=$'\n'
 printf '%s' "${out[*]}"
