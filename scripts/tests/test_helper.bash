@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# bootstrap.sh テスト用ヘルパー
+# bats テスト共通ヘルパー
 # =============================================================================
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,7 +14,7 @@ BOOTSTRAP_SCRIPT="${BOOTSTRAP_SCRIPT:-$REPO_ROOT/bootstrap.sh}"
 # 以下はホーム側のライブ symlink 先そのもの。変異注入で実ファイルを壊すと、その間に開いた
 # シェルや statusLine の描画が壊れた版を踏む (特に claude 関数の再帰変異は実害が大きい)。
 # 上書き可能にしておく理由がここだけ重い。対象をここで数えたり列挙したりしない。
-# 増えたときに数と列挙だけが取り残される (実際 .zshenv を足すまで「2 つ」のままだった)。
+# 増えたときに数と列挙だけが取り残される。
 STATUSLINE_SCRIPT="${STATUSLINE_SCRIPT:-$REPO_ROOT/home/.claude/statusline-command.sh}"
 ZSHRC_FILE="${ZSHRC_FILE:-$REPO_ROOT/home/.zshrc}"
 ZSHENV_FILE="${ZSHENV_FILE:-$REPO_ROOT/home/.zshenv}"
@@ -433,7 +433,7 @@ FAKE
 # statusline-command.sh へ渡す stdin JSON を組み立てる。
 # 第 1 引数は cwd。省くと git 探索経路へ入らないため、アカウント分離の観測に絞れる。
 # 第 2 引数に rate_limits オブジェクトを与えると、Claude Code 本体が渡す形を再現する。
-# 第 3 引数は prompt_cache オブジェクト (null も可)。
+# 第3引数は prompt_cache オブジェクト (null も可)。
 # 引数が空のときはキーごと出さない。本体が渡してこない実状況を再現するため、
 # "rate_limits":null との区別を保つ。
 statusline_input_json() {
@@ -463,7 +463,7 @@ run_statusline() {
 }
 
 # cwd を指定して statusline-command.sh を実行する (リポジトリ行の検証用)。
-# 第 2・第 3 引数は statusline_input_json へ渡す rate_limits と prompt_cache。
+# 第2・第3引数は statusline_input_json へ渡す rate_limits と prompt_cache。
 run_statusline_in() {
     run bash "$STATUSLINE_SCRIPT" <<< "$(statusline_input_json "$1" "${2:-}" "${3:-}")"
 }
@@ -471,7 +471,7 @@ run_statusline_in() {
 # statusline-command.sh の生の出力をファイルへ落とす。
 # bats の $output は末尾改行を落とすため、「最終行に改行を付けない」規約は
 # $lines の要素数では原理的に観測できない。改行の数で見る必要がある。
-# 第 3 引数は statusline_input_json へ渡す prompt_cache。
+# 第3引数は statusline_input_json へ渡す prompt_cache。
 statusline_raw() {
     local dest="$1"
     bash "$STATUSLINE_SCRIPT" > "$dest" 2>/dev/null <<< "$(statusline_input_json "${2:-}" "" "${3:-}")"

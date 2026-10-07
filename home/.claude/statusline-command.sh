@@ -6,9 +6,8 @@
 # Line 4: prompt cache の残りゲージ・分数・期限の時刻 (warm) か、cold で次に払う再キャッシュ量
 # Line 5: project [branch] | ± +added/-removed
 #
-# 1〜4 行目は Claude が持つ状態 (アカウント・モデル・消費・キャッシュ)、最終行はリポジトリが持つ状態。
-# 4 行目と 5 行目は出すものが無ければ行ごと省く (空行を出さない)。どちらを省いても
-# リポジトリの行が最下行に来る。
+# 1〜4行目は Claude が持つ状態 (アカウント・モデル・消費・キャッシュ)、最終行はリポジトリが持つ状態。
+# 4 行目と 5 行目は出すものが無ければ行ごと省く (空行を出さない)。
 #
 # アカウント (CLAUDE_CONFIG_DIR) ごとにキャッシュを分ける。
 # 分けないと片方のアカウントのレート制限がもう片方の statusLine に表示され、
@@ -18,8 +17,11 @@
 # ヘルパー関数
 # =============================================================================
 
-# ---------- ANSI Colors ----------
+# ---------- 表示の定数 ----------
 # テストが同じ値を source して期待値に使えるよう、ヘルパー関数と同じブロックに置く。
+# 時刻を出す行はすべてこのタイムゾーンで表示し、名前も添える。
+DISPLAY_TZ="Asia/Tokyo"
+
 GREEN=$'\e[38;2;151;201;195m'
 YELLOW=$'\e[38;2;229;192;123m'
 RED=$'\e[38;2;224;108;117m'
@@ -185,8 +187,8 @@ format_epoch_time() {
   local format="$2"
   [ -z "$epoch" ] || [ "$epoch" = "0" ] && echo "" && return
   local result
-  result=$(TZ="Asia/Tokyo" date -j -f "%s" "$epoch" "$format" 2>/dev/null || \
-           TZ="Asia/Tokyo" date -d "@${epoch}" "$format" 2>/dev/null || echo "")
+  result=$(TZ="$DISPLAY_TZ" date -j -f "%s" "$epoch" "$format" 2>/dev/null || \
+           TZ="$DISPLAY_TZ" date -d "@${epoch}" "$format" 2>/dev/null || echo "")
   echo "$result"
 }
 
@@ -237,10 +239,10 @@ prompt_cache_line() {
   # ラベルと数字の幅を 5h / 7d の行にそろえ、ゲージ・数字・時刻を同じ列に並べる。
   line="${color}pc  "
   [ -n "$pc_ttl" ] && line+="$(progress_bar $((pc_remaining * 100 / pc_ttl)))  "
-  # 分数は切り上げる。切り捨てると最後の 1 分未満を 0 分と出す。
+  # 分数は切り上げる。切り捨てると最後の1分未満を0分と出す。
   # 時刻は分で切り捨てる (format_epoch_time の %H:%M)。表示の時刻までに送れば間に合う。
   line+="$(printf '%3dm' $(((pc_remaining + 59) / 60)))${RESET}"
-  line+="  ${SUB}Expires at $(format_epoch_time "$pc_expires" "+%H:%M") (Asia/Tokyo)${RESET}"
+  line+="  ${SUB}Expires at $(format_epoch_time "$pc_expires" "+%H:%M") (${DISPLAY_TZ})${RESET}"
   [ -n "$pc_stats" ] && line+="  ${color}${pc_stats}${RESET}"
   printf '%s' "$line"
 }
@@ -338,12 +340,12 @@ fi
 
 five_reset_display=""
 if [ -n "$FIVE_HOUR_RESET" ]; then
-  five_reset_display="Resets at $(format_epoch_time "$FIVE_HOUR_RESET" "+%H:%M") (Asia/Tokyo)"
+  five_reset_display="Resets at $(format_epoch_time "$FIVE_HOUR_RESET" "+%H:%M") (${DISPLAY_TZ})"
 fi
 
 seven_reset_display=""
 if [ -n "$SEVEN_DAY_RESET" ]; then
-  seven_reset_display="Resets at $(format_epoch_time "$SEVEN_DAY_RESET" "+%Y-%m-%d %H:%M") (Asia/Tokyo)"
+  seven_reset_display="Resets at $(format_epoch_time "$SEVEN_DAY_RESET" "+%Y-%m-%d %H:%M") (${DISPLAY_TZ})"
 fi
 
 # ---------- Format context used% ----------

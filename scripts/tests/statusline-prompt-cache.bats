@@ -4,9 +4,9 @@
 # =============================================================================
 #
 # Claude Code 本体は statusLine の入力に prompt_cache を渡す。warm のうちに次を送れば
-# 再キャッシュを払わずに済むので、残り時間と、cold になったときに払う量を最下行に出す。
+# 再キャッシュを払わずに済むので、残り時間と、cold になったときに払う量を 7d の行の直後に出す。
 #   - prompt_cache が無いあいだは行ごと出さない (空行も出さない)
-#   - warm は緑、残り 600 秒以下は黄色、cold は赤
+#   - warm は緑、残り600秒以下は黄色、cold は赤
 #   - warm は残りの割合のゲージ、切れるまでの分数、切れる時刻 (Asia/Tokyo) を出す
 #   - ラベルは pc (prompt cache)。5h / 7d と同じ幅にして、ゲージと数字の列をそろえる
 #   - warm が true でも expires_at が null か現在時刻以下なら cold として出す
@@ -31,7 +31,7 @@ teardown() {
     teardown_test_home
 }
 
-# warm で 38 分残り (2280 秒 / 3600 秒) の基準形。第 1 引数の jq フィルタで 1 箇所ずつ崩す。
+# warm で38分残り (2280秒 / 3600秒) の基準形。第1引数の jq フィルタで1箇所ずつ崩す。
 # フィルタの中では $now が現在時刻を指す。
 prompt_cache_json() {
     jq -cn --argjson now "$NOW" "
@@ -40,8 +40,8 @@ prompt_cache_json() {
         | ${1:-.}"
 }
 
-# statusline を prompt_cache 付きで実行し、最下行を CACHE_LINE に入れる。
-# 行数はリポジトリの内外で変わるので、位置ではなく最後の要素で取る。
+# statusline を prompt_cache 付きで実行し、キャッシュの行を CACHE_LINE に入れる。
+# cwd を空にしてリポジトリの行を出さないので、キャッシュの行が最後の要素に来る。
 run_cache_line() {
     run_statusline_in "" "" "$1"
     [ "$status" -eq 0 ]
@@ -78,15 +78,16 @@ run_cache_line() {
     # リポジトリの行は常に最下行。キャッシュの行は 7d の直後に挟まる
     setup_test_repo "$TEST_HOME/myrepo"
 
+    # 行の位置と改行の数を、同じ 1 回の出力から見る
     statusline_raw "$TEST_HOME/out.txt" "$TEST_HOME/myrepo" "$(prompt_cache_json)"
-    run_statusline_in "$TEST_HOME/myrepo" "" "$(prompt_cache_json)"
+    run cat "$TEST_HOME/out.txt"
 
     [ "$status" -eq 0 ]
     [ "${#lines[@]}" -eq 5 ]
     assert_contains "${lines[2]}" "7d"
     assert_contains "${lines[3]}" "pc  "
     assert_contains "${lines[4]}" "myrepo"
-    # 5 行 + 末尾改行なし = 改行 4 個
+    # 5行 + 末尾改行なし = 改行4個
     [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 4 ]
 }
 
@@ -102,7 +103,7 @@ run_cache_line() {
 }
 
 @test "prompt_cache: rounds the remaining minutes up" {
-    # 2281 秒は 38 分と 1 秒。切り捨てると期限前に 38 と出し続ける
+    # 2281秒は38分と1秒。切り捨てると期限前に38と出し続ける
     run_cache_line "$(prompt_cache_json '.expires_at = $now + 2281')"
 
     assert_contains "$CACHE_LINE" " 39m${RESET}"
@@ -134,14 +135,14 @@ run_cache_line() {
 }
 
 @test "prompt_cache: fills the bar against the 5m ttl" {
-    # 5m の ttl は残りが常に 600 秒以下なので、warm の間ずっと黄色になる
+    # 5m の ttl は残りが常に600秒以下なので、warm の間ずっと黄色になる
     run_cache_line "$(prompt_cache_json '.ttl = "5m" | .expires_at = $now + 180')"
 
     [ "$CACHE_LINE" = "${YELLOW}pc  ▰▰▰▰▰▰▱▱▱▱    3m${RESET}  ${SUB}Expires at 12:36 (Asia/Tokyo)${RESET}  ${YELLOW}hit 91%, misses 0${RESET}" ]
 }
 
 @test "prompt_cache: shows hit 0% rather than skipping a zero ratio" {
-    # 0 は値であって欠損ではない。null と同じ扱いにすると最悪の状態が見えなくなる
+    # 0は値であって欠損ではない。null と同じ扱いにすると最悪の状態が見えなくなる
     run_cache_line "$(prompt_cache_json '.hit_ratio = 0')"
 
     assert_contains "$CACHE_LINE" "hit 0%, misses 0"
@@ -157,7 +158,7 @@ run_cache_line() {
 # cold の判定
 # =============================================================================
 #
-# 3 つの条件は独立に cold を作る。1 つのテストにまとめると、落とした条件が残りの条件に
+# 3つの条件は独立に cold を作る。1つのテストにまとめると、落とした条件が残りの条件に
 # 隠れて緑のままになる。
 
 @test "prompt_cache: is cold when warm is false" {
@@ -241,7 +242,7 @@ run_cache_line() {
 }
 
 @test "prompt_cache: skips the bar when ttl is zero" {
-    # 分母が 0 だとバーの計算がゼロ除算で落ち、行ごと消える
+    # 分母が0だとバーの計算がゼロ除算で落ち、行ごと消える
     run_cache_line "$(prompt_cache_json '.ttl = "0m"')"
 
     [ "$CACHE_LINE" = "${GREEN}pc   38m${RESET}  ${SUB}Expires at 13:11 (Asia/Tokyo)${RESET}  ${GREEN}hit 91%, misses 0${RESET}" ]
@@ -269,9 +270,9 @@ run_cache_line() {
 @test "prompt_cache: aligns the gauge and the minutes with the rate limit lines" {
     # 5h / 7d と同じ列にゲージ・数字の末尾・時刻の書き出しが来ること。
     # ゲージは多バイト文字なので、位置ではなく「時刻の手前までの長さ」を比べる。
-    # 両方の行がゲージ 10 マスと同じ数の ASCII を持つので、ロケールが文字とバイトの
+    # 両方の行がゲージ10マスと同じ数の ASCII を持つので、ロケールが文字とバイトの
     # どちらで数えても等しくなる
-    run bash "$STATUSLINE_SCRIPT" <<< "$(statusline_input_json "" "$(rate_limits_json 42 13)" "$(prompt_cache_json)")"
+    run_statusline_in "" "$(rate_limits_json 42 13)" "$(prompt_cache_json)"
     [ "$status" -eq 0 ]
 
     local strip=$'s/\x1b\\[[0-9;]*m//g'
