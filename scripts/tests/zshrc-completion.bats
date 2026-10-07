@@ -49,17 +49,20 @@ completion_for() {
     completion_for git
 
     [ "$status" -eq 0 ]
-    # stderr 全体の空は見ない。CI のランナーでは環境由来の出力が載り、ローカルの macOS と
-    # Linux コンテナでは載らなかった。見るのは日付比較が壊れたときの文面だけにする
+    # stderr 全体の空は見ない。実行環境に由来する出力で揺れるため、日付比較が壊れたときの
+    # 文面だけを見る
     if [[ "$stderr" == *"parse error"* ]]; then
         echo "stderr: $stderr" >&2
         return 1
     fi
 }
 
-@test "completion block: the slice holds the compinit call" {
-    # 切り出しが空だと上のテストが何も評価しないまま、補完表が空のせいで赤くなる。
-    # 赤の理由を取り違えないよう、切り出し自体を先に確かめる
-    run grep -c 'compinit' "$COMPLETION_SLICE"
-    [ "$output" -ge 1 ]
+@test "completion block: evaluating the slice initializes the completion system" {
+    # 切り出しが空か compinit を呼ばない形だと、上の parse error の検査は何も評価しないまま
+    # 緑になる。compdef は compinit を実際に呼んだときだけ定義されるので、それで確かめる
+    run --separate-stderr env -u FPATH HOME="$ZDOT" ZDOTDIR="$ZDOT" zsh -f -c \
+        "source '$COMPLETION_SLICE' || exit 9; print -r -- \${+functions[compdef]}"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "1" ]
 }
