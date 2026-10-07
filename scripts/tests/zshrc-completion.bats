@@ -24,11 +24,21 @@ setup() {
     mkdir -p "$ZDOT"
 }
 
-# 補完ブロックを評価したあとの補完表から、コマンド名に対応する補完関数名を返す。
+# 補完ブロックを評価してから、渡した zsh の式を評価して出力する。
+#
 # FPATH は外す。brew shellenv を読んだシェルから走らせると site-functions を含む FPATH を
-# 継承し、ブロックが fpath へ足さなくても補完が登録されて緑のまま通る
-completion_for() {
-    run --separate-stderr env -u FPATH HOME="$ZDOT" ZDOTDIR="$ZDOT" zsh -f -c "source '$COMPLETION_SLICE' || exit 9; print -r -- \${_comps[$1]}"
+# 継承し、ブロックが fpath へ足さなくても補完が登録されて緑のまま通る。
+#
+# compaudit が insecure と判定するディレクトリは先に fpath から外す。外さないと、非対話の
+# compinit は確認を求められずに中断する (GitHub Actions のランナーで実際に起きた)。検査対象は
+# ブロックの書き方であって、実行環境のディレクトリの権限ではない。
+eval_after_slice() {
+    run --separate-stderr env -u FPATH HOME="$ZDOT" ZDOTDIR="$ZDOT" zsh -f -c "
+        autoload -Uz compaudit
+        insecure=(\${(f)\"\$(compaudit 2>/dev/null)\"})
+        fpath=(\${fpath:|insecure})
+        source '$COMPLETION_SLICE' || exit 9
+        print -r -- $1"
 }
 
 # Homebrew の site-functions は macOS の開発機にしか無いので、タグで CI の実行対象から外す
@@ -37,34 +47,31 @@ completion_for() {
     [ -f /opt/homebrew/share/zsh/site-functions/_brew ] \
         || skip_outside_ci "Homebrew の補完が見つからない" || return 1
 
-    completion_for brew
+    eval_after_slice '${_comps[brew]}'
 
     [ "$status" -eq 0 ]
     [ "$output" = "_brew" ]
 }
 
-@test "completion block: a first shell without a compdump starts without errors" {
-    # 新しいマシンの最初のシェルには ~/.zcompdump が無い。日付の比較が空の右辺で
-    # 壊れると、起動のたびにエラーを出したまま compinit -C 側へ落ちる
-    completion_for git
+@test "completion block: evaluating the slice initializes the completion system" {
+    # 切り出しが空か compinit を呼ばない形だと、下の起動エラーの検査は何も評価しないまま
+    # 緑になる。compdef は compinit を実際に呼んだときだけ定義されるので、それで確かめる
+    eval_after_slice '${+functions[compdef]}'
 
     [ "$status" -eq 0 ]
-    # stderr 全体の空は見ない。実行環境に由来する出力で揺れるため、日付比較が壊れたときの
-    # 文面だけを見る
-    if [[ "$stderr" == *"parse error"* ]]; then
+    if [ "$output" != "1" ]; then
         echo "stderr: $stderr" >&2
         return 1
     fi
 }
 
-@test "completion block: evaluating the slice initializes the completion system" {
-    # 切り出しが空か compinit を呼ばない形だと、上の parse error の検査は何も評価しないまま
-    # 緑になる。compdef は compinit を実際に呼んだときだけ定義されるので、それで確かめる
-    run --separate-stderr env -u FPATH HOME="$ZDOT" ZDOTDIR="$ZDOT" zsh -f -c \
-        "source '$COMPLETION_SLICE' || exit 9; print -r -- \${+functions[compdef]}"
+@test "completion block: a first shell without a compdump starts without errors" {
+    # 新しいマシンの最初のシェルには ~/.zcompdump が無い。日付の比較が空の右辺で
+    # 壊れると、起動のたびにエラーを出したまま compinit -C 側へ落ちる
+    eval_after_slice '${+functions[compdef]}'
 
     [ "$status" -eq 0 ]
-    if [ "$output" != "1" ]; then
+    if [ -n "$stderr" ]; then
         echo "stderr: $stderr" >&2
         return 1
     fi
