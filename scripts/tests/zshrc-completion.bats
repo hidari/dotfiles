@@ -64,5 +64,8 @@ completion_for() {
         "source '$COMPLETION_SLICE' || exit 9; print -r -- \${+functions[compdef]}"
 
     [ "$status" -eq 0 ]
-    [ "$output" = "1" ]
+    if [ "$output" != "1" ]; then
+        echo "stderr: $stderr" >&2
+        return 1
+    fi
 }
