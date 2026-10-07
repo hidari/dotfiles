@@ -1,8 +1,8 @@
 """セッションが正しい前提の上に乗っているかを見る述語と、その登録簿。
 
-出発点は検査層の生存だった。PreToolUse の 2 つのガードは、どちらも自分が機能していない状態を
-検出できない。検出できている箇所はあるが、射程が実態より狭い。この層はセッション頭でそれを
-測るためのものである。
+出発点は検査層の生存だった。PreToolUse のガード (apm-install-guard.py) は自分が機能して
+いない状態を検出できない。検出できている箇所はあるが、射程が実態より狭い。この層はセッション
+頭でそれを測るためのものである。
 
 射程はそこから広がっている。運用指示が読めているか、掴んでいるタスクリストが作業ディレクトリと
 整合しているか、といった「検査層ではないがセッションの前提にあたるもの」も述語に含む。判定は
@@ -11,13 +11,12 @@
 述語をここへ集めるのは、同じ判定を 2 箇所へ書くと片方だけ直したときに沈黙して食い違う
 ためである。それはこの層が扱っている欠陥そのものなので、canonical を 1 つにする。
 
-print と sys.exit は持たない。副作用を持ち込むとこの層だけを直接テストできなくなる
-(pretooluse.py と同じ規則)。subprocess は持つので純関数ではない。
+print と sys.exit は持たない。副作用を持ち込むとこの層だけを直接テストできなくなる。
+subprocess は持つので純関数ではない。
 
-shim / tirith バイナリの解決そのものは guard_resolve.py (leaf) が持つ。あちらは
-PreToolUse (強制層) がホットパスで import するため軽量に保つ必要があり、こちらは
-SessionStart (セッションに 1 回) からしか呼ばれないので subprocess / dataclasses を
-import してよい。
+shim の解決そのものは guard_resolve.py (leaf) が持つ。あちらは PreToolUse (強制層) が
+ホットパスで import するため軽量に保つ必要があり、こちらは SessionStart (セッションに 1 回)
+からしか呼ばれないので subprocess / dataclasses を import してよい。
 
 フックからは sys.path[0] (スクリプトのディレクトリ) 経由で解決される。
 """
@@ -35,16 +34,8 @@ from pathlib import Path
 import guard_resolve
 import hook_git
 
-# tirith の応答検査に流すコマンド。副作用が無く、検出されないことを実測で確かめたもの。
-# 検出される文字列を選ぶと監査カウンタの blocked が呼び出しごとに 1 増え、tirith が
-# 働いているかを判断する材料そのものを、この検査が壊す (実測)。
-TIRITH_PROBE_COMMAND = "ls -la"
-
-# 応答検査のタイムアウト (秒)。通常の応答は数十ミリ秒のオーダーだが、この値は
+# ペイン一覧の取得の上限 (秒)。通常の応答は数十ミリ秒のオーダーだが、この値は
 # 「応答しない」を判定するための上限であって通常経路の待ち時間ではない。
-TIRITH_PROBE_TIMEOUT = 5.0
-
-# ペイン一覧の取得の上限 (秒)。同じく「応答しない」の判定に使う上限である。
 HERDR_PROBE_TIMEOUT = 5.0
 
 
@@ -84,71 +75,6 @@ def probe_apm() -> ProbeResult:
             f"{guard_resolve.apm_remedy()}"
         ),
     )
-
-
-def probe_tirith() -> ProbeResult:
-    """tirith が解決し、clean なコマンドへ clean と応答するか。
-
-    フックと同一のフラグと環境で呼ぶ (guard_resolve.tirith_child_env /
-    tirith_check_argv)。呼び方が違うとデーモンを経由するかどうかが変わり、フックが通る
-    経路とは別のものを測ることになる。
-
-    「起動するが何も検出しない」状態はここでは覆わない。覆うには検出される文字列を流す
-    陰性対照が要るが、それは監査カウンタの blocked を呼び出しごとに 1 増やし、tirith が
-    働いているかを判断する材料そのものを壊す (実測)。
-    """
-    tirith_bin = guard_resolve.resolve_tirith_bin()
-
-    try:
-        result = subprocess.run(
-            guard_resolve.tirith_check_argv(tirith_bin, TIRITH_PROBE_COMMAND),
-            capture_output=True,
-            text=True,
-            timeout=TIRITH_PROBE_TIMEOUT,
-            env=guard_resolve.tirith_child_env(),
-        )
-    except FileNotFoundError:
-        if os.environ.get("TIRITH_BIN"):
-            # 明示したパスが無い = 設定ミス。フックは fail-closed に倒れるので静かではないが、
-            # 原因をここで名指しできる。
-            return ProbeResult(
-                healthy=False,
-                detail=(
-                    f"TIRITH_BIN={tirith_bin} が存在しないため、すべての Bash 呼び出しが "
-                    "ブロックされる。パスを直すか TIRITH_BIN を解除する。"
-                ),
-            )
-        return ProbeResult(
-            healthy=False,
-            detail=(
-                f"{tirith_bin} が見つからないため、tirith の検査は沈黙している。"
-                "コマンドは検査されないまま通る。"
-                f"{guard_resolve.TIRITH_REMEDY_UNRESOLVED}"
-            ),
-        )
-    except subprocess.TimeoutExpired:
-        return ProbeResult(
-            healthy=False,
-            detail=(
-                f"{tirith_bin} が {TIRITH_PROBE_TIMEOUT} 秒以内に応答しないため、"
-                "すべての Bash 呼び出しがブロックされる。"
-            ),
-        )
-    except OSError as exc:
-        return ProbeResult(
-            healthy=False,
-            detail=f"{tirith_bin} を起動できない ({exc})。すべての Bash 呼び出しがブロックされる。",
-        )
-
-    if result.returncode != 0:
-        return ProbeResult(
-            healthy=False,
-            detail=(
-                f"{tirith_bin} が無害なコマンドを clean と判定しない (exit {result.returncode})。"
-                "この状態ではすべての Bash 呼び出しがブロックされる。"
-            ),
-        )
-    return ProbeResult(healthy=True)
 
 
 def _project_root() -> Path | None:
@@ -293,13 +219,6 @@ def _herdr_bin() -> str | None:
     同じディレクトリの herdr-agent-state.sh は socket へ直接話しかけるが、あちらは herdr が
     統合を入れ直すたびに上書きする管理下のファイルである。上書きされる側の実装に合わせず、
     公開された CLI を使う。
-
-    guard_resolve.resolve_tirith_bin と同じ形をしているが、あちらへは寄せない。canonical を
-    1 つにする価値があるのは片方を直したときにもう片方が古びる情報で、HERDR_BIN_PATH と
-    TIRITH_BIN は互いに独立している。guard_resolve は強制層がホットパスで import する leaf と
-    して射程を apm と tirith に絞っており、herdr は強制層が使わない。失敗の返し方も違う
-    (あちらは見つからなくても文字列を返して呼び出し側の FileNotFoundError へ委ねるが、こちらは
-    None を返して対象外として通す)。
     """
     return os.environ.get("HERDR_BIN_PATH") or shutil.which("herdr")
 
@@ -424,7 +343,6 @@ def probe_herdr_ids() -> ProbeResult:
 # 落ちたときにも名前が要るためである。名前が無いと「検査できなかった」を報告できない。
 PROBES: tuple[tuple[str, Callable[[], ProbeResult]], ...] = (
     ("apm", probe_apm),
-    ("tirith", probe_tirith),
     ("private-ops", probe_private_ops),
     ("task-list-id", probe_task_list_id),
     ("herdr-ids", probe_herdr_ids),

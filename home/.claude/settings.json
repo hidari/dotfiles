@@ -53,15 +53,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$HOME/.claude/hooks/tirith-check.py\""
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
             "command": "python3 \"$HOME/.claude/hooks/apm-install-guard.py\""
           }
         ]

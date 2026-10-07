@@ -9,11 +9,15 @@ from tests.conftest import (
     APM_GUARD_HOOK_COMMAND,
     GUARD_HEALTH_HOOK_COMMAND,
     PRIVATE_OPS_HOOK_COMMAND,
-    TIRITH_HOOK_COMMAND,
     hook_group,
     pretooluse,
     session_start,
 )
+
+# 必須ではないフックの起動コマンド。必須フックが欠けた状態を作るとき、イベント自体は
+# 空にせずこれを載せる。「他のコマンドが載っていること」が必須の充足に数えられないことを
+# 併せて見るためである。
+_UNRELATED_HOOK_COMMAND = 'python3 "$HOME/.claude/hooks/unrelated.py"'
 
 
 def _settings_with_hooks(hooks: dict[str, Any]) -> dict[str, Any]:
@@ -25,8 +29,8 @@ def _settings_with_hooks(hooks: dict[str, Any]) -> dict[str, Any]:
 
 
 def _pretooluse_group() -> dict[str, Any]:
-    """PreToolUse の必須フックを 1 グループにまとめたもの。"""
-    return hook_group(TIRITH_HOOK_COMMAND, APM_GUARD_HOOK_COMMAND)
+    """PreToolUse の必須フックを載せたグループ。"""
+    return hook_group(APM_GUARD_HOOK_COMMAND)
 
 
 def _guard_health_group(matcher: str = "*") -> dict[str, Any]:
@@ -57,7 +61,7 @@ GOOD: dict[str, Any] = {
     # 「狙った検査だけが落とす」最小の差分を保つ意味でも clean な形をここに置く。
     # SessionStart の matcher は開始理由を見るので "*" を明示する
     "hooks": {
-        **pretooluse(hook_group(TIRITH_HOOK_COMMAND), hook_group(APM_GUARD_HOOK_COMMAND)),
+        **pretooluse(_pretooluse_group()),
         **session_start(_guard_health_group()),
     },
     # nested traversal の除外。フックの配線と同じ理由でここへ置く
@@ -143,21 +147,15 @@ class TestRequiredHooks:
     """
 
     def test_missing_apm_install_guard_is_flagged(self) -> None:
-        settings = _settings_with_hooks(
-            {**pretooluse(hook_group(TIRITH_HOOK_COMMAND)), **session_start(_guard_health_group())}
-        )
-        findings = check_settings_invariants(settings)
-        assert [f.detail for f in findings] == ["apm-install-guard.py"]
-
-    def test_missing_tirith_check_is_flagged(self) -> None:
+        # 別のフックが載っていても、必須のものが無ければ配線とは数えない
         settings = _settings_with_hooks(
             {
-                **pretooluse(hook_group(APM_GUARD_HOOK_COMMAND)),
+                **pretooluse(hook_group(_UNRELATED_HOOK_COMMAND)),
                 **session_start(_guard_health_group()),
             }
         )
         findings = check_settings_invariants(settings)
-        assert [f.detail for f in findings] == ["tirith-check.py"]
+        assert [f.detail for f in findings] == ["apm-install-guard.py"]
 
     def test_missing_hooks_section_flags_every_required_hook(self) -> None:
         # hooks を空にするので、PreToolUse と SessionStart の両方が空になる。
@@ -165,7 +163,6 @@ class TestRequiredHooks:
         settings = _settings_with_hooks({})
         findings = check_settings_invariants(settings)
         assert {f.detail for f in findings} == {
-            "tirith-check.py",
             "apm-install-guard.py",
             "guard-health.py",
             "hooks.SessionStart",
@@ -176,7 +173,6 @@ class TestRequiredHooks:
         # イベントを見ない実装だとこの pin は空虚になる
         settings = _settings_with_hooks(
             {
-                **pretooluse(hook_group(TIRITH_HOOK_COMMAND)),
                 **session_start(_guard_health_group()),
                 "PostToolUse": [hook_group(APM_GUARD_HOOK_COMMAND, matcher="*")],
             }
@@ -189,10 +185,7 @@ class TestRequiredHooks:
         # フック本体は残ったまま Bash 呼び出しで一切起動しなくなる。実測で確認した穴
         settings = _settings_with_hooks(
             {
-                **pretooluse(
-                    hook_group(TIRITH_HOOK_COMMAND),
-                    hook_group(APM_GUARD_HOOK_COMMAND, matcher="Read"),
-                ),
+                **pretooluse(hook_group(APM_GUARD_HOOK_COMMAND, matcher="Read")),
                 **session_start(_guard_health_group()),
             }
         )
@@ -203,10 +196,7 @@ class TestRequiredHooks:
         # 正規表現として壊れた matcher は「一致するかもしれない」と楽観しない
         settings = _settings_with_hooks(
             {
-                **pretooluse(
-                    hook_group(TIRITH_HOOK_COMMAND),
-                    hook_group(APM_GUARD_HOOK_COMMAND, matcher="[Bash"),
-                ),
+                **pretooluse(hook_group(APM_GUARD_HOOK_COMMAND, matcher="[Bash")),
                 **session_start(_guard_health_group()),
             }
         )
@@ -215,14 +205,28 @@ class TestRequiredHooks:
 
     def test_matchers_that_cover_bash_are_accepted(self) -> None:
         # 省略・空文字・"*" は全ツールに一致し、選言も Bash を含めば守られている。
-        # グループを分けるか 1 グループに 2 要素を置くかも配線の自由度なので、
         # 形ではなく「Bash の PreToolUse から呼ばれること」を仕様にする
         for matcher in (None, "", "*", "Bash", "Bash|Read"):
-            group = hook_group(TIRITH_HOOK_COMMAND, APM_GUARD_HOOK_COMMAND, matcher=matcher)
+            group = hook_group(APM_GUARD_HOOK_COMMAND, matcher=matcher)
             settings = _settings_with_hooks(
                 {**pretooluse(group), **session_start(_guard_health_group())}
             )
             assert check_settings_invariants(settings) == [], matcher
+
+    def test_required_hooks_split_across_groups_are_all_counted(self) -> None:
+        # グループを分けるか 1 グループに複数要素を置くかは配線の自由度で、実際の
+        # settings.json は SessionStart を複数グループに分けている。先頭のグループしか
+        # 読まない実装だと、2つ目以降に載せた必須コマンドが未配線と報告される
+        settings = _settings_with_hooks(
+            {
+                **pretooluse(_pretooluse_group()),
+                **session_start(
+                    hook_group(GUARD_HEALTH_HOOK_COMMAND, matcher="*"),
+                    hook_group(PRIVATE_OPS_HOOK_COMMAND, matcher="*"),
+                ),
+            }
+        )
+        assert check_settings_invariants(settings) == []
 
     def test_SessionStart_の必須フックが無ければ検出する(self) -> None:
         # SessionStart 自体が無いので guard-health.py に加え運用指示の読み出しも無い

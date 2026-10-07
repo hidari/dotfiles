@@ -46,7 +46,7 @@ brew "pre-commit"                         # git pre-commit フック管理
 brew "gitleaks"                           # secret / ユーザー名パス漏洩スキャナ
 brew "ast-grep"                           # 構文木ベースの lint (rules/ で管理)
 brew "shellcheck"                         # .sh の静的解析 (pre-commit local hook)
-brew "tirith"                             # URL/コマンドセキュリティ CLI (zsh と Claude Code の二層で使う)
+brew "tirith"                             # URL/コマンドセキュリティ CLI (zsh の tirith init で使う)
 brew "bats-core"                          # bash のテストフレームワーク (scripts/tests/ をローカルで回す)
 
 # --- ネットワーク解析 ---

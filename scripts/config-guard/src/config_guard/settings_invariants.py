@@ -77,7 +77,8 @@ class _EventRequirement(NamedTuple):
 # 必ず配線されていなければならないフック（本体のファイル名で照合する）。
 # フック本体が存在しても settings.json から外れれば何も守らないため、取り付け自体を
 # 不変条件にする。これが無いと検査機構の 3 種変異のうち「取り付けを外す」をテストで
-# 捕まえられない（実際この検査を足すまで、tirith-check.py の配線を外しても全テストが緑だった）。
+# 捕まえられない（この検査が無ければ、apm-install-guard.py の配線を外しても全テストが緑の
+# まま通る）。
 #
 # 名前で宣言するのは、存在するファイルの集合から必須集合を導くと、本体を消せば要求も
 # 消えて緑になるためである。それは検査が必要な状況でだけ検査が動かない自己敗北にあたる。
@@ -86,9 +87,7 @@ class _EventRequirement(NamedTuple):
 # matcher の意味はイベントで違うので述語を使い回さない (使い回すと SessionStart に
 # ツール名を書いた配線が全一致で通る)。
 _REQUIRED_HOOKS: dict[str, _EventRequirement] = {
-    "PreToolUse": _EventRequirement(
-        ("tirith-check.py", "apm-install-guard.py"), _matcher_covers_guarded_tool
-    ),
+    "PreToolUse": _EventRequirement(("apm-install-guard.py",), _matcher_covers_guarded_tool),
     "SessionStart": _EventRequirement(("guard-health.py",), _matcher_covers_all_sources),
 }
 

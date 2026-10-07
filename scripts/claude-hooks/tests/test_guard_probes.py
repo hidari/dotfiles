@@ -130,67 +130,6 @@ def test_shim_の置き場が配布先と一致する() -> None:
     assert expected in targets
 
 
-def _fake_tirith(path: Path, exit_code: int) -> Path:
-    """指定の exit code を返す偽 tirith を作る。"""
-    path.write_text(f"#!/bin/sh\nexit {exit_code}\n", encoding="utf-8")
-    path.chmod(0o755)
-    return path
-
-
-def test_tirith_が_clean_へ応答すれば健全(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    fake = _fake_tirith(tmp_path / "tirith", 0)
-    monkeypatch.setenv("TIRITH_BIN", str(fake))
-    assert guard_probes.probe_tirith().healthy is True
-
-
-def test_TIRITH_BIN_未設定で解決しなければ沈黙(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    empty = tmp_path / "empty"
-    empty.mkdir()
-    monkeypatch.delenv("TIRITH_BIN", raising=False)
-    monkeypatch.setenv("PATH", str(empty))
-    monkeypatch.setenv("HOME", str(tmp_path))
-
-    result = guard_probes.probe_tirith()
-    assert result.healthy is False
-    assert "沈黙" in result.detail
-    # 復旧手順を pin する。実体化経路が mise から brew へ移ったとき、案内だけが古びて誰も
-    # 赤くならなかった。
-    assert "brew install tirith" in result.detail
-    # この分岐は「入っていない」と「入っているが PATH に載っていない」の両方で通る。この層は
-    # 区別できないので、片方だけを勧めてはならない。2026-08-31 に PATH から /opt/homebrew/bin を
-    # 外して実測したところ、tirith は brew で入っているのに brew install tirith だけを勧めた。
-    # apm 側でも同じ形が空振りを生んだ。
-    assert "PATH に載っていない" in result.detail
-    # 強制層と同じ定数を使うことも pin する。上の 2 つは部分文字列しか見ないので、この層へ
-    # 文面を literal で書き戻す変異が緑のまま通り、寄せた二重管理が静かに戻せてしまう。
-    assert guard_resolve.TIRITH_REMEDY_UNRESOLVED in result.detail
-
-
-def test_TIRITH_BIN_のパスが無ければ全_Bash_が止まると告げる(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("TIRITH_BIN", str(tmp_path / "nonexistent" / "tirith"))
-
-    result = guard_probes.probe_tirith()
-    assert result.healthy is False
-    # "Bash" だけでは駄目: tmp_path 名がこの関数名から作られ "_Bash0" で終わるため、
-    # フォールバック分岐の文面 (tirith_bin をそのまま埋め込む) にも偶然 "Bash" が含まれる。
-    assert "TIRITH_BIN=" in result.detail
-
-
-def test_clean_なコマンドに_clean_を返さなければ沈黙(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """応答はするが clean を clean と判定しない状態。フックは fail-closed に倒れる。"""
-    fake = _fake_tirith(tmp_path / "tirith", 1)
-    monkeypatch.setenv("TIRITH_BIN", str(fake))
-
-    result = guard_probes.probe_tirith()
-    assert result.healthy is False
-
-
 def test_登録簿は名前と関数の組を持つ() -> None:
     """呼び出し自体が例外で落ちたときにも名前が要るので、名前は結果ではなく登録簿が持つ。
 
@@ -198,7 +137,7 @@ def test_登録簿は名前と関数の組を持つ() -> None:
     持つ表現のほうが集合より強く、両方を別のテストで持つと片方が完全に包含される側になるため。
     """
     names = [name for name, _ in guard_probes.PROBES]
-    assert names == ["apm", "tirith", "private-ops", "task-list-id", "herdr-ids"]
+    assert names == ["apm", "private-ops", "task-list-id", "herdr-ids"]
     for _, probe in guard_probes.PROBES:
         assert callable(probe)
 

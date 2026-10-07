@@ -2,14 +2,9 @@
 
 bootstrap.sh がツールを実体化する経路は brew bundle (home/.Brewfile) と mise install
 (home/.config/mise/config.toml) の 2 つで、どちらの宣言にも無いコマンドは新しいマシンで
-入らない。実際 just / pnpm / tirith を mise の pin から外して brew 管理へ移したとき
-Brewfile へ足し忘れ、pre-commit も CI も素通りした。uv と bats は最初からどちらにも
-無かった。手元のマシンには手で入れた実体があるので、壊れているのは再現性だけであり
-エラーとしては一度も現れない。
-
-**ただし、この検査が覆うのはその 3 つのうち tirith だけである。** pnpm と just は下の射程の
-とおり要求側に入らないので、同じ事故がもう一度起きても緑のまま通る。動機に挙げた事故が
-まるごと再発防止されたと読まないこと。
+入らない。実際、検査とテストに要る uv と bats は最初からどちらにも無かった。手元の
+マシンには手で入れた実体があるので、壊れているのは再現性だけでありエラーとしては一度も
+現れない。
 
 要求側は .pre-commit-config.yaml から導出する。手で維持する一覧にすると、足し忘れが
 この検査自身の穴になるためである。pre-commit の外で要る分だけを ALSO_REQUIRED が理由を
@@ -80,10 +75,6 @@ FORMULA_COMMANDS: dict[str, tuple[str, ...]] = {
 
 # pre-commit の entry からは導出できないが、供給されていないと困るコマンドと、その理由。
 ALSO_REQUIRED: dict[str, str] = {
-    "tirith": (
-        "PreToolUse(Bash) フックが検査を委譲する先。不在時は意図した fail-open で "
-        "検査が無音のまま通るので、欠けてもエラーにならない"
-    ),
     "bats": (
         "scripts/tests/ のテストランナー。CI は setup-bats composite で別経路から入れるが、"
         "ローカルで CI と同じテストを回す経路は Brewfile しかない"

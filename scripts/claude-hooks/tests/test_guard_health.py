@@ -41,7 +41,7 @@ def _silent(detail: str) -> guard_probes.ProbeResult:
 
 def test_全て健全なら沈黙は_0_件(monkeypatch: pytest.MonkeyPatch) -> None:
     hook = _load_hook()
-    monkeypatch.setattr(guard_probes, "PROBES", (("apm", _ok), ("tirith", _ok)))
+    monkeypatch.setattr(guard_probes, "PROBES", (("apm", _ok), ("private-ops", _ok)))
     assert hook.collect() == []
 
 
@@ -50,7 +50,7 @@ def test_沈黙しているものだけを名前つきで返す(monkeypatch: pyt
     monkeypatch.setattr(
         guard_probes,
         "PROBES",
-        (("apm", lambda: _silent("shim が横取りしていない")), ("tirith", _ok)),
+        (("apm", lambda: _silent("shim が横取りしていない")), ("private-ops", _ok)),
     )
     silent = hook.collect()
     assert [name for name, _ in silent] == ["apm"]
@@ -69,10 +69,10 @@ def test_プローブが落ちても他は走り落ちたことを報告する(
     monkeypatch.setattr(
         guard_probes,
         "PROBES",
-        (("apm", boom), ("tirith", lambda: _silent("tirith が沈黙している"))),
+        (("apm", boom), ("private-ops", lambda: _silent("private-ops が解決しない"))),
     )
     silent = hook.collect()
-    assert [name for name, _ in silent] == ["apm", "tirith"]
+    assert [name for name, _ in silent] == ["apm", "private-ops"]
     assert "boom" in silent[0][1].detail
 
 
@@ -114,11 +114,11 @@ def test_guard_probes_の_import_は_collect_呼び出しまで遅延する(
 def test_文面は名前と件数と_detail_を持つ() -> None:
     hook = _load_hook()
     message = hook.format_message(
-        [("apm", _silent("shim が横取りしていない")), ("tirith", _silent("解決しない"))]
+        [("apm", _silent("shim が横取りしていない")), ("private-ops", _silent("解決しない"))]
     )
     assert "2 件" in message
     assert "[apm]" in message
-    assert "[tirith]" in message
+    assert "[private-ops]" in message
     assert "shim が横取りしていない" in message
 
 
@@ -145,7 +145,7 @@ def test_全て健全なら_main_は何も出さない(
     直接呼び、健全なら emit が一度も呼ばれず出力が空であることを見る。
     """
     hook = _load_hook()
-    monkeypatch.setattr(guard_probes, "PROBES", (("apm", _ok), ("tirith", _ok)))
+    monkeypatch.setattr(guard_probes, "PROBES", (("apm", _ok), ("private-ops", _ok)))
     assert hook.main() == 0
     assert capsys.readouterr().out == ""
 
@@ -158,7 +158,7 @@ def test_沈黙があれば_main_は文面を出す(
     monkeypatch.setattr(
         guard_probes,
         "PROBES",
-        (("apm", lambda: _silent("shim が横取りしていない")), ("tirith", _ok)),
+        (("apm", lambda: _silent("shim が横取りしていない")), ("private-ops", _ok)),
     )
     assert hook.main() == 0
     payload = json.loads(capsys.readouterr().out)

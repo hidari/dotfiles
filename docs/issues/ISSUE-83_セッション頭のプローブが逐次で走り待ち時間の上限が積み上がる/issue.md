@@ -72,6 +72,7 @@ ISSUE-79 で `probe_task_list_id` と `probe_herdr_ids` を足す前は `probe_t
 
 ## 関連
 
+- ISSUE-115: tirith の Claude Code フックを撤去し、`probe_tirith` も登録簿から消した。上の表の `probe_tirith` の行は撤去前の状態にあたる
 - ISSUE-79: この Issue が扱う状態を作った側。プローブ 2 件を足したのがそちらの作業にあたる
 - Issue 26: フックの共通基盤の集約。射程はプロトコル層と uv ハーネスと必須フック検査とログの
   寿命で、プローブの実行時間は入っていない (2026-09-07 に本文を読んで確かめた)

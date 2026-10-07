@@ -10,8 +10,7 @@
 GIT_ 接頭辞ごと落として fail-closed に倒す方針を理由つきで選んでいるので、失敗の返し方が
 違う別実装のまま残す。
 
-print と sys.exit は持たない。副作用を持ち込むとこの層だけを直接テストできなくなる
-(pretooluse.py / guard_probes.py と同じ規則)。
+print と sys.exit は持たない。副作用を持ち込むとこの層だけを直接テストできなくなる。
 
 subprocess をモジュール直下で import する。呼び出し側のうち handoff-sentinel は
 ツール呼び出しごとに走る経路を持ち、そこがこのコストを払わないよう自分の関数の内側で
