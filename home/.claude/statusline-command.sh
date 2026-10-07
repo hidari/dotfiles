@@ -3,7 +3,7 @@
 # Line 1: account | Model | ◔◑◕● Context% | cost · duration
 # Line 2: 5h rate limit progress bar
 # Line 3: 7d rate limit progress bar
-# Line 4: prompt cache の残り時間 (warm) か、cold で次に払う再キャッシュ量
+# Line 4: prompt cache の残りゲージ・分数・期限の時刻 (warm) か、cold で次に払う再キャッシュ量
 # Line 5: project [branch] | ± +added/-removed
 #
 # 1〜4 行目は Claude が持つ状態 (アカウント・モデル・消費・キャッシュ)、最終行はリポジトリが持つ状態。
@@ -197,7 +197,7 @@ format_epoch_time() {
 # 手元の版に無いフィールドや null のフィールドは、その部分だけ飛ばす。
 # cold の判定と丸めは jq に寄せ、シェルは並べるだけにする。
 prompt_cache_line() {
-  local pc_cold="" pc_remaining="" pc_ttl="" pc_stats="" pc_recache_k="" pc_causes=""
+  local pc_cold="" pc_remaining="" pc_expires="" pc_ttl="" pc_stats="" pc_recache_k="" pc_causes=""
   local assignments
   # warm が true でも期限に達していれば cold として扱う。本体は expires_at に達したときにも
   # statusline を再実行するが、その時点の warm はまだ true のことがある。
@@ -213,6 +213,7 @@ prompt_cache_line() {
     (.warm != true or $exp <= $now) as $cold |
     "pc_cold=" + ($cold | tostring),
     "pc_remaining=" + (if $cold then "" else ($exp - $now | floor | tostring) end | @sh),
+    "pc_expires=" + (if $cold then "" else ($exp | floor | tostring) end | @sh),
     "pc_ttl=" + ((.ttl | ttl_seconds // "") | tostring | @sh),
     "pc_stats=" + ([if .hit_ratio == null then empty else "hit \(.hit_ratio * 100 | round)%" end,
                     if .misses == null then empty else "misses \(.misses)" end] | join(", ") | @sh),
@@ -224,22 +225,24 @@ prompt_cache_line() {
 
   local line
   if [ "$pc_cold" = "true" ]; then
-    line="${RED}cache cold"
+    line="${RED}pc  [cold]"
     [ -n "$pc_recache_k" ] && line+="  next message re-caches ${pc_recache_k}k tokens"
     [ -n "$pc_causes" ] && line+="  last miss: ${pc_causes}"
-  else
-    local color="$GREEN"
-    [ "$pc_remaining" -le 600 ] && color="$YELLOW"
-    # 切り上げる。切り捨てると最後の 1 分未満を 0 分と出す
-    local mins=$(((pc_remaining + 59) / 60))
-    if [ -n "$pc_ttl" ]; then
-      line="${color}cache $(progress_bar $((pc_remaining * 100 / pc_ttl))) ${mins}/$((pc_ttl / 60))m"
-    else
-      line="${color}cache ${mins}m"
-    fi
-    [ -n "$pc_stats" ] && line+="  ${pc_stats}"
+    printf '%s' "${line}${RESET}"
+    return 0
   fi
-  printf '%s' "${line}${RESET}"
+
+  local color="$GREEN"
+  [ "$pc_remaining" -le 600 ] && color="$YELLOW"
+  # ラベルと数字の幅を 5h / 7d の行にそろえ、ゲージ・数字・時刻を同じ列に並べる。
+  line="${color}pc  "
+  [ -n "$pc_ttl" ] && line+="$(progress_bar $((pc_remaining * 100 / pc_ttl)))  "
+  # 分数は切り上げる。切り捨てると最後の 1 分未満を 0 分と出す。
+  # 時刻は分で切り捨てる (format_epoch_time の %H:%M)。表示の時刻までに送れば間に合う。
+  line+="$(printf '%3dm' $(((pc_remaining + 59) / 60)))${RESET}"
+  line+="  ${SUB}Expires at $(format_epoch_time "$pc_expires" "+%H:%M") (Asia/Tokyo)${RESET}"
+  [ -n "$pc_stats" ] && line+="  ${color}${pc_stats}${RESET}"
+  printf '%s' "$line"
 }
 
 # =============================================================================

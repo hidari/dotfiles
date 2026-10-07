@@ -7,6 +7,8 @@
 # 再キャッシュを払わずに済むので、残り時間と、cold になったときに払う量を最下行に出す。
 #   - prompt_cache が無いあいだは行ごと出さない (空行も出さない)
 #   - warm は緑、残り 600 秒以下は黄色、cold は赤
+#   - warm は残りの割合のゲージ、切れるまでの分数、切れる時刻 (Asia/Tokyo) を出す
+#   - ラベルは pc (prompt cache)。5h / 7d と同じ幅にして、ゲージと数字の列をそろえる
 #   - warm が true でも expires_at が null か現在時刻以下なら cold として出す
 #   - 手元の版に無いフィールドや null のフィールドは、その部分だけ飛ばす
 #
@@ -55,21 +57,21 @@ run_cache_line() {
     statusline_raw "$TEST_HOME/out.txt"
 
     [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 2 ]
-    refute_contains "$(cat "$TEST_HOME/out.txt")" "cache"
+    refute_contains "$(cat "$TEST_HOME/out.txt")" "pc  "
 }
 
 @test "prompt_cache: emits no cache line when the field is null" {
     statusline_raw "$TEST_HOME/out.txt" "" "null"
 
     [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 2 ]
-    refute_contains "$(cat "$TEST_HOME/out.txt")" "cache"
+    refute_contains "$(cat "$TEST_HOME/out.txt")" "pc  "
 }
 
 @test "prompt_cache: appends the cache line last outside a repository" {
     statusline_raw "$TEST_HOME/out.txt" "" "$(prompt_cache_json)"
 
     [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 3 ]
-    assert_contains "$(tail -n 1 "$TEST_HOME/out.txt")" "cache"
+    assert_contains "$(tail -n 1 "$TEST_HOME/out.txt")" "pc  "
 }
 
 @test "prompt_cache: puts the cache line between the rate limits and the repository line" {
@@ -82,7 +84,7 @@ run_cache_line() {
     [ "$status" -eq 0 ]
     [ "${#lines[@]}" -eq 5 ]
     assert_contains "${lines[2]}" "7d"
-    assert_contains "${lines[3]}" "cache"
+    assert_contains "${lines[3]}" "pc  "
     assert_contains "${lines[4]}" "myrepo"
     # 5 行 + 末尾改行なし = 改行 4 個
     [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 4 ]
@@ -92,44 +94,57 @@ run_cache_line() {
 # warm
 # =============================================================================
 
-@test "prompt_cache: shows a green bar, remaining minutes, hit and misses while warm" {
-    # バーの塗りは round(2280 / 3600 * 10) = 6
+@test "prompt_cache: shows a green bar, remaining minutes, expiry time, hit and misses while warm" {
+    # バーの塗りは round(2280 / 3600 * 10) = 6。期限は 2033-05-18 13:11:20 (Asia/Tokyo)
     run_cache_line "$(prompt_cache_json)"
 
-    [ "$CACHE_LINE" = "${GREEN}cache ▰▰▰▰▰▰▱▱▱▱ 38/60m  hit 91%, misses 0${RESET}" ]
+    [ "$CACHE_LINE" = "${GREEN}pc  ▰▰▰▰▰▰▱▱▱▱   38m${RESET}  ${SUB}Expires at 13:11 (Asia/Tokyo)${RESET}  ${GREEN}hit 91%, misses 0${RESET}" ]
 }
 
 @test "prompt_cache: rounds the remaining minutes up" {
     # 2281 秒は 38 分と 1 秒。切り捨てると期限前に 38 と出し続ける
     run_cache_line "$(prompt_cache_json '.expires_at = $now + 2281')"
 
-    assert_contains "$CACHE_LINE" " 39/60m"
+    assert_contains "$CACHE_LINE" " 39m${RESET}"
+}
+
+@test "prompt_cache: truncates the expiry time to the minute" {
+    # 13:11:59 に切れるなら 13:11 と出す。繰り上げると、表示の時刻に送っても間に合わない
+    run_cache_line "$(prompt_cache_json '.expires_at = $now + 2319')"
+
+    assert_contains "$CACHE_LINE" "Expires at 13:11 (Asia/Tokyo)"
+}
+
+@test "prompt_cache: shows the expiry time in Asia/Tokyo regardless of TZ" {
+    TZ=UTC run_cache_line "$(prompt_cache_json)"
+
+    assert_contains "$CACHE_LINE" "Expires at 13:11 (Asia/Tokyo)"
 }
 
 @test "prompt_cache: turns yellow at exactly 600 seconds left" {
     run_cache_line "$(prompt_cache_json '.expires_at = $now + 600')"
 
-    [ "$CACHE_LINE" = "${YELLOW}cache ▰▰▱▱▱▱▱▱▱▱ 10/60m  hit 91%, misses 0${RESET}" ]
+    [ "$CACHE_LINE" = "${YELLOW}pc  ▰▰▱▱▱▱▱▱▱▱   10m${RESET}  ${SUB}Expires at 12:43 (Asia/Tokyo)${RESET}  ${YELLOW}hit 91%, misses 0${RESET}" ]
 }
 
 @test "prompt_cache: stays green at 601 seconds left" {
     run_cache_line "$(prompt_cache_json '.expires_at = $now + 601')"
 
-    [ "$CACHE_LINE" = "${GREEN}cache ▰▰▱▱▱▱▱▱▱▱ 11/60m  hit 91%, misses 0${RESET}" ]
+    [ "$CACHE_LINE" = "${GREEN}pc  ▰▰▱▱▱▱▱▱▱▱   11m${RESET}  ${SUB}Expires at 12:43 (Asia/Tokyo)${RESET}  ${GREEN}hit 91%, misses 0${RESET}" ]
 }
 
-@test "prompt_cache: uses the 5m ttl as the denominator" {
+@test "prompt_cache: fills the bar against the 5m ttl" {
     # 5m の ttl は残りが常に 600 秒以下なので、warm の間ずっと黄色になる
     run_cache_line "$(prompt_cache_json '.ttl = "5m" | .expires_at = $now + 180')"
 
-    [ "$CACHE_LINE" = "${YELLOW}cache ▰▰▰▰▰▰▱▱▱▱ 3/5m  hit 91%, misses 0${RESET}" ]
+    [ "$CACHE_LINE" = "${YELLOW}pc  ▰▰▰▰▰▰▱▱▱▱    3m${RESET}  ${SUB}Expires at 12:36 (Asia/Tokyo)${RESET}  ${YELLOW}hit 91%, misses 0${RESET}" ]
 }
 
 @test "prompt_cache: shows hit 0% rather than skipping a zero ratio" {
     # 0 は値であって欠損ではない。null と同じ扱いにすると最悪の状態が見えなくなる
     run_cache_line "$(prompt_cache_json '.hit_ratio = 0')"
 
-    assert_contains "$CACHE_LINE" "  hit 0%, misses 0"
+    assert_contains "$CACHE_LINE" "hit 0%, misses 0"
 }
 
 @test "prompt_cache: keeps the last miss cause off the warm line" {
@@ -148,21 +163,21 @@ run_cache_line() {
 @test "prompt_cache: is cold when warm is false" {
     run_cache_line "$(prompt_cache_json '.warm = false')"
 
-    [ "$CACHE_LINE" = "${RED}cache cold  next message re-caches 83k tokens${RESET}" ]
+    [ "$CACHE_LINE" = "${RED}pc  [cold]  next message re-caches 83k tokens${RESET}" ]
 }
 
 @test "prompt_cache: is cold when warm but expires_at is null" {
     run_cache_line "$(prompt_cache_json '.expires_at = null')"
 
-    [ "$CACHE_LINE" = "${RED}cache cold  next message re-caches 83k tokens${RESET}" ]
+    [ "$CACHE_LINE" = "${RED}pc  [cold]  next message re-caches 83k tokens${RESET}" ]
 }
 
 @test "prompt_cache: is cold when warm but expires_at has been reached" {
     # 本体は expires_at に達したときに statusline を再実行するが、その時点の warm は
-    # まだ true のことがある。期限そのものを見ないと 0/60m の緑を出す
+    # まだ true のことがある。期限そのものを見ないと 0m の緑を出す
     run_cache_line "$(prompt_cache_json '.expires_at = $now')"
 
-    [ "$CACHE_LINE" = "${RED}cache cold  next message re-caches 83k tokens${RESET}" ]
+    [ "$CACHE_LINE" = "${RED}pc  [cold]  next message re-caches 83k tokens${RESET}" ]
 }
 
 @test "prompt_cache: rounds the re-cache tokens to the nearest k" {
@@ -176,7 +191,7 @@ run_cache_line() {
 @test "prompt_cache: appends the last miss causes on the cold line" {
     run_cache_line "$(prompt_cache_json '.warm = false | .last_miss_cause = {causes: ["tools_changed", "ttl_expired_5m"]}')"
 
-    [ "$CACHE_LINE" = "${RED}cache cold  next message re-caches 83k tokens  last miss: tools_changed, ttl_expired_5m${RESET}" ]
+    [ "$CACHE_LINE" = "${RED}pc  [cold]  next message re-caches 83k tokens  last miss: tools_changed, ttl_expired_5m${RESET}" ]
 }
 
 # =============================================================================
@@ -189,31 +204,31 @@ run_cache_line() {
 @test "prompt_cache: skips hit when hit_ratio is null" {
     run_cache_line "$(prompt_cache_json '.hit_ratio = null')"
 
-    [ "$CACHE_LINE" = "${GREEN}cache ▰▰▰▰▰▰▱▱▱▱ 38/60m  misses 0${RESET}" ]
+    [ "$CACHE_LINE" = "${GREEN}pc  ▰▰▰▰▰▰▱▱▱▱   38m${RESET}  ${SUB}Expires at 13:11 (Asia/Tokyo)${RESET}  ${GREEN}misses 0${RESET}" ]
 }
 
 @test "prompt_cache: skips hit when hit_ratio is absent" {
     run_cache_line "$(prompt_cache_json 'del(.hit_ratio)')"
 
-    [ "$CACHE_LINE" = "${GREEN}cache ▰▰▰▰▰▰▱▱▱▱ 38/60m  misses 0${RESET}" ]
+    [ "$CACHE_LINE" = "${GREEN}pc  ▰▰▰▰▰▰▱▱▱▱   38m${RESET}  ${SUB}Expires at 13:11 (Asia/Tokyo)${RESET}  ${GREEN}misses 0${RESET}" ]
 }
 
 @test "prompt_cache: skips misses when it is absent" {
     run_cache_line "$(prompt_cache_json 'del(.misses)')"
 
-    [ "$CACHE_LINE" = "${GREEN}cache ▰▰▰▰▰▰▱▱▱▱ 38/60m  hit 91%${RESET}" ]
+    [ "$CACHE_LINE" = "${GREEN}pc  ▰▰▰▰▰▰▱▱▱▱   38m${RESET}  ${SUB}Expires at 13:11 (Asia/Tokyo)${RESET}  ${GREEN}hit 91%${RESET}" ]
 }
 
-@test "prompt_cache: ends at the remaining minutes when hit and misses are both missing" {
+@test "prompt_cache: ends at the expiry time when hit and misses are both missing" {
     run_cache_line "$(prompt_cache_json 'del(.hit_ratio) | .misses = null')"
 
-    [ "$CACHE_LINE" = "${GREEN}cache ▰▰▰▰▰▰▱▱▱▱ 38/60m${RESET}" ]
+    [ "$CACHE_LINE" = "${GREEN}pc  ▰▰▰▰▰▰▱▱▱▱   38m${RESET}  ${SUB}Expires at 13:11 (Asia/Tokyo)${RESET}" ]
 }
 
-@test "prompt_cache: skips the bar and the denominator when ttl is absent" {
+@test "prompt_cache: skips the bar when ttl is absent" {
     run_cache_line "$(prompt_cache_json 'del(.ttl)')"
 
-    [ "$CACHE_LINE" = "${GREEN}cache 38m  hit 91%, misses 0${RESET}" ]
+    [ "$CACHE_LINE" = "${GREEN}pc   38m${RESET}  ${SUB}Expires at 13:11 (Asia/Tokyo)${RESET}  ${GREEN}hit 91%, misses 0${RESET}" ]
 }
 
 @test "prompt_cache: prints cause strings literally rather than evaluating them" {
@@ -225,28 +240,50 @@ run_cache_line() {
     assert_contains "$CACHE_LINE" "last miss: \$(touch $marker)"
 }
 
-@test "prompt_cache: skips the bar and the denominator when ttl is zero" {
+@test "prompt_cache: skips the bar when ttl is zero" {
     # 分母が 0 だとバーの計算がゼロ除算で落ち、行ごと消える
     run_cache_line "$(prompt_cache_json '.ttl = "0m"')"
 
-    [ "$CACHE_LINE" = "${GREEN}cache 38m  hit 91%, misses 0${RESET}" ]
+    [ "$CACHE_LINE" = "${GREEN}pc   38m${RESET}  ${SUB}Expires at 13:11 (Asia/Tokyo)${RESET}  ${GREEN}hit 91%, misses 0${RESET}" ]
 }
 
 @test "prompt_cache: skips the re-cache tokens when they are null" {
     # compaction の直後などに null になる
     run_cache_line "$(prompt_cache_json '.warm = false | .recache_tokens_if_cold = null')"
 
-    [ "$CACHE_LINE" = "${RED}cache cold${RESET}" ]
+    [ "$CACHE_LINE" = "${RED}pc  [cold]${RESET}" ]
 }
 
 @test "prompt_cache: skips the re-cache tokens when they are absent" {
     run_cache_line "$(prompt_cache_json '.warm = false | del(.recache_tokens_if_cold) | .last_miss_cause = {causes: ["tools_changed"]}')"
 
-    [ "$CACHE_LINE" = "${RED}cache cold  last miss: tools_changed${RESET}" ]
+    [ "$CACHE_LINE" = "${RED}pc  [cold]  last miss: tools_changed${RESET}" ]
 }
 
 @test "prompt_cache: skips the last miss when last_miss_cause is absent" {
     run_cache_line "$(prompt_cache_json '.warm = false | del(.last_miss_cause)')"
 
-    [ "$CACHE_LINE" = "${RED}cache cold  next message re-caches 83k tokens${RESET}" ]
+    [ "$CACHE_LINE" = "${RED}pc  [cold]  next message re-caches 83k tokens${RESET}" ]
+}
+
+@test "prompt_cache: aligns the gauge and the minutes with the rate limit lines" {
+    # 5h / 7d と同じ列にゲージ・数字の末尾・時刻の書き出しが来ること。
+    # ゲージは多バイト文字なので、位置ではなく「時刻の手前までの長さ」を比べる。
+    # 両方の行がゲージ 10 マスと同じ数の ASCII を持つので、ロケールが文字とバイトの
+    # どちらで数えても等しくなる
+    run bash "$STATUSLINE_SCRIPT" <<< "$(statusline_input_json "" "$(rate_limits_json 42 13)" "$(prompt_cache_json)")"
+    [ "$status" -eq 0 ]
+
+    local strip=$'s/\x1b\\[[0-9;]*m//g'
+    local five cache
+    five="$(printf '%s' "${lines[1]}" | sed "$strip")"
+    cache="$(printf '%s' "${lines[3]}" | sed "$strip")"
+    local five_head="${five%%  Resets at*}"
+    local cache_head="${cache%%  Expires at*}"
+
+    [ "${five_head:0:4}" = "5h  " ]
+    [ "${cache_head:0:4}" = "pc  " ]
+    [ "${five_head: -6}" = "   42%" ]
+    [ "${cache_head: -6}" = "   38m" ]
+    [ "${#five_head}" -eq "${#cache_head}" ]
 }
