@@ -219,8 +219,6 @@ def _herdr_bin() -> str | None:
     同じディレクトリの herdr-agent-state.sh は socket へ直接話しかけるが、あちらは herdr が
     統合を入れ直すたびに上書きする管理下のファイルである。上書きされる側の実装に合わせず、
     公開された CLI を使う。
-
-    見つからなければ None を返し、呼び出し側が対象外として通す。
     """
     return os.environ.get("HERDR_BIN_PATH") or shutil.which("herdr")
 

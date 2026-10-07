@@ -78,8 +78,8 @@ APM_REMEDY_MISSING_SHIM = (
     "shim が配置されていない。bootstrap.sh を実行し、そのあと Claude Code を起動し直す。"
 )
 
-# 2026-08-31 に実際に踏んだ側。当時の文面は bootstrap.sh と Claude Code の再起動を勧めており、
-# どちらもこの原因には効かないため 1 往復を空振りさせた。
+# この原因には bootstrap.sh も Claude Code の再起動も効かない。それらを勧めると1往復を
+# 空振りさせる (2026-08-31 に実測)。
 APM_REMEDY_STALE_SHELL = (
     "shim は配置済みで、Claude Code の PATH に載っていないだけである。Claude Code は PATH を"
     "起動元のシェルから継承するので、Claude Code だけを起動し直しても直らない。shim を PATH へ"

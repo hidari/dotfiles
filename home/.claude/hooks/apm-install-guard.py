@@ -45,9 +45,9 @@ install_apm_packages と shim の両方がそれを source する。この Pytho
 一致していることは scripts/claude-hooks/tests/test_apm_install_guard.py の cross-pin テストが
 見る (bats 側にはこの一致を見るテストは無い)。
 
-hook 入力の解釈と判定 JSON の組み立てもこのファイルが持つ。PreToolUse のフックはこれ1つ
-なので共有層を置かない。PreToolUse の Bash 呼び出しで JSON・型・command を解釈できない形は
-deny へ倒す。イベントやツールが合わない・欠けている入力は介在対象外なので無出力で通す。
+hook 入力の解釈と判定 JSON の組み立てもこのファイルが持つ。PreToolUse の Bash 呼び出しで
+JSON・型・command を解釈できない形は deny へ倒す。イベントやツールが合わない・欠けている
+入力は介在対象外なので無出力で通す。
 """
 
 from __future__ import annotations
@@ -456,9 +456,9 @@ def main() -> None:
     if not guard_resolve.shim_resolves():
         # 手当ては原因によって正反対になるので、この層でも guard_resolve に選ばせる。
         # 実際に apm を打った人が読むのはこの理由文なので、診断層 (guard_probes) だけを
-        # 直しても踏んだ人には届かない。以前の文面は「配置され PATH の先頭にあることを
-        # 確認してください」だけを求めており、起動元シェルが古いときは対話シェルで確かめると
-        # 両方満たされているため、読んだ側が問題なしと判断してしまう形だった。
+        # 直しても踏んだ人には届かない。「配置され PATH の先頭にあるか確認」だけを求めると、
+        # 起動元シェルが古いときに対話シェルで確かめた人には両方満たされて見え、問題なしと
+        # 判断される。
         deny(
             f"apm ガードの shim が PATH 上に見つからないため apm {subcommand} は"
             "許可しない。"
