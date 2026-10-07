@@ -49,7 +49,12 @@ completion_for() {
     completion_for git
 
     [ "$status" -eq 0 ]
-    [ -z "$stderr" ]
+    # stderr 全体の空は見ない。CI のランナーでは環境由来の出力が載り、ローカルの macOS と
+    # Linux コンテナでは載らなかった。見るのは日付比較が壊れたときの文面だけにする
+    if [[ "$stderr" == *"parse error"* ]]; then
+        echo "stderr: $stderr" >&2
+        return 1
+    fi
 }
 
 @test "completion block: the slice holds the compinit call" {
