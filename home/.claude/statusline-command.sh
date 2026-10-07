@@ -58,7 +58,8 @@ progress_bar() {
   [ "$filled" -gt 10 ] 2>/dev/null && filled=10
   [ "$filled" -lt 0 ] 2>/dev/null && filled=0
   local bar=""
-  for i in $(seq 1 10); do
+  local i
+  for ((i = 1; i <= 10; i++)); do
     if [ "$i" -le "$filled" ]; then
       bar="${bar}▰"
     else
@@ -191,28 +192,30 @@ format_epoch_time() {
 
 # ---------- Prompt cache (Claude Code 本体が stdin で渡す値) ----------
 # warm のうちに次を送れば再キャッシュを払わずに済むので、残り時間と、cold で払う量を出す。
-# 第 1 引数は prompt_cache の JSON、第 2 引数は現在時刻 (epoch 秒)。
+# 引数は prompt_cache の JSON。現在時刻は STATUSLINE_NOW (epoch 秒) で差し替えられ、
+# 未設定なら jq の now を使う。
 # 手元の版に無いフィールドや null のフィールドは、その部分だけ飛ばす。
 # cold の判定と丸めは jq に寄せ、シェルは並べるだけにする。
 prompt_cache_line() {
-  local pc_cold="" pc_remaining="" pc_ttl="" pc_hit="" pc_misses="" pc_recache_k="" pc_causes=""
+  local pc_cold="" pc_remaining="" pc_ttl="" pc_stats="" pc_recache_k="" pc_causes=""
   local assignments
   # warm が true でも期限に達していれば cold として扱う。本体は expires_at に達したときにも
   # statusline を再実行するが、その時点の warm はまだ true のことがある。
   # expires_at が null のときも cold になる。jq の順序では null がどの数よりも小さいので、
   # 期限の比較がそのまま真になる。
-  assignments=$(printf '%s' "$1" | jq -r --argjson now "$2" '
+  assignments=$(printf '%s' "$1" | jq -r --arg now "${STATUSLINE_NOW:-}" '
     def ttl_seconds:
-      if type == "string" and test("^[0-9]+[mh]$")
+      if type == "string" and test("^[1-9][0-9]*[mh]$")
       then (.[:-1] | tonumber) * {"m": 60, "h": 3600}[.[-1:]]
       else null end;
+    (if $now == "" then now else ($now | tonumber) end) as $now |
     .expires_at as $exp |
     (.warm != true or $exp <= $now) as $cold |
     "pc_cold=" + ($cold | tostring),
     "pc_remaining=" + (if $cold then "" else ($exp - $now | floor | tostring) end | @sh),
     "pc_ttl=" + ((.ttl | ttl_seconds // "") | tostring | @sh),
-    "pc_hit=" + (if .hit_ratio == null then "" else (.hit_ratio * 100 | round | tostring) end | @sh),
-    "pc_misses=" + ((.misses // "") | tostring | @sh),
+    "pc_stats=" + ([if .hit_ratio == null then empty else "hit \(.hit_ratio * 100 | round)%" end,
+                    if .misses == null then empty else "misses \(.misses)" end] | join(", ") | @sh),
     "pc_recache_k=" + (if .recache_tokens_if_cold == null then ""
                        else (.recache_tokens_if_cold / 1000 | round | tostring) end | @sh),
     "pc_causes=" + ((.last_miss_cause.causes? // []) | map(tostring) | join(", ") | @sh)
@@ -234,10 +237,7 @@ prompt_cache_line() {
     else
       line="${color}cache ${mins}m"
     fi
-    local stats=""
-    [ -n "$pc_hit" ] && stats="hit ${pc_hit}%"
-    [ -n "$pc_misses" ] && stats+="${stats:+, }misses ${pc_misses}"
-    [ -n "$stats" ] && line+="  ${stats}"
+    [ -n "$pc_stats" ] && line+="  ${pc_stats}"
   fi
   printf '%s' "${line}${RESET}"
 }
@@ -410,7 +410,7 @@ fi
 # 本体は最初の API 応答のあとから prompt_cache を渡す。それまでは行ごと出さない。
 line5=""
 if [ -n "$prompt_cache" ] && [ "$prompt_cache" != "{}" ]; then
-  line5=$(prompt_cache_line "$prompt_cache" "${STATUSLINE_NOW:-$(date +%s)}")
+  line5=$(prompt_cache_line "$prompt_cache")
 fi
 
 # ---------- Output ----------
@@ -418,4 +418,5 @@ fi
 out=("$line1" "$line2" "$line3")
 [ -n "$line4" ] && out+=("$line4")
 [ -n "$line5" ] && out+=("$line5")
-(IFS=$'\n'; printf '%s' "${out[*]}")
+IFS=$'\n'
+printf '%s' "${out[*]}"

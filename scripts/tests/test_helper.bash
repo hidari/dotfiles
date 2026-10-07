@@ -463,8 +463,9 @@ run_statusline() {
 }
 
 # cwd を指定して statusline-command.sh を実行する (リポジトリ行の検証用)。
+# 第 2・第 3 引数は statusline_input_json へ渡す rate_limits と prompt_cache。
 run_statusline_in() {
-    run bash "$STATUSLINE_SCRIPT" <<< "$(statusline_input_json "$1" "${2:-}")"
+    run bash "$STATUSLINE_SCRIPT" <<< "$(statusline_input_json "$1" "${2:-}" "${3:-}")"
 }
 
 # statusline-command.sh の生の出力をファイルへ落とす。

@@ -41,7 +41,7 @@ prompt_cache_json() {
 # statusline を prompt_cache 付きで実行し、最下行を CACHE_LINE に入れる。
 # 行数はリポジトリの内外で変わるので、位置ではなく最後の要素で取る。
 run_cache_line() {
-    run bash "$STATUSLINE_SCRIPT" <<< "$(statusline_input_json "" "" "$1")"
+    run_statusline_in "" "" "$1"
     [ "$status" -eq 0 ]
     CACHE_LINE="${lines[${#lines[@]}-1]}"
 }
@@ -75,7 +75,7 @@ run_cache_line() {
 @test "prompt_cache: puts the cache line below the repository line" {
     setup_test_repo "$TEST_HOME/myrepo"
 
-    run bash "$STATUSLINE_SCRIPT" <<< "$(statusline_input_json "$TEST_HOME/myrepo" "" "$(prompt_cache_json)")"
+    run_statusline_in "$TEST_HOME/myrepo" "" "$(prompt_cache_json)"
 
     [ "$status" -eq 0 ]
     [ "${#lines[@]}" -eq 5 ]
@@ -207,6 +207,22 @@ run_cache_line() {
 
 @test "prompt_cache: skips the bar and the denominator when ttl is absent" {
     run_cache_line "$(prompt_cache_json 'del(.ttl)')"
+
+    [ "$CACHE_LINE" = "${GREEN}cache 38m  hit 91%, misses 0${RESET}" ]
+}
+
+@test "prompt_cache: prints cause strings literally rather than evaluating them" {
+    # 原因の文字列は eval を通る。クォートが抜けると入力がコマンドとして走る
+    local marker="$TEST_HOME/evaluated"
+    run_cache_line "$(prompt_cache_json ".warm = false | .last_miss_cause = {causes: [\"\$(touch $marker)\"]}")"
+
+    [ ! -e "$marker" ]
+    assert_contains "$CACHE_LINE" "last miss: \$(touch $marker)"
+}
+
+@test "prompt_cache: skips the bar and the denominator when ttl is zero" {
+    # 分母が 0 だとバーの計算がゼロ除算で落ち、行ごと消える
+    run_cache_line "$(prompt_cache_json '.ttl = "0m"')"
 
     [ "$CACHE_LINE" = "${GREEN}cache 38m  hit 91%, misses 0${RESET}" ]
 }
