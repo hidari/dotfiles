@@ -29,14 +29,14 @@ setup() {
 # FPATH は外す。brew shellenv を読んだシェルから走らせると site-functions を含む FPATH を
 # 継承し、ブロックが fpath へ足さなくても補完が登録されて緑のまま通る。
 #
-# compaudit が insecure と判定するディレクトリは先に fpath から外す。外さないと、非対話の
-# compinit は確認を求められずに中断する (GitHub Actions のランナーで実際に起きた)。検査対象は
-# ブロックの書き方であって、実行環境のディレクトリの権限ではない。
+# ブロックが呼ぶ compinit は、insecure なものを黙って無視する compinit -i へ差し替える。
+# fpath やその親に権限のゆるいディレクトリがあると、非対話の compinit は確認を出せずに
+# 中断する (GitHub Actions のランナーで実際に起きた)。検査対象はブロックの書き方であって、
+# 実行環境のディレクトリの権限ではない。先に定義した関数はブロックの autoload では
+# 上書きされないので、ブロックが compinit を呼ばなければ差し替えも走らない。
 eval_after_slice() {
     run --separate-stderr env -u FPATH HOME="$ZDOT" ZDOTDIR="$ZDOT" zsh -f -c "
-        autoload -Uz compaudit
-        insecure=(\${(f)\"\$(compaudit 2>/dev/null)\"})
-        fpath=(\${fpath:|insecure})
+        compinit() { unfunction compinit; autoload -Uz compinit; compinit -i \"\$@\"; }
         source '$COMPLETION_SLICE' || exit 9
         print -r -- $1"
 }
