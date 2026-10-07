@@ -26,7 +26,6 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 
 # 必須フックの起動コマンド。settings_invariants の定数から生成しないこと。生成すると
 # clean フィクスチャが常に検査を満たし、pin が自己参照で空虚になる。
-TIRITH_HOOK_COMMAND = 'python3 "$HOME/.claude/hooks/tirith-check.py"'
 APM_GUARD_HOOK_COMMAND = 'python3 "$HOME/.claude/hooks/apm-install-guard.py"'
 GUARD_HEALTH_HOOK_COMMAND = 'python3 "$HOME/.claude/hooks/guard-health.py"'
 

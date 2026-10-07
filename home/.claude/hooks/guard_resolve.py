@@ -1,17 +1,11 @@
-"""apm / tirith の shim とバイナリを解決する軽量ロジック。
+"""apm ガードの shim を解決する軽量ロジック。
 
-強制層 (PreToolUse の apm-install-guard.py / tirith-check.py) がこのモジュールを
-Bash 呼び出しのたびに import する。ここで `subprocess` や `dataclasses` を import すると
-そのコストが全 Bash 呼び出しに乗るため、import してよいのは `os` と `shutil` までに
-限る。プローブの判定ロジック (ProbeResult や PROBES 登録簿、実際に tirith を起動する
-probe_tirith) は guard_probes.py が持つ。そちらは SessionStart (セッションに 1 回) からしか
-呼ばれないので重い import を許容できる。強制層が guard_probes.py を import すると
-診断層への依存が逆向きになり、診断層の import 失敗が両ガードを道連れにする。
-
-tirith_child_env / tirith_check_argv をここへ置くのは、tirith-check.py 本体と
-guard_probes.probe_tirith がどちらも同じ環境・同じ argv で tirith check を呼ぶ必要が
-あるため (呼び方が違うとフックが通る経路とは別のものを測ることになる)。関数を共有すれば
-片方だけ直して食い違う経路が構造的に無くなる。
+強制層 (PreToolUse の apm-install-guard.py) がこのモジュールを Bash 呼び出しのたびに
+import する。ここで `subprocess` や `dataclasses` を import するとそのコストが全 Bash
+呼び出しに乗るため、import してよいのは `os` と `shutil` までに限る。プローブの判定ロジック
+(ProbeResult や PROBES 登録簿) は guard_probes.py が持つ。そちらは SessionStart (セッションに
+1 回) からしか呼ばれないので重い import を許容できる。強制層が guard_probes.py を import すると
+診断層への依存が逆向きになり、診断層の import 失敗がガードを道連れにする。
 
 フックからは sys.path[0] (スクリプトのディレクトリ) 経由で解決される。
 """
@@ -26,28 +20,6 @@ import shutil
 # 存在ではなく「PATH 上の apm がここへ解決されるか」を見る。ファイルがあっても PATH に
 # 載っていなければ shim は一度も横取りしないので、存在検査は緑のまま守っていない状態を作る。
 DEFAULT_SHIM_PATH = "~/.local/libexec/apm-guard/apm"
-
-# tirith の子プロセスへ渡す環境から落とす接頭辞。tirith-check.py 本体と probe_tirith が
-# 同じ規則を共有する (tirith_child_env 参照)。検査の基礎を外から動かせる変数を渡さないため。
-_DROPPED_TIRITH_PREFIX = "TIRITH_"
-
-# tirith が PATH 上で解決しないときの手当て。原因は 2 通りある。入っていない場合と、入っている
-# のに PATH へ載っていない場合である。
-#
-# apm の shim と違って原因を区別しない。区別するには tirith の置き場を決め打つ必要があり、それは
-# Homebrew が持つ事実の写しになって drift する。shim の置き場は bootstrap.sh が配置するので
-# こちらが canonical を持てるが、tirith の置き場は持てない。
-#
-# 区別できないからこそ片方だけを勧めてはならない。2026-08-31 に PATH から /opt/homebrew/bin を
-# 外して実測したところ、tirith は brew で入っているのに brew install tirith だけを勧めた。
-#
-# leaf のここに置くのは、強制層 (tirith-check.py) と診断層 (guard_probes.py) の両方が使うため。
-# 強制層はホットパスで診断層を import しないので、診断層側へ置くと同じ文面を 2 箇所が literal で
-# 持つことになる。その形は片方だけを直したときに黙って食い違う。
-TIRITH_REMEDY_UNRESOLVED = (
-    "入っていないなら brew install tirith で戻る。入っているなら PATH に載っていないだけで、"
-    "Claude Code を起動し直しても直らない。PATH を整えた新しいシェルから起動する。"
-)
 
 
 def shim_path() -> str:
@@ -123,42 +95,3 @@ def apm_remedy() -> str:
     定数を共有しても、どちらを選ぶかを 2 箇所に書けば同じ二重管理が残る。
     """
     return APM_REMEDY_STALE_SHELL if shim_exists() else APM_REMEDY_MISSING_SHIM
-
-
-def resolve_tirith_bin() -> str:
-    """tirith バイナリのパスを解決する: TIRITH_BIN → PATH。
-
-    どちらでも見つからなければ "tirith" を返す。呼び出し側の subprocess が
-    FileNotFoundError を投げ、そこで不在を判定する。machine 固有パスを settings に
-    焼かず実行時に解決するのは、この設定が全プロジェクトで共有されるためである。
-
-    tirith は Homebrew 管理 (home/.Brewfile) で /opt/homebrew/bin へ入るため PATH で拾える。
-    mise 管理だった頃の shim 探索段は、実体化経路が brew へ移った時点で到達しなくなった。
-    """
-    return os.environ.get("TIRITH_BIN") or shutil.which("tirith") or "tirith"
-
-
-def tirith_child_env() -> dict[str, str]:
-    """tirith の子プロセスへ渡す環境。TIRITH_ 接頭辞を落とし、integration だけ足す。
-
-    tirith-check.py 本体と probe_tirith が個別に組み立てると、片方だけ直したときに
-    無音で食い違う (どちらも「clean」と応答して見えるが、片方は検査を弱めた環境で
-    呼んでいる、という形の drift)。ここへ 1 つだけ置いて両方から呼ぶ。
-    """
-    env = {
-        key: value
-        for key, value in os.environ.items()
-        if not key.startswith(_DROPPED_TIRITH_PREFIX)
-    }
-    env["TIRITH_INTEGRATION"] = "claude-code"
-    return env
-
-
-def tirith_check_argv(tirith_bin: str, command: str) -> list[str]:
-    """`tirith check` の argv を組み立てる。
-
-    tirith-check.py 本体と probe_tirith が同じフラグ (--json --non-interactive --shell posix)
-    で呼ぶことを保証する。フラグが 1 つでも違うとデーモンを経由するかどうかが変わり、
-    プローブがフックの通る経路とは別のものを測ることになる。
-    """
-    return [tirith_bin, "check", "--json", "--non-interactive", "--shell", "posix", "--", command]

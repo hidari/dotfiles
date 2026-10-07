@@ -172,9 +172,9 @@ def test_mise_backend_prefix_is_reduced_to_the_command(tmp_path: Path) -> None:
 # -----------------------------------------------------------------------------
 
 # ALSO_REQUIRED は entry に関係なく常に検査されるので、突き合わせの振る舞いを単独で
-# 見るテストでは供給側にも置く。置かないと全ケースがその 3 件で赤くなり、何を見ている
+# 見るテストでは供給側にも置く。置かないと全ケースがその 2 件で赤くなり、何を見ている
 # テストなのか区別できなくなる。ALSO_REQUIRED 自身の検査は専用のテストが持つ。
-_ALSO_REQUIRED_FORMULAE = 'brew "tirith"\nbrew "bats-core"\nbrew "pre-commit"\n'
+_ALSO_REQUIRED_FORMULAE = 'brew "bats-core"\nbrew "pre-commit"\n'
 
 
 def _repo_with_required(root: Path, entry: str, brewfile: str) -> None:
@@ -241,11 +241,10 @@ def test_exemptions_and_extra_requirements_are_disjoint() -> None:
 
 def test_also_required_includes_the_silently_failing_extras() -> None:
     # ALSO_REQUIRED から名前が消えても、他のテストは期待値をこの dict 自身から導出して
-    # いるため両辺が同時に縮んで緑のままになる (実測: tirith を消して 413 passed / rc 0)。
-    # 欠けても実行時にエラーが出ない 3 つだけを literal で縛る。増やす分は自由。
-    # とくに tirith は、不在時にフックが意図した fail-open へ倒れて検査そのものが
-    # 無音になるので、この検査から外れると気づく手段が一つも残らない。
-    assert {"tirith", "bats", "pre-commit"} <= set(ALSO_REQUIRED)
+    # いるため両辺が同時に縮んで緑のままになる (1件消しても他のテストは全件 passed / rc 0 の
+    # ままだったことを実測で確認した)。欠けても実行時にエラーが出ない2つだけを literal で
+    # 縛る。増やす分は自由。
+    assert {"bats", "pre-commit"} <= set(ALSO_REQUIRED)
 
 
 def test_real_repo_has_provisioning_manifests() -> None:

@@ -44,21 +44,29 @@ shim_resolves の呼び出し位置を参照)。
 install_apm_packages と shim の両方がそれを source する。この Python 側の判定と bash 側の判定が
 一致していることは scripts/claude-hooks/tests/test_apm_install_guard.py の cross-pin テストが
 見る (bats 側にはこの一致を見るテストは無い)。
+
+hook 入力の解釈と判定 JSON の組み立てもこのファイルが持つ。PreToolUse のフックはこれ1つ
+なので共有層を置かない。入力を解釈できない形はすべて deny へ倒し、逃げ道は上の
+APM_INSTALL_GUARD_DISABLE だけである。
 """
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shlex
 import sys
-from typing import TYPE_CHECKING, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn
 
 import guard_resolve
-import pretooluse
 
 if TYPE_CHECKING:
     import subprocess
+
+# 判定 JSON が名乗るイベント名と、介在する対象のツール。これ以外の入力は判定を出さずに通す。
+_HOOK_EVENT_NAME = "PreToolUse"
+_GUARDED_TOOL = "Bash"
 
 # 読み取り専用と確認できた apm のサブコマンド。ここに無いものは書き込みうるものとして扱う。
 # 名前と性質は apm --help および各 --help (0.27.0) の実際の出力から採った。
@@ -111,19 +119,13 @@ _STATUS_TIMEOUT = 30
 # 設計上受け入れている安価な失敗で済む。
 _DROPPED_ENV_PREFIX = "GIT_"
 
-# 入力を解釈できなかったときの deny 理由。共有層は理由を problem で返すだけで文面を持たない。
-# このフックは検査不能をすべて deny へ倒すので、tirith 側のような逃げ道は用意しない。
-_INPUT_PROBLEM_REASONS: dict[pretooluse.InputProblem, str] = {
-    pretooluse.InputProblem.EMPTY: "apm-install-guard: フックの入力が空でした",
-    pretooluse.InputProblem.MALFORMED_JSON: (
-        "apm-install-guard: フックの入力を JSON として解釈できませんでした"
-    ),
-    pretooluse.InputProblem.NOT_OBJECT: "apm-install-guard: フックの入力が object ではありません",
-    pretooluse.InputProblem.TOOL_INPUT_NOT_OBJECT: (
-        "apm-install-guard: tool_input が object ではありません"
-    ),
-    pretooluse.InputProblem.NO_COMMAND: "apm-install-guard: Bash コマンドを読み取れませんでした",
-}
+
+class HookInputError(Exception):
+    """フック入力を解釈できなかった。メッセージがそのまま deny の理由文になる。
+
+    壊れ方ごとに理由文を変えるのは、どれも deny で返る以上、どの検査で倒れたかを読み手が
+    理由文だけで区別するためである。
+    """
 
 
 class GitUnavailableError(RuntimeError):
@@ -134,8 +136,77 @@ class GitUnavailableError(RuntimeError):
     """
 
 
+def get(data: dict[str, Any], *keys: str) -> Any:
+    """snake_case と camelCase の両方でフィールドを引く。先に渡したキーが優先される。
+
+    「キーが無い」と「値が None」を区別しない。両方を後段の型検査が同じ扱いにするため。
+    """
+    for key in keys:
+        if key in data:
+            return data[key]
+    return None
+
+
+def parse_payload(raw: str) -> dict[str, Any]:
+    """stdin から読んだ hook 入力を dict にする。解釈できなければ HookInputError。
+
+    stdin の読み取り自体はここで行わない。純関数に保つと、この層を subprocess を経由せずに
+    検査できる。
+    """
+    if not raw.strip():
+        raise HookInputError("apm-install-guard: フックの入力が空でした")
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise HookInputError(
+            "apm-install-guard: フックの入力を JSON として解釈できませんでした"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise HookInputError("apm-install-guard: フックの入力が object ではありません")
+    return payload
+
+
+def bash_command(payload: dict[str, Any]) -> str | None:
+    """PreToolUse かつ Bash なら実行される command を返す。介在対象外なら None。
+
+    介在しない判定を tool_input の型検査より先に置く。対象外のツールに壊れた tool_input が
+    付いていても、こちらの守備範囲ではない。
+
+    tool_input の欠落だけを既定値へ倒す。falsy な非 object ([] や "" や 0) まで既定値へ
+    化かすと「型が違う」が「コマンドが無い」として報告され、理由が実態とずれる。
+    """
+    event = get(payload, "hook_event_name", "hookEventName")
+    tool = get(payload, "tool_name", "toolName")
+    if event != _HOOK_EVENT_NAME or tool != _GUARDED_TOOL:
+        return None
+
+    tool_input = get(payload, "tool_input", "toolInput")
+    if tool_input is None:
+        tool_input = {}
+    if not isinstance(tool_input, dict):
+        raise HookInputError("apm-install-guard: tool_input が object ではありません")
+
+    command = tool_input.get("command")
+    if not isinstance(command, str) or not command.strip():
+        raise HookInputError("apm-install-guard: Bash コマンドを読み取れませんでした")
+    return command
+
+
 def deny(reason: str) -> NoReturn:
-    print(pretooluse.decision_payload("deny", reason))
+    """deny の判定を出して終わる。このガードが出す判定は deny だけである。
+
+    allow を出さない理由はモジュール docstring にある。文脈だけを載せる形 (additionalContext)
+    も持たない。出力は deny か無出力の2値である。
+
+    ensure_ascii=False は判定理由をログでそのまま読むため。JSON としての意味は変わらない
+    (受け取り側はどちらでも同じ文字列を得る)。
+    """
+    output = {
+        "hookEventName": _HOOK_EVENT_NAME,
+        "permissionDecision": "deny",
+        "permissionDecisionReason": reason,
+    }
+    print(json.dumps({"hookSpecificOutput": output}, ensure_ascii=False))
     sys.exit(0)
 
 
@@ -361,10 +432,10 @@ def main() -> None:
         deny("apm-install-guard: フックの入力を読み取れませんでした")
 
     try:
-        payload = pretooluse.parse_payload(raw)
-        command = pretooluse.bash_command(payload)
-    except pretooluse.HookInputError as exc:
-        deny(_INPUT_PROBLEM_REASONS[exc.problem])
+        payload = parse_payload(raw)
+        command = bash_command(payload)
+    except HookInputError as exc:
+        deny(str(exc))
 
     if command is None:
         allow_silently()
@@ -402,7 +473,7 @@ def main() -> None:
             f"{guard_resolve.apm_remedy()}"
         )
 
-    cwd = pretooluse.get(payload, "cwd")
+    cwd = get(payload, "cwd")
     if not isinstance(cwd, str) or not cwd:
         deny(f"apm-install-guard: cwd が取れないため apm {subcommand} を許可できません")
 

@@ -20,7 +20,6 @@ from tests.conftest import (
     APM_GUARD_HOOK_COMMAND,
     GUARD_HEALTH_HOOK_COMMAND,
     PRIVATE_OPS_HOOK_COMMAND,
-    TIRITH_HOOK_COMMAND,
     hook_group,
     init_repo,
     pretooluse,
@@ -35,7 +34,7 @@ GOOD_SETTINGS = {
     # 必須フックの配線。欠けていると他の検査の統合テストにも findings が混ざる。
     # SessionStart の matcher は開始理由を見るので "*" を明示する
     "hooks": {
-        **pretooluse(hook_group(TIRITH_HOOK_COMMAND, APM_GUARD_HOOK_COMMAND)),
+        **pretooluse(hook_group(APM_GUARD_HOOK_COMMAND)),
         **session_start(
             hook_group(GUARD_HEALTH_HOOK_COMMAND, PRIVATE_OPS_HOOK_COMMAND, matcher="*")
         ),
@@ -228,7 +227,7 @@ def test_unprovisioned_tool_is_detected(tmp_path: Path) -> None:
         "        entry: orphan-tool check\n",
     )
     # 供給側の宣言が 1 つも無いと検査自体が対象外で沈黙する。要求だけを孤児にする
-    write_file(repo, BREWFILE_PATH, 'brew "tirith"\nbrew "bats-core"\nbrew "pre-commit"\n')
+    write_file(repo, BREWFILE_PATH, 'brew "bats-core"\nbrew "pre-commit"\n')
 
     findings = scan(str(repo))
 
