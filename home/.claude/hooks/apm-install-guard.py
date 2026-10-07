@@ -193,12 +193,12 @@ def bash_command(payload: dict[str, Any]) -> str | None:
     return command
 
 
-def deny(reason: str, *, prefixed: bool = True) -> NoReturn:
+def deny(reason: str) -> NoReturn:
     """ensure_ascii=False は判定理由をログでそのまま読むため。JSON としての意味は変わらない。"""
     output = {
         "hookEventName": _HOOK_EVENT_NAME,
         "permissionDecision": "deny",
-        "permissionDecisionReason": f"{_REASON_PREFIX}{reason}" if prefixed else reason,
+        "permissionDecisionReason": f"{_REASON_PREFIX}{reason}",
     }
     print(json.dumps({"hookSpecificOutput": output}, ensure_ascii=False))
     sys.exit(0)
@@ -479,7 +479,7 @@ def main() -> None:
     if blocked is None:
         allow_silently()
 
-    deny(format_reason(subcommand, *blocked), prefixed=False)
+    deny(format_reason(subcommand, *blocked))
 
 
 if __name__ == "__main__":

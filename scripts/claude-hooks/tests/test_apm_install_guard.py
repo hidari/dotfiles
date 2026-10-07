@@ -168,8 +168,8 @@ def test_dirty_tree_denies(tmp_path: Path) -> None:
     assert proc.returncode == 0
     assert decision(proc) == "deny"
     assert "a.txt" in reason(proc)
-    # 未コミット変更の理由文だけは接頭辞を付けずに出す
-    assert reason(proc).startswith("apm install は deploy 先を")
+    # 理由文はどの経路でも同じ接頭辞を持つ
+    assert reason(proc).startswith("apm-install-guard: apm install は deploy 先を")
 
 
 def test_untracked_file_denies(tmp_path: Path) -> None:
