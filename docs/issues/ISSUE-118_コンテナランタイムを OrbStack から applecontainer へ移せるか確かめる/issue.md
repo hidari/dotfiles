@@ -59,17 +59,41 @@ socktainer はネットワークごとに CoreDNS サイドカーを置いて名
 
 ## 進め方の方針
 
-OrbStack を残したまま併存させて試す。切り替えるかどうかは、下の検証の結果を見て決める。
+Docker.app と OrbStack は外す (2026-10-10にユーザーが決定)。OrbStack は安定しているが、マシンのリソースを大きく占有するのが理由。
 
-socktainer の formula は `depends_on "container"` を持つので、brew で入れると pkg 版の container と重複する (socktainer/socktainer#392)。container を brew 管理へ寄せるかどうかを先に決める。
+- compose のスタックは Container-Compose で試す。足りない部分は自作の compose 互換ツールを進める選択肢も残す
+- Supabase CLI のように Docker Engine API を直接叩くツールは Container-Compose では置き換えられないので、socktainer で試す
+- container は brew へ寄せて Brewfile で管理する。pkg 版は `uninstall-container.sh -k` でデータを残して外した
+- 外すのは試して動いてから。それまで OrbStack と併存させる。試用中は `DOCKER_HOST` の export と `docker context use` をしない (並行して動く作業の docker が OrbStack から切り替わってしまうため)。socktainer を使うときはコマンドごとに `--context` で指す
+- Container-Compose は、小さな自作の例、自作ツールの合成の例、実プロジェクトの testing スタックの順に試す
+
+## 試用結果 (2026-10-10、container 1.5.0 / Container-Compose 1.2.0)
+
+1.0.0時代のイメージは、pkg 版を `-k` で外して brew 版を入れたあとも引き継がれた。
+
+- DNS ドメインが未登録だと、サービス名の解決は起動後に exec で `/etc/hosts` を書き換える方式になる。すぐ終わるジョブはコマンドが先に走るので名前を引けない (常駐するサービスでは書き換えが間に合う)。`sudo container system dns create <プロジェクト名>` で登録すると解決できた。プロジェクトごとに sudo が要る
+- `depends_on` の `service_completed_successfully` がジョブの完了を待たない。`true` だけのジョブは通るが、`sleep 3` のジョブは実行中のまま「成功して終わっていない」と判定され、`up` が rc 1で止まる
+- `up` が rc 1で止まっても、それまでに起動したサービスは動いたまま残る
+- `down` はコンテナを止めるだけで削除しない。次の `up` は作り直すので実害は小さい
+- `networks.default.name` を書くとネットワークは作るが、サービスはそこへ繋がず `default` に載る。apple/container のカスタムネットワークでは名前を引けない (apple/container#1809) ので、結果的には動く
+- healthcheck の `service_healthy` 待ち、ポート公開、build と build args は期待どおりに動いた
+- `ps` と `logs` のサブコマンドは無い。`container` を直接使う
+
+実プロジェクトの testing スタックは、静的に読んだ時点で次の障害が見えたので、まだ試していない。
+
+- 同じスタックが OrbStack 側で動いており、ホスト側のポートが埋まっている。試すにはそちらを止める必要がある
+- `service_completed_successfully` で初期化ジョブを待つ構成なので、上の不具合を踏む
+- `extends` で別ファイルのサービスを引き込んでいる (Container-Compose では未対応のまま open)
+- `host.docker.internal` でホストの Supabase へ繋いでいる。apple/container には相当する名前が無い
 
 ## タスク
 
-- [ ] container の入手経路を決める (pkg のままか brew へ寄せるか)。brew へ寄せるなら Brewfile に載せる (ISSUE-95 の射程の議論と合わせる)
-- [ ] container を1.5.0へ上げる。上げる前に、既存のイメージとボリュームが引き継がれるかを確かめる
+- [x] container の入手経路を決める (pkg のままか brew へ寄せるか)。brew へ寄せるなら Brewfile に載せる (ISSUE-95 の射程の議論と合わせる)
+- [x] container を1.5.0へ上げる。上げる前に、既存のイメージとボリュームが引き継がれるかを確かめる
 - [ ] OrbStack と同時に動かしたときに、ポート・サブネット・DNS が衝突しないかを確かめる
 - [ ] socktainer と素の `docker compose` で、実際に使う compose ファイルを起動できるか確かめる
-- [ ] Container-Compose 1.2.0でも同じ compose ファイルを試し、socktainer と比べる
+- [ ] Container-Compose 1.2.0でも同じ compose ファイルを試し、socktainer と比べる (小さな例と合成の例は試した。結果は上の節)
+- [ ] Container-Compose で見つけた不具合を upstream へ報告するか、自作ツールで埋めるかを決める
 - [ ] 移行障害を実測する: inotify が届かないことの影響、多数のサービスを常駐させたときのメモリ、使っているイメージが arm64 で動くか
 - [ ] 移行するかを決め、決めた結果を `home/.claude/references/host-environment.md` の隔離先コンテナの記述へ反映する
 - [ ] 移行するなら、OrbStack.app と Docker.app、`/usr/local/bin/docker` の symlink、docker context の扱いを決める

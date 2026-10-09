@@ -28,6 +28,11 @@ brew "cloud-sql-proxy"                    # Google Cloud SQLプロキシ
 cask "gcloud-cli"                         # Google Cloud Platform CLI
 cask "1password-cli"                      # 1Passwordコマンドラインツール
 
+# --- コンテナ ---
+brew "container"                          # Apple 公式のコンテナランタイム (OrbStack からの移行先, ISSUE-118)
+brew "container-compose"                  # container の上で compose ファイルを起動する
+brew "socktainer"                         # Docker Engine API を container へ橋渡しする (Supabase CLI など API を直接叩くツール向け)
+
 # --- メディア処理 ---
 brew "ffmpeg"                             # 動画・音声変換ツール
 brew "imagemagick"                        # 画像処理ツール
