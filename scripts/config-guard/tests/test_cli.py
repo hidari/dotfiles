@@ -26,6 +26,7 @@ from tests.conftest import (
     pretooluse,
     run_git,
     session_start,
+    write_fake_herdr,
     write_file,
 )
 
@@ -117,10 +118,7 @@ def test_herdr_config_check_is_wired(tmp_path: Path, monkeypatch: pytest.MonkeyP
     write_file(repo, "home/.config/herdr/config.toml", '[keys]\nnext_agent = "prefix+shift+j"\n')
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    fake = bin_dir / "herdr"
-    fake.write_text("#!/bin/sh\nprintf 'config: issues found\\nfrom fake herdr\\n'\nexit 1\n")
-    fake.chmod(0o755)
-    # 作ったばかりの実行ファイルは macOS の初回検査で待たされうる (定義コメント参照)
+    write_fake_herdr(bin_dir, "printf 'config: issues found\\nfrom fake herdr\\n'\nexit 1")
     monkeypatch.setattr(herdr_keys, "_SUBPROCESS_TIMEOUT_SECONDS", 120)
     monkeypatch.setenv("PATH", f"{bin_dir}:{os.environ['PATH']}")
 

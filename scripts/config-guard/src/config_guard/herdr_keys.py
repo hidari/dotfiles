@@ -13,7 +13,9 @@ config 内の cycle_pane_* とは逆向きになっていた。
 
 アクション名の綴り違い (`next_agentt`) は `herdr server reload-config` では警告されず、
 その binding が黙って存在しないことになる。これは herdr 自身の `herdr config check` が
-未知のキーとして報告するので、herdr があるときはそれに config を検証させる。
+未知のキーとして報告するので、herdr があるときはそれに config を検証させる。herdr は
+chord の重複も報告し、その判定は静的な正規化より正確なので、herdr が走ったときは静的な
+重複検査を回さない (二重に報告しない)。向きの逆転は herdr が検証しないので常に回す。
 """
 
 from __future__ import annotations
@@ -30,12 +32,14 @@ from config_guard.models import Finding
 
 CONFIG_PATH = "home/.config/herdr/config.toml"
 
-# `herdr config check` が問題を見つけたときの 1 行目。2 行目以降が診断になる
+# `herdr config check` が問題なしのときの出力 (rc 0)
+_CONFIG_CHECK_OK = "config: ok"
+# `herdr config check` が問題を見つけたときの 1 行目 (rc 1)。2 行目以降が診断になる
 _CONFIG_CHECK_ISSUES_HEADER = "config: issues found"
 _CONFIG_CHECK_LABEL = "herdr config check"
 
 # config のパスを受け取り `herdr config check` の結果を返す。herdr が無ければ None
-ConfigChecker = Callable[[Path], "subprocess.CompletedProcess[str] | None"]
+ConfigChecker = Callable[[Path], subprocess.CompletedProcess[str] | None]
 
 # parse_bindings が [[keys.command]] へ与える合成ラベルの接頭辞。アクション名ではない。
 _COMMAND_LABEL_PREFIX = "keys.command["
@@ -117,7 +121,7 @@ def parse_bindings(config_text: str) -> list[Binding]:
 def run_config_check(config: Path) -> subprocess.CompletedProcess[str] | None:
     """config を `herdr config check` で検証する。herdr が無い/起動できない/時間切れなら None。
 
-    副作用をここへ隔離し、結果の解釈は check_herdr_keys が持つ (テストは hermetic に、
+    副作用をここへ隔離し、結果の解釈は呼び出し側が持つ (テストは hermetic に、
     herdr の無い CI ではこの検査だけが自動的に skip される)。
     """
     try:
@@ -135,27 +139,21 @@ def run_config_check(config: Path) -> subprocess.CompletedProcess[str] | None:
 
 def _config_check_findings(result: subprocess.CompletedProcess[str] | None) -> list[Finding]:
     """`herdr config check` の結果を Finding にする。想定外の形は問題なしへ倒さず報告する。"""
-    if result is None or result.returncode == 0:
+    if result is None:
         return []
-    header, _, diagnostics = result.stdout.partition("\n")
-    if result.returncode == 1 and header == _CONFIG_CHECK_ISSUES_HEADER and diagnostics.strip():
-        lines = (line.strip() for line in diagnostics.splitlines())
-        return [
-            Finding(
-                CONFIG_PATH,
-                _CONFIG_CHECK_LABEL,
-                "herdr が config の問題を報告しました: "
-                + " / ".join(line for line in lines if line),
-            )
-        ]
-    return [
-        Finding(
-            CONFIG_PATH,
-            _CONFIG_CHECK_LABEL,
-            f"herdr config check の結果を解釈できません (rc={result.returncode}): "
-            + (result.stdout.strip() or result.stderr.strip()),
+    stdout = result.stdout.strip()
+    if result.returncode == 0 and stdout == _CONFIG_CHECK_OK:
+        return []
+
+    header, _, diagnostics = stdout.partition("\n")
+    lines = [line.strip() for line in diagnostics.splitlines() if line.strip()]
+    if result.returncode == 1 and header == _CONFIG_CHECK_ISSUES_HEADER and lines:
+        message = "herdr が config の問題を報告しました: " + " / ".join(lines)
+    else:
+        message = f"herdr config check の結果を解釈できません (rc={result.returncode}): " + (
+            stdout or result.stderr.strip()
         )
-    ]
+    return [Finding(CONFIG_PATH, _CONFIG_CHECK_LABEL, message)]
 
 
 def _split_chord(chord: str) -> list[str]:
@@ -176,13 +174,18 @@ def _normalize_chord(chord: str) -> str:
     """herdr が同一視する chord を 1 つの綴りへ畳む。
 
     修飾キーの並び順と大文字小文字だけが違う chord は herdr にとって同じ chord なので、
-    重複検出は正規形をキーにしないと衝突を取りこぼす。
+    重複検出は正規形をキーにしないと衝突を取りこぼす。1 文字の大文字キーは shift+小文字 と
+    同じ chord になる (記号は shift の有無で別の chord のまま。0.9.5 で実測)。
     """
     tokens = _split_chord(chord)
     if not tokens:
         return ""
 
     key, modifiers = tokens[-1], tokens[:-1]
+    # _split_chord が小文字へ畳むので、大文字かどうかは元の綴りの最終キーで見る
+    raw_key = chord.rsplit("+", 1)[-1].strip()
+    if len(raw_key) == 1 and raw_key.isupper():
+        modifiers.append("shift")
     lead = []
     if modifiers[:1] == [_PREFIX_TOKEN]:
         lead, modifiers = [_PREFIX_TOKEN], modifiers[1:]
@@ -265,8 +268,18 @@ def check_herdr_keys(repo_root: str, config_checker: ConfigChecker | None = None
     if not config.is_file():
         return []
 
-    bindings = parse_bindings(config.read_text(encoding="utf-8"))
-    findings = _check_directions(bindings) + _check_duplicates(bindings)
-    if config_checker is not None:
-        findings.extend(_config_check_findings(config_checker(config)))
-    return findings
+    result = config_checker(config) if config_checker is not None else None
+    herdr_findings = _config_check_findings(result)
+    try:
+        bindings = parse_bindings(config.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as error:
+        # herdr が構文エラーを行と列つきで報告していればそれだけを返す。herdr が無いか
+        # 受け入れた場合も、静的な検査が何も見ていないことは告げる
+        return herdr_findings or [
+            Finding(CONFIG_PATH, "TOML", f"config を TOML として読めません: {error}")
+        ]
+
+    findings = _check_directions(bindings)
+    if result is None:
+        findings += _check_duplicates(bindings)
+    return findings + herdr_findings

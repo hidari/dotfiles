@@ -21,5 +21,4 @@ uv run config-guard /path/to/repo-root
 リンク検査は散文中のリンク記法を実リンクとして解決する。記法を例として書きたいときは
 インラインコードかバッククォートのコードフェンスで囲むこと（コード領域は検査対象外）。
 
-herdr のアクション名検査だけは `herdr --default-config` を真実源に引くため、herdr が入っていない
-環境（CI）では自動的に skip される。方向整合と chord 重複はどこでも走る。
+herdr の config は herdr 自身にも検証させる（`herdr config check`）。これは herdr が入っていない環境（CI）では自動的に skip される。方向整合と chord 重複はどこでも走る。

@@ -20,6 +20,7 @@ from config_guard.herdr_keys import (
     parse_bindings,
     run_config_check,
 )
+from tests.conftest import write_fake_herdr
 
 # 方向キーを持つ対と、方向を持たない対(p/n, tab)を混ぜた最小 config
 SAMPLE_CONFIG = """[keys]
@@ -213,10 +214,18 @@ def test_check_flags_duplicate_chord_between_action_and_command(tmp_path: Path) 
     assert "keys.command[0]" in findings[0].message
 
 
-def test_check_duplicate_detection_is_case_insensitive(tmp_path: Path) -> None:
+def test_check_duplicate_detection_ignores_case_of_named_keys(tmp_path: Path) -> None:
+    # 複数文字のキー名は大文字小文字を区別しない (0.9.5 で実測)
+    _write_config(tmp_path, '[keys]\nnew_tab = "prefix+LEFT"\nclose_pane = "prefix+left"\n')
+
+    assert [f.detail for f in check_herdr_keys(str(tmp_path))] == ["prefix+left"]
+
+
+def test_check_distinguishes_uppercase_letter_from_lowercase(tmp_path: Path) -> None:
+    # 1 文字の大文字は shift+小文字 なので、小文字とは別の chord (0.9.5 で実測)
     _write_config(tmp_path, '[keys]\nnew_tab = "prefix+C"\nclose_pane = "prefix+c"\n')
 
-    assert [f.detail for f in check_herdr_keys(str(tmp_path))] == ["prefix+c"]
+    assert check_herdr_keys(str(tmp_path)) == []
 
 
 def test_check_allows_same_chord_listed_once_per_action(tmp_path: Path) -> None:
@@ -276,8 +285,45 @@ def test_check_empty_when_no_config(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# check_herdr_keys (静的な検査の補足: 大文字キーと TOML の構文エラー)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("other", ["prefix+shift+j", "prefix+shift+J"])
+def test_check_treats_uppercase_key_as_shift(tmp_path: Path, other: str) -> None:
+    # herdr は 1 文字の大文字キーを shift+小文字 と同じ chord として扱い、shift+J も同じ
+    # chord になる (0.9.5 で実測)。向きの検査に掛からないよう向きを持たないアクションを使う
+    _write_config(tmp_path, f'[keys]\nfocus_pane_down = "prefix+J"\nfocus_pane_up = "{other}"\n')
+
+    findings = check_herdr_keys(str(tmp_path))
+
+    assert [f.detail for f in findings] == ["prefix+shift+j"]
+
+
+def test_check_does_not_add_shift_to_symbol_keys(tmp_path: Path) -> None:
+    # 大文字を持たない記号は shift の有無で別の chord になる (0.9.5 で実測)
+    _write_config(
+        tmp_path, '[keys]\nfocus_pane_left = "prefix+["\nfocus_pane_right = "prefix+shift+["\n'
+    )
+
+    assert check_herdr_keys(str(tmp_path)) == []
+
+
+def test_check_reports_unparsable_config_without_herdr(tmp_path: Path) -> None:
+    # 構文エラーで例外を投げると scan 全体がトレースバックで止まり、他の検査の結果も失われる
+    _write_config(tmp_path, "keys = [\n")
+
+    (finding,) = check_herdr_keys(str(tmp_path))
+
+    assert (finding.source, finding.detail) == (CONFIG_PATH, "TOML")
+
+
+# ---------------------------------------------------------------------------
 # check_herdr_keys (`herdr config check` の結果の解釈)
 # ---------------------------------------------------------------------------
+
+# 向きの検査に掛からないよう、向きを持たないアクションで重複させる
+DUPLICATE_CONFIG = '[keys]\nfocus_pane_down = "prefix+shift+j"\nfocus_pane_up = "prefix+shift+j"\n'
 
 
 def _checked(returncode: int, stdout: str) -> subprocess.CompletedProcess[str]:
@@ -296,9 +342,10 @@ def test_check_reports_herdr_diagnostics(tmp_path: Path) -> None:
     assert "unknown config key keys.next_agentt; ignoring key" in findings[0].message
 
 
-def test_check_keeps_every_line_of_multiline_diagnostics(tmp_path: Path) -> None:
-    # TOML の構文エラーは複数行で報告される。1 行目だけ拾うと位置と理由が落ちる
-    _write_config(tmp_path, SAMPLE_CONFIG)
+def test_check_reports_herdr_parse_error_instead_of_static_one(tmp_path: Path) -> None:
+    # 構文エラーは herdr が行と列つきで複数行にわたって報告する。1 行目だけ拾うと位置と
+    # 理由が落ちる。herdr が読めたなら静的な TOML の Finding は重ねない
+    _write_config(tmp_path, "keys = [\n")
     result = _checked(
         1,
         "config: issues found\nconfig parse error: TOML parse error at line 1, column 10\n"
@@ -307,8 +354,43 @@ def test_check_keeps_every_line_of_multiline_diagnostics(tmp_path: Path) -> None
 
     (finding,) = check_herdr_keys(str(tmp_path), lambda _: result)
 
+    assert finding.detail == "herdr config check"
     for line in ("line 1, column 10", "invalid array", "expected `]`", "using defaults"):
         assert line in finding.message
+
+
+def test_check_reports_unparsable_config_even_if_herdr_accepts_it(tmp_path: Path) -> None:
+    # herdr が読めても tomllib が読めなければ向きの検査は何も見ていない。空で返すと緑に見える
+    _write_config(tmp_path, "keys = [\n")
+
+    (finding,) = check_herdr_keys(str(tmp_path), lambda _: _checked(0, "config: ok\n"))
+
+    assert finding.detail == "TOML"
+
+
+def test_check_leaves_duplicates_to_herdr_when_it_ran(tmp_path: Path) -> None:
+    # herdr は重複を自分で報告し、静的な正規化より正確なので、herdr が走ったら二重に出さない
+    _write_config(tmp_path, DUPLICATE_CONFIG)
+
+    assert check_herdr_keys(str(tmp_path), lambda _: _checked(0, "config: ok\n")) == []
+
+
+def test_check_reports_duplicates_statically_without_herdr(tmp_path: Path) -> None:
+    # 上のテストの対照。herdr が無ければ (起動結果が None) 静的な重複検査が代わりに走る
+    _write_config(tmp_path, DUPLICATE_CONFIG)
+
+    findings = check_herdr_keys(str(tmp_path), lambda _: None)
+
+    assert [f.detail for f in findings] == ["prefix+shift+j"]
+
+
+def test_check_runs_direction_check_even_when_herdr_ran(tmp_path: Path) -> None:
+    # 向きの逆転は herdr が検証しないので、herdr の有無に関係なく走る
+    _write_config(tmp_path, '[keys]\nnext_workspace = "ctrl+alt+["\n')
+
+    findings = check_herdr_keys(str(tmp_path), lambda _: _checked(0, "config: ok\n"))
+
+    assert [f.detail for f in findings] == ["next_workspace = ctrl+alt+["]
 
 
 def test_check_passes_when_herdr_reports_ok(tmp_path: Path) -> None:
@@ -325,6 +407,11 @@ def test_check_passes_when_herdr_reports_ok(tmp_path: Path) -> None:
         (1, ""),
         # 2 行目以降があっても、見出しが違えば診断として読まない
         (1, "unexpected header\nsome detail\n"),
+        # 見出しはあっても診断が空なら、何が悪いかを伝えられない
+        (1, "config: issues found\n"),
+        # rc 0 でも、問題なしの 1 行でなければ形が変わったとみなす
+        (0, ""),
+        (0, "config: issues found\nsome detail\n"),
     ],
 )
 def test_check_reports_uninterpretable_result(tmp_path: Path, returncode: int, stdout: str) -> None:
@@ -371,12 +458,6 @@ def test_check_does_not_run_herdr_without_config(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _fake_herdr(directory: Path, body: str) -> None:
-    fake = directory / "herdr"
-    fake.write_text(f"#!/bin/sh\n{body}\n", encoding="utf-8")
-    fake.chmod(0o755)
-
-
 def test_run_config_check_returns_none_without_herdr(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -391,7 +472,7 @@ def test_run_config_check_points_herdr_at_the_given_config(
     # 待ち時間を緩める理由は _SUBPROCESS_TIMEOUT_SECONDS の定義コメントを参照。
     # ここで測りたいのは引数と環境変数の受け渡しだけ
     monkeypatch.setattr(herdr_keys, "_SUBPROCESS_TIMEOUT_SECONDS", 120)
-    _fake_herdr(tmp_path, 'printf "%s|%s" "$*" "$HERDR_CONFIG_PATH"; exit 1')
+    write_fake_herdr(tmp_path, 'printf "%s|%s" "$*" "$HERDR_CONFIG_PATH"; exit 1')
     monkeypatch.setenv("PATH", str(tmp_path))
     config = tmp_path / "config.toml"
 
@@ -410,7 +491,7 @@ def test_run_config_check_returns_none_on_timeout(
     sleep = shutil.which("sleep")
     assert sleep is not None, "sleep が見つからない環境ではこのテストを構成できない"
     monkeypatch.setattr(herdr_keys, "_SUBPROCESS_TIMEOUT_SECONDS", 0.001)
-    _fake_herdr(tmp_path, f"{sleep} 1\necho 'config: ok'")
+    write_fake_herdr(tmp_path, f"{sleep} 1\necho 'config: ok'")
     monkeypatch.setenv("PATH", str(tmp_path))
 
     assert run_config_check(tmp_path / "config.toml") is None
@@ -433,8 +514,22 @@ def test_live_herdr_reports_misspelled_action(tmp_path: Path) -> None:
 
 
 @requires_herdr
+def test_live_herdr_reports_parse_error(tmp_path: Path) -> None:
+    _write_config(tmp_path, "keys = [\n")
+
+    (finding,) = check_herdr_keys(str(tmp_path), run_config_check)
+
+    assert "TOML parse error" in finding.message
+
+
+@requires_herdr
 def test_live_herdr_accepts_valid_config(tmp_path: Path) -> None:
-    # 上のテストの対照。同じ経路で、正しい config では何も報告しない
+    # 上のテストの対照。herdr が実際に起動して問題なしと答えたことまで確かめる
+    # (起動に失敗すると None になり、check_herdr_keys は同じく空を返すため)
     _write_config(tmp_path, '[keys]\nnext_agent = "prefix+shift+j"\n')
 
+    result = run_config_check(tmp_path / CONFIG_PATH)
+
+    assert result is not None
+    assert (result.returncode, result.stdout.strip()) == (0, "config: ok")
     assert check_herdr_keys(str(tmp_path), run_config_check) == []
