@@ -1,5 +1,5 @@
 lockfile_version: '1'
-generated_at: '2026-10-06T17:18:38.232974+00:00'
+generated_at: '2026-10-16T05:47:35.352625+00:00'
 apm_version: 0.33.0
 dependencies:
 - repo_url: cloudflare/security-audit-skill
@@ -332,21 +332,6 @@ dependencies:
   deployed_file_hashes:
     .claude/skills/chrome-devtools-debugger/SKILL.md: sha256:aaa56e3fca207d30b6fb301fcbb289ef3a9f60b10daa70d66f4cfc45d225ae30
   content_hash: sha256:f680613ae176bcabbb4650fd49fea70156d75ba209cbb1732b5ac7f6a2e7a57c
-- repo_url: hidari/agentic-coding-tools
-  name: herdr
-  host: github.com
-  resolved_commit: 9bc82e67ba810da51d7a387622765b9f3ef66922
-  resolved_ref: 9bc82e67ba810da51d7a387622765b9f3ef66922
-  version: unknown
-  virtual_path: skills/tooling/herdr
-  is_virtual: true
-  package_type: claude_skill
-  deployed_files:
-  - .claude/skills/herdr
-  - .claude/skills/herdr/SKILL.md
-  deployed_file_hashes:
-    .claude/skills/herdr/SKILL.md: sha256:75826452ca09623a7309c0a0d9bd6b29b24c55cf100632fc83bd69a685241f17
-  content_hash: sha256:69d3762de6941e5632e7cbcaeea3584b47ce906a9275afb333d5405ff5480b80
 - repo_url: hidari/agentic-coding-tools
   name: jev-lint-curated
   host: github.com
@@ -1116,24 +1101,6 @@ deployments:
   - hidari/agentic-coding-tools/plugins/dev-workflow
   active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
   content_hash: sha256:3f501bbd9155e61312e14cbf5fbd78e189860a1a88a2f996e429bc9c50025649
-- kind: project-relative
-  target: claude
-  value: .claude/skills/herdr
-  runtime: null
-  scope: project
-  owners:
-  - hidari/agentic-coding-tools/skills/tooling/herdr
-  active_owner: hidari/agentic-coding-tools/skills/tooling/herdr
-  content_hash: null
-- kind: project-relative
-  target: claude
-  value: .claude/skills/herdr/SKILL.md
-  runtime: null
-  scope: project
-  owners:
-  - hidari/agentic-coding-tools/skills/tooling/herdr
-  active_owner: hidari/agentic-coding-tools/skills/tooling/herdr
-  content_hash: sha256:75826452ca09623a7309c0a0d9bd6b29b24c55cf100632fc83bd69a685241f17
 - kind: project-relative
   target: claude
   value: .claude/skills/in-repo-issue

@@ -19,7 +19,6 @@ dependencies:
   - hidari/agentic-coding-tools/skills/meta/context-loading-mechanics#9bc82e67ba810da51d7a387622765b9f3ef66922 # v0.14.0
   - hidari/agentic-coding-tools/skills/meta/session-handoff#9bc82e67ba810da51d7a387622765b9f3ef66922 # v0.14.0
   - hidari/agentic-coding-tools/skills/tooling/chrome-devtools-debugger#9bc82e67ba810da51d7a387622765b9f3ef66922 # v0.14.0
-  - hidari/agentic-coding-tools/skills/tooling/herdr#9bc82e67ba810da51d7a387622765b9f3ef66922 # v0.14.0
   - hidari/agentic-coding-tools/skills/tooling/jev-lint-curated#9bc82e67ba810da51d7a387622765b9f3ef66922 # v0.14.0
   - hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf#9bc82e67ba810da51d7a387622765b9f3ef66922 # v0.14.0
   - hidari/agentic-coding-tools/plugins/dev-workflow#9bc82e67ba810da51d7a387622765b9f3ef66922 # v0.14.0
