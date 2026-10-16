@@ -14,16 +14,16 @@ dependencies:
   - mizchi/skills/tooling/justfile#d7999453cdb4e0e09df1c7f82fd23752539c546c
   - yusukebe/ax/skills/ax#8abbca2fc400c2ff4866248ba1ec9309b948812f
   - cloudflare/security-audit-skill/skills/security-audit#c1c8a8c1471069fb0e188eeaff69b8e8db6564a8
-  - hidari/agentic-coding-tools/skills/devops/macos-vm-verification#9bc82e67ba810da51d7a387622765b9f3ef66922 # v0.14.0
-  - hidari/agentic-coding-tools/skills/devops/windows-vm-verification#9bc82e67ba810da51d7a387622765b9f3ef66922 # v0.14.0
-  - hidari/agentic-coding-tools/skills/meta/context-loading-mechanics#9bc82e67ba810da51d7a387622765b9f3ef66922 # v0.14.0
-  - hidari/agentic-coding-tools/skills/meta/session-handoff#9bc82e67ba810da51d7a387622765b9f3ef66922 # v0.14.0
-  - hidari/agentic-coding-tools/skills/tooling/chrome-devtools-debugger#9bc82e67ba810da51d7a387622765b9f3ef66922 # v0.14.0
-  - hidari/agentic-coding-tools/skills/tooling/jev-lint-curated#9bc82e67ba810da51d7a387622765b9f3ef66922 # v0.14.0
-  - hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf#9bc82e67ba810da51d7a387622765b9f3ef66922 # v0.14.0
-  - hidari/agentic-coding-tools/plugins/dev-workflow#9bc82e67ba810da51d7a387622765b9f3ef66922 # v0.14.0
-  - hidari/agentic-coding-tools/plugins/security-blue-red-team#9bc82e67ba810da51d7a387622765b9f3ef66922 # v0.14.0
-  - hidari/agentic-coding-tools/plugins/web-monkey-qa#9bc82e67ba810da51d7a387622765b9f3ef66922 # v0.14.0
+  - hidari/agentic-coding-tools/skills/devops/macos-vm-verification#35221a3c9f02f95cc630a8403293ba67b290d1f1 # v0.15.0
+  - hidari/agentic-coding-tools/skills/devops/windows-vm-verification#35221a3c9f02f95cc630a8403293ba67b290d1f1 # v0.15.0
+  - hidari/agentic-coding-tools/skills/meta/context-loading-mechanics#35221a3c9f02f95cc630a8403293ba67b290d1f1 # v0.15.0
+  - hidari/agentic-coding-tools/skills/meta/session-handoff#35221a3c9f02f95cc630a8403293ba67b290d1f1 # v0.15.0
+  - hidari/agentic-coding-tools/skills/tooling/chrome-devtools-debugger#35221a3c9f02f95cc630a8403293ba67b290d1f1 # v0.15.0
+  - hidari/agentic-coding-tools/skills/tooling/jev-lint-curated#35221a3c9f02f95cc630a8403293ba67b290d1f1 # v0.15.0
+  - hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf#35221a3c9f02f95cc630a8403293ba67b290d1f1 # v0.15.0
+  - hidari/agentic-coding-tools/plugins/dev-workflow#35221a3c9f02f95cc630a8403293ba67b290d1f1 # v0.15.0
+  - hidari/agentic-coding-tools/plugins/security-blue-red-team#35221a3c9f02f95cc630a8403293ba67b290d1f1 # v0.15.0
+  - hidari/agentic-coding-tools/plugins/web-monkey-qa#35221a3c9f02f95cc630a8403293ba67b290d1f1 # v0.15.0
   mcp: []
 includes: auto
 scripts: {}
