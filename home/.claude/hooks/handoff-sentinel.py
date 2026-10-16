@@ -19,17 +19,18 @@ import json
 import os
 import re
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Iterator
 from datetime import UTC, datetime
+from itertools import islice
 from pathlib import Path
-from typing import Any, TypeGuard
+from typing import Any, BinaryIO, TypeGuard
 
 # canonical な既定値。他ファイル (SKILL.md / template.md) はこれらの値を再掲しない。
 DEFAULT_CONTEXT_WINDOW_TOKENS = 1_000_000
 DEFAULT_CONTEXT_THRESHOLD_PCT = 50
 DEFAULT_BROKEN_COUNT = 5
 DEFAULT_INJECT_MAX_BYTES = 32_768
-DEFAULT_TAIL_BYTES = 1_048_576
+DEFAULT_TAIL_ASSISTANTS = 100
 DEFAULT_RATELIMIT_WARN_PCT = 90
 DEFAULT_RATELIMIT_URGENT_PCT = 95
 
@@ -37,6 +38,9 @@ DEFAULT_RATELIMIT_URGENT_PCT = 95
 # (_mark_unread / _clear_unread) と glob で集める側 (_pending_unread) の両方に現れる。
 # 綴りがズレると告知が一度も出ない静かな失敗になるので、ここに 1 つだけ置く。
 _UNREAD_SUFFIX = "unread"
+
+# transcript を末尾から読むときの 1 回の読み込み量。窓の大きさではなく読み込みの粒度
+_READ_CHUNK_BYTES = 1_048_576
 
 # 窓名の表示ラベル。サーバは窓を追加しうるので監視対象は名指しで持たず、読み手に伝わらない
 # 名前だけをここで訳す。未知の窓は名前をそのまま出す。
@@ -138,30 +142,49 @@ def _session_and_transcript(payload: dict[str, Any]) -> tuple[str, str] | None:
     return session_id, transcript_path
 
 
-def _read_tail_entries(transcript_path: str) -> list[dict[str, Any]]:
-    """transcript JSONL の末尾 (既定 DEFAULT_TAIL_BYTES) を読み、entry 一覧を返す。
+def _parse_entry(raw: bytes) -> dict[str, Any] | None:
+    """JSONL の 1 行を entry にする。壊れた行と subagent の isSidechain な entry は None。"""
+    try:
+        entry = json.loads(raw.decode("utf-8", errors="replace"))
+    except json.JSONDecodeError:
+        return None
+    if isinstance(entry, dict) and not entry.get("isSidechain"):
+        return entry
+    return None
 
-    ツール実行ごとに走るため全量パースを避けてコストを一定に抑える。判定に必要なのは
-    末尾近傍のみ (最後の usage / 破損の通算)。壊れた行と subagent の isSidechain な
-    entry は捨てる。行分割は JSONL の区切り (\\n) のみで行う (str.splitlines は U+2028 等の
-    Unicode 行境界でも割ってしまい、それらを含む正当な JSON 行を取りこぼすため使わない)。
+
+def _reversed_lines(fp: BinaryIO) -> Iterator[bytes]:
+    """開いた JSONL を末尾から 1 行ずつ返す。読み込みの区切りで切れた行は前方の塊とつなぐ。
+
+    行分割は JSONL の区切り (\\n) のバイトで行う。UTF-8 の多バイト文字は 0x0A を含まないので
+    文字の途中では割れず、str.splitlines のように U+2028 等で正当な行を割ることもない。
     """
-    tail_bytes = _env_int("HANDOFF_TAIL_BYTES", DEFAULT_TAIL_BYTES)
-    size = os.path.getsize(transcript_path)
+    pos = fp.seek(0, os.SEEK_END)
+    carry = b""  # 塊の先頭で切れた行の後半。次に読む前方の塊の末尾とつなぐ
+    while pos > 0:
+        step = min(_READ_CHUNK_BYTES, pos)
+        pos -= step
+        fp.seek(pos)
+        carry, *lines = (fp.read(step) + carry).split(b"\n")
+        yield from reversed(lines)
+    yield carry  # ファイル先頭の行
+
+
+def _assistants_newest_first(transcript_path: str) -> Iterator[dict[str, Any]]:
+    """transcript の本編の assistant entry を新しい順に返す。読むのは使い手が求めた分だけ。
+
+    窓をバイト数で切ると、リクエストごとに記録される大きな entry (api-request など) で
+    窓に入るターン数が変わるので、使い手は窓を assistant の件数で切る。判定に要るのは
+    assistant だけなので、それ以外の行はパースする前に文字列で落とす。type の値は literal の
+    "assistant" で現れるので取りこぼさず、本文に同じ文字列を含む別の type はパースして落とす。
+    """
     with open(transcript_path, "rb") as fp:
-        if size > tail_bytes:
-            fp.seek(size - tail_bytes)
-            fp.readline()  # seek で切れた部分行を捨てる
-        data = fp.read()
-    entries: list[dict[str, Any]] = []
-    for line in data.decode("utf-8", errors="replace").split("\n"):
-        try:
-            entry = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(entry, dict) and not entry.get("isSidechain"):
-            entries.append(entry)
-    return entries
+        for raw in _reversed_lines(fp):
+            if b'"assistant"' not in raw:
+                continue
+            entry = _parse_entry(raw)
+            if entry is not None and entry.get("type") == "assistant":
+                yield entry
 
 
 def _occupied_tokens(usage: dict[str, Any]) -> int:
@@ -196,15 +219,13 @@ def _last_occupancy_stage(iterations: Any) -> dict[str, Any] | None:
     return None
 
 
-def _context_tokens(entries: list[dict[str, Any]]) -> int:
-    """最後の assistant メッセージの usage からコンテキスト占有量 (tokens) を推定する。
+def _context_tokens(assistants: Iterable[dict[str, Any]]) -> int:
+    """新しい順の assistant のうち、usage を持つ最初のものからコンテキスト占有量を推定する。
 
     advisor を挟んだ応答では、トップレベルの usage が executor の推論の和になり占有量の
     約2倍になる。_last_occupancy_stage が段を選べばその段を数え、選べなければトップレベルを数える。
     """
-    for entry in reversed(entries):
-        if entry.get("type") != "assistant":
-            continue
+    for entry in assistants:
         message = entry.get("message")
         if not isinstance(message, dict):
             continue
@@ -316,14 +337,13 @@ def _ratelimit_message(name: str, pct: float, threshold: int, *, urgent: bool) -
 
 def _context_notices(session_id: str, transcript_path: str) -> list[str]:
     # 通知は 1 セッション 1 回なので、鳴った後は transcript を読む意味が無い。
-    # posttool はツール呼び出しのたびに走るため、この stat 1 回が末尾 (DEFAULT_TAIL_BYTES) の
-    # 読み込みを丸ごと省く
+    # posttool はツール呼び出しのたびに走るため、この stat 1 回が末尾の読み込みを丸ごと省く
     notified_marker = _session_state_file(session_id, "notified")
     if notified_marker.exists():
         return []
     window = _env_int("HANDOFF_CONTEXT_WINDOW_TOKENS", DEFAULT_CONTEXT_WINDOW_TOKENS)
     threshold_pct = _env_int("HANDOFF_CONTEXT_THRESHOLD_PCT", DEFAULT_CONTEXT_THRESHOLD_PCT)
-    tokens = _context_tokens(_read_tail_entries(transcript_path))
+    tokens = _context_tokens(_assistants_newest_first(transcript_path))
     if tokens * 100 < window * threshold_pct:
         return []
     if not _notify_once(notified_marker):
@@ -405,13 +425,13 @@ def _is_broken(entry: dict[str, Any]) -> bool:
     return False
 
 
-def _broken_count(entries: list[dict[str, Any]]) -> int:
+def _broken_count(entries: Iterable[dict[str, Any]]) -> int:
     """tail ウィンドウ内の破損イベントの通算数を数える。
 
     連続 (streak) ではなく累積。破損の間に成功実行や通常会話が挟まってもリセットしない。
     実セッションの劣化はモデルが「壊れる→出し直して成功→また壊れる」を繰り返すため、
     連続判定では成功のたびにリセットされるので、破損が多数あるセッションでも発火しない。
-    通算なら劣化を取りこぼさない。tail ウィンドウ (DEFAULT_TAIL_BYTES) が古い破損を自然に
+    通算なら劣化を取りこぼさない。tail ウィンドウ (DEFAULT_TAIL_ASSISTANTS) が古い破損を自然に
     スクロールアウトさせるため、完全復調した長寿命セッションで古い破損まで数え続けることはない。
     """
     return sum(1 for entry in entries if _is_broken(entry))
@@ -426,7 +446,11 @@ def handle_stop(payload: dict[str, Any]) -> dict[str, Any] | None:
         return None
     session_id, transcript_path = pair
     count_limit = _env_int("HANDOFF_BROKEN_COUNT", DEFAULT_BROKEN_COUNT)
-    if _broken_count(_read_tail_entries(transcript_path)) < count_limit:
+    window = islice(
+        _assistants_newest_first(transcript_path),
+        _env_int("HANDOFF_TAIL_ASSISTANTS", DEFAULT_TAIL_ASSISTANTS),
+    )
+    if _broken_count(window) < count_limit:
         return None
     if not _notify_once(_session_state_file(session_id, "blocked")):
         # 1 セッション 1 回 (無限 block ループ防止の二段目)

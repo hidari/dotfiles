@@ -3,7 +3,8 @@
   "env": {
     "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR": "true",
     "ENABLE_TOOL_SEARCH": "true",
-    "CLAUDE_CODE_THRIFTY_SONIC": "false"
+    "CLAUDE_CODE_THRIFTY_SONIC": "false",
+    "CLAUDE_CODE_ELEGANT_MEADOW": "0"
   },
   "attribution": {
     "commit": "",
