@@ -242,6 +242,15 @@ class TestPostToolContextWatch:
         )
         assert result.stdout == ""  # 本編の 200 tokens のみで判定される
 
+    def test_最後のassistantの後に大きなapi_requestが続いても推定する(self, tmp_path: Path) -> None:
+        """末尾が 1 MiB を超える api-request でも、その前の assistant まで遡って読む。"""
+        transcript = tmp_path / "t.jsonl"
+        write_transcript(transcript, [assistant_usage(500), api_request(1_200_000)])
+        result = run_hook(
+            "posttool", posttool_input(tmp_path, transcript), extra_env=base_env(tmp_path)
+        )
+        assert "コンテキスト使用率がしきい値を超えた" in context_of(result)
+
     def test_agent_id付きのsubagentでは発火しない(self, tmp_path: Path) -> None:
         transcript = tmp_path / "t.jsonl"
         write_transcript(transcript, [assistant_usage(999)])
@@ -705,6 +714,11 @@ def assistant_text(text: str, *, with_tool_use: bool = False) -> dict[str, objec
     return {"type": "assistant", "message": {"content": content}}
 
 
+def api_request(size: int) -> dict[str, object]:
+    """Claude Code 2.1.300 から transcript に入る、リクエスト本体を記録した entry の模造。"""
+    return {"type": "api-request", "request": {"system": "x" * size}}
+
+
 def tool_result(*, is_error: bool) -> dict[str, object]:
     return {
         "type": "user",
@@ -908,22 +922,62 @@ class TestStopBrokenCount:
         hit = run_hook("stop", stop_input(tmp_path, hit_transcript), extra_env=env)
         assert json.loads(hit.stdout)["decision"] == "block"
 
-    def test_tail_bytes超過時は末尾のみ読み前方の破損を数えない(self, tmp_path: Path) -> None:
-        """size > HANDOFF_TAIL_BYTES のとき末尾のみ読む分岐。前方の破損は不可視になる。"""
+    def test_窓は末尾のassistant件数で切り前方の破損を数えない(self, tmp_path: Path) -> None:
+        """窓は末尾から HANDOFF_TAIL_ASSISTANTS 件の assistant まで。境界の両側で固定する。"""
         transcript = tmp_path / "t.jsonl"
-        big = assistant_text(LEAKED_TOOL_CALL + " " + "x" * 2000)  # tail 窓の外へ押し出す大行
-        small = assistant_text(LEAKED_TOOL_CALL)  # 末尾に収まる小行
-        write_transcript(transcript, [big, big, big, small, small])
+        write_transcript(transcript, self.leaks(5))
 
-        # 末尾2件だけが収まる tail: 前方3件 (broken) が読まれず通算=2 < 5 で block しない
-        small_tail = base_env(tmp_path) | {"HANDOFF_TAIL_BYTES": "400"}
-        cut = run_hook("stop", stop_input(tmp_path, transcript), extra_env=small_tail)
+        # 末尾4件の窓: 先頭の1件が読まれず通算=4 < 5 で block しない
+        cut_env = base_env(tmp_path) | {"HANDOFF_TAIL_ASSISTANTS": "4"}
+        cut = run_hook("stop", stop_input(tmp_path, transcript), extra_env=cut_env)
         assert cut.stdout == ""
 
-        # 大きい tail なら全5件読めて block する (cut が効いていることの対照)
-        full_tail = base_env(tmp_path) | {"HANDOFF_TAIL_BYTES": "100000"}
-        full = run_hook("stop", stop_input(tmp_path, transcript), extra_env=full_tail)
+        # 末尾5件の窓なら全件読めて block する (cut が効いていることの対照)
+        full_env = base_env(tmp_path) | {"HANDOFF_TAIL_ASSISTANTS": "5"}
+        full = run_hook("stop", stop_input(tmp_path, transcript), extra_env=full_env)
         assert json.loads(full.stdout)["decision"] == "block"
+
+    def test_assistant以外のentryは窓の件数を消費しない(self, tmp_path: Path) -> None:
+        """tool_result や api-request が間に何件挟まっても、窓は assistant だけで数える。"""
+        transcript = tmp_path / "t.jsonl"
+        entries: list[dict[str, object]] = []
+        for leak in self.leaks(5):
+            entries += [leak, tool_result(is_error=False), api_request(100), api_request(100)]
+        write_transcript(transcript, entries)
+        env = base_env(tmp_path) | {"HANDOFF_TAIL_ASSISTANTS": "5"}
+        result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=env)
+        assert json.loads(result.stdout)["decision"] == "block"
+
+    def test_sidechainのassistantは窓の件数を消費しない(self, tmp_path: Path) -> None:
+        """subagent の entry は判定から捨てるので、窓の枠も取らない。"""
+        transcript = tmp_path / "t.jsonl"
+        sidechain = assistant_text("subagent の応答") | {"isSidechain": True}
+        write_transcript(transcript, [*self.leaks(5), sidechain, sidechain, sidechain])
+        env = base_env(tmp_path) | {"HANDOFF_TAIL_ASSISTANTS": "5"}
+        result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=env)
+        assert json.loads(result.stdout)["decision"] == "block"
+
+    def test_大きなapi_requestが挟まっても既定の窓で破損を数える(self, tmp_path: Path) -> None:
+        """Claude Code 2.1.300 からリクエストごとに記録される api-request で窓が縮まないこと。
+
+        破損 1 件ごとに 1.2 MB の api-request を挟む。バイト数で切る窓 (旧 1 MiB) では
+        末尾の 1 件しか入らず block しなかった形。
+        """
+        transcript = tmp_path / "t.jsonl"
+        entries: list[dict[str, object]] = []
+        for leak in self.leaks(5):
+            entries += [leak, api_request(1_200_000)]
+        write_transcript(transcript, entries)
+        result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=base_env(tmp_path))
+        assert json.loads(result.stdout)["decision"] == "block"
+
+    def test_読み込みの区切りをまたぐ長い行も1つのentryとして読む(self, tmp_path: Path) -> None:
+        """1 行が読み込みの区切り (1 MiB) より長くても、途中で割らずに復元する。"""
+        transcript = tmp_path / "t.jsonl"
+        long_leak = assistant_text(LEAKED_TOOL_CALL + " " + "x" * 1_500_000)
+        write_transcript(transcript, [long_leak] * 5)
+        result = run_hook("stop", stop_input(tmp_path, transcript), extra_env=base_env(tmp_path))
+        assert json.loads(result.stdout)["decision"] == "block"
 
 
 def session_input(cwd: Path, session_id: str = "sess-1") -> dict[str, object]:
