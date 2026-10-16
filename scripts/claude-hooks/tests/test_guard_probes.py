@@ -174,7 +174,9 @@ def _wire_private_ops(tmp_path: Path, root: Path) -> Path:
 
 def test_private_ops_が解決すれば健全(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     root = _repo(tmp_path, monkeypatch)
-    _wire_private_ops(tmp_path, root).joinpath("PRIVATE_CLAUDE.md").write_text("指示\n")
+    _wire_private_ops(tmp_path, root).joinpath("PRIVATE_CLAUDE.md").write_text(
+        "指示\n", encoding="utf-8"
+    )
 
     result = guard_probes.probe_private_ops()
 
@@ -200,7 +202,7 @@ def test_運用指示のファイルが読めなければ沈黙(
 ) -> None:
     root = _repo(tmp_path, monkeypatch)
     private = _wire_private_ops(tmp_path, root) / "PRIVATE_CLAUDE.md"
-    private.write_text("指示\n")
+    private.write_text("指示\n", encoding="utf-8")
     private.chmod(0o000)
 
     try:

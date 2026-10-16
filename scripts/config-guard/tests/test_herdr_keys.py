@@ -16,6 +16,7 @@ from config_guard import herdr_keys
 from config_guard.herdr_keys import (
     CONFIG_PATH,
     Binding,
+    ConfigChecker,
     check_herdr_keys,
     parse_bindings,
     run_config_check,
@@ -228,6 +229,26 @@ def test_check_distinguishes_uppercase_letter_from_lowercase(tmp_path: Path) -> 
     assert check_herdr_keys(str(tmp_path)) == []
 
 
+@pytest.mark.parametrize("other", ["prefix+shift+j", "prefix+shift+J"])
+def test_check_treats_uppercase_key_as_shift(tmp_path: Path, other: str) -> None:
+    # herdr は 1 文字の大文字キーを shift+小文字 と同じ chord として扱い、shift+J も同じ
+    # chord になる (0.9.5 で実測)。向きの検査に掛からないよう向きを持たないアクションを使う
+    _write_config(tmp_path, f'[keys]\nfocus_pane_down = "prefix+J"\nfocus_pane_up = "{other}"\n')
+
+    findings = check_herdr_keys(str(tmp_path))
+
+    assert [f.detail for f in findings] == ["prefix+shift+j"]
+
+
+def test_check_does_not_add_shift_to_symbol_keys(tmp_path: Path) -> None:
+    # 大文字を持たない記号は shift の有無で別の chord になる (0.9.5 で実測)
+    _write_config(
+        tmp_path, '[keys]\nfocus_pane_left = "prefix+["\nfocus_pane_right = "prefix+shift+["\n'
+    )
+
+    assert check_herdr_keys(str(tmp_path)) == []
+
+
 def test_check_allows_same_chord_listed_once_per_action(tmp_path: Path) -> None:
     # 1 アクションに複数 chord を割り当てるのは正常(重複ではない)
     _write_config(tmp_path, '[keys]\ncycle_pane_next = ["prefix+tab", "ctrl+alt+]"]\n')
@@ -285,40 +306,6 @@ def test_check_empty_when_no_config(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# check_herdr_keys (静的な検査の補足: 大文字キーと TOML の構文エラー)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize("other", ["prefix+shift+j", "prefix+shift+J"])
-def test_check_treats_uppercase_key_as_shift(tmp_path: Path, other: str) -> None:
-    # herdr は 1 文字の大文字キーを shift+小文字 と同じ chord として扱い、shift+J も同じ
-    # chord になる (0.9.5 で実測)。向きの検査に掛からないよう向きを持たないアクションを使う
-    _write_config(tmp_path, f'[keys]\nfocus_pane_down = "prefix+J"\nfocus_pane_up = "{other}"\n')
-
-    findings = check_herdr_keys(str(tmp_path))
-
-    assert [f.detail for f in findings] == ["prefix+shift+j"]
-
-
-def test_check_does_not_add_shift_to_symbol_keys(tmp_path: Path) -> None:
-    # 大文字を持たない記号は shift の有無で別の chord になる (0.9.5 で実測)
-    _write_config(
-        tmp_path, '[keys]\nfocus_pane_left = "prefix+["\nfocus_pane_right = "prefix+shift+["\n'
-    )
-
-    assert check_herdr_keys(str(tmp_path)) == []
-
-
-def test_check_reports_unparsable_config_without_herdr(tmp_path: Path) -> None:
-    # 構文エラーで例外を投げると scan 全体がトレースバックで止まり、他の検査の結果も失われる
-    _write_config(tmp_path, "keys = [\n")
-
-    (finding,) = check_herdr_keys(str(tmp_path))
-
-    assert (finding.source, finding.detail) == (CONFIG_PATH, "TOML")
-
-
-# ---------------------------------------------------------------------------
 # check_herdr_keys (`herdr config check` の結果の解釈)
 # ---------------------------------------------------------------------------
 
@@ -328,6 +315,10 @@ DUPLICATE_CONFIG = '[keys]\nfocus_pane_down = "prefix+shift+j"\nfocus_pane_up = 
 
 def _checked(returncode: int, stdout: str) -> subprocess.CompletedProcess[str]:
     return subprocess.CompletedProcess(["herdr", "config", "check"], returncode, stdout, "")
+
+
+def _herdr_ok(_: Path) -> subprocess.CompletedProcess[str]:
+    return _checked(0, "config: ok\n")
 
 
 def test_check_reports_herdr_diagnostics(tmp_path: Path) -> None:
@@ -359,20 +350,24 @@ def test_check_reports_herdr_parse_error_instead_of_static_one(tmp_path: Path) -
         assert line in finding.message
 
 
-def test_check_reports_unparsable_config_even_if_herdr_accepts_it(tmp_path: Path) -> None:
-    # herdr が読めても tomllib が読めなければ向きの検査は何も見ていない。空で返すと緑に見える
+@pytest.mark.parametrize("checker", [None, _herdr_ok])
+def test_check_reports_unparsable_config_statically(
+    tmp_path: Path, checker: ConfigChecker | None
+) -> None:
+    # herdr が無いか受け入れた場合も、tomllib が読めなければ静的な検査は何も見ていない。
+    # 空で返すと緑に見え、例外を投げると scan 全体がトレースバックで止まる
     _write_config(tmp_path, "keys = [\n")
 
-    (finding,) = check_herdr_keys(str(tmp_path), lambda _: _checked(0, "config: ok\n"))
+    (finding,) = check_herdr_keys(str(tmp_path), checker)
 
-    assert finding.detail == "TOML"
+    assert (finding.source, finding.detail) == (CONFIG_PATH, "TOML")
 
 
 def test_check_leaves_duplicates_to_herdr_when_it_ran(tmp_path: Path) -> None:
     # herdr は重複を自分で報告し、静的な正規化より正確なので、herdr が走ったら二重に出さない
     _write_config(tmp_path, DUPLICATE_CONFIG)
 
-    assert check_herdr_keys(str(tmp_path), lambda _: _checked(0, "config: ok\n")) == []
+    assert check_herdr_keys(str(tmp_path), _herdr_ok) == []
 
 
 def test_check_reports_duplicates_statically_without_herdr(tmp_path: Path) -> None:
@@ -388,7 +383,7 @@ def test_check_runs_direction_check_even_when_herdr_ran(tmp_path: Path) -> None:
     # 向きの逆転は herdr が検証しないので、herdr の有無に関係なく走る
     _write_config(tmp_path, '[keys]\nnext_workspace = "ctrl+alt+["\n')
 
-    findings = check_herdr_keys(str(tmp_path), lambda _: _checked(0, "config: ok\n"))
+    findings = check_herdr_keys(str(tmp_path), _herdr_ok)
 
     assert [f.detail for f in findings] == ["next_workspace = ctrl+alt+["]
 
@@ -396,7 +391,7 @@ def test_check_runs_direction_check_even_when_herdr_ran(tmp_path: Path) -> None:
 def test_check_passes_when_herdr_reports_ok(tmp_path: Path) -> None:
     _write_config(tmp_path, SAMPLE_CONFIG)
 
-    assert check_herdr_keys(str(tmp_path), lambda _: _checked(0, "config: ok\n")) == []
+    assert check_herdr_keys(str(tmp_path), _herdr_ok) == []
 
 
 @pytest.mark.parametrize(
@@ -437,7 +432,7 @@ def test_check_passes_config_path_to_checker(tmp_path: Path) -> None:
 
     def checker(path: Path) -> subprocess.CompletedProcess[str]:
         seen.append(path)
-        return _checked(0, "config: ok\n")
+        return _herdr_ok(path)
 
     check_herdr_keys(str(tmp_path), checker)
 
@@ -524,7 +519,8 @@ def test_live_herdr_reports_parse_error(tmp_path: Path) -> None:
 
 @requires_herdr
 def test_live_herdr_accepts_valid_config(tmp_path: Path) -> None:
-    # 上のテストの対照。herdr が実際に起動して問題なしと答えたことまで確かめる
+    # test_live_herdr_reports_misspelled_action の対照。herdr が実際に起動して問題なしと
+    # 答えたことまで確かめる
     # (起動に失敗すると None になり、check_herdr_keys は同じく空を返すため)
     _write_config(tmp_path, '[keys]\nnext_agent = "prefix+shift+j"\n')
 

@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from config_guard import herdr_keys
 from config_guard.budget_ratchet import BUDGET_MODULE_PATH
 from config_guard.cli import main, scan
 from config_guard.instruction_budget import (
@@ -111,8 +112,6 @@ def test_bad_herdr_keys_is_detected(tmp_path: Path) -> None:
 def test_herdr_config_check_is_wired(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # herdr 自身による config 検証が scan に配線されていること。検査を差し込む引数は既定で
     # 何も起動しないので、配線を忘れると単体テストは緑のまま herdr が一度も呼ばれない
-    from config_guard import herdr_keys
-
     (tmp_path / "repo").mkdir()
     repo = _make_repo(tmp_path / "repo", "good", GOOD_SKILL, GOOD_SETTINGS)
     write_file(repo, "home/.config/herdr/config.toml", '[keys]\nnext_agent = "prefix+shift+j"\n')

@@ -8,7 +8,7 @@
 - `home/apm.lock.yaml` の deployed_files が gitignore されているか（追記漏れ）
 - `home/.config/mise/config.toml` の global ツール pin が exact か
 - `home/apm.yml` の依存 pin が commit SHA で固定され、同一リポジトリを指す行どうしと `home/apm.lock.yaml` が記録する実配置で揃っているか
-- `home/.config/herdr/config.toml` の keybinding（`previous_*` と `next_*` の方向整合、chord 重複、アクション名の綴り）
+- `home/.config/herdr/config.toml` の keybinding（`previous_*` と `next_*` の方向整合、chord 重複、アクション名の綴り、TOML の構文）
 - 追跡下の Markdown（`git ls-files '*.md'`）の相対リンクが実在するか（Issue を `closed/` へ移すと両端のリンクが切れる）
 - 常時ロードされる指示ファイル（`home/.claude/CLAUDE.md` と `paths` を持たない `home/.claude/rules/*.md`）の総バイト数が予算内か
 
@@ -18,7 +18,6 @@ uv run config-guard /path/to/repo-root
 
 検出が 1 件以上あれば非ゼロ終了する。CI（test.yml）と pre-commit から呼ばれる。
 
-リンク検査は散文中のリンク記法を実リンクとして解決する。記法を例として書きたいときは
-インラインコードかバッククォートのコードフェンスで囲むこと（コード領域は検査対象外）。
+リンク検査は散文中のリンク記法を実リンクとして解決する。記法を例として書きたいときはインラインコードかバッククォートのコードフェンスで囲むこと（コード領域は検査対象外）。
 
-herdr の config は herdr 自身にも検証させる（`herdr config check`）。これは herdr が入っていない環境（CI）では自動的に skip される。方向整合と chord 重複はどこでも走る。
+herdr の config は herdr 自身にも検証させる（`herdr config check`）。これは herdr が入っていない環境（CI）では自動的に skip される。方向整合はどこでも走り、chord 重複は herdr があれば herdr に任せ、無い環境でだけ静的に検査する。

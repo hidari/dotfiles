@@ -156,36 +156,39 @@ def _config_check_findings(result: subprocess.CompletedProcess[str] | None) -> l
     return [Finding(CONFIG_PATH, _CONFIG_CHECK_LABEL, message)]
 
 
-def _split_chord(chord: str) -> list[str]:
-    """chord を小文字のトークン列へ分解する。
+def _parse_chord(chord: str) -> tuple[list[str], str]:
+    """chord を (小文字の修飾キー列, 小文字の最終キー) へ分解する。空の chord は ([], "")。
 
-    herdr は "+" 自体を plus と綴るので単純分割で足りる。
+    herdr は "+" 自体を plus と綴るので単純分割で足りる。複数文字のキー名は大文字小文字を
+    区別しないが、1 文字の大文字キーは shift+小文字 と同じ chord になる (記号は shift の
+    有無で別の chord のまま。0.9.5 で実測)。
     """
-    return [token for token in (part.strip().lower() for part in chord.split("+")) if token]
+    tokens = [token for token in (part.strip() for part in chord.split("+")) if token]
+    if not tokens:
+        return [], ""
+
+    raw_key = tokens[-1]
+    modifiers = [token.lower() for token in tokens[:-1]]
+    if len(raw_key) == 1 and raw_key.isupper():
+        modifiers.append("shift")
+    return modifiers, raw_key.lower()
 
 
 def _final_key(chord: str) -> str:
     """chord の最終キーを取り出す。"""
-    tokens = _split_chord(chord)
-    return tokens[-1] if tokens else ""
+    return _parse_chord(chord)[1]
 
 
 def _normalize_chord(chord: str) -> str:
     """herdr が同一視する chord を 1 つの綴りへ畳む。
 
-    修飾キーの並び順と大文字小文字だけが違う chord は herdr にとって同じ chord なので、
-    重複検出は正規形をキーにしないと衝突を取りこぼす。1 文字の大文字キーは shift+小文字 と
-    同じ chord になる (記号は shift の有無で別の chord のまま。0.9.5 で実測)。
+    修飾キーの並び順と綴りの大小だけが違う chord は herdr にとって同じ chord なので、
+    重複検出は正規形をキーにしないと衝突を取りこぼす。
     """
-    tokens = _split_chord(chord)
-    if not tokens:
+    modifiers, key = _parse_chord(chord)
+    if not key:
         return ""
 
-    key, modifiers = tokens[-1], tokens[:-1]
-    # _split_chord が小文字へ畳むので、大文字かどうかは元の綴りの最終キーで見る
-    raw_key = chord.rsplit("+", 1)[-1].strip()
-    if len(raw_key) == 1 and raw_key.isupper():
-        modifiers.append("shift")
     lead = []
     if modifiers[:1] == [_PREFIX_TOKEN]:
         lead, modifiers = [_PREFIX_TOKEN], modifiers[1:]
