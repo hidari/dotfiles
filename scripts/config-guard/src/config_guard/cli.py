@@ -25,7 +25,7 @@ from config_guard.apm_pins import check_apm_pins
 from config_guard.budget_ratchet import check_budget_ratchet
 from config_guard.extractors import extract_skill_tokens
 from config_guard.git_source import read_committed_settings
-from config_guard.herdr_keys import check_herdr_keys, read_default_config
+from config_guard.herdr_keys import check_herdr_keys, run_config_check
 from config_guard.hook_wiring import check_hook_mode_shebang, check_hook_wiring
 from config_guard.index_flags import check_index_flags
 from config_guard.instruction_budget import (
@@ -96,8 +96,9 @@ def scan(repo_root: str) -> list[Finding]:
     findings.extend(check_apm_pins(str(root)))
 
     # herdr の keybinding: previous/next の方向整合と chord 重複。
-    # アクション名の照合は herdr がある環境でのみ行う (CI には herdr が無いので skip される)。
-    findings.extend(check_herdr_keys(str(root), read_default_config()))
+    # herdr 自身による検証 (アクション名の綴りなど) は herdr がある環境でのみ行う
+    # (CI には herdr が無いので skip される)。
+    findings.extend(check_herdr_keys(str(root), run_config_check))
 
     # 追跡下の Markdown の相対リンクが実在するか。Issue を closed/ へ移すと
     # 両端のリンクが切れるが、リンク元は変更されないため差分だけでは検出できない

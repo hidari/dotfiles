@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -104,6 +105,28 @@ def test_bad_herdr_keys_is_detected(tmp_path: Path) -> None:
     findings = scan(str(repo))
 
     assert any(f.detail == "next_workspace = ctrl+alt+[" for f in findings)
+
+
+def test_herdr_config_check_is_wired(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # herdr 自身による config 検証が scan に配線されていること。検査を差し込む引数は既定で
+    # 何も起動しないので、配線を忘れると単体テストは緑のまま herdr が一度も呼ばれない
+    from config_guard import herdr_keys
+
+    (tmp_path / "repo").mkdir()
+    repo = _make_repo(tmp_path / "repo", "good", GOOD_SKILL, GOOD_SETTINGS)
+    write_file(repo, "home/.config/herdr/config.toml", '[keys]\nnext_agent = "prefix+shift+j"\n')
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake = bin_dir / "herdr"
+    fake.write_text("#!/bin/sh\nprintf 'config: issues found\\nfrom fake herdr\\n'\nexit 1\n")
+    fake.chmod(0o755)
+    # 作ったばかりの実行ファイルは macOS の初回検査で待たされうる (定義コメント参照)
+    monkeypatch.setattr(herdr_keys, "_SUBPROCESS_TIMEOUT_SECONDS", 120)
+    monkeypatch.setenv("PATH", f"{bin_dir}:{os.environ['PATH']}")
+
+    findings = scan(str(repo))
+
+    assert any("from fake herdr" in f.message for f in findings)
 
 
 def test_hidden_index_flag_is_detected(tmp_path: Path) -> None:
