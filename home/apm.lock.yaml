@@ -1,5 +1,5 @@
 lockfile_version: '1'
-generated_at: '2026-10-16T05:47:35.352625+00:00'
+generated_at: '2026-10-16T06:44:28.644920+00:00'
 apm_version: 0.33.0
 dependencies:
 - repo_url: cloudflare/security-audit-skill
@@ -58,8 +58,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: dev-workflow
   host: github.com
-  resolved_commit: 9bc82e67ba810da51d7a387622765b9f3ef66922
-  resolved_ref: 9bc82e67ba810da51d7a387622765b9f3ef66922
+  resolved_commit: 35221a3c9f02f95cc630a8403293ba67b290d1f1
+  resolved_ref: 35221a3c9f02f95cc630a8403293ba67b290d1f1
   version: 0.2.0
   virtual_path: plugins/dev-workflow
   is_virtual: true
@@ -146,8 +146,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: security-blue-red-team
   host: github.com
-  resolved_commit: 9bc82e67ba810da51d7a387622765b9f3ef66922
-  resolved_ref: 9bc82e67ba810da51d7a387622765b9f3ef66922
+  resolved_commit: 35221a3c9f02f95cc630a8403293ba67b290d1f1
+  resolved_ref: 35221a3c9f02f95cc630a8403293ba67b290d1f1
   version: 0.5.0
   virtual_path: plugins/security-blue-red-team
   is_virtual: true
@@ -199,8 +199,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: web-monkey-qa
   host: github.com
-  resolved_commit: 9bc82e67ba810da51d7a387622765b9f3ef66922
-  resolved_ref: 9bc82e67ba810da51d7a387622765b9f3ef66922
+  resolved_commit: 35221a3c9f02f95cc630a8403293ba67b290d1f1
+  resolved_ref: 35221a3c9f02f95cc630a8403293ba67b290d1f1
   version: 0.2.0
   virtual_path: plugins/web-monkey-qa
   is_virtual: true
@@ -234,8 +234,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: macos-vm-verification
   host: github.com
-  resolved_commit: 9bc82e67ba810da51d7a387622765b9f3ef66922
-  resolved_ref: 9bc82e67ba810da51d7a387622765b9f3ef66922
+  resolved_commit: 35221a3c9f02f95cc630a8403293ba67b290d1f1
+  resolved_ref: 35221a3c9f02f95cc630a8403293ba67b290d1f1
   version: unknown
   virtual_path: skills/devops/macos-vm-verification
   is_virtual: true
@@ -259,8 +259,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: windows-vm-verification
   host: github.com
-  resolved_commit: 9bc82e67ba810da51d7a387622765b9f3ef66922
-  resolved_ref: 9bc82e67ba810da51d7a387622765b9f3ef66922
+  resolved_commit: 35221a3c9f02f95cc630a8403293ba67b290d1f1
+  resolved_ref: 35221a3c9f02f95cc630a8403293ba67b290d1f1
   version: unknown
   virtual_path: skills/devops/windows-vm-verification
   is_virtual: true
@@ -288,8 +288,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: context-loading-mechanics
   host: github.com
-  resolved_commit: 9bc82e67ba810da51d7a387622765b9f3ef66922
-  resolved_ref: 9bc82e67ba810da51d7a387622765b9f3ef66922
+  resolved_commit: 35221a3c9f02f95cc630a8403293ba67b290d1f1
+  resolved_ref: 35221a3c9f02f95cc630a8403293ba67b290d1f1
   version: unknown
   virtual_path: skills/meta/context-loading-mechanics
   is_virtual: true
@@ -303,8 +303,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: session-handoff
   host: github.com
-  resolved_commit: 9bc82e67ba810da51d7a387622765b9f3ef66922
-  resolved_ref: 9bc82e67ba810da51d7a387622765b9f3ef66922
+  resolved_commit: 35221a3c9f02f95cc630a8403293ba67b290d1f1
+  resolved_ref: 35221a3c9f02f95cc630a8403293ba67b290d1f1
   version: unknown
   virtual_path: skills/meta/session-handoff
   is_virtual: true
@@ -320,8 +320,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: chrome-devtools-debugger
   host: github.com
-  resolved_commit: 9bc82e67ba810da51d7a387622765b9f3ef66922
-  resolved_ref: 9bc82e67ba810da51d7a387622765b9f3ef66922
+  resolved_commit: 35221a3c9f02f95cc630a8403293ba67b290d1f1
+  resolved_ref: 35221a3c9f02f95cc630a8403293ba67b290d1f1
   version: unknown
   virtual_path: skills/tooling/chrome-devtools-debugger
   is_virtual: true
@@ -335,8 +335,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: jev-lint-curated
   host: github.com
-  resolved_commit: 9bc82e67ba810da51d7a387622765b9f3ef66922
-  resolved_ref: 9bc82e67ba810da51d7a387622765b9f3ef66922
+  resolved_commit: 35221a3c9f02f95cc630a8403293ba67b290d1f1
+  resolved_ref: 35221a3c9f02f95cc630a8403293ba67b290d1f1
   version: unknown
   virtual_path: skills/tooling/jev-lint-curated
   is_virtual: true
@@ -374,8 +374,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: markdown-to-pdf
   host: github.com
-  resolved_commit: 9bc82e67ba810da51d7a387622765b9f3ef66922
-  resolved_ref: 9bc82e67ba810da51d7a387622765b9f3ef66922
+  resolved_commit: 35221a3c9f02f95cc630a8403293ba67b290d1f1
+  resolved_ref: 35221a3c9f02f95cc630a8403293ba67b290d1f1
   version: unknown
   virtual_path: skills/tooling/markdown-to-pdf
   is_virtual: true
