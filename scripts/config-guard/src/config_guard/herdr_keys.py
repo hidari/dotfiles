@@ -9,21 +9,22 @@ config 内の cycle_pane_* とは逆向きになっていた。
 同一 chord を 2 つのアクションへ割り当てると herdr は片方を無効化する。修飾キーは集合として
 解釈されるため、綴りの順が違うだけの chord は同じ chord であり、目視では衝突に気づけない。
 
-さらに herdr は未知のアクション名を検証しない。実測 (2026-07-09) では不正な chord は
-`herdr server reload-config` が `status: partial` と diagnostics で報告するが、
-`next_agentt = "prefix+shift+j"` のような綴り違いは `status: applied` / `diagnostics: []` で
-受理され、その binding は警告なく存在しないことになる。正当なアクション名の一覧は
-`herdr --default-config` が唯一の真実源なので、それを引けるときだけ照合する
-(herdr が無い CI ではこの検査だけを skip する)。
+この 2 つは TOML を読めば静的に判定できるので、herdr の無い CI でも検査する。
 
-いずれも TOML を読めば静的に判定できる。プロンプトでの注意喚起ではなく guard で機械検査する。
+アクション名の綴り違い (`next_agentt`) は `herdr server reload-config` では警告されず、
+その binding が黙って存在しないことになる。これは herdr 自身の `herdr config check` が
+未知のキーとして報告するので、herdr があるときはそれに config を検証させる。herdr は
+chord の重複も報告し、その判定は静的な正規化より正確なので、herdr が走ったときは静的な
+重複検査を回さない (二重に報告しない)。向きの逆転は herdr が検証しないので常に回す。
 """
 
 from __future__ import annotations
 
+import os
 import subprocess
 import tomllib
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -31,8 +32,14 @@ from config_guard.models import Finding
 
 CONFIG_PATH = "home/.config/herdr/config.toml"
 
-# `herdr --default-config` の [keys] テーブル。この見出しから次のテーブルまでが探索範囲。
-_KEYS_TABLE_HEADER = "[keys]"
+# `herdr config check` が問題なしのときの出力 (rc 0)
+_CONFIG_CHECK_OK = "config: ok"
+# `herdr config check` が問題を見つけたときの 1 行目 (rc 1)。2 行目以降が診断になる
+_CONFIG_CHECK_ISSUES_HEADER = "config: issues found"
+_CONFIG_CHECK_LABEL = "herdr config check"
+
+# config のパスを受け取り `herdr config check` の結果を返す。herdr が無ければ None
+ConfigChecker = Callable[[Path], subprocess.CompletedProcess[str] | None]
 
 # parse_bindings が [[keys.command]] へ与える合成ラベルの接頭辞。アクション名ではない。
 _COMMAND_LABEL_PREFIX = "keys.command["
@@ -58,7 +65,7 @@ _MODIFIER_ORDER = ("ctrl", "alt", "shift")
 _BACKWARD = "previous"
 _FORWARD = "next"
 
-# `herdr --default-config` の待ち時間。実運用の herdr は検査済みなので即座に応答するが、
+# `herdr config check` の待ち時間。実運用の herdr は検査済みなので即座に応答するが、
 # テストが chmod +x したばかりの fake を起動すると macOS の初回検査で待たされ、混み合うと
 # この値を超える (実測: 同一プロセス内で 8 秒 -> 10 秒超 -> 1.6 秒 -> 0.1 秒)。テスト側から
 # 緩められるよう定数へ出してある。実運用側の値としては、pre-commit が毎回引くので短く保つ。
@@ -111,86 +118,77 @@ def parse_bindings(config_text: str) -> list[Binding]:
     return bindings
 
 
-def _uncomment(line: str) -> str:
-    stripped = line.strip()
-    return stripped[1:].strip() if stripped.startswith("#") else stripped
+def run_config_check(config: Path) -> subprocess.CompletedProcess[str] | None:
+    """config を `herdr config check` で検証する。herdr が無い/起動できない/時間切れなら None。
 
-
-def known_action_names(default_config_text: str) -> set[str]:
-    """`herdr --default-config` の [keys] ブロックから正当なアクション名を取り出す。
-
-    既定値は全てコメントアウトされて出力されるため TOML パーサからは見えない。そこで
-    コメントを外した行を 1 行ずつ tomllib に食わせ、TOML として成立する行だけを採用する。
-    これにより `# type = "shell" runs detached in the background.` のような散文コメント
-    (「名前 = 値」に見えるが値の後ろに散文が続き TOML として不正) を、自作の正規表現ではなく
-    パーサ自身に排除させ、phantom entry の混入を防ぐ。
-    """
-    names: set[str] = set()
-    in_keys_table = False
-    for raw in default_config_text.splitlines():
-        content = _uncomment(raw)
-        if content == _KEYS_TABLE_HEADER:
-            in_keys_table = True
-            continue
-        if not in_keys_table:
-            continue
-        # [keys.indexed] / [[keys.command]] などの下位テーブルはアクションの表ではない
-        if content.startswith("["):
-            break
-        if "=" not in content:
-            continue
-        try:
-            parsed = tomllib.loads(content)
-        except tomllib.TOMLDecodeError:
-            continue
-        names.update(parsed.keys())
-    return names - _NON_ACTION_KEYS
-
-
-def read_default_config() -> str | None:
-    """`herdr --default-config` を引く。herdr が無い/失敗した場合は None を返す。
-
-    副作用をここへ隔離し、check_herdr_keys は渡されたテキストだけを見る (テストは hermetic に、
-    herdr の無い CI ではアクション名検査だけが自動的に skip される)。
+    副作用をここへ隔離し、結果の解釈は呼び出し側が持つ (テストは hermetic に、
+    herdr の無い CI ではこの検査だけが自動的に skip される)。
     """
     try:
-        proc = subprocess.run(
-            ["herdr", "--default-config"],
+        return subprocess.run(
+            ["herdr", "config", "check"],
             capture_output=True,
             text=True,
             check=False,
             timeout=_SUBPROCESS_TIMEOUT_SECONDS,
+            env=os.environ | {"HERDR_CONFIG_PATH": str(config)},
         )
     except (OSError, subprocess.SubprocessError):
         return None
-    return proc.stdout if proc.returncode == 0 else None
 
 
-def _split_chord(chord: str) -> list[str]:
-    """chord を小文字のトークン列へ分解する。
+def _config_check_findings(result: subprocess.CompletedProcess[str] | None) -> list[Finding]:
+    """`herdr config check` の結果を Finding にする。想定外の形は問題なしへ倒さず報告する。"""
+    if result is None:
+        return []
+    stdout = result.stdout.strip()
+    if result.returncode == 0 and stdout == _CONFIG_CHECK_OK:
+        return []
 
-    herdr は "+" 自体を plus と綴るので単純分割で足りる。
+    header, _, diagnostics = stdout.partition("\n")
+    lines = [line.strip() for line in diagnostics.splitlines() if line.strip()]
+    if result.returncode == 1 and header == _CONFIG_CHECK_ISSUES_HEADER and lines:
+        message = "herdr が config の問題を報告しました: " + " / ".join(lines)
+    else:
+        message = f"herdr config check の結果を解釈できません (rc={result.returncode}): " + (
+            stdout or result.stderr.strip()
+        )
+    return [Finding(CONFIG_PATH, _CONFIG_CHECK_LABEL, message)]
+
+
+def _parse_chord(chord: str) -> tuple[list[str], str]:
+    """chord を (小文字の修飾キー列, 小文字の最終キー) へ分解する。空の chord は ([], "")。
+
+    herdr は "+" 自体を plus と綴るので単純分割で足りる。複数文字のキー名は大文字小文字を
+    区別しないが、1 文字の大文字キーは shift+小文字 と同じ chord になる (記号は shift の
+    有無で別の chord のまま。0.9.5 で実測)。
     """
-    return [token for token in (part.strip().lower() for part in chord.split("+")) if token]
+    tokens = [token for token in (part.strip() for part in chord.split("+")) if token]
+    if not tokens:
+        return [], ""
+
+    raw_key = tokens[-1]
+    modifiers = [token.lower() for token in tokens[:-1]]
+    if len(raw_key) == 1 and raw_key.isupper():
+        modifiers.append("shift")
+    return modifiers, raw_key.lower()
 
 
 def _final_key(chord: str) -> str:
     """chord の最終キーを取り出す。"""
-    tokens = _split_chord(chord)
-    return tokens[-1] if tokens else ""
+    return _parse_chord(chord)[1]
 
 
 def _normalize_chord(chord: str) -> str:
     """herdr が同一視する chord を 1 つの綴りへ畳む。
 
-    修飾キーの並び順と大文字小文字だけが違う chord は herdr にとって同じ chord なので、
+    修飾キーの並び順と綴りの大小だけが違う chord は herdr にとって同じ chord なので、
     重複検出は正規形をキーにしないと衝突を取りこぼす。
     """
-    tokens = _split_chord(chord)
-    if not tokens:
+    modifiers, key = _parse_chord(chord)
+    if not key:
         return ""
 
-    key, modifiers = tokens[-1], tokens[:-1]
     lead = []
     if modifiers[:1] == [_PREFIX_TOKEN]:
         lead, modifiers = [_PREFIX_TOKEN], modifiers[1:]
@@ -263,38 +261,28 @@ def _check_duplicates(bindings: list[Binding]) -> list[Finding]:
     ]
 
 
-def _check_unknown_actions(bindings: list[Binding], known: set[str]) -> list[Finding]:
-    """herdr が認識しないアクション名が使われていないか検査する。"""
-    findings: list[Finding] = []
-    reported: set[str] = set()
-    for binding in bindings:
-        action = binding.action
-        if action.startswith(_COMMAND_LABEL_PREFIX) or action in known or action in reported:
-            continue
-        reported.add(action)
-        findings.append(
-            Finding(
-                CONFIG_PATH,
-                action,
-                "herdr が認識しないアクション名です "
-                "(herdr は typo を警告せず受理し binding は無効化されます)",
-            )
-        )
-    return findings
-
-
-def check_herdr_keys(repo_root: str, default_config_text: str | None = None) -> list[Finding]:
+def check_herdr_keys(repo_root: str, config_checker: ConfigChecker | None = None) -> list[Finding]:
     """herdr の config.toml を検査する。config が無い場合は検査対象なしで空を返す。
 
-    default_config_text (`herdr --default-config` の出力) が渡された場合のみ、アクション名が
-    herdr の知る名前かどうかも照合する。
+    config_checker が渡された場合のみ herdr 自身にも config を検証させる。config の有無は
+    ここで先に確かめる (herdr は存在しないパスでも `config: ok` を返す)。
     """
     config = Path(repo_root) / CONFIG_PATH
     if not config.is_file():
         return []
 
-    bindings = parse_bindings(config.read_text(encoding="utf-8"))
-    findings = _check_directions(bindings) + _check_duplicates(bindings)
-    if default_config_text is not None:
-        findings.extend(_check_unknown_actions(bindings, known_action_names(default_config_text)))
-    return findings
+    result = config_checker(config) if config_checker is not None else None
+    herdr_findings = _config_check_findings(result)
+    try:
+        bindings = parse_bindings(config.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as error:
+        # herdr が構文エラーを行と列つきで報告していればそれだけを返す。herdr が無いか
+        # 受け入れた場合も、静的な検査が何も見ていないことは告げる
+        return herdr_findings or [
+            Finding(CONFIG_PATH, "TOML", f"config を TOML として読めません: {error}")
+        ]
+
+    findings = _check_directions(bindings)
+    if result is None:
+        findings += _check_duplicates(bindings)
+    return findings + herdr_findings

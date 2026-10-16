@@ -33,7 +33,7 @@ GUARD_HEALTH_HOOK_COMMAND = 'python3 "$HOME/.claude/hooks/guard-health.py"'
 # settings_invariants の定数から生成しない。
 PRIVATE_OPS_HOOK_COMMAND = (
     'cat "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}'
-    '/.hidari/private-ops/PRIVATE_CLAUDE.md" 2>/dev/null'
+    '/.hidari/private-ops/PRIVATE_CLAUDE.md" 2>/dev/null || true'
 )
 
 
@@ -91,3 +91,14 @@ def write_file(repo: Path, rel: str, text: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
     return path
+
+
+def write_fake_herdr(directory: Path, body: str) -> None:
+    """directory に、本文 body を実行する偽の herdr を置く。PATH へ足すのは呼び出し側。
+
+    作ったばかりの実行ファイルは macOS の初回検査で起動が待たされうるので、成功を測る
+    テストは herdr_keys._SUBPROCESS_TIMEOUT_SECONDS を緩めること (定義コメント参照)。
+    """
+    fake = directory / "herdr"
+    fake.write_text(f"#!/bin/sh\n{body}\n", encoding="utf-8")
+    fake.chmod(0o755)

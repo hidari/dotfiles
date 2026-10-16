@@ -38,6 +38,9 @@ import hook_git
 # 「応答しない」を判定するための上限であって通常経路の待ち時間ではない。
 HERDR_PROBE_TIMEOUT = 5.0
 
+# SessionStart コマンドが private-ops の下から読む運用指示のファイル名
+_PRIVATE_OPS_FILE = "PRIVATE_CLAUDE.md"
+
 
 @dataclass(frozen=True)
 class ProbeResult:
@@ -94,15 +97,20 @@ def probe_private_ops() -> ProbeResult:
     メモを置く場所として全リポで運用しており、新しい状態を増やさずに「対象かどうか」を
     表せる。無いリポは対象外なので健全として通す。
 
-    一覧は読まない。一覧は外部ストレージにあり到達経路がこの symlink なので、symlink が
-    無いリポでは一覧そのものが読めない。読めない状態を沈黙として報告すると、対象外の
-    リポで常に鳴ることになる。一覧との突き合わせは棚卸し側 (repo-wiring --check) が持つ。
+    取り付け対象の一覧 (repos.txt) は読まない。一覧は外部ストレージにあり到達経路が
+    この symlink なので、symlink が無いリポでは一覧そのものが読めない。読めない状態を
+    沈黙として報告すると、対象外のリポで常に鳴ることになる。一覧との突き合わせは
+    棚卸し側 (repo-wiring --check) が持つ。
 
     exists() は symlink を辿るので、切れたリンクは False になる。外部ストレージが
     未マウントで実体へ届かない状態もここで捕まる。ただし exists() だけでは通常
     ファイルも真になるため、symlink であることも併せて見る。取り付け側
     (repo-wiring の is_wired) が symlink を要求しているので、検出側だけが緩いと
     「取り付けは拒むが検出は沈黙する」非対称ができる。
+
+    symlink が解決しても、指示のファイル自体が無いか読めなければ指示は載らない。読み込む
+    SessionStart コマンドは .hidari の無いリポジトリで失敗しないよう cat の失敗を成功に
+    畳んでいるので、この状態を告げられるのはここだけになる。
     """
     root = _project_root()
     if root is None:
@@ -113,15 +121,25 @@ def probe_private_ops() -> ProbeResult:
         return ProbeResult(healthy=True)
 
     link = hidari / "private-ops"
-    if link.is_symlink() and link.exists():
+    if not (link.is_symlink() and link.exists()):
+        return ProbeResult(
+            healthy=False,
+            detail=(
+                f"{link} が解決しないため、このリポジトリの運用指示は読み込まれていない。"
+                "外部ストレージが未マウントか、symlink が張られていない。"
+                "repo-wiring を実行すると張り直せる。"
+            ),
+        )
+
+    instructions = link / _PRIVATE_OPS_FILE
+    if instructions.is_file() and os.access(instructions, os.R_OK):
         return ProbeResult(healthy=True)
 
     return ProbeResult(
         healthy=False,
         detail=(
-            f"{link} が解決しないため、このリポジトリの運用指示は読み込まれていない。"
-            "外部ストレージが未マウントか、symlink が張られていない。"
-            "repo-wiring を実行すると張り直せる。"
+            f"{instructions} が無いか読めないため、このリポジトリの運用指示は読み込まれていない。"
+            "symlink の先の内容とパーミッションを確かめること。"
         ),
     )
 

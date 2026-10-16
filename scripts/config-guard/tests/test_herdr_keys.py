@@ -1,11 +1,13 @@
 """herdr_keys の仕様テスト。
 
-binding パーサ(pure)と、方向整合 / chord 重複の検査(実ファイル)を検証する。
+binding パーサ(pure)と、方向整合 / chord 重複の検査(実ファイル)、`herdr config check` の
+結果の解釈(pure)と起動(副作用)を検証する。
 """
 
 from __future__ import annotations
 
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -14,49 +16,12 @@ from config_guard import herdr_keys
 from config_guard.herdr_keys import (
     CONFIG_PATH,
     Binding,
+    ConfigChecker,
     check_herdr_keys,
-    known_action_names,
     parse_bindings,
-    read_default_config,
+    run_config_check,
 )
-
-# `herdr --default-config` の [keys] ブロックを模した抜粋。
-# 既定値は全てコメントアウトされて出力される点と、`type = ...` の prose コメントが
-# 「名前 = 値」の形をしている点(phantom entry の罠)を再現する。
-DEFAULT_CONFIG_EXCERPT = """[theme]
-name = "catppuccin"
-
-[keys]
-# Prefix key to enter prefix mode (default: "ctrl+b")
-# prefix = "ctrl+b"
-
-# Prefix-mode actions
-# previous_agent = ""     # optional, unset by default
-# next_agent = ""         # optional, unset by default
-# previous_workspace = "" # optional, unset by default
-# next_workspace = ""     # optional, unset by default
-# zoom = "prefix+z"       # legacy alias: fullscreen
-# new_tab = "prefix+c"
-# close_pane = "prefix+x"
-# previous_tab = "prefix+p"
-# next_tab = "prefix+n"
-# cycle_pane_next = "prefix+tab"
-# cycle_pane_previous = "prefix+shift+tab"
-# focus_pane_left = "prefix+h"
-# focus_pane_down = "prefix+j"
-# focus_pane_up = "prefix+k"
-# focus_pane_right = "prefix+l"
-
-# Custom commands use the same binding syntax.
-# type = "shell" runs detached in the background.
-# type = "pane" opens a temporary pane and closes it when the command exits.
-# [[keys.command]]
-# key = "prefix+alt+g"
-# command = "lazygit"
-
-# [keys.indexed]
-# tabs = ""
-"""
+from tests.conftest import write_fake_herdr
 
 # 方向キーを持つ対と、方向を持たない対(p/n, tab)を混ぜた最小 config
 SAMPLE_CONFIG = """[keys]
@@ -250,10 +215,38 @@ def test_check_flags_duplicate_chord_between_action_and_command(tmp_path: Path) 
     assert "keys.command[0]" in findings[0].message
 
 
-def test_check_duplicate_detection_is_case_insensitive(tmp_path: Path) -> None:
+def test_check_duplicate_detection_ignores_case_of_named_keys(tmp_path: Path) -> None:
+    # 複数文字のキー名は大文字小文字を区別しない (0.9.5 で実測)
+    _write_config(tmp_path, '[keys]\nnew_tab = "prefix+LEFT"\nclose_pane = "prefix+left"\n')
+
+    assert [f.detail for f in check_herdr_keys(str(tmp_path))] == ["prefix+left"]
+
+
+def test_check_distinguishes_uppercase_letter_from_lowercase(tmp_path: Path) -> None:
+    # 1 文字の大文字は shift+小文字 なので、小文字とは別の chord (0.9.5 で実測)
     _write_config(tmp_path, '[keys]\nnew_tab = "prefix+C"\nclose_pane = "prefix+c"\n')
 
-    assert [f.detail for f in check_herdr_keys(str(tmp_path))] == ["prefix+c"]
+    assert check_herdr_keys(str(tmp_path)) == []
+
+
+@pytest.mark.parametrize("other", ["prefix+shift+j", "prefix+shift+J"])
+def test_check_treats_uppercase_key_as_shift(tmp_path: Path, other: str) -> None:
+    # herdr は 1 文字の大文字キーを shift+小文字 と同じ chord として扱い、shift+J も同じ
+    # chord になる (0.9.5 で実測)。向きの検査に掛からないよう向きを持たないアクションを使う
+    _write_config(tmp_path, f'[keys]\nfocus_pane_down = "prefix+J"\nfocus_pane_up = "{other}"\n')
+
+    findings = check_herdr_keys(str(tmp_path))
+
+    assert [f.detail for f in findings] == ["prefix+shift+j"]
+
+
+def test_check_does_not_add_shift_to_symbol_keys(tmp_path: Path) -> None:
+    # 大文字を持たない記号は shift の有無で別の chord になる (0.9.5 で実測)
+    _write_config(
+        tmp_path, '[keys]\nfocus_pane_left = "prefix+["\nfocus_pane_right = "prefix+shift+["\n'
+    )
+
+    assert check_herdr_keys(str(tmp_path)) == []
 
 
 def test_check_allows_same_chord_listed_once_per_action(tmp_path: Path) -> None:
@@ -313,154 +306,226 @@ def test_check_empty_when_no_config(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# known_action_names (pure)
+# check_herdr_keys (`herdr config check` の結果の解釈)
 # ---------------------------------------------------------------------------
 
-
-def test_known_action_names_extracts_commented_defaults() -> None:
-    names = known_action_names(DEFAULT_CONFIG_EXCERPT)
-
-    assert {"previous_agent", "next_agent", "zoom", "focus_pane_left"} <= names
+# 向きの検査に掛からないよう、向きを持たないアクションで重複させる
+DUPLICATE_CONFIG = '[keys]\nfocus_pane_down = "prefix+shift+j"\nfocus_pane_up = "prefix+shift+j"\n'
 
 
-def test_known_action_names_rejects_prose_comment_lines() -> None:
-    # `# type = "shell" runs detached in the background.` は「名前 = 値」に見えるが、値の
-    # 後ろに散文が続くため TOML として不正。パーサに弾かせて phantom entry を防ぐ。
-    assert "type" not in known_action_names(DEFAULT_CONFIG_EXCERPT)
+def _checked(returncode: int, stdout: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(["herdr", "config", "check"], returncode, stdout, "")
 
 
-def test_known_action_names_stops_at_sub_tables() -> None:
-    names = known_action_names(DEFAULT_CONFIG_EXCERPT)
-
-    # [[keys.command]] と [keys.indexed] の中身はアクション名ではない
-    assert "key" not in names
-    assert "command" not in names
-    assert "tabs" not in names
+def _herdr_ok(_: Path) -> subprocess.CompletedProcess[str]:
+    return _checked(0, "config: ok\n")
 
 
-def test_known_action_names_excludes_prefix() -> None:
-    assert "prefix" not in known_action_names(DEFAULT_CONFIG_EXCERPT)
-
-
-def test_known_action_names_ignores_other_tables() -> None:
-    # [keys] より前にある [theme] の name を拾わない
-    assert "name" not in known_action_names(DEFAULT_CONFIG_EXCERPT)
-
-
-def test_known_action_names_empty_without_keys_table() -> None:
-    assert known_action_names('[theme]\nname = "one-dark"\n') == set()
-
-
-# ---------------------------------------------------------------------------
-# check_herdr_keys (未知のアクション名)
-# ---------------------------------------------------------------------------
-
-
-def test_check_flags_unknown_action_name(tmp_path: Path) -> None:
-    # herdr は綴り違いを diagnostics 無しで受理するため、guard 側で検出する
-    _write_config(tmp_path, '[keys]\nnext_agentt = "prefix+shift+j"\n')
-
-    findings = check_herdr_keys(str(tmp_path), default_config_text=DEFAULT_CONFIG_EXCERPT)
-
-    assert [f.detail for f in findings] == ["next_agentt"]
-    assert all(f.source == CONFIG_PATH for f in findings)
-
-
-def test_check_accepts_known_action_names(tmp_path: Path) -> None:
+def test_check_reports_herdr_diagnostics(tmp_path: Path) -> None:
     _write_config(tmp_path, SAMPLE_CONFIG)
-
-    assert check_herdr_keys(str(tmp_path), default_config_text=DEFAULT_CONFIG_EXCERPT) == []
-
-
-def test_check_does_not_flag_command_entries_as_unknown(tmp_path: Path) -> None:
-    # keys.command[0] は parse_bindings が付ける合成ラベルであってアクション名ではない
-    _write_config(
-        tmp_path,
-        '[[keys.command]]\nkey = "prefix+shift+u"\ntype = "shell"\ncommand = "echo hi"\n',
+    result = _checked(
+        1, "config: issues found\nunknown config key keys.next_agentt; ignoring key\n"
     )
 
-    assert check_herdr_keys(str(tmp_path), default_config_text=DEFAULT_CONFIG_EXCERPT) == []
+    findings = check_herdr_keys(str(tmp_path), lambda _: result)
+
+    assert [(f.source, f.detail) for f in findings] == [(CONFIG_PATH, "herdr config check")]
+    assert "unknown config key keys.next_agentt; ignoring key" in findings[0].message
 
 
-def test_check_reports_unknown_action_once_per_name(tmp_path: Path) -> None:
-    _write_config(tmp_path, '[keys]\nbogus_action = ["prefix+a", "prefix+b"]\n')
+def test_check_reports_herdr_parse_error_instead_of_static_one(tmp_path: Path) -> None:
+    # 構文エラーは herdr が行と列つきで複数行にわたって報告する。1 行目だけ拾うと位置と
+    # 理由が落ちる。herdr が読めたなら静的な TOML の Finding は重ねない
+    _write_config(tmp_path, "keys = [\n")
+    result = _checked(
+        1,
+        "config: issues found\nconfig parse error: TOML parse error at line 1, column 10\n"
+        "invalid array\nexpected `]`\n; using defaults\n",
+    )
 
-    findings = check_herdr_keys(str(tmp_path), default_config_text=DEFAULT_CONFIG_EXCERPT)
+    (finding,) = check_herdr_keys(str(tmp_path), lambda _: result)
 
-    assert [f.detail for f in findings] == ["bogus_action"]
+    assert finding.detail == "herdr config check"
+    for line in ("line 1, column 10", "invalid array", "expected `]`", "using defaults"):
+        assert line in finding.message
 
 
-def test_check_skips_unknown_action_check_without_reference(tmp_path: Path) -> None:
-    # 参照テキストを渡さなければアクション名は検証しない (herdr が無い CI での挙動)
-    _write_config(tmp_path, '[keys]\nnext_agentt = "prefix+shift+j"\n')
+@pytest.mark.parametrize("checker", [None, _herdr_ok])
+def test_check_reports_unparsable_config_statically(
+    tmp_path: Path, checker: ConfigChecker | None
+) -> None:
+    # herdr が無いか受け入れた場合も、tomllib が読めなければ静的な検査は何も見ていない。
+    # 空で返すと緑に見え、例外を投げると scan 全体がトレースバックで止まる
+    _write_config(tmp_path, "keys = [\n")
 
-    assert check_herdr_keys(str(tmp_path)) == []
+    (finding,) = check_herdr_keys(str(tmp_path), checker)
+
+    assert (finding.source, finding.detail) == (CONFIG_PATH, "TOML")
+
+
+def test_check_leaves_duplicates_to_herdr_when_it_ran(tmp_path: Path) -> None:
+    # herdr は重複を自分で報告し、静的な正規化より正確なので、herdr が走ったら二重に出さない
+    _write_config(tmp_path, DUPLICATE_CONFIG)
+
+    assert check_herdr_keys(str(tmp_path), _herdr_ok) == []
+
+
+def test_check_reports_duplicates_statically_without_herdr(tmp_path: Path) -> None:
+    # 上のテストの対照。herdr が無ければ (起動結果が None) 静的な重複検査が代わりに走る
+    _write_config(tmp_path, DUPLICATE_CONFIG)
+
+    findings = check_herdr_keys(str(tmp_path), lambda _: None)
+
+    assert [f.detail for f in findings] == ["prefix+shift+j"]
+
+
+def test_check_runs_direction_check_even_when_herdr_ran(tmp_path: Path) -> None:
+    # 向きの逆転は herdr が検証しないので、herdr の有無に関係なく走る
+    _write_config(tmp_path, '[keys]\nnext_workspace = "ctrl+alt+["\n')
+
+    findings = check_herdr_keys(str(tmp_path), _herdr_ok)
+
+    assert [f.detail for f in findings] == ["next_workspace = ctrl+alt+["]
+
+
+def test_check_passes_when_herdr_reports_ok(tmp_path: Path) -> None:
+    _write_config(tmp_path, SAMPLE_CONFIG)
+
+    assert check_herdr_keys(str(tmp_path), _herdr_ok) == []
+
+
+@pytest.mark.parametrize(
+    ("returncode", "stdout"),
+    [
+        (2, "herdr config commands:\n"),
+        (1, "something else\n"),
+        (1, ""),
+        # 2 行目以降があっても、見出しが違えば診断として読まない
+        (1, "unexpected header\nsome detail\n"),
+        # 見出しはあっても診断が空なら、何が悪いかを伝えられない
+        (1, "config: issues found\n"),
+        # rc 0 でも、問題なしの 1 行でなければ形が変わったとみなす
+        (0, ""),
+        (0, "config: issues found\nsome detail\n"),
+    ],
+)
+def test_check_reports_uninterpretable_result(tmp_path: Path, returncode: int, stdout: str) -> None:
+    # 想定外の形を「問題なし」へ倒すと、herdr の出力形式が変わった瞬間に検査が黙って止まる
+    _write_config(tmp_path, SAMPLE_CONFIG)
+
+    (finding,) = check_herdr_keys(str(tmp_path), lambda _: _checked(returncode, stdout))
+
+    assert finding.detail == "herdr config check"
+    assert f"rc={returncode}" in finding.message
+
+
+def test_check_skips_herdr_when_checker_returns_none(tmp_path: Path) -> None:
+    # herdr が無い CI では起動結果が None になり、静的な検査だけが走る
+    _write_config(tmp_path, SAMPLE_CONFIG)
+
+    assert check_herdr_keys(str(tmp_path), lambda _: None) == []
+
+
+def test_check_passes_config_path_to_checker(tmp_path: Path) -> None:
+    _write_config(tmp_path, SAMPLE_CONFIG)
+    seen: list[Path] = []
+
+    def checker(path: Path) -> subprocess.CompletedProcess[str]:
+        seen.append(path)
+        return _herdr_ok(path)
+
+    check_herdr_keys(str(tmp_path), checker)
+
+    assert seen == [tmp_path / CONFIG_PATH]
+
+
+def test_check_does_not_run_herdr_without_config(tmp_path: Path) -> None:
+    # herdr は存在しないパスを渡されても `config: ok` で rc 0 を返す (実測)。起動させると
+    # 「config が無い」が「config に問題が無い」と区別できなくなる
+    def checker(_: Path) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("config が無いのに herdr を起動した")
+
+    assert check_herdr_keys(str(tmp_path), checker) == []
 
 
 # ---------------------------------------------------------------------------
-# read_default_config (副作用の隔離)
+# run_config_check (副作用の隔離)
 # ---------------------------------------------------------------------------
 
 
-def test_read_default_config_returns_none_without_herdr(
+def test_run_config_check_returns_none_without_herdr(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    # PATH から herdr を外すと None を返し、呼び出し側は検査を skip できる
     monkeypatch.setenv("PATH", str(tmp_path))
 
-    assert read_default_config() is None
+    assert run_config_check(tmp_path / "config.toml") is None
 
 
-def test_read_default_config_returns_none_on_nonzero_exit(
+def test_run_config_check_points_herdr_at_the_given_config(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    # 待ち時間を緩める理由は次のテストのコメントを参照。こちらは timeout でも None を
-    # 返すので、緩めないと「壊れたまま緑」になり flaky であることすら見えない。
+    # 待ち時間を緩める理由は _SUBPROCESS_TIMEOUT_SECONDS の定義コメントを参照。
+    # ここで測りたいのは引数と環境変数の受け渡しだけ
     monkeypatch.setattr(herdr_keys, "_SUBPROCESS_TIMEOUT_SECONDS", 120)
-    fake = tmp_path / "herdr"
-    fake.write_text("#!/bin/sh\necho boom >&2\nexit 3\n", encoding="utf-8")
-    fake.chmod(0o755)
+    write_fake_herdr(tmp_path, 'printf "%s|%s" "$*" "$HERDR_CONFIG_PATH"; exit 1')
     monkeypatch.setenv("PATH", str(tmp_path))
+    config = tmp_path / "config.toml"
 
-    assert read_default_config() is None
+    result = run_config_check(config)
+
+    assert result is not None
+    assert (result.returncode, result.stdout) == (1, f"config check|{config}")
 
 
-def test_read_default_config_returns_stdout_on_success(
+def test_run_config_check_returns_none_on_timeout(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    # macOS は chmod +x した直後の実行ファイルを初回起動時に検査し、混み合うと
-    # _SUBPROCESS_TIMEOUT_SECONDS を超える (実測値は同定数の定義コメントが持つ)。実運用の
-    # herdr は検査済みなので影響を受けず、fake を作って起動するテストだけが落ちる。ここで
-    # 測りたいのは stdout の受け渡しなので、待ち時間だけを緩める。
-    monkeypatch.setattr(herdr_keys, "_SUBPROCESS_TIMEOUT_SECONDS", 120)
-    fake = tmp_path / "herdr"
-    fake.write_text("#!/bin/sh\nprintf '[keys]\\n# next_agent = \"\"\\n'\n", encoding="utf-8")
-    fake.chmod(0o755)
-    monkeypatch.setenv("PATH", str(tmp_path))
-
-    text = read_default_config()
-
-    assert text is not None
-    assert known_action_names(text) == {"next_agent"}
-
-
-def test_read_default_config_returns_none_on_timeout(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    # timeout も None へ畳むことの仕様化と、_SUBPROCESS_TIMEOUT_SECONDS が実際に
-    # subprocess へ渡っていることの pin を兼ねる。定数が渡っていなければ fake は 1 秒で
-    # 成功して stdout が返るので、この assert が落ちる。
-    #
-    # sleep を解決済みの絶対パスで呼ぶのは、PATH を tmp_path だけへ絞ると PATH 経由では
-    # 見つからないため。相対名のままだと sh が not found を出したまま次行の printf (組み込み)
-    # へ進んで即座に成功する。macOS では初回起動検査の待ちで偶然 timeout していたので緑に
-    # 見え、Linux の CI だけが落ちた。
+    # timeout を None へ畳むことの仕様化と、_SUBPROCESS_TIMEOUT_SECONDS が subprocess へ
+    # 渡っていることの pin を兼ねる。sleep を絶対パスで呼ぶのは、PATH を tmp_path だけへ
+    # 絞ると PATH 経由では見つからず、sh が not found のまま即座に終わるため
     sleep = shutil.which("sleep")
     assert sleep is not None, "sleep が見つからない環境ではこのテストを構成できない"
     monkeypatch.setattr(herdr_keys, "_SUBPROCESS_TIMEOUT_SECONDS", 0.001)
-    fake = tmp_path / "herdr"
-    fake.write_text(f"#!/bin/sh\n{sleep} 1\nprintf '[keys]\\n'\n", encoding="utf-8")
-    fake.chmod(0o755)
+    write_fake_herdr(tmp_path, f"{sleep} 1\necho 'config: ok'")
     monkeypatch.setenv("PATH", str(tmp_path))
 
-    assert read_default_config() is None
+    assert run_config_check(tmp_path / "config.toml") is None
+
+
+# ---------------------------------------------------------------------------
+# 本物の herdr での live smoke (herdr が無い CI では skip)
+# ---------------------------------------------------------------------------
+
+requires_herdr = pytest.mark.skipif(shutil.which("herdr") is None, reason="herdr が無い")
+
+
+@requires_herdr
+def test_live_herdr_reports_misspelled_action(tmp_path: Path) -> None:
+    _write_config(tmp_path, '[keys]\nnext_agentt = "prefix+shift+j"\n')
+
+    (finding,) = check_herdr_keys(str(tmp_path), run_config_check)
+
+    assert "unknown config key keys.next_agentt" in finding.message
+
+
+@requires_herdr
+def test_live_herdr_reports_parse_error(tmp_path: Path) -> None:
+    _write_config(tmp_path, "keys = [\n")
+
+    (finding,) = check_herdr_keys(str(tmp_path), run_config_check)
+
+    assert "TOML parse error" in finding.message
+
+
+@requires_herdr
+def test_live_herdr_accepts_valid_config(tmp_path: Path) -> None:
+    # test_live_herdr_reports_misspelled_action の対照。herdr が実際に起動して問題なしと
+    # 答えたことまで確かめる
+    # (起動に失敗すると None になり、check_herdr_keys は同じく空を返すため)
+    _write_config(tmp_path, '[keys]\nnext_agent = "prefix+shift+j"\n')
+
+    result = run_config_check(tmp_path / CONFIG_PATH)
+
+    assert result is not None
+    assert (result.returncode, result.stdout.strip()) == (0, "config: ok")
+    assert check_herdr_keys(str(tmp_path), run_config_check) == []
