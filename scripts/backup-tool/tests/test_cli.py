@@ -1,11 +1,16 @@
-"""cli モジュールの純粋ヘルパーに対するテスト。
+"""cli モジュールのテスト。
 
-I/O を伴う main 自体は実機・統合レベルで検証する。
+純粋ヘルパーに加え、main を偽の du / rsync だけを置いた PATH で通して、
+事前検査と終了コードを確かめる。
 """
 
 from __future__ import annotations
 
+import logging
+import sys
+from collections.abc import Iterator
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -16,8 +21,25 @@ from backup_tool.cli import (
     _resolve_config_path,
     _resolve_log_dir,
     _should_prompt,
+    main,
 )
 from backup_tool.logging_setup import LogFormat
+
+if TYPE_CHECKING:
+    from tests.conftest import FakeCommand
+
+_REQUIRED = ("du", "rsync")
+_MISSING_PREFIX = "エラー: 必要なコマンドが見つかりません: "
+
+
+@pytest.fixture(autouse=True)
+def _reset_backup_tool_logger() -> Iterator[None]:
+    """main が足した handler を外す。残すと閉じた capsys のストリームへ書き続ける。"""
+    yield
+    backup_logger = logging.getLogger("backup_tool")
+    for handler in backup_logger.handlers[:]:
+        handler.close()
+        backup_logger.removeHandler(handler)
 
 
 class TestResolveConfigPath:
@@ -84,3 +106,121 @@ class TestMissingConfigMessage:
         message = _missing_config_message(path)
         assert f"設定ファイル: {path}" in message
         assert "backup.example.toml をコピーして backup.toml を作成してください" in message
+
+
+def _write_config(tmp_path: Path) -> Path:
+    """tmp_path 配下のローカルディレクトリ同士のペアを1つ持つ設定を書く。"""
+    source = tmp_path / "src"
+    destination = tmp_path / "dst"
+    source.mkdir()
+    destination.mkdir()
+    config_path = tmp_path / "backup.toml"
+    config_path.write_text(
+        "minimum_free_space_gb = 1\n"
+        "log_retention_days = 90\n"
+        "[[backup_pairs]]\n"
+        'name = "local"\n'
+        f'source = "{source}"\n'
+        f'destination = "{destination}"\n',
+        encoding="utf-8",
+    )
+    return config_path
+
+
+def _install_present(fake_command: FakeCommand, tmp_path: Path, *, missing: set[str]) -> Path:
+    """missing 以外の必要なコマンドの偽物を置き、rsync の呼び出しを記録するファイルを返す。"""
+    calls = tmp_path / "rsync-calls"
+    bodies = {
+        "du": "printf '%s\\t%s\\n' 1 /src",
+        "rsync": f"printf '%s\\n' called >> '{calls}'",
+    }
+    for name in _REQUIRED:
+        if name not in missing:
+            fake_command(name, bodies[name])
+    return calls
+
+
+def _reported_missing(err: str) -> set[str]:
+    lines = [line for line in err.splitlines() if line.startswith(_MISSING_PREFIX)]
+    assert len(lines) == 1, err
+    return set(lines[0].removeprefix(_MISSING_PREFIX).split(", "))
+
+
+class TestMainPreflight:
+    @pytest.mark.parametrize("missing", [{"du"}, {"rsync"}, {"du", "rsync"}])
+    def test_reports_exactly_the_missing_commands(
+        self,
+        empty_path: None,
+        fake_command: FakeCommand,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        missing: set[str],
+    ) -> None:
+        calls = _install_present(fake_command, tmp_path, missing=missing)
+
+        exit_code = main(["--dry-run", "--config", str(_write_config(tmp_path))])
+
+        assert exit_code == 1
+        err = capsys.readouterr().err
+        assert _reported_missing(err) == missing
+        for name in set(_REQUIRED) - missing:
+            assert name not in err
+        assert not calls.exists()
+
+    def test_runs_the_backup_when_every_command_is_present(
+        self,
+        empty_path: None,
+        fake_command: FakeCommand,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        # 上の不在ケースの対照。偽物だけの PATH で main が最後まで通ることを確かめる
+        calls = _install_present(fake_command, tmp_path, missing=set())
+
+        exit_code = main(["--dry-run", "--config", str(_write_config(tmp_path))])
+
+        assert exit_code == 0
+        assert _MISSING_PREFIX not in capsys.readouterr().err
+        assert calls.read_text(encoding="utf-8").splitlines() == ["called"]
+
+    def test_stops_before_logging_setup_and_prompt(
+        self,
+        empty_path: None,
+        fake_command: FakeCommand,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        # dry-run ではログファイルもプロンプトも無く順序が見えないので、通常の実行で確かめる
+        _install_present(fake_command, tmp_path, missing={"rsync"})
+        monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+
+        def refuse_prompt(_prompt: str = "") -> str:
+            raise AssertionError("確認プロンプトに到達した")
+
+        monkeypatch.setattr("builtins.input", refuse_prompt)
+        config_path = _write_config(tmp_path)
+
+        exit_code = main(["--config", str(config_path)])
+
+        assert exit_code == 1
+        assert _reported_missing(capsys.readouterr().err) == {"rsync"}
+        assert not (config_path.parent / ".backup_logs").exists()
+
+
+class TestMainUsageErrors:
+    @pytest.mark.parametrize("argv", [["--no-such-option"], ["--log-format", "xml"]])
+    def test_usage_error_exits_with_config_error_code(
+        self, argv: list[str], capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # 2 は「一部のペアが失敗」なので、引数の誤りは設定不備と同じ 1 にする
+        with pytest.raises(SystemExit) as excinfo:
+            main(argv)
+        assert excinfo.value.code == 1
+        assert "usage:" in capsys.readouterr().err
+
+    def test_help_exits_zero(self, capsys: pytest.CaptureFixture[str]) -> None:
+        with pytest.raises(SystemExit) as excinfo:
+            main(["--help"])
+        assert excinfo.value.code == 0
+        assert "usage:" in capsys.readouterr().out

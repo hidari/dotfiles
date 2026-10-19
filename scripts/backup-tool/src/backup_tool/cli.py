@@ -5,17 +5,23 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import shutil
 import sys
 from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
+from typing import NoReturn
 
 from backup_tool.config import Config, ConfigError, load_config
+from backup_tool.disk import DU_COMMAND
 from backup_tool.logging_setup import LogFormat, configure_logging, rotate_old_logs
+from backup_tool.rsync import RSYNC_COMMAND
 from backup_tool.runner import ExitCode, run_backup
 
 _DEFAULT_CONFIG_NAME = "backup.toml"
 _LOG_DIR_NAME = ".backup_logs"
+# 実行に要る外部コマンド。dry-run も rsync の --dry-run で動くので同じものが要る
+_REQUIRED_COMMANDS: tuple[str, ...] = (DU_COMMAND, RSYNC_COMMAND)
 
 logger = logging.getLogger("backup_tool")
 
@@ -33,6 +39,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         config = load_config(config_path.read_bytes())
     except ConfigError as err:
         print(f"設定ファイルが不正です: {err}", file=sys.stderr)
+        return int(ExitCode.USER_ABORT)
+
+    # ログの準備と確認プロンプトより前に止め、始まらなかった実行の痕跡を残さない
+    missing = _missing_commands()
+    if missing:
+        print(f"エラー: 必要なコマンドが見つかりません: {', '.join(missing)}", file=sys.stderr)
         return int(ExitCode.USER_ABORT)
 
     log_dir = _resolve_log_dir(config_path, config.log_base_dir)
@@ -59,8 +71,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     return int(exit_code)
 
 
+class _ArgumentParser(argparse.ArgumentParser):
+    """引数の誤りを argparse 既定の 2 ではなく設定不備の終了コードで終える。
+
+    2 は「一部のペアが失敗」に割り当てているので、引数の誤りと区別できなくなる。
+    """
+
+    def error(self, message: str) -> NoReturn:
+        self.print_usage(sys.stderr)
+        self.exit(int(ExitCode.USER_ABORT), f"{self.prog}: error: {message}\n")
+
+
+def _missing_commands() -> list[str]:
+    return [name for name in _REQUIRED_COMMANDS if shutil.which(name) is None]
+
+
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+    parser = _ArgumentParser(
         prog="backup",
         description="macOS 向け rsync ベースのストレージバックアップ",
     )

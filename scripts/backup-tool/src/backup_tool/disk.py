@@ -14,6 +14,8 @@ from shutil import disk_usage
 
 _GB_TO_KB = 1024 * 1024
 
+DU_COMMAND = "du"
+
 
 @dataclass(frozen=True, slots=True)
 class CapacityReport:
@@ -40,12 +42,9 @@ def required_total_kb(*, source_size_kb: int, margin_gb: int) -> int:
 
 def measure_source_size_kb(path: Path) -> int | None:
     """du -sk でディレクトリ使用容量 (KB) を返す。取得できないか値が範囲外なら None。"""
-    try:
-        completed = subprocess.run(
-            ["du", "-sk", str(path)], capture_output=True, text=True, check=False
-        )
-    except FileNotFoundError:
-        return None
+    completed = subprocess.run(
+        [DU_COMMAND, "-sk", str(path)], capture_output=True, text=True, check=False
+    )
     if completed.returncode != 0:
         return None
     # du -sk の出力: <KB>\t<path>

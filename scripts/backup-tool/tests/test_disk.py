@@ -79,10 +79,10 @@ class TestMeasureSourceSizeKb:
         assert measure_source_size_kb(tmp_path) is None
 
     @pytest.mark.usefixtures("empty_path")
-    def test_none_when_du_is_missing(self, tmp_path: Path) -> None:
-        # 本物の du が見えてしまったときに、範囲の規則と関係なく None 以外を返させるため中身を置く
-        (tmp_path / "data").write_bytes(b"x" * 65536)
-        assert measure_source_size_kb(tmp_path) is None
+    def test_raises_when_du_is_missing(self, tmp_path: Path) -> None:
+        # du の不在は cli の事前検査が扱うので、ここでは None に畳まず呼び出し元へ渡す
+        with pytest.raises(FileNotFoundError):
+            measure_source_size_kb(tmp_path)
 
     def test_none_when_du_exits_nonzero(self, fake_command: FakeCommand, tmp_path: Path) -> None:
         # 出力が読める形でも、非0終了なら値を信用しない

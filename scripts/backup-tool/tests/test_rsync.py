@@ -129,6 +129,26 @@ class TestRun:
             "rsync: connection unexpectedly closed",
         ]
 
+    def test_replaces_undecodable_bytes_and_keeps_reading(
+        self, fake_command: FakeCommand, tmp_path: Path
+    ) -> None:
+        # ファイル名などに UTF-8 でないバイトが混じっても、1 行を壊すだけで実行は続ける
+        fake_command(
+            "rsync",
+            "printf 'bad \\377 name\\n'\nprintf '%s\\n' 'next line'\nexit 0",
+        )
+        lines: list[str] = []
+
+        result = run(
+            source=tmp_path / "src",
+            destination=tmp_path / "dst",
+            options=[],
+            on_output=lines.append,
+        )
+
+        assert result.exit_code == 0
+        assert lines == ["bad \ufffd name", "next line"]
+
     @pytest.mark.usefixtures("empty_path")
     def test_raises_when_rsync_is_missing(self, tmp_path: Path) -> None:
         # rsync が無いことは終了コードに畳まず、FileNotFoundError として呼び出し元へ渡す
