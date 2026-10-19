@@ -1,12 +1,12 @@
 # テストと変異注入の一次実測
 
-`~/.claude/rules/testing-practices.md` の「テストが緑であることを、仕様を守れている証拠にしない」カテゴリが持つ規範の、手当ての詳細と一次実測。
+`~/.claude/rules/testing-practices.md` の「テストが緑であることを、仕様を守れている証拠にしない」カテゴリと、`~/.claude/CLAUDE.md` の「テストを書き始める前に順序と方式を決める」カテゴリが持つ規範の、手当ての詳細と一次実測。
 
 規範の遵守そのものには要らない。手当ての具体が要るとき、規範を疑うとき、似た失敗を踏んで「これは既知か」を確かめるときに読む。
 
-## E2E の生成
+例外が 1 つある。次の E2E の生成手順は、E2E を作る瞬間に引く手順で、規範ではなく手順であることを理由に常時層から外した。
 
-`~/.claude/CLAUDE.md` の「テストを書き始める前に順序と方式を決める」カテゴリが E2E の作り方として名指しする手順。
+## E2E の生成
 
 - 公式 Playwright Test Agents を `pnpm exec playwright init-agents --loop=claude` で生成し、Planner / Generator / Healer で作成する
 - playwright を devDependency に持たないプロジェクトでは `pnpm dlx` で代替する
