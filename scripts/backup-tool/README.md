@@ -69,19 +69,6 @@ $EDITOR backup.toml
 `backup_pairs` の各要素には `name` / `source` / `destination` が必須で、
 `excludes` はオプションです (ペア固有の除外パターン)。
 
-### 4. 旧 backup.conf を使っていた場合の移行
-
-既存の `backup.conf` (Bash 版) がある場合は、以下のコマンドで
-TOML フォーマットに自動変換できます。
-
-```bash
-backup migrate-config
-```
-
-- 既存の `backup.conf` は `backup.conf.bak` にリネームされます
-- `backup.toml` が既に存在する場合は上書きせずエラー終了します
-- 入出力パスを明示したい場合は `--from PATH` / `--to PATH` を指定
-
 ## 使い方
 
 ### 通常実行
@@ -167,7 +154,7 @@ backup --config /path/to/custom.toml
 | コード | 意味 |
 | --- | --- |
 | 0 | 全ペアが成功 (rsync code 23 の部分的成功を含む) |
-| 1 | 設定不備・ユーザー中止・マイグレーション失敗 |
+| 1 | 設定不備・ユーザー中止 |
 | 2 | 一部のペアが失敗 |
 | 3 | 全ペアが失敗 |
 
@@ -198,8 +185,7 @@ uv run mypy src tests
 ### 設定ファイルが見つかりません
 
 `backup.toml` が存在しない状態でコマンドを実行すると表示されます。
-`backup.example.toml` をコピーするか、旧 `backup.conf` がある場合は
-`backup migrate-config` で変換してください。
+`backup.example.toml` をコピーして作成してください。
 
 ### マウントされていません
 

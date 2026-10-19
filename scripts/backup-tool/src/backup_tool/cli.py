@@ -1,8 +1,4 @@
-"""コマンドラインエントリポイント。
-
-旧 backup.sh:702-732 のメイン処理を argparse ベースに書き直し、
-run (デフォルト) と migrate-config の 2 サブコマンドを提供する。
-"""
+"""コマンドラインエントリポイント。"""
 
 from __future__ import annotations
 
@@ -16,26 +12,17 @@ from pathlib import Path
 
 from backup_tool.config import Config, ConfigError, load_config
 from backup_tool.logging_setup import LogFormat, configure_logging, rotate_old_logs
-from backup_tool.migrate import MigrationError, migrate_file
 from backup_tool.runner import ExitCode, run_backup
 
 _DEFAULT_CONFIG_NAME = "backup.toml"
-_LEGACY_CONFIG_NAME = "backup.conf"
 _LOG_DIR_NAME = ".backup_logs"
 
 logger = logging.getLogger("backup_tool")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = list(argv) if argv is not None else sys.argv[1:]
-    if args and args[0] == "migrate-config":
-        return _migrate_command(args[1:])
-    return _run_command(args)
-
-
-def _run_command(args: list[str]) -> int:
-    parser = _build_run_parser()
-    parsed = parser.parse_args(args)
+    parser = _build_parser()
+    parsed = parser.parse_args(argv)
 
     config_path = _resolve_config_path(parsed.config)
     if not config_path.is_file():
@@ -72,30 +59,7 @@ def _run_command(args: list[str]) -> int:
     return int(exit_code)
 
 
-def _migrate_command(args: list[str]) -> int:
-    parser = argparse.ArgumentParser(
-        prog="backup migrate-config",
-        description="旧 backup.conf を backup.toml に変換する",
-    )
-    parser.add_argument("--from", dest="src", type=Path, default=None, help="入力 backup.conf")
-    parser.add_argument("--to", dest="dst", type=Path, default=None, help="出力 backup.toml")
-    parsed = parser.parse_args(args)
-
-    base_dir = _default_base_dir()
-    src = parsed.src or base_dir / _LEGACY_CONFIG_NAME
-    dst = parsed.dst or base_dir / _DEFAULT_CONFIG_NAME
-
-    try:
-        migrate_file(src=src, dst=dst)
-    except MigrationError as err:
-        print(f"マイグレーションに失敗しました: {err}", file=sys.stderr)
-        return int(ExitCode.USER_ABORT)
-    backup_path = src.with_suffix(src.suffix + ".bak")
-    print(f"{src} を {dst} に変換しました。旧ファイルは {backup_path} に退避されています")
-    return int(ExitCode.SUCCESS)
-
-
-def _build_run_parser() -> argparse.ArgumentParser:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="backup",
         description="macOS 向け rsync ベースのストレージバックアップ",
@@ -153,8 +117,7 @@ def _missing_config_message(path: Path) -> str:
     return (
         "エラー: 設定ファイルが見つかりません\n"
         f"設定ファイル: {path}\n"
-        "旧 backup.conf から移行する場合は 'backup migrate-config' を実行してください\n"
-        f"新規の場合は backup.example.toml をコピーして {path.name} を作成してください"
+        f"backup.example.toml をコピーして {path.name} を作成してください"
     )
 
 

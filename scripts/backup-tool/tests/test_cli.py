@@ -1,6 +1,6 @@
 """cli モジュールの純粋ヘルパーに対するテスト。
 
-I/O を伴う run_command / migrate_command 自体は実機・統合レベルで検証する。
+I/O を伴う main 自体は実機・統合レベルで検証する。
 """
 
 from __future__ import annotations
@@ -79,7 +79,8 @@ class TestShouldPrompt:
 
 
 class TestMissingConfigMessage:
-    def test_includes_migrate_guidance(self, tmp_path: Path) -> None:
-        message = _missing_config_message(tmp_path / "backup.toml")
-        assert "backup migrate-config" in message
-        assert "backup.example.toml" in message
+    def test_guides_copying_the_example(self, tmp_path: Path) -> None:
+        path = tmp_path / "backup.toml"
+        message = _missing_config_message(path)
+        assert f"設定ファイル: {path}" in message
+        assert "backup.example.toml をコピーして backup.toml を作成してください" in message
