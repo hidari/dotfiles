@@ -126,7 +126,7 @@ def _execute_pair(
 def _verify_path(path: Path, *, role: str, mode: PathMode) -> None:
     kind = classify(str(path))
     if kind == "volume":
-        if not is_mounted(str(path).rstrip("/")):
+        if not is_mounted(str(path)):
             raise BackupAbortedError(f"{role} のボリュームがマウントされていません: {path}")
     elif kind == "directory":
         volume = extract_volume_path(str(path))
