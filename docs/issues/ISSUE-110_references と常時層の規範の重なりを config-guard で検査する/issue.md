@@ -20,6 +20,15 @@ ISSUE-106 の作業では、文字 bigram の包含率で「references の文が
 - 文の切り出しは段落の行を結合してから行う。文の途中の改行が残っていると件数が少なく出るので、ISSUE-108 の改行の扱いと関係する
 - 限界として、写しは捕まるが言い換えは捕まらない。どこまでを検査に任せるか
 
+### 言い換えを Jev の2段目で拾う案 (2026-10-19)
+
+1段目は bigram の包含率のまま config-guard に置く。2段目として、しきい値に届かなかった文のうち包含率の上位の候補だけを、(規範, 文) の組で Jev に choice で問う。選択肢は restates / scope_shifted / contradicts / example_or_detail / unrelated。ISSUE-97 の試験で、重複判定と既存の言い換えの特定は強かった。
+
+- CI には載せない。標準ライブラリだけのスクリプトをユーザーが `!` で手動実行し、鍵はエージェントが読まない
+- 自動で採るのは unrelated と example_or_detail の高確信だけにし、restates / contradicts / scope_shifted はすべて人が読む
+- 送るのは公開済みの追跡下のファイルだけ
+- 日本語での精度は公表されておらず、射程のずれ (scope_shifted) を見分けられるかは agentic-coding-tools の ISSUE-72 でも未測定。期待値を API を呼ぶ前に固定し、選択肢の順序を2通りで回す (ISSUE-97 の「再試験で事前に固定すること」節)
+
 ## タスク
 
 - [ ] 上の各点を決める
@@ -30,3 +39,7 @@ ISSUE-106 の作業では、文字 bigram の包含率で「references の文が
 ISSUE-106: references の作り替えを手で行った作業
 
 ISSUE-108: 文中の改行の扱いが、この検査の文の切り出しに関係する
+
+ISSUE-97: Jev の試験と再試験の設計を持つ
+
+agentic-coding-tools の ISSUE-72: 文書と canonical の食い違いを Jev で見る検討。射程のずれの型が未測定であることを記録している
