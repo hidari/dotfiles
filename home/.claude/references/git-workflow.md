@@ -28,6 +28,7 @@
 ## 保護ブランチの判定に classic API だけを使わない
 
 classic 404 でも ruleset で保護されているリポジトリが存在する。
+classic 404 を「保護なし」と誤判定すると、ruleset 保護を bypass 特権で素通り push し、required checks / PR レビューを欠落させる。
 
 ruleset 側は list endpoint (`gh api repos/<owner>/<repo>/rulesets`) では判定できない。
 返るのは ruleset の id と name と target と enforcement だけで `rules` を持たず、何が強制されているかを答えないためである (2026-08-31 に dotfiles で実測)。

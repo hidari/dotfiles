@@ -697,8 +697,6 @@ write_config_dirs_file() {
     [ "$status" -ne 0 ]
     run claude_mirrored_target ".claude/statusline-command.sh"
     [ "$status" -ne 0 ]
-    run claude_mirrored_target ".claude/.mcp.json"
-    [ "$status" -ne 0 ]
     # .claude/ 配下でない target は対象外
     run claude_mirrored_target ".local/bin/winvm"
     [ "$status" -ne 0 ]
@@ -842,7 +840,6 @@ uncovered_symlink_targets() {
     local -a unmirrored=(
         ".claude/hooks"                  # settings.json が $HOME/.claude/hooks/ を絶対参照し symlink 経由で解決される
         ".claude/statusline-command.sh"  # settings.json が bash ~/.claude/... を絶対参照する
-        ".claude/.mcp.json"              # Claude Code が ~/.claude/.mcp.json を読まない
     )
 
     # 期待値: .claude/ 配下の全 target から allowlist を除いた補集合が、同じ source の
@@ -1742,7 +1739,6 @@ STUB
     # 意図的に 2 本目を張らない target (死んだ symlink になる) が生成されないこと
     refute_contains "$output" ".claude-alpha/hooks"
     refute_contains "$output" ".claude-alpha/statusline-command.sh"
-    refute_contains "$output" ".claude-alpha/.mcp.json"
 }
 
 @test "main: every target it links is inside the counted target set" {

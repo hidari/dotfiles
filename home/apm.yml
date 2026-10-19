@@ -6,8 +6,6 @@ targets:
 - claude
 dependencies:
   apm:
-  - mizchi/skills/testing/playwright-cli#d7999453cdb4e0e09df1c7f82fd23752539c546c
-  - mizchi/skills/testing/playwright-test#d7999453cdb4e0e09df1c7f82fd23752539c546c
   - mizchi/skills/meta/empirical-prompt-tuning#d7999453cdb4e0e09df1c7f82fd23752539c546c
   - mizchi/skills/tooling/ast-grep-practice#d7999453cdb4e0e09df1c7f82fd23752539c546c
   - mizchi/skills/tooling/apm-usage#d7999453cdb4e0e09df1c7f82fd23752539c546c
@@ -18,7 +16,6 @@ dependencies:
   - hidari/agentic-coding-tools/skills/devops/windows-vm-verification#35221a3c9f02f95cc630a8403293ba67b290d1f1 # v0.15.0
   - hidari/agentic-coding-tools/skills/meta/context-loading-mechanics#35221a3c9f02f95cc630a8403293ba67b290d1f1 # v0.15.0
   - hidari/agentic-coding-tools/skills/meta/session-handoff#35221a3c9f02f95cc630a8403293ba67b290d1f1 # v0.15.0
-  - hidari/agentic-coding-tools/skills/tooling/chrome-devtools-debugger#35221a3c9f02f95cc630a8403293ba67b290d1f1 # v0.15.0
   - hidari/agentic-coding-tools/skills/tooling/jev-lint-curated#35221a3c9f02f95cc630a8403293ba67b290d1f1 # v0.15.0
   - hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf#35221a3c9f02f95cc630a8403293ba67b290d1f1 # v0.15.0
   - hidari/agentic-coding-tools/plugins/dev-workflow#35221a3c9f02f95cc630a8403293ba67b290d1f1 # v0.15.0

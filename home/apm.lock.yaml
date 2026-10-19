@@ -1,5 +1,5 @@
 lockfile_version: '1'
-generated_at: '2026-10-16T06:44:28.644920+00:00'
+generated_at: '2026-10-19T12:21:50.200394+00:00'
 apm_version: 0.33.0
 dependencies:
 - repo_url: cloudflare/security-audit-skill
@@ -318,21 +318,6 @@ dependencies:
     .claude/skills/session-handoff/template.md: sha256:c4567c2d17636da1fe1641325dffc95a1ba60185930c5098e685698c71b5d776
   content_hash: sha256:db0dff7ef7d47414a29f7ae6a86477f231ba24aa3fda4f227ea51ded5d459fb3
 - repo_url: hidari/agentic-coding-tools
-  name: chrome-devtools-debugger
-  host: github.com
-  resolved_commit: 35221a3c9f02f95cc630a8403293ba67b290d1f1
-  resolved_ref: 35221a3c9f02f95cc630a8403293ba67b290d1f1
-  version: unknown
-  virtual_path: skills/tooling/chrome-devtools-debugger
-  is_virtual: true
-  package_type: claude_skill
-  deployed_files:
-  - .claude/skills/chrome-devtools-debugger
-  - .claude/skills/chrome-devtools-debugger/SKILL.md
-  deployed_file_hashes:
-    .claude/skills/chrome-devtools-debugger/SKILL.md: sha256:aaa56e3fca207d30b6fb301fcbb289ef3a9f60b10daa70d66f4cfc45d225ae30
-  content_hash: sha256:f680613ae176bcabbb4650fd49fea70156d75ba209cbb1732b5ac7f6a2e7a57c
-- repo_url: hidari/agentic-coding-tools
   name: jev-lint-curated
   host: github.com
   resolved_commit: 35221a3c9f02f95cc630a8403293ba67b290d1f1
@@ -409,42 +394,6 @@ dependencies:
     .claude/skills/empirical-prompt-tuning/SKILL-ja.md: sha256:0a38d830802c2e08a7faca13928fedf6911e00b896946b4b03910d662de6dea5
     .claude/skills/empirical-prompt-tuning/SKILL.md: sha256:252418e7ef022981d2dda2e3ec57fa1c786d30af68c50b7e062edf1d7361b0cb
   content_hash: sha256:20e7fba93c7267ba6e3a7b27787ca49191b762dffcfb804b01da9183b1b0c891
-- repo_url: mizchi/skills
-  name: playwright-cli
-  host: github.com
-  resolved_commit: d7999453cdb4e0e09df1c7f82fd23752539c546c
-  resolved_ref: d7999453cdb4e0e09df1c7f82fd23752539c546c
-  version: unknown
-  virtual_path: testing/playwright-cli
-  is_virtual: true
-  package_type: claude_skill
-  deployed_files:
-  - .claude/skills/playwright-cli
-  - .claude/skills/playwright-cli/README.md
-  - .claude/skills/playwright-cli/SKILL.md
-  deployed_file_hashes:
-    .claude/skills/playwright-cli/README.md: sha256:0b6236838eaeac59ee64828cb86b485e7318a8162da65f31e9064e14b39b7b38
-    .claude/skills/playwright-cli/SKILL.md: sha256:dc6f7e100b20369010393b116f3d748cfa7d3b298046638e854b5a02d4e0e7f7
-  content_hash: sha256:91b5ce28a1c5080740817a5977279c60d9467aeeb1aa992ea4363c8d148dca43
-- repo_url: mizchi/skills
-  name: playwright-test
-  host: github.com
-  resolved_commit: d7999453cdb4e0e09df1c7f82fd23752539c546c
-  resolved_ref: d7999453cdb4e0e09df1c7f82fd23752539c546c
-  version: unknown
-  virtual_path: testing/playwright-test
-  is_virtual: true
-  package_type: claude_skill
-  deployed_files:
-  - .claude/skills/playwright-test
-  - .claude/skills/playwright-test/README.md
-  - .claude/skills/playwright-test/SKILL-ja.md
-  - .claude/skills/playwright-test/SKILL.md
-  deployed_file_hashes:
-    .claude/skills/playwright-test/README.md: sha256:71567cf469a618744f63e72578d189a4dda5ef81c6e60169348579af3f0112fb
-    .claude/skills/playwright-test/SKILL-ja.md: sha256:63d2cd55468c576e986fe4eb7b799d9203f38540688a8988588c551d8b19548e
-    .claude/skills/playwright-test/SKILL.md: sha256:b66dbd57a461cfd40c7a2b91af156b6923b3bba39a4ae712528b5c0ce3dba3fd
-  content_hash: sha256:7f85a2a1a1b2c96604c97676239c2df91558fb6c1fa5a89c78683bb68375026a
 - repo_url: mizchi/skills
   name: apm-usage
   host: github.com
@@ -750,24 +699,6 @@ deployments:
   - yusukebe/ax/skills/ax
   active_owner: yusukebe/ax/skills/ax
   content_hash: sha256:4acbbc5574e36a21c27fbc3099cc40638e074e7cada674e00d23698cef34d37c
-- kind: project-relative
-  target: claude
-  value: .claude/skills/chrome-devtools-debugger
-  runtime: null
-  scope: project
-  owners:
-  - hidari/agentic-coding-tools/skills/tooling/chrome-devtools-debugger
-  active_owner: hidari/agentic-coding-tools/skills/tooling/chrome-devtools-debugger
-  content_hash: null
-- kind: project-relative
-  target: claude
-  value: .claude/skills/chrome-devtools-debugger/SKILL.md
-  runtime: null
-  scope: project
-  owners:
-  - hidari/agentic-coding-tools/skills/tooling/chrome-devtools-debugger
-  active_owner: hidari/agentic-coding-tools/skills/tooling/chrome-devtools-debugger
-  content_hash: sha256:aaa56e3fca207d30b6fb301fcbb289ef3a9f60b10daa70d66f4cfc45d225ae30
 - kind: project-relative
   target: claude
   value: .claude/skills/commit-and-pr-message
@@ -1443,69 +1374,6 @@ deployments:
   - hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf
   active_owner: hidari/agentic-coding-tools/skills/tooling/markdown-to-pdf
   content_hash: sha256:be7ecf56c0a6368d66e748d3c765e313149e6a172bbc8bd37aff9d7c567cf72f
-- kind: project-relative
-  target: claude
-  value: .claude/skills/playwright-cli
-  runtime: null
-  scope: project
-  owners:
-  - mizchi/skills/testing/playwright-cli
-  active_owner: mizchi/skills/testing/playwright-cli
-  content_hash: null
-- kind: project-relative
-  target: claude
-  value: .claude/skills/playwright-cli/README.md
-  runtime: null
-  scope: project
-  owners:
-  - mizchi/skills/testing/playwright-cli
-  active_owner: mizchi/skills/testing/playwright-cli
-  content_hash: sha256:0b6236838eaeac59ee64828cb86b485e7318a8162da65f31e9064e14b39b7b38
-- kind: project-relative
-  target: claude
-  value: .claude/skills/playwright-cli/SKILL.md
-  runtime: null
-  scope: project
-  owners:
-  - mizchi/skills/testing/playwright-cli
-  active_owner: mizchi/skills/testing/playwright-cli
-  content_hash: sha256:dc6f7e100b20369010393b116f3d748cfa7d3b298046638e854b5a02d4e0e7f7
-- kind: project-relative
-  target: claude
-  value: .claude/skills/playwright-test
-  runtime: null
-  scope: project
-  owners:
-  - mizchi/skills/testing/playwright-test
-  active_owner: mizchi/skills/testing/playwright-test
-  content_hash: null
-- kind: project-relative
-  target: claude
-  value: .claude/skills/playwright-test/README.md
-  runtime: null
-  scope: project
-  owners:
-  - mizchi/skills/testing/playwright-test
-  active_owner: mizchi/skills/testing/playwright-test
-  content_hash: sha256:71567cf469a618744f63e72578d189a4dda5ef81c6e60169348579af3f0112fb
-- kind: project-relative
-  target: claude
-  value: .claude/skills/playwright-test/SKILL-ja.md
-  runtime: null
-  scope: project
-  owners:
-  - mizchi/skills/testing/playwright-test
-  active_owner: mizchi/skills/testing/playwright-test
-  content_hash: sha256:63d2cd55468c576e986fe4eb7b799d9203f38540688a8988588c551d8b19548e
-- kind: project-relative
-  target: claude
-  value: .claude/skills/playwright-test/SKILL.md
-  runtime: null
-  scope: project
-  owners:
-  - mizchi/skills/testing/playwright-test
-  active_owner: mizchi/skills/testing/playwright-test
-  content_hash: sha256:b66dbd57a461cfd40c7a2b91af156b6923b3bba39a4ae712528b5c0ce3dba3fd
 - kind: project-relative
   target: claude
   value: .claude/skills/pre-merge-quality-gate
