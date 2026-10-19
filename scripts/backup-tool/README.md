@@ -62,25 +62,12 @@ $EDITOR backup.toml
 | `minimum_free_space_gb` | int | yes | 確保しておきたいマージン (GB) |
 | `log_retention_days` | int | yes | ログファイルの保持日数 |
 | `log_base_dir` | string | no | ログ出力先 (未指定時は設定ファイル隣の `.backup_logs/`) |
-| `error_behavior` | `"continue"` \| `"stop"` | no | エラー発生時の挙動 (デフォルト `continue`) |
+| `error_behavior` | `"continue"` \| `"stop"` | no | ペアが失敗・中断したときの挙動 (デフォルト `continue`)。`stop` は最初に失敗・中断したペアで止め、残りのペアを実行しない。rsync code 23 は失敗に数えない |
 | `additional_excludes` | string 配列 | no | 全ペア共通で追加する除外パターン |
 | `[[backup_pairs]]` | テーブル配列 | yes | 1 ペア以上のバックアップ対象 |
 
 `backup_pairs` の各要素には `name` / `source` / `destination` が必須で、
 `excludes` はオプションです (ペア固有の除外パターン)。
-
-### 4. 旧 backup.conf を使っていた場合の移行
-
-既存の `backup.conf` (Bash 版) がある場合は、以下のコマンドで
-TOML フォーマットに自動変換できます。
-
-```bash
-backup migrate-config
-```
-
-- 既存の `backup.conf` は `backup.conf.bak` にリネームされます
-- `backup.toml` が既に存在する場合は上書きせずエラー終了します
-- 入出力パスを明示したい場合は `--from PATH` / `--to PATH` を指定
 
 ## 使い方
 
@@ -166,10 +153,10 @@ backup --config /path/to/custom.toml
 
 | コード | 意味 |
 | --- | --- |
-| 0 | 全ペアが成功 (rsync code 23 の部分的成功を含む) |
-| 1 | 設定不備・ユーザー中止・マイグレーション失敗 |
-| 2 | 一部のペアが失敗 |
-| 3 | 全ペアが失敗 |
+| 0 | 全ペアが完了 (完了は成功か、rsync code 23 の部分的成功) |
+| 1 | 設定不備 (引数の誤り・実行に要る外部コマンドが PATH に無い場合を含む。無いコマンドの名前はエラーに出る)・ユーザー中止 |
+| 2 | 完了したペアと、失敗・中断したペアがある |
+| 3 | 完了したペアが無い (`error_behavior = "stop"` で未実行になったペアがあっても) |
 
 ## 開発者向け
 
@@ -198,8 +185,7 @@ uv run mypy src tests
 ### 設定ファイルが見つかりません
 
 `backup.toml` が存在しない状態でコマンドを実行すると表示されます。
-`backup.example.toml` をコピーするか、旧 `backup.conf` がある場合は
-`backup migrate-config` で変換してください。
+`backup.example.toml` をコピーして作成してください。
 
 ### マウントされていません
 
