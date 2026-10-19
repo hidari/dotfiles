@@ -40,7 +40,6 @@ SYMLINK_PAIRS=(
     "home/.claude/CLAUDE.md|.claude/CLAUDE.md"
     "home/.claude/references|.claude/references"
     "home/.claude/rules|.claude/rules"
-    "home/.claude/.mcp.json|.claude/.mcp.json"
     "home/.claude/hooks|.claude/hooks"
     # 追加の Claude 設定ディレクトリ (2 アカウント運用) への mirror はここへ書かず、
     # claude_mirror_pairs が claude-config-dirs から生成する (名前をリポジトリへ書かないため)。
@@ -487,11 +486,11 @@ warn_invalid_claude_config_dir_lines() {
 
 # 既定の .claude/ 向け target が追加の設定ディレクトリ側にも要るなら真。
 # hooks / statusline-command.sh は settings.json が $HOME/.claude/ 配下を絶対パスで
-# 参照して symlink 経由で解決されるため、.mcp.json は Claude Code が読まないため
-# 張らない (いずれも 2 本目は死んだ symlink になる)。.claude/ 配下でない target は対象外。
+# 参照して symlink 経由で解決されるため張らない (2 本目は死んだ symlink になる)。
+# .claude/ 配下でない target は対象外。
 claude_mirrored_target() {
     case "$1" in
-        .claude/hooks | .claude/statusline-command.sh | .claude/.mcp.json) return 1 ;;
+        .claude/hooks | .claude/statusline-command.sh) return 1 ;;
         .claude/*) return 0 ;;
     esac
     return 1
