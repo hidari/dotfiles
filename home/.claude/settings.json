@@ -153,14 +153,10 @@
   },
   "enabledPlugins": {
     "chrome-devtools-mcp@chrome-devtools-plugins": true,
-    "code-review@claude-plugins-official": true,
-    "code-simplifier@claude-plugins-official": true,
     "feature-dev@claude-plugins-official": true,
-    "frontend-design@claude-plugins-official": true,
     "modern-web-guidance@googlechrome": true,
     "playwright@claude-plugins-official": true,
     "superpowers-chrome@superpowers-marketplace": true,
-    "superpowers-developing-for-claude-code@superpowers-marketplace": true,
     "superpowers@superpowers-marketplace": true
   },
   "extraKnownMarketplaces": {
