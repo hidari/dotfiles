@@ -10,12 +10,11 @@ import logging
 import re
 from collections.abc import Callable
 from pathlib import Path
-from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import pytest
 
-from backup_tool import disk, runner
+from backup_tool import runner
 from backup_tool.config import BackupPair, Config, ErrorBehavior
 from backup_tool.runner import (
     BackupAbortedError,
@@ -28,9 +27,10 @@ from backup_tool.runner import (
     _verify_path,
     run_backup,
 )
+from tests.conftest import count_lines, du_prints, install_rsync
 
 if TYPE_CHECKING:
-    from tests.conftest import FakeCommand
+    from tests.conftest import FakeCommand, FakeDiskUsage
 
 _LOGGER_NAME = "tests.runner"
 _SUMMARY_ROW = re.compile(r"^(成功|部分的成功|失敗|未実行):\s+(\d+) / (\d+)$")
@@ -56,7 +56,7 @@ def _make_config(*, additional: tuple[str, ...] = ()) -> Config:
 
 
 class TestDetermineExitCode:
-    # 完了 (成功か部分的成功) の数だけで決まる: 全ペア完了で 0、完了0件で 3、それ以外は 2
+    # 完了 (成功か部分的成功) の数だけで決まる: 全ペア完了で0、完了0件で3、それ以外は2
     @pytest.mark.parametrize(
         ("statuses", "expected"),
         [
@@ -110,7 +110,7 @@ class TestBuildExcludes:
 
 
 def _missing_pair(tmp_path: Path, name: str) -> BackupPair:
-    # ソースが存在しないのでパス検証で BackupAbortedError になる
+    # バックアップ元が存在しないのでパス検証で BackupAbortedError になる
     return BackupPair(
         name=name,
         source=str(tmp_path / f"{name}-missing-src"),
@@ -137,50 +137,24 @@ def _pairs_config(
     )
 
 
-def _install_du(fake_command: FakeCommand, *, body: str) -> None:
-    fake_command("du", body)
-
-
-def _du_prints(size_kb: int) -> str:
-    return f"printf '%s\\t%s\\n' {size_kb} /src"
-
-
-def _set_dest_total(monkeypatch: pytest.MonkeyPatch, *, total_kb: int | None) -> None:
-    """宛先の総容量を total_kb にする。None なら disk_usage が OSError を送出する。"""
-
-    def fake(path: Path) -> SimpleNamespace:
-        if total_kb is None:
-            raise OSError("fake disk_usage failure")
-        return SimpleNamespace(total=total_kb * 1024, used=0, free=total_kb * 1024)
-
-    monkeypatch.setattr(disk, "disk_usage", fake)
-
-
-def _install_rsync(fake_command: FakeCommand, tmp_path: Path, *, rsync_exit: int) -> Path:
-    """rsync_exit で終わる偽の rsync を置き、呼び出し記録のパスを返す。
-
-    記録があれば、手前のパス検証や容量チェックで落ちずに rsync の分岐まで届いたと言える。
-    """
-    calls = tmp_path / "rsync-calls"
-    fake_command("rsync", f"printf '%s\\n' called >> '{calls}'\nexit {rsync_exit}")
-    return calls
-
-
 def _install_tools(
     fake_command: FakeCommand,
-    monkeypatch: pytest.MonkeyPatch,
+    fake_disk_usage: FakeDiskUsage,
     tmp_path: Path,
     *,
     rsync_exit: int,
 ) -> Path:
     """容量チェックは通り rsync だけが rsync_exit で終わる状態を作り、呼び出し記録を返す。"""
-    _install_du(fake_command, body=_du_prints(1))
-    _set_dest_total(monkeypatch, total_kb=1000000)
-    return _install_rsync(fake_command, tmp_path, rsync_exit=rsync_exit)
+    fake_command("du", du_prints(1))
+    fake_disk_usage(1000000 * 1024)
+    return install_rsync(fake_command, tmp_path, rsync_exit=rsync_exit)
 
 
-def _count_lines(path: Path) -> int:
-    return len(path.read_text(encoding="utf-8").splitlines()) if path.exists() else 0
+@pytest.fixture
+def caplog_info(caplog: pytest.LogCaptureFixture) -> pytest.LogCaptureFixture:
+    """runner へ渡すロガーの INFO 以上を捕まえる caplog。"""
+    caplog.set_level(logging.INFO, logger=_LOGGER_NAME)
+    return caplog
 
 
 def _run(config: Config) -> ExitCode:
@@ -222,9 +196,9 @@ class TestRunPairs:
     def test_two_pairs(
         self,
         fake_command: FakeCommand,
-        monkeypatch: pytest.MonkeyPatch,
+        fake_disk_usage: FakeDiskUsage,
         tmp_path: Path,
-        caplog: pytest.LogCaptureFixture,
+        caplog_info: pytest.LogCaptureFixture,
         error_behavior: ErrorBehavior,
         make_pair: PairFactory,
         rsync_exit: int,
@@ -232,23 +206,22 @@ class TestRunPairs:
         rsync_count: int,
         stops: bool,
     ) -> None:
-        caplog.set_level(logging.INFO, logger=_LOGGER_NAME)
-        rsync_calls = _install_tools(fake_command, monkeypatch, tmp_path, rsync_exit=rsync_exit)
+        rsync_calls = _install_tools(fake_command, fake_disk_usage, tmp_path, rsync_exit=rsync_exit)
         config = _pairs_config(
             make_pair(tmp_path, "p1"), make_pair(tmp_path, "p2"), error_behavior=error_behavior
         )
 
         assert _statuses(config) == list(zip(["p1", "p2"], expected, strict=True))
-        assert _count_lines(rsync_calls) == rsync_count
-        assert (_STOP_MESSAGE in caplog.messages) is stops
+        assert count_lines(rsync_calls) == rsync_count
+        assert (_STOP_MESSAGE in caplog_info.messages) is stops
 
     def test_stop_after_success_then_abort_skips_the_rest(
         self,
         fake_command: FakeCommand,
-        monkeypatch: pytest.MonkeyPatch,
+        fake_disk_usage: FakeDiskUsage,
         tmp_path: Path,
     ) -> None:
-        rsync_calls = _install_tools(fake_command, monkeypatch, tmp_path, rsync_exit=0)
+        rsync_calls = _install_tools(fake_command, fake_disk_usage, tmp_path, rsync_exit=0)
         config = _pairs_config(
             _existing_pair(tmp_path, "p1"),
             _missing_pair(tmp_path, "p2"),
@@ -257,14 +230,13 @@ class TestRunPairs:
         )
 
         assert _statuses(config) == [("p1", S), ("p2", A), ("p3", K)]
-        assert _count_lines(rsync_calls) == 1
+        assert count_lines(rsync_calls) == 1
 
 
 class TestRunBackup:
     def test_stop_at_first_abort_is_total_failure_and_summary_adds_up(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+        self, tmp_path: Path, caplog_info: pytest.LogCaptureFixture
     ) -> None:
-        caplog.set_level(logging.INFO, logger=_LOGGER_NAME)
         config = _pairs_config(
             _missing_pair(tmp_path, "p1"),
             _missing_pair(tmp_path, "p2"),
@@ -274,7 +246,7 @@ class TestRunBackup:
 
         exit_code = _run(config)
 
-        assert _summary_rows(caplog) == {
+        assert _summary_rows(caplog_info) == {
             "成功": (0, 3),
             "部分的成功": (0, 3),
             "失敗": (1, 3),
@@ -285,13 +257,11 @@ class TestRunBackup:
 
 class TestLogSummary:
     def test_rows_add_up_to_total_with_abort_counted_as_failure(
-        self, caplog: pytest.LogCaptureFixture
+        self, caplog_info: pytest.LogCaptureFixture
     ) -> None:
-        caplog.set_level(logging.INFO, logger=_LOGGER_NAME)
-
         _log_summary(logging.getLogger(_LOGGER_NAME), [S, P, F, A, K, K])
 
-        rows = _summary_rows(caplog)
+        rows = _summary_rows(caplog_info)
         assert rows == {"成功": (1, 6), "部分的成功": (1, 6), "失敗": (2, 6), "未実行": (2, 6)}
         assert sum(count for count, _ in rows.values()) == 6
 
@@ -300,34 +270,34 @@ class TestCapacityCheck:
     @pytest.mark.parametrize(
         ("source_kb", "dest_total_kb", "expected_calls", "expected_exit"),
         [
-            # 空のソース (du の0) でも、マージンちょうどの宛先なら進む
+            # 空のバックアップ元 (du の0) でも、マージンちょうどのバックアップ先なら進む
             pytest.param(0, _GB_IN_KB, 1, ExitCode.SUCCESS, id="empty-source-fits"),
-            # 空のソースでも、マージンに届かない宛先なら中断する
+            # 空のバックアップ元でも、マージンに届かないバックアップ先なら中断する
             pytest.param(0, 10, 0, ExitCode.TOTAL_FAILURE, id="empty-source-too-small"),
-            # ソースの使用量も必要容量に入る (1KB + マージンが総容量を1KB超える)
+            # バックアップ元の使用量も必要容量に入る (1KB + マージンが総容量を1KB超える)
             pytest.param(1, _GB_IN_KB, 0, ExitCode.TOTAL_FAILURE, id="source-counts"),
         ],
     )
     def test_compares_source_plus_margin_with_dest_total(
         self,
         fake_command: FakeCommand,
-        monkeypatch: pytest.MonkeyPatch,
+        fake_disk_usage: FakeDiskUsage,
         tmp_path: Path,
         source_kb: int,
         dest_total_kb: int,
         expected_calls: int,
         expected_exit: ExitCode,
     ) -> None:
-        _install_du(fake_command, body=_du_prints(source_kb))
-        _set_dest_total(monkeypatch, total_kb=dest_total_kb)
-        rsync_calls = _install_rsync(fake_command, tmp_path, rsync_exit=0)
+        fake_command("du", du_prints(source_kb))
+        fake_disk_usage(dest_total_kb * 1024)
+        rsync_calls = install_rsync(fake_command, tmp_path)
         config = _pairs_config(
             _existing_pair(tmp_path, "p1"), error_behavior="continue", minimum_free_space_gb=1
         )
 
         exit_code = _run(config)
 
-        assert _count_lines(rsync_calls) == expected_calls
+        assert count_lines(rsync_calls) == expected_calls
         assert exit_code == expected_exit
 
     # どの場合も、容量を比べれば中断する組み合わせにしておき、
@@ -335,29 +305,29 @@ class TestCapacityCheck:
     @pytest.mark.parametrize(
         ("du_body", "dest_total_kb"),
         [
-            pytest.param(f"{_du_prints(1)}\nexit 1", 10, id="du-fails"),
-            pytest.param(_du_prints(1), None, id="disk-usage-raises"),
-            pytest.param(_du_prints(1), 0, id="dest-total-zero"),
+            pytest.param(f"{du_prints(1)}\nexit 1", 10, id="du-fails"),
+            pytest.param(du_prints(1), None, id="disk-usage-raises"),
+            pytest.param(du_prints(1), 0, id="dest-total-zero"),
         ],
     )
     def test_skips_check_and_runs_rsync_when_a_size_is_unavailable(
         self,
         fake_command: FakeCommand,
-        monkeypatch: pytest.MonkeyPatch,
+        fake_disk_usage: FakeDiskUsage,
         tmp_path: Path,
         du_body: str,
         dest_total_kb: int | None,
     ) -> None:
-        _install_du(fake_command, body=du_body)
-        _set_dest_total(monkeypatch, total_kb=dest_total_kb)
-        rsync_calls = _install_rsync(fake_command, tmp_path, rsync_exit=0)
+        fake_command("du", du_body)
+        fake_disk_usage(None if dest_total_kb is None else dest_total_kb * 1024)
+        rsync_calls = install_rsync(fake_command, tmp_path)
         config = _pairs_config(
             _existing_pair(tmp_path, "p1"), error_behavior="continue", minimum_free_space_gb=1
         )
 
         exit_code = _run(config)
 
-        assert _count_lines(rsync_calls) == 1
+        assert count_lines(rsync_calls) == 1
         assert exit_code == ExitCode.SUCCESS
 
 
@@ -378,7 +348,7 @@ class TestVerifyPathMount:
         monkeypatch.setattr(runner, "is_mounted", fake_is_mounted)
 
         with pytest.raises(BackupAbortedError, match="マウントされていません"):
-            _verify_path(Path(path), role="ソース", mode="read")
+            _verify_path(Path(path), role="バックアップ元", mode="read")
         assert queried == ["/Volumes/BackupToolFake"]
 
 
@@ -393,43 +363,43 @@ def _abort_lines(caplog: pytest.LogCaptureFixture, marker: str) -> list[str]:
 
 class TestAbortLogPrefix:
     # ペア名は中断をログへ出す側だけが付けるので、どの中断の行にもちょうど1回だけ現れる
-    def test_source_missing_logs_pair_name_once(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    @pytest.mark.parametrize(
+        ("absent", "role"),
+        [
+            pytest.param("src", "バックアップ元", id="source-missing"),
+            pytest.param("dst", "バックアップ先", id="destination-missing"),
+        ],
+    )
+    def test_missing_directory_logs_pair_name_once(
+        self,
+        tmp_path: Path,
+        caplog_info: pytest.LogCaptureFixture,
+        absent: str,
+        role: str,
     ) -> None:
-        caplog.set_level(logging.INFO, logger=_LOGGER_NAME)
-        pair = _missing_pair(tmp_path, "p1")
+        paths = {"src": tmp_path / "p1-src", "dst": tmp_path / "p1-dst"}
+        for key, path in paths.items():
+            if key != absent:
+                path.mkdir()
+        missing = paths[absent]
+        pair = BackupPair(name="p1", source=str(paths["src"]), destination=str(paths["dst"]))
 
         _run(_pairs_config(pair, error_behavior="continue"))
 
-        assert _abort_lines(caplog, pair.source) == [
-            f"[p1] ソースのディレクトリが存在しません: {pair.source}"
-        ]
-
-    def test_destination_missing_logs_pair_name_once(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        caplog.set_level(logging.INFO, logger=_LOGGER_NAME)
-        source = tmp_path / "p1-src"
-        source.mkdir()
-        pair = BackupPair(name="p1", source=str(source), destination=str(tmp_path / "p1-dst"))
-
-        _run(_pairs_config(pair, error_behavior="continue"))
-
-        assert _abort_lines(caplog, pair.destination) == [
-            f"[p1] デスティネーションのディレクトリが存在しません: {pair.destination}"
+        assert _abort_lines(caplog_info, str(missing)) == [
+            f"[p1] {role}のディレクトリが存在しません: {missing}"
         ]
 
     def test_capacity_shortage_logs_pair_name_once(
         self,
         fake_command: FakeCommand,
-        monkeypatch: pytest.MonkeyPatch,
+        fake_disk_usage: FakeDiskUsage,
         tmp_path: Path,
-        caplog: pytest.LogCaptureFixture,
+        caplog_info: pytest.LogCaptureFixture,
     ) -> None:
-        caplog.set_level(logging.INFO, logger=_LOGGER_NAME)
-        _install_du(fake_command, body=_du_prints(1))
-        _set_dest_total(monkeypatch, total_kb=10)
-        _install_rsync(fake_command, tmp_path, rsync_exit=0)
+        fake_command("du", du_prints(1))
+        fake_disk_usage(10 * 1024)
+        install_rsync(fake_command, tmp_path)
         config = _pairs_config(
             _existing_pair(tmp_path, "p1"), error_behavior="continue", minimum_free_space_gb=1
         )
@@ -437,7 +407,7 @@ class TestAbortLogPrefix:
         _run(config)
 
         # 不足量の文面は format_gb に任せるので、前方一致と出現回数で縛る
-        lines = _abort_lines(caplog, "総容量が不足しています")
+        lines = _abort_lines(caplog_info, "総容量が不足しています")
         assert len(lines) == 1
         assert lines[0].startswith("[p1] バックアップ先の総容量が不足しています (不足 ")
         assert lines[0].count("[p1]") == 1

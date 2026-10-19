@@ -38,7 +38,7 @@ PathMode = Literal["read", "write"]
 
 class ExitCode(IntEnum):
     SUCCESS = 0
-    USER_ABORT = 1
+    NOT_STARTED = 1
     PARTIAL_FAILURE = 2
     TOTAL_FAILURE = 3
 
@@ -130,7 +130,7 @@ def _run_pair(
     else:
         logger.error("[%s] 失敗 (rsync code %d)", pair.name, result.exit_code)
         status = PairStatus.FAILED
-    return PairOutcome(name=pair.name, status=status, filtered_errors=tuple(result.filtered_errors))
+    return PairOutcome(name=pair.name, status=status, filtered_errors=result.filtered_errors)
 
 
 def _execute_pair(
@@ -143,8 +143,8 @@ def _execute_pair(
     source = Path(pair.source)
     destination = Path(pair.destination)
 
-    _verify_path(source, role="ソース", mode="read")
-    _verify_path(destination, role="デスティネーション", mode="write")
+    _verify_path(source, role="バックアップ元", mode="read")
+    _verify_path(destination, role="バックアップ先", mode="write")
     _verify_capacity(
         source=source,
         destination=destination,
@@ -197,20 +197,22 @@ def _verify_capacity(
     source_size_kb = measure_source_size_kb(source)
     if source_size_kb is None:
         logger.warning(
-            "[%s] ソース容量を取得できませんでした。容量チェックをスキップします", pair_name
+            "[%s] バックアップ元の使用量を取得できませんでした。容量チェックをスキップします",
+            pair_name,
         )
         return
     dest_total_kb = measure_dest_total_kb(destination)
     if dest_total_kb is None:
         logger.warning(
-            "[%s] 宛先総容量を取得できませんでした。容量チェックをスキップします", pair_name
+            "[%s] バックアップ先の総容量を取得できませんでした。容量チェックをスキップします",
+            pair_name,
         )
         return
     required = required_total_kb(source_size_kb=source_size_kb, margin_gb=minimum_free_space_gb)
     report = CapacityReport(dest_total_kb=dest_total_kb, required_kb=required)
 
-    logger.info("[%s] ソース使用量: %s", pair_name, format_gb(source_size_kb))
-    logger.info("[%s] 宛先総容量:   %s", pair_name, format_gb(dest_total_kb))
+    logger.info("[%s] バックアップ元の使用量: %s", pair_name, format_gb(source_size_kb))
+    logger.info("[%s] バックアップ先の総容量: %s", pair_name, format_gb(dest_total_kb))
     logger.info(
         "[%s] 必要容量 (data + margin %dGB): %s",
         pair_name,

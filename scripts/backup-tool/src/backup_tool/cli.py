@@ -33,19 +33,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     config_path = _resolve_config_path(parsed.config)
     if not config_path.is_file():
         print(_missing_config_message(config_path), file=sys.stderr)
-        return int(ExitCode.USER_ABORT)
+        return int(ExitCode.NOT_STARTED)
 
     try:
         config = load_config(config_path.read_bytes())
     except ConfigError as err:
         print(f"設定ファイルが不正です: {err}", file=sys.stderr)
-        return int(ExitCode.USER_ABORT)
+        return int(ExitCode.NOT_STARTED)
 
     # ログの準備と確認プロンプトより前に止め、始まらなかった実行の痕跡を残さない
     missing = _missing_commands()
     if missing:
         print(f"エラー: 必要なコマンドが見つかりません: {', '.join(missing)}", file=sys.stderr)
-        return int(ExitCode.USER_ABORT)
+        return int(ExitCode.NOT_STARTED)
 
     log_dir = _resolve_log_dir(config_path, config.log_base_dir)
     log_file = _prepare_log_file(log_dir, dry_run=parsed.dry_run)
@@ -64,7 +64,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     needs_prompt = _should_prompt(log_format=log_format, dry_run=parsed.dry_run)
     if needs_prompt and not _prompt_user_confirmation():
         logger.info("ユーザーの指示によりバックアップを中止しました")
-        return int(ExitCode.USER_ABORT)
+        return int(ExitCode.NOT_STARTED)
 
     exit_code = run_backup(config, dry_run=parsed.dry_run, logger=logger)
     logger.info("========== バックアップセッション終了 (exit=%d) ==========", int(exit_code))
@@ -72,14 +72,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 class _ArgumentParser(argparse.ArgumentParser):
-    """引数の誤りを argparse 既定の 2 ではなく設定不備の終了コードで終える。
+    """引数の誤りを argparse 既定の2ではなく、実行が始まらなかったことを示す終了コードで終える。
 
-    2 は「一部のペアが失敗」に割り当てているので、引数の誤りと区別できなくなる。
+    2は「一部のペアが失敗」に割り当てているので、引数の誤りと区別できなくなる。
     """
 
     def error(self, message: str) -> NoReturn:
         self.print_usage(sys.stderr)
-        self.exit(int(ExitCode.USER_ABORT), f"{self.prog}: error: {message}\n")
+        self.exit(int(ExitCode.NOT_STARTED), f"{self.prog}: error: {message}\n")
 
 
 def _missing_commands() -> list[str]:

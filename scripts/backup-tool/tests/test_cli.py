@@ -24,6 +24,7 @@ from backup_tool.cli import (
     main,
 )
 from backup_tool.logging_setup import LogFormat
+from tests.conftest import count_lines, du_prints, install_rsync, rsync_calls_path
 
 if TYPE_CHECKING:
     from tests.conftest import FakeCommand
@@ -129,15 +130,11 @@ def _write_config(tmp_path: Path) -> Path:
 
 def _install_present(fake_command: FakeCommand, tmp_path: Path, *, missing: set[str]) -> Path:
     """missing 以外の必要なコマンドの偽物を置き、rsync の呼び出しを記録するファイルを返す。"""
-    calls = tmp_path / "rsync-calls"
-    bodies = {
-        "du": "printf '%s\\t%s\\n' 1 /src",
-        "rsync": f"printf '%s\\n' called >> '{calls}'",
-    }
-    for name in _REQUIRED:
-        if name not in missing:
-            fake_command(name, bodies[name])
-    return calls
+    if "du" not in missing:
+        fake_command("du", du_prints(1))
+    if "rsync" not in missing:
+        install_rsync(fake_command, tmp_path)
+    return rsync_calls_path(tmp_path)
 
 
 def _reported_missing(err: str) -> set[str]:
@@ -165,7 +162,7 @@ class TestMainPreflight:
         assert _reported_missing(err) == missing
         for name in set(_REQUIRED) - missing:
             assert name not in err
-        assert not calls.exists()
+        assert count_lines(calls) == 0
 
     def test_runs_the_backup_when_every_command_is_present(
         self,
@@ -181,7 +178,7 @@ class TestMainPreflight:
 
         assert exit_code == 0
         assert _MISSING_PREFIX not in capsys.readouterr().err
-        assert calls.read_text(encoding="utf-8").splitlines() == ["called"]
+        assert count_lines(calls) == 1
 
     def test_stops_before_logging_setup_and_prompt(
         self,
@@ -213,7 +210,7 @@ class TestMainUsageErrors:
     def test_usage_error_exits_with_config_error_code(
         self, argv: list[str], capsys: pytest.CaptureFixture[str]
     ) -> None:
-        # 2 は「一部のペアが失敗」なので、引数の誤りは設定不備と同じ 1 にする
+        # 2は「一部のペアが失敗」なので、引数の誤りは設定不備と同じ1にする
         with pytest.raises(SystemExit) as excinfo:
             main(argv)
         assert excinfo.value.code == 1

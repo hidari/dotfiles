@@ -7,12 +7,10 @@ disk モジュールの disk_usage を差し替えて、取得できない形と
 from __future__ import annotations
 
 from pathlib import Path
-from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import pytest
 
-from backup_tool import disk
 from backup_tool.disk import (
     CapacityReport,
     measure_dest_total_kb,
@@ -21,7 +19,7 @@ from backup_tool.disk import (
 )
 
 if TYPE_CHECKING:
-    from tests.conftest import FakeCommand
+    from tests.conftest import FakeCommand, FakeDiskUsage
 
 
 class TestRequiredTotalKb:
@@ -100,29 +98,12 @@ class TestMeasureSourceSizeKb:
         assert measure_source_size_kb(tmp_path) is None
 
 
-def _fake_disk_usage(monkeypatch: pytest.MonkeyPatch, *, total_bytes: int | None) -> list[Path]:
-    """disk モジュールの disk_usage を差し替え、問い合わせたパスの記録を返す。
-
-    total_bytes が None なら OSError を送出する。
-    """
-    queried: list[Path] = []
-
-    def fake(path: Path) -> SimpleNamespace:
-        queried.append(path)
-        if total_bytes is None:
-            raise OSError("fake disk_usage failure")
-        return SimpleNamespace(total=total_bytes, used=0, free=total_bytes)
-
-    monkeypatch.setattr(disk, "disk_usage", fake)
-    return queried
-
-
 class TestMeasureDestTotalKb:
     def test_reads_total_of_the_queried_path_in_kb(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+        self, fake_disk_usage: FakeDiskUsage, tmp_path: Path
     ) -> None:
-        # 端数の 1023 バイトは切り捨てる
-        queried = _fake_disk_usage(monkeypatch, total_bytes=4000 * 1024 + 1023)
+        # 端数の1023バイトは切り捨てる
+        queried = fake_disk_usage(4000 * 1024 + 1023)
         assert measure_dest_total_kb(tmp_path) == 4000
         assert queried == [tmp_path]
 
@@ -137,16 +118,16 @@ class TestMeasureDestTotalKb:
     )
     def test_total_must_be_at_least_one_kb(
         self,
-        monkeypatch: pytest.MonkeyPatch,
+        fake_disk_usage: FakeDiskUsage,
         tmp_path: Path,
         total_bytes: int,
         expected: int | None,
     ) -> None:
-        _fake_disk_usage(monkeypatch, total_bytes=total_bytes)
+        fake_disk_usage(total_bytes)
         assert measure_dest_total_kb(tmp_path) == expected
 
     def test_none_when_disk_usage_raises(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+        self, fake_disk_usage: FakeDiskUsage, tmp_path: Path
     ) -> None:
-        _fake_disk_usage(monkeypatch, total_bytes=None)
+        fake_disk_usage(None)
         assert measure_dest_total_kb(tmp_path) is None

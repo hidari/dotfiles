@@ -132,7 +132,7 @@ class TestRun:
     def test_replaces_undecodable_bytes_and_keeps_reading(
         self, fake_command: FakeCommand, tmp_path: Path
     ) -> None:
-        # ファイル名などに UTF-8 でないバイトが混じっても、1 行を壊すだけで実行は続ける
+        # ファイル名などに UTF-8 でないバイトが混じっても、1行を壊すだけで実行は続ける
         fake_command(
             "rsync",
             "printf 'bad \\377 name\\n'\nprintf '%s\\n' 'next line'\nexit 0",
