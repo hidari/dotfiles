@@ -380,3 +380,105 @@ class TestVerifyPathMount:
         with pytest.raises(BackupAbortedError, match="マウントされていません"):
             _verify_path(Path(path), role="ソース", mode="read")
         assert queried == ["/Volumes/BackupToolFake"]
+
+
+def _abort_lines(caplog: pytest.LogCaptureFixture, marker: str) -> list[str]:
+    """marker を含む ERROR 行だけを返す。中断以外の ERROR 行の増減に左右されないよう絞る。"""
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno == logging.ERROR and marker in record.getMessage()
+    ]
+
+
+class TestAbortLogPrefix:
+    # ペア名は中断をログへ出す側だけが付けるので、どの中断の行にもちょうど1回だけ現れる
+    def test_source_missing_logs_pair_name_once(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        caplog.set_level(logging.INFO, logger=_LOGGER_NAME)
+        pair = _missing_pair(tmp_path, "p1")
+
+        _run(_pairs_config(pair, error_behavior="continue"))
+
+        assert _abort_lines(caplog, pair.source) == [
+            f"[p1] ソースのディレクトリが存在しません: {pair.source}"
+        ]
+
+    def test_destination_missing_logs_pair_name_once(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        caplog.set_level(logging.INFO, logger=_LOGGER_NAME)
+        source = tmp_path / "p1-src"
+        source.mkdir()
+        pair = BackupPair(name="p1", source=str(source), destination=str(tmp_path / "p1-dst"))
+
+        _run(_pairs_config(pair, error_behavior="continue"))
+
+        assert _abort_lines(caplog, pair.destination) == [
+            f"[p1] デスティネーションのディレクトリが存在しません: {pair.destination}"
+        ]
+
+    def test_capacity_shortage_logs_pair_name_once(
+        self,
+        fake_command: FakeCommand,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        caplog.set_level(logging.INFO, logger=_LOGGER_NAME)
+        _install_du(fake_command, body=_du_prints(1))
+        _set_dest_total(monkeypatch, total_kb=10)
+        _install_rsync(fake_command, tmp_path, rsync_exit=0)
+        config = _pairs_config(
+            _existing_pair(tmp_path, "p1"), error_behavior="continue", minimum_free_space_gb=1
+        )
+
+        _run(config)
+
+        # 不足量の文面は format_gb に任せるので、前方一致と出現回数で縛る
+        lines = _abort_lines(caplog, "総容量が不足しています")
+        assert len(lines) == 1
+        assert lines[0].startswith("[p1] バックアップ先の総容量が不足しています (不足 ")
+        assert lines[0].count("[p1]") == 1
+
+
+class TestVerifyPathMessage:
+    # role の直後に助詞が続き、ペア名などの接頭辞を持たないことを全分岐で見る
+    @pytest.mark.parametrize(
+        ("path", "mode", "mounted", "readable", "writable"),
+        [
+            pytest.param("/Volumes/BackupToolFake", "read", False, True, True, id="volume"),
+            pytest.param(
+                "/Volumes/BackupToolFake/sub", "read", False, True, True, id="parent-volume"
+            ),
+            pytest.param(
+                "/Volumes/BackupToolFake/sub", "read", True, True, True, id="volume-subdir-missing"
+            ),
+            pytest.param("<missing>", "read", True, True, True, id="directory-missing"),
+            pytest.param("<existing>", "read", True, False, True, id="unreadable"),
+            pytest.param("<existing>", "write", True, True, False, id="unwritable"),
+        ],
+    )
+    def test_message_starts_with_role(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        path: str,
+        mode: runner.PathMode,
+        mounted: bool,
+        readable: bool,
+        writable: bool,
+    ) -> None:
+        monkeypatch.setattr(runner, "is_mounted", lambda _: mounted)
+        monkeypatch.setattr(runner, "ensure_readable", lambda _: readable)
+        monkeypatch.setattr(runner, "ensure_writable", lambda _: writable)
+        targets = {"<missing>": tmp_path / "missing", "<existing>": tmp_path}
+        target = targets.get(path, Path(path))
+
+        with pytest.raises(BackupAbortedError) as excinfo:
+            _verify_path(target, role="ロール", mode=mode)
+
+        message = str(excinfo.value)
+        assert re.match(r"ロール[のに]\S", message)
+        assert "[" not in message

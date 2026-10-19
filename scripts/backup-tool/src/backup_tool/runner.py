@@ -143,8 +143,8 @@ def _execute_pair(
     source = Path(pair.source)
     destination = Path(pair.destination)
 
-    _verify_path(source, role=f"[{pair.name}] ソース", mode="read")
-    _verify_path(destination, role=f"[{pair.name}] デスティネーション", mode="write")
+    _verify_path(source, role="ソース", mode="read")
+    _verify_path(destination, role="デスティネーション", mode="write")
     _verify_capacity(
         source=source,
         destination=destination,
@@ -169,20 +169,20 @@ def _verify_path(path: Path, *, role: str, mode: PathMode) -> None:
     kind = classify(str(path))
     if kind == "volume":
         if not is_mounted(str(path)):
-            raise BackupAbortedError(f"{role} のボリュームがマウントされていません: {path}")
+            raise BackupAbortedError(f"{role}のボリュームがマウントされていません: {path}")
     elif kind == "directory":
         volume = extract_volume_path(str(path))
         if volume is None or not is_mounted(volume):
-            raise BackupAbortedError(f"{role} の親ボリュームがマウントされていません: {path}")
+            raise BackupAbortedError(f"{role}の親ボリュームがマウントされていません: {path}")
         if not path.is_dir():
-            raise BackupAbortedError(f"{role} のディレクトリが存在しません: {path}")
+            raise BackupAbortedError(f"{role}のディレクトリが存在しません: {path}")
     elif not path.is_dir():
-        raise BackupAbortedError(f"{role} のディレクトリが存在しません: {path}")
+        raise BackupAbortedError(f"{role}のディレクトリが存在しません: {path}")
 
     if mode == "read" and not ensure_readable(path):
-        raise BackupAbortedError(f"{role} に読み取り権限がありません: {path}")
+        raise BackupAbortedError(f"{role}に読み取り権限がありません: {path}")
     if mode == "write" and not ensure_writable(path):
-        raise BackupAbortedError(f"{role} に書き込み権限がありません: {path}")
+        raise BackupAbortedError(f"{role}に書き込み権限がありません: {path}")
 
 
 def _verify_capacity(
