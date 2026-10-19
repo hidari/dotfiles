@@ -15,6 +15,8 @@ ISSUE-115 で dotfiles から tirith の Claude Code PreToolUse フックを撤�
 
 PRIVATE_CLAUDE.md の運用どおり、agentic-coding-tools への修正の進め方は dotfiles 側で決める。
 
+2026-10-19の棚卸しで、v0.15.0 の配布物にもまだ撤去前提の記述が残っていることを確かめた。洗い出しは `grep -n -i tirith` と該当行の通読で足りる。Jev の一次選別は使わない (ISSUE-115 で stale に寄せる傾向が出ている)。
+
 ## タスク
 
 - [ ] 2つの skill の Tirith への言及を全件洗い出し、それぞれ「一般の hook を持つ環境の説明として残す / 消す」を決める

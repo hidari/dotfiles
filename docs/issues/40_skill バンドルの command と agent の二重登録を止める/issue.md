@@ -201,6 +201,14 @@ the locked marketplace plugin manifest is missing or unreadable` で、pin を�
 dev-workflow / security-blue-red-team / web-monkey-qa の `.apm/` に入っているのはネストした
 依存 (`skills` / `agents` / `prompts`) で、依存を持たないパッケージでは空が正常になる。
 
+## 棚卸しで分かったこと (2026-10-19)
+
+apm 0.33.0 でも dev-workflow の component の flat 分解は再現し、bare 名と `dev-workflow:` 付きの名前が同じ説明文で一覧に並んでいる。0.34.0 が出ているが試していない。
+
+flat 側を消す前に、bare 名の `Skill(skill="commit-and-pr-message")` が prefix 側へ解決するか、エラーになるかを headless の別プロセスで確かめる。棚卸しの委譲先は、過去の transcript に commit-and-pr-message の bare 名の呼び出しがあると報告した。件数は数え直していないので、着手時に数える。
+
+「flat の deploy 先が空であること」の不変条件から `.claude/skills/synced/` を外すこと。apm の deploy 先の中にあるが、claude.ai のアカウントから同期された skill の置き場で、apm とは別に状態ファイルが更新される (apm install の前後で `.last-complete-round` の2つだけが、install より前の時刻で変わっていた)。
+
 ## タスク
 
 - [x] sub-skill の description が担っていた自然言語からの自動起動の移し先を決める
