@@ -4,6 +4,13 @@
 
 規範の遵守そのものには要らない。手当ての具体が要るとき、規範を疑うとき、似た失敗を踏んで「これは既知か」を確かめるときに読む。
 
+## E2E の生成
+
+`~/.claude/CLAUDE.md` の「テストを書き始める前に順序と方式を決める」カテゴリが E2E の作り方として名指しする手順。
+
+- 公式 Playwright Test Agents を `pnpm exec playwright init-agents --loop=claude` で生成し、Planner / Generator / Healer で作成する
+- playwright を devDependency に持たないプロジェクトでは `pnpm dlx` で代替する
+
 ## 変異注入で pin を確かめる
 
 ### 目視レビューは「壊しても緑」を見逃す
