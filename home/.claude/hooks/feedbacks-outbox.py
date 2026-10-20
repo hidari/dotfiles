@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Claude Code hook: 他リポジトリのセッションの知見を dotfiles の feedbacks-box へ送る側の骨格。
+"""Claude Code hook: 他リポジトリのセッションの知見を dotfiles の feedbacks-box へ送る側。
 
 user スコープで全リポジトリに配線し、サブコマンド (session / stop / end) で
-SessionStart / Stop / SessionEnd の処理へ分ける。現状は除外の判定と session の処理を持つ。
+SessionStart / Stop / SessionEnd の処理へ分ける。
+SessionEnd (end) は持ち時間が短いので git を起動せず、状態ファイルの指すまとめを届けるだけ。
 
 動かない場合: subagent (agent_id を持つ payload)、cwd が無いか実在しない、
 cwd のリポジトリが受け箱 (main checkout の docs/.feedbacks-box/) を持つ、
@@ -37,6 +38,10 @@ SUBCOMMANDS = ("session", "stop", "end")
 
 # 1セッションで案内する回数の上限
 MAX_NUDGES = 3
+
+# 他のセッションのまとめを取り残しとして回収する最終更新からの経過秒。
+# 同じリポジトリで並行して生きているセッションのまとめを、後から起動したセッションが奪わないため
+RECOVER_AFTER_SECONDS = 86400
 
 # コミットを作った reflog の件名。amend / checkout / reset / pull / rebase / fast-forward は含めない
 _COMMIT_SUBJECTS = ("commit:", "commit (initial):", "commit (merge):")
@@ -178,6 +183,49 @@ def notice(outbox: Path) -> str:
     )
 
 
+def deliver(outbox: Path, box: Path, repo_name: str, today: str) -> Path | None:
+    """まとめを箱へ届け、成功したら元を消して届け先を返す。届けなかったときは None。
+
+    箱が無い、まとめが無い、届け先に同名のファイルがある場合は元を残す。
+    中身が空白だけのまとめは届ける価値が無いので、届けずに消す。
+    """
+    if not (outbox.is_file() and box.is_dir()):
+        return None
+    body = outbox.read_bytes()
+    if not body.strip():
+        outbox.unlink(missing_ok=True)
+        return None
+    dest = box / f"from-{repo_name}-{today}-{outbox.stem[:8]}.md"
+    if dest.exists():
+        return None
+    # 受け取る側が書きかけを読まないよう、箱の中の一時ファイルへ書いてから名前を付ける
+    tmp = box / f".{dest.name}.{os.getpid()}.tmp"
+    try:
+        tmp.write_bytes(body)
+        os.replace(tmp, dest)
+    finally:
+        tmp.unlink(missing_ok=True)
+    outbox.unlink(missing_ok=True)
+    return dest
+
+
+def _today() -> str:
+    return time.strftime("%Y-%m-%d", time.gmtime())
+
+
+def recover_stale(outbox: Path, box: Path, repo_name: str) -> None:
+    """同じリポジトリの置き場にある、他のセッションの古いまとめを箱へ届ける。"""
+    cutoff = time.time() - RECOVER_AFTER_SECONDS
+    today = _today()
+    for path in sorted(outbox.parent.glob("*.md")):
+        try:
+            if path != outbox and path.stat().st_mtime <= cutoff:
+                deliver(path, box, repo_name, today)
+        except OSError:
+            # 1件の失敗で SessionStart の告知まで止めない。次の機会に回収する
+            continue
+
+
 def handle_session(payload: dict[str, Any]) -> dict[str, Any] | None:
     root = active(payload)
     session_id = payload.get("session_id")
@@ -186,9 +234,10 @@ def handle_session(payload: dict[str, Any]) -> dict[str, Any] | None:
     cwd = str(payload["cwd"])
     outbox = outbox_path(cwd, session_id)
     state_path = state_dir() / f"{_sanitize(session_id)}.json"
+    main_root = hook_git.main_checkout_root(cwd) or root
+    recover_stale(outbox, dotfiles_box(), _sanitize(main_root.name))
     # compact や resume でも SessionStart は再発火するので、既存の基準時刻は巻き戻さない
     if not state_path.exists():
-        main_root = hook_git.main_checkout_root(cwd) or root
         _write_state(
             state_path,
             {
@@ -244,13 +293,29 @@ def handle_stop(payload: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def handle_end(payload: dict[str, Any]) -> None:
+    """このセッションのまとめを箱へ届ける。
+
+    SessionEnd の持ち時間は短いので git を起動せず、active も通さない。状態ファイルが無い
+    (除外された、hook 導入前のセッション) ときは何もせず、次の SessionStart の回収に任せる。
+    """
+    session_id = payload.get("session_id")
+    if payload.get("agent_id") or not (isinstance(session_id, str) and session_id):
+        return None
+    state = _read_state(state_dir() / f"{_sanitize(session_id)}.json")
+    repo_name = state.get("repo") if state else None
+    if state is None or not isinstance(repo_name, str):
+        return None
+    deliver(Path(state["outbox"]), dotfiles_box(), _sanitize(repo_name), _today())
+    return None
+
+
 def main(argv: list[str]) -> int:
     try:
         payload = json.loads(sys.stdin.read())
         if not isinstance(payload, dict) or not argv or argv[0] not in SUBCOMMANDS:
             return 0
-        # end の本体は後続のタスクで足す
-        handlers = {"session": handle_session, "stop": handle_stop}
+        handlers = {"session": handle_session, "stop": handle_stop, "end": handle_end}
         handler = handlers.get(argv[0])
         output = handler(payload) if handler else None
         if output is not None:

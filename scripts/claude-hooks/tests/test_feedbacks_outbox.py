@@ -8,6 +8,7 @@ FEEDBACKS_BOX_DIR は落とした環境で見る。
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import time
@@ -436,3 +437,261 @@ def test_除外の条件ではStopも状態を読み書きしない(
 ) -> None:
     assert hook.handle_stop(_payload(repo, agent_id="a1")) is None
     assert not state_dir.exists()
+
+
+# --- SessionEnd と次の SessionStart: 箱へ届ける ---
+
+TODAY = "2026-10-20"
+
+
+@pytest.fixture
+def box(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """handle_end / handle_session が届ける先の箱。実在する空の箱を tmp に作る。"""
+    path = tmp_path / "box"
+    path.mkdir()
+    monkeypatch.setenv("FEEDBACKS_BOX_DIR", str(path))
+    return path
+
+
+def _summary(repo: Path, session_id: str, body: bytes = "知見\n".encode()) -> Path:
+    path: Path = hook.outbox_path(str(repo), session_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(body)
+    return path
+
+
+def _boxed(box: Path) -> list[Path]:
+    return sorted(box.iterdir())
+
+
+def test_まとめを箱へ届けて元を消す(tmp_path: Path, box: Path) -> None:
+    outbox = tmp_path / "sessionabc.md"
+    body = "知見\r\n末尾なし".encode()
+    outbox.write_bytes(body)
+    delivered = hook.deliver(outbox, box, "repo", TODAY)
+    assert delivered == box / "from-repo-2026-10-20-sessiona.md"
+    assert delivered.read_bytes() == body
+    assert _boxed(box) == [delivered]
+    assert not outbox.exists()
+
+
+def test_まとめが無ければ何もしない(tmp_path: Path, box: Path) -> None:
+    assert hook.deliver(tmp_path / "none.md", box, "repo", TODAY) is None
+    assert _boxed(box) == []
+
+
+def test_箱が無ければまとめを残す(tmp_path: Path) -> None:
+    outbox = tmp_path / "s1.md"
+    outbox.write_text("x")
+    assert hook.deliver(outbox, tmp_path / "no-box", "repo", TODAY) is None
+    assert outbox.read_text() == "x"
+    assert not (tmp_path / "no-box").exists()
+
+
+def test_同名のファイルが箱にあれば上書きしない(tmp_path: Path, box: Path) -> None:
+    outbox = tmp_path / "s1.md"
+    outbox.write_text("new")
+    existing = box / "from-repo-2026-10-20-s1.md"
+    existing.write_text("old")
+    assert hook.deliver(outbox, box, "repo", TODAY) is None
+    assert existing.read_text() == "old"
+    assert outbox.read_text() == "new"
+    assert _boxed(box) == [existing]
+
+
+@pytest.mark.parametrize("body", [b"", b" \n\t\n"])
+def test_空のまとめは届けずに消す(tmp_path: Path, box: Path, body: bytes) -> None:
+    outbox = tmp_path / "s1.md"
+    outbox.write_bytes(body)
+    assert hook.deliver(outbox, box, "repo", TODAY) is None
+    assert not outbox.exists()
+    assert _boxed(box) == []
+
+
+def test_書きかけを箱に残さない(tmp_path: Path, box: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    outbox = tmp_path / "s1.md"
+    outbox.write_text("x")
+
+    def boom(*args: object, **kwargs: object) -> None:
+        raise OSError("replace failed")
+
+    monkeypatch.setattr(hook.os, "replace", boom)
+    with pytest.raises(OSError):
+        hook.deliver(outbox, box, "repo", TODAY)
+    assert _boxed(box) == []
+    assert outbox.read_text() == "x"
+
+
+def test_SessionEndは自分のまとめを届ける(
+    repo: Path, config_dir: Path, state_dir: Path, box: Path
+) -> None:
+    hook.handle_session(_payload(repo))
+    outbox = _summary(repo, "s1")
+    assert hook.handle_end(_payload(repo)) is None
+    (delivered,) = _boxed(box)
+    assert delivered.name.startswith("from-repo-")
+    assert delivered.name.endswith("-s1.md")
+    assert delivered.read_bytes() == "知見\n".encode()
+    assert not outbox.exists()
+
+
+def test_二重に届けない(repo: Path, config_dir: Path, state_dir: Path, box: Path) -> None:
+    hook.handle_session(_payload(repo))
+    _summary(repo, "s1")
+    hook.handle_end(_payload(repo))
+    hook.handle_end(_payload(repo))
+    assert len(_boxed(box)) == 1
+
+
+def test_SessionEndは状態が無ければ何もしない(repo: Path, state_dir: Path, box: Path) -> None:
+    outbox = _summary(repo, "s1")
+    assert hook.handle_end(_payload(repo)) is None
+    assert outbox.exists()
+    assert _boxed(box) == []
+
+
+def test_SessionEndは壊れた状態では何もしない(repo: Path, state_dir: Path, box: Path) -> None:
+    outbox = _summary(repo, "s1")
+    state_dir.mkdir()
+    (state_dir / "s1.json").write_text("{not json")
+    assert hook.handle_end(_payload(repo)) is None
+    assert outbox.exists()
+    assert _boxed(box) == []
+
+
+def test_SessionEndはsubagentでは何もしない(
+    repo: Path, config_dir: Path, state_dir: Path, box: Path
+) -> None:
+    hook.handle_session(_payload(repo))
+    outbox = _summary(repo, "s1")
+    assert hook.handle_end(_payload(repo, agent_id="a1")) is None
+    assert outbox.exists()
+    assert _boxed(box) == []
+
+
+def test_SessionEndはsession_idが無ければ何もしない(state_dir: Path, box: Path) -> None:
+    assert hook.handle_end({"cwd": "/"}) is None
+    assert _boxed(box) == []
+
+
+def test_SessionEndはgitを起動しない(
+    repo: Path, config_dir: Path, state_dir: Path, box: Path, tmp_path: Path
+) -> None:
+    hook.handle_session(_payload(repo))
+    outbox = _summary(repo, "s1")
+    # PATH 上の git は起動されたら印を残す偽物。起動していなければ印は無い
+    bin_dir = tmp_path / "fake-bin"
+    bin_dir.mkdir()
+    marker = tmp_path / "git-was-run"
+    fake = bin_dir / "git"
+    # PATH には偽の git しか無いので、印は外部コマンドを使わずシェルの組み込みで残す
+    fake.write_text(f"#!/bin/sh\n: > {marker}\nexit 1\n")
+    fake.chmod(0o755)
+    env = {
+        **git_scope_free_env(),
+        "PATH": str(bin_dir),
+        "FEEDBACKS_BOX_DIR": str(box),
+        "FEEDBACKS_OUTBOX_STATE_DIR": str(state_dir),
+    }
+    result = subprocess.run(
+        [sys.executable, str(HOOK), "end"],
+        input=json.dumps(_payload(repo)),
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+        env=env,
+        check=False,
+    )
+    assert (result.returncode, result.stdout, result.stderr) == (0, "", "")
+    assert not marker.exists()
+    assert len(_boxed(box)) == 1
+    assert not outbox.exists()
+
+
+def _age(path: Path, seconds: int) -> None:
+    old = time.time() - seconds
+    os.utime(path, (old, old))
+
+
+def test_次のSessionStartで古い取り残しを届ける(
+    repo: Path, config_dir: Path, state_dir: Path, box: Path
+) -> None:
+    stale = _summary(repo, "other1")
+    _age(stale, hook.RECOVER_AFTER_SECONDS + 60)
+    current = _summary(repo, "s1")
+    _age(current, hook.RECOVER_AFTER_SECONDS + 60)
+    assert hook.handle_session(_payload(repo)) is not None
+    (delivered,) = _boxed(box)
+    # 名前の repo と日付は回収する今のセッションのもの、末尾は取り残しの持ち主のもの
+    today = time.strftime("%Y-%m-%d", time.gmtime())
+    assert delivered.name == f"from-repo-{today}-other1.md"
+    assert not stale.exists()
+    # 今のセッションのまとめは古くても届けない
+    assert current.exists()
+
+
+def test_新しい他のセッションのまとめは回収しない(
+    repo: Path, config_dir: Path, state_dir: Path, box: Path
+) -> None:
+    live = _summary(repo, "other1")
+    _age(live, hook.RECOVER_AFTER_SECONDS - 600)
+    assert hook.handle_session(_payload(repo)) is not None
+    assert live.exists()
+    assert _boxed(box) == []
+
+
+def test_回収は他のセッションの取り残しを全て届ける(
+    repo: Path, config_dir: Path, state_dir: Path, box: Path
+) -> None:
+    for name in ("aaa", "bbb"):
+        _age(_summary(repo, name), hook.RECOVER_AFTER_SECONDS + 60)
+    hook.handle_session(_payload(repo))
+    assert len(_boxed(box)) == 2
+
+
+def test_箱が無ければ回収せずSessionStartの告知は返す(
+    repo: Path, config_dir: Path, state_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("FEEDBACKS_BOX_DIR", str(tmp_path / "no-box"))
+    stale = _summary(repo, "other1")
+    _age(stale, hook.RECOVER_AFTER_SECONDS + 60)
+    assert hook.handle_session(_payload(repo)) is not None
+    assert stale.exists()
+
+
+def test_回収に失敗してもSessionStartの告知と状態は作る(
+    repo: Path, config_dir: Path, state_dir: Path, box: Path
+) -> None:
+    stale = _summary(repo, "other1")
+    _age(stale, hook.RECOVER_AFTER_SECONDS + 60)
+    box.chmod(0o500)
+    try:
+        assert hook.handle_session(_payload(repo)) is not None
+    finally:
+        box.chmod(0o700)
+    assert stale.exists()
+    assert (state_dir / "s1.json").exists()
+
+
+def test_除外の条件では回収もしない(
+    repo: Path, config_dir: Path, state_dir: Path, box: Path
+) -> None:
+    stale = _summary(repo, "other1")
+    _age(stale, hook.RECOVER_AFTER_SECONDS + 60)
+    assert hook.handle_session(_payload(repo, agent_id="a1")) is None
+    assert stale.exists()
+
+
+def test_linked_worktreeのまとめは本体のディレクトリ名で届く(
+    tmp_path: Path, git_location_vars_stripped: None, config_dir: Path, state_dir: Path, box: Path
+) -> None:
+    main = make_git_repo(tmp_path / "main-repo")
+    _git(main, "commit", "-q", "--allow-empty", "-m", "x", at=T0)
+    _git(main, "worktree", "add", "-q", str(tmp_path / "wt-name"), at=T0)
+    wt = tmp_path / "wt-name"
+    hook.handle_session(_payload(wt))
+    _summary(wt, "s1")
+    hook.handle_end(_payload(wt))
+    (delivered,) = _boxed(box)
+    assert delivered.name.startswith("from-main-repo-")
+    assert "wt-name" not in delivered.name
