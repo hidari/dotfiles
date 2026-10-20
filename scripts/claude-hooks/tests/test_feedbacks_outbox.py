@@ -135,7 +135,7 @@ def test_dotfilesの箱は自分の実体から導く(monkeypatch: pytest.Monkey
 def test_受け取る側のhookと箱の位置と仕分け中の名前の約束が等しい() -> None:
     """送る側は受け取る側を import できないので、同じ約束を定数で持つ。"""
     box_hook = load_hook("feedbacks-box.py")
-    assert hook._BOX_RELATIVE == box_hook.BOX_RELATIVE
+    assert hook.BOX_RELATIVE == box_hook.BOX_RELATIVE
     assert hook.CLAIMED_DIRNAME == box_hook.CLAIMED_DIRNAME
 
 
@@ -417,6 +417,32 @@ def test_stop_hook_activeでは判定せず状態も変えない(
     assert path.read_bytes() == before
 
 
+def test_案内の上限と2回目の_Stop_では_git_を起動しない(
+    repo: Path, config_dir: Path, state_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Stop は毎ターン発火するので、結論が決まっている枝で git を起動しないことを回数で見る
+    calls: list[tuple[object, ...]] = []
+    rev_parse = hook.hook_git.rev_parse
+
+    def counting(*args: object) -> object:
+        calls.append(args)
+        return rev_parse(*args)
+
+    monkeypatch.setattr(hook.hook_git, "rev_parse", counting)
+    _commit(repo, T0 + 10)
+    # 2回目の Stop は上限の判定を通る状態で呼び、上限の枝に先取りされないようにする
+    _write_state(state_dir, nudges=0)
+    assert hook.handle_stop(_payload(repo, stop_hook_active=True)) is None
+    assert calls == []
+    _write_state(state_dir, nudges=hook.MAX_NUDGES)
+    assert hook.handle_stop(_payload(repo)) is None
+    assert calls == []
+    # 対照: 上限に達していなければ同じ数え方で git の起動が見える
+    _write_state(state_dir, nudges=0)
+    assert hook.handle_stop(_payload(repo)) is not None
+    assert calls != []
+
+
 def test_状態が無ければ基準を作るだけで案内しない(
     repo: Path, config_dir: Path, state_dir: Path
 ) -> None:
@@ -596,7 +622,7 @@ def test_書きかけを箱に残さない(tmp_path: Path, box: Path, monkeypatc
     outbox.write_text("x")
 
     def boom(*args: object, **kwargs: object) -> None:
-        raise OSError("replace failed")
+        raise OSError("link failed")
 
     monkeypatch.setattr(hook.os, "link", boom)
     with pytest.raises(OSError):

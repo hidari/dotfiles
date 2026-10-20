@@ -33,15 +33,13 @@ SKILL_NAME = "cross-repo-learnings"
 OUTBOX_RELATIVE = Path(".cache") / "feedbacks-outbox"
 
 # 受け箱のリポジトリルートからの位置 (feedbacks-box.py の BOX_RELATIVE と同じ約束)
-_BOX_RELATIVE = Path("docs") / ".feedbacks-box"
+BOX_RELATIVE = Path("docs") / ".feedbacks-box"
 
 # 受け取る側が仕分けに取りかかったものを移す先 (feedbacks-box.py の CLAIMED_DIRNAME と同じ約束)
 CLAIMED_DIRNAME = ".in-progress"
 
 # 届け先の名前が埋まっているときに連番を試す回数の上限
 _MAX_NAME_TRIES = 100
-
-SUBCOMMANDS = ("session", "stop", "end")
 
 # 1セッションで案内する回数の上限
 MAX_NUDGES = 3
@@ -74,11 +72,15 @@ def dotfiles_box() -> Path:
     override = os.environ.get("FEEDBACKS_BOX_DIR")
     if override:
         return Path(override)
-    return Path(__file__).resolve().parents[3] / _BOX_RELATIVE
+    return Path(__file__).resolve().parents[3] / BOX_RELATIVE
 
 
 def outbox_path(cwd: str, session_id: str) -> Path:
-    return hook_git.repo_root(cwd) / OUTBOX_RELATIVE / f"{_sanitize(session_id)}.md"
+    return _outbox_under(hook_git.repo_root(cwd), session_id)
+
+
+def _outbox_under(root: Path, session_id: str) -> Path:
+    return root / OUTBOX_RELATIVE / f"{_sanitize(session_id)}.md"
 
 
 def skill_installed() -> bool:
@@ -88,6 +90,15 @@ def skill_installed() -> bool:
 
 def active(payload: dict[str, Any]) -> Path | None:
     """hook が動いてよいならリポジトリルートを、だめなら None を返す。"""
+    roots = _active_roots(payload)
+    return roots[0] if roots else None
+
+
+def _active_roots(payload: dict[str, Any]) -> tuple[Path, Path] | None:
+    """active の判定で求めた (リポジトリルート, 本体のチェックアウトのルート) を返す。
+
+    呼び出し側が同じ git の問い合わせを繰り返さないよう、判定の途中で求めた本体の位置も返す。
+    """
     if payload.get("agent_id"):
         return None
     cwd = payload.get("cwd")
@@ -102,12 +113,12 @@ def active(payload: dict[str, Any]) -> Path | None:
     root = Path(top)
     # 受け箱は ignore されて linked worktree には無いので、本体のチェックアウトで探す
     main_root = hook_git.main_checkout_root(cwd) or root
-    if (main_root / _BOX_RELATIVE).is_dir():
+    if (main_root / BOX_RELATIVE).is_dir():
         return None
     # 箱をまだ作っていないマシンでも、受け箱を持つ dotfiles 自身は送る側にしない
     if main_root.resolve() == dotfiles_box().parents[1].resolve():
         return None
-    return root
+    return root, main_root
 
 
 def state_dir() -> Path:
@@ -144,6 +155,20 @@ def _read_state(path: Path) -> dict[str, Any] | None:
     if not isinstance(outbox, str):
         return None
     return state
+
+
+def _state_path(session_id: str) -> Path:
+    return state_dir() / f"{_sanitize(session_id)}.json"
+
+
+def _initial_state(outbox: Path, main_root: Path) -> dict[str, Any]:
+    """そのセッションの基準時刻を今にした状態。Stop と SessionEnd がこの形を読む。"""
+    return {
+        "since": int(time.time()),
+        "nudges": 0,
+        "outbox": str(outbox),
+        "repo": _sanitize(main_root.name),
+    }
 
 
 def commits_since(repo_root: Path, since: int) -> list[int]:
@@ -317,26 +342,17 @@ def recover_stale(outbox: Path, box: Path, repo_name: str) -> None:
 
 
 def handle_session(payload: dict[str, Any]) -> dict[str, Any] | None:
-    root = active(payload)
+    roots = _active_roots(payload)
     session_id = payload.get("session_id")
-    if root is None or not (isinstance(session_id, str) and session_id):
+    if roots is None or not (isinstance(session_id, str) and session_id):
         return None
-    cwd = str(payload["cwd"])
-    outbox = outbox_path(cwd, session_id)
-    state_path = state_dir() / f"{_sanitize(session_id)}.json"
-    main_root = hook_git.main_checkout_root(cwd) or root
+    root, main_root = roots
+    outbox = _outbox_under(root, session_id)
+    state_path = _state_path(session_id)
     recover_stale(outbox, dotfiles_box(), _sanitize(main_root.name))
     # compact や resume でも SessionStart は再発火するので、既存の基準時刻は巻き戻さない
     if not state_path.exists():
-        _write_state(
-            state_path,
-            {
-                "since": int(time.time()),
-                "nudges": 0,
-                "outbox": str(outbox),
-                "repo": _sanitize(main_root.name),
-            },
-        )
+        _write_state(state_path, _initial_state(outbox, main_root))
     return {
         "hookSpecificOutput": {
             "hookEventName": "SessionStart",
@@ -346,30 +362,24 @@ def handle_session(payload: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def handle_stop(payload: dict[str, Any]) -> dict[str, Any] | None:
-    root = active(payload)
     session_id = payload.get("session_id")
-    if root is None or not (isinstance(session_id, str) and session_id):
+    if not (isinstance(session_id, str) and session_id):
         return None
     # 案内で続いた2回目の Stop。判定も状態の更新もしない
     if payload.get("stop_hook_active"):
         return None
-    state_path = state_dir() / f"{_sanitize(session_id)}.json"
+    # Stop は毎ターン発火するので、git を起動せずに決まる判定を active より先に済ませる
+    state_path = _state_path(session_id)
     state = _read_state(state_path)
+    if state is not None and state["nudges"] >= MAX_NUDGES:
+        return None
+    roots = _active_roots(payload)
+    if roots is None:
+        return None
+    root, main_root = roots
     if state is None:
         # hook を入れる前から続いているセッション、または壊れた状態。その時点を基準にする
-        cwd = str(payload["cwd"])
-        main_root = hook_git.main_checkout_root(cwd) or root
-        _write_state(
-            state_path,
-            {
-                "since": int(time.time()),
-                "nudges": 0,
-                "outbox": str(outbox_path(cwd, session_id)),
-                "repo": _sanitize(main_root.name),
-            },
-        )
-        return None
-    if state["nudges"] >= MAX_NUDGES:
+        _write_state(state_path, _initial_state(_outbox_under(root, session_id), main_root))
         return None
     commits = commits_since(root, state["since"])
     if not commits:
@@ -392,7 +402,7 @@ def handle_end(payload: dict[str, Any]) -> None:
     session_id = payload.get("session_id")
     if payload.get("agent_id") or not (isinstance(session_id, str) and session_id):
         return None
-    state = _read_state(state_dir() / f"{_sanitize(session_id)}.json")
+    state = _read_state(_state_path(session_id))
     repo_name = state.get("repo") if state else None
     if state is None or not isinstance(repo_name, str):
         return None
@@ -403,14 +413,17 @@ def handle_end(payload: dict[str, Any]) -> None:
     return None
 
 
+# サブコマンドと処理の対応。ここに無いサブコマンドは何もしない
+HANDLERS = {"session": handle_session, "stop": handle_stop, "end": handle_end}
+
+
 def main(argv: list[str]) -> int:
     try:
         payload = json.loads(sys.stdin.read())
-        if not isinstance(payload, dict) or not argv or argv[0] not in SUBCOMMANDS:
+        handler = HANDLERS.get(argv[0]) if argv else None
+        if not isinstance(payload, dict) or handler is None:
             return 0
-        handlers = {"session": handle_session, "stop": handle_stop, "end": handle_end}
-        handler = handlers.get(argv[0])
-        output = handler(payload) if handler else None
+        output = handler(payload)
         if output is not None:
             print(json.dumps(output, ensure_ascii=False))
     except Exception:
