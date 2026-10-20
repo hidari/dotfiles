@@ -101,6 +101,17 @@ flowchart LR
 - hook はセッションの外から来たデータ (リポジトリ名、ファイル名) を文面へ載せるとき、feedbacks-box.py と同じく引用して偽の行を差し込めないようにする
 - dotfiles の CLAUDE.md は PR のマージ前に `/simplify` と code-reviewer のレビューを求めている。仕分けの PR も例外にしない (Claude の判断。緩めるならユーザーが決める)
 
+## 仕分けを手で1回通した記録 (2026-10-20)
+
+spec を書いた直後に、他リポジトリから security-audit skill の試用報告が箱へ届いた。受け取る側の手順を手で通した (PR 269)。仕分けの告知の文面と plan に効くことは次のとおり。
+
+- マージ前のレビューは省けない。漏洩スイープが、リポジトリ名も弱点の中身も落とした文面の中から、組み合わせで報告元の公開予定と未検証の候補の存在が読める一行を見つけた。code-reviewer は、報告者の推測を実地の裏付けのように書いた箇所と、見立てを確かめた事実の列に混ぜた箇所を見つけた。どちらも語単位の検査では捕まらない
+- 漏洩スイープには、追跡下へ入れる差分だけでなく箱の元の材料も渡し、何を落としたかを突き合わせさせる
+- 費用は、レビューの agent が3本 (漏洩スイープ、code-reviewer、ボーイスカウトと簡素化を1本にしたもの) と、PR の CI が1回。Issue の文書だけの PR では `/simplify` の reuse と efficiency が当てはまらないので、簡素化をボーイスカウトと1本にまとめた (Claude の判断)
+- config-guard は `## 関連` 節の識別子が main の `docs/issues` に実在することを求める。未マージのブランチにしかない Issue は関連節に書けない
+- main から切った worktree には apm の展開物 (`home/.claude/skills/`、ignore 済み) が無く、pre-commit の識別子記法の検査が起動できない。symlink で代用すると、末尾スラッシュの ignore パターンに当たらず、config-guard の check-ignore も symlink の先で失敗する。実体のコピーが要る
+- worktree でチェックアウト中のブランチは `gh pr merge --delete-branch` がローカル側を消せないと見て、マージの前に worktree を外した (推測に基づく手順で、外さないときの挙動は試していない)。マージに使う本文のファイルは、外す前に本体の `.cache/` へ移した
+
 ## 実装者に任せること
 
 - セッション中のコミットの検出方法。レビューで次の崩れ方が挙がっているので、どれを受け入れるかを plan で明記する: transcript は Stop の時点で最後のメッセージを含む保証が無く、subagent の transcript は別ファイル。HEAD の比較はブランチ切り替え・pull・rebase・amend でも動き、別の worktree でのコミットを取りこぼす。reflog の種別を見れば切り替えと amend は弁別できる
