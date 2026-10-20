@@ -25,6 +25,7 @@ from __future__ import annotations
 import os
 import subprocess
 from pathlib import Path
+from typing import Literal, overload
 
 # git への問い合わせの上限 (秒)。「応答しない」を判定するための上限であって通常経路の
 # 待ち時間ではない。
@@ -55,8 +56,12 @@ def isolated_env() -> dict[str, str]:
     return {k: v for k, v in os.environ.items() if k not in LOCATION_VARS}
 
 
-def rev_parse(cwd: str | Path, *args: str) -> str | None:
-    """`git -C <cwd> rev-parse <args>` の標準出力。答えが得られなければ None。
+@overload
+def git(cwd: str | Path, *args: str, text: Literal[True] = ...) -> str | None: ...
+@overload
+def git(cwd: str | Path, *args: str, text: Literal[False]) -> bytes | None: ...
+def git(cwd: str | Path, *args: str, text: bool = True) -> str | bytes | None:
+    """`git -C <cwd> <args>` の標準出力を加工せずに返す。終了コードが 0 でなければ None。
 
     失敗の種類を呼び出し側へ伝えない。git 不在・リポジトリ外・タイムアウトのいずれも
     「答えが無い」に潰す。呼び出し側はどれも同じ手当て (フックを止めずに落とす) をするので、
@@ -64,17 +69,28 @@ def rev_parse(cwd: str | Path, *args: str) -> str | None:
     """
     try:
         result = subprocess.run(
-            ["git", "-C", str(cwd), "rev-parse", *args],
+            ["git", "-C", str(cwd), *args],
             capture_output=True,
-            text=True,
+            text=text,
             timeout=RESOLVE_TIMEOUT,
             check=False,
             env=isolated_env(),
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
-    out = result.stdout.strip()
-    return out if result.returncode == 0 and out else None
+    if result.returncode != 0:
+        return None
+    # text を値で渡すと CompletedProcess の型が決まらず Any になるので、ここで型を付け直す
+    out: str | bytes = result.stdout
+    return out
+
+
+def rev_parse(cwd: str | Path, *args: str) -> str | None:
+    """`git -C <cwd> rev-parse <args>` の標準出力から前後の空白を落としたもの。空も None。"""
+    out = git(cwd, "rev-parse", *args)
+    if out is None:
+        return None
+    return out.strip() or None
 
 
 def repo_root(cwd: str | Path) -> Path:

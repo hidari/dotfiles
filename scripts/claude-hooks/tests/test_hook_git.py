@@ -153,3 +153,53 @@ def test_答えが得られなければ_None_を返す(tmp_path: Path, git_locat
     plain.mkdir()
 
     assert hook_git.rev_parse(plain, "--show-toplevel") is None
+
+
+def test_git_は成功した問い合わせの標準出力を加工せずに返す(
+    tmp_path: Path, git_location_vars_stripped: None
+) -> None:
+    """行の区切りを読む呼び出し側があるので、rev_parse と違って空白を落とさない。"""
+    repo = make_git_repo(tmp_path / "myrepo")
+    _commit_and_add_worktree(repo, tmp_path / "wt")
+
+    assert hook_git.git(repo, "log", "-1", "--format=%s") == "init\n"
+
+
+def test_git_は_text_を外すとバイト列を返す(
+    tmp_path: Path, git_location_vars_stripped: None
+) -> None:
+    """名前の復号に失敗して例外で落ちないよう、バイト列で比べる呼び出し側がある。"""
+    repo = make_git_repo(tmp_path / "myrepo")
+    (repo / "f").write_text("x")
+    subprocess.run(["git", "add", "f"], cwd=repo, check=True, env=git_scope_free_env())
+
+    assert hook_git.git(repo, "ls-files", "-z", text=False) == b"f\0"
+
+
+def test_git_は失敗した問い合わせで_None_を返す(
+    tmp_path: Path, git_location_vars_stripped: None
+) -> None:
+    plain = tmp_path / "plain"
+    plain.mkdir()
+
+    assert hook_git.git(plain, "log", "-1") is None
+
+
+def test_git_は応答しなければ_None_を返す(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def timeout(*args: object, **kwargs: object) -> None:
+        raise subprocess.TimeoutExpired("git", hook_git.RESOLVE_TIMEOUT)
+
+    monkeypatch.setattr(subprocess, "run", timeout)
+
+    assert hook_git.git(tmp_path, "status") is None
+
+
+def test_git_は起動できなくても_None_を返す(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = make_git_repo(tmp_path / "myrepo")
+    empty = tmp_path / "empty-path"
+    empty.mkdir()
+    monkeypatch.setenv("PATH", str(empty))
+
+    assert hook_git.git(repo, "status") is None
