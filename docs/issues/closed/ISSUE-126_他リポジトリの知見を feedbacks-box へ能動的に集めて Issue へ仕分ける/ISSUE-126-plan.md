@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3 (標準ライブラリのみ)、pytest (`uv run --directory scripts/claude-hooks pytest`)、git reflog、Claude Code hooks、apm。
 
-**Spec:** `docs/issues/ISSUE-126_他リポジトリの知見を feedbacks-box へ能動的に集めて Issue へ仕分ける/ISSUE-126-spec.md`
+**Spec:** `docs/issues/closed/ISSUE-126_他リポジトリの知見を feedbacks-box へ能動的に集めて Issue へ仕分ける/ISSUE-126-spec.md`
 
 ## Global Constraints
 
