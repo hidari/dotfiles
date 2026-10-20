@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -739,3 +741,110 @@ def test_SessionEndのまとめがsymlinkなら届けず消さない(
     assert _boxed(box) == []
     assert link.is_symlink()
     assert private.read_text() == "secret"
+
+
+@pytest.fixture
+def watchdog() -> Iterator[None]:
+    """FIFO を読んで固まる実装を、ハングではなくテストの失敗にする。"""
+
+    def on_alarm(signum: int, frame: object) -> None:
+        # OSError 系の例外だと実装側の except に握られるので pytest.fail (BaseException) を使う
+        pytest.fail("通常のファイルでないものを読みに行って固まった")
+
+    old = signal.signal(signal.SIGALRM, on_alarm)
+    signal.alarm(5)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old)
+
+
+def test_通常のファイルでないまとめは読まず届けず消さない(
+    tmp_path: Path, box: Path, watchdog: None
+) -> None:
+    fifo = tmp_path / "fifo.md"
+    os.mkfifo(fifo)
+    directory = tmp_path / "dir.md"
+    directory.mkdir()
+    for special in (fifo, directory):
+        assert hook.deliver(special, box, "repo", TODAY) is None
+        assert special.exists()
+    assert _boxed(box) == []
+
+
+def test_回収の対象がFIFOなら固まらず何もしない(
+    repo: Path, config_dir: Path, state_dir: Path, box: Path, watchdog: None
+) -> None:
+    fifo = hook.outbox_path(str(repo), "other1")
+    fifo.parent.mkdir(parents=True)
+    os.mkfifo(fifo)
+    _age(fifo, hook.RECOVER_AFTER_SECONDS + 60)
+    assert hook.handle_session(_payload(repo)) is not None
+    assert fifo.exists()
+    assert _boxed(box) == []
+
+
+def test_SessionEndのまとめがFIFOなら固まらず何もしない(
+    repo: Path, config_dir: Path, state_dir: Path, box: Path, watchdog: None
+) -> None:
+    hook.handle_session(_payload(repo))
+    fifo = hook.outbox_path(str(repo), "s1")
+    fifo.parent.mkdir(parents=True)
+    os.mkfifo(fifo)
+    assert hook.handle_end(_payload(repo)) is None
+    assert fifo.exists()
+    assert _boxed(box) == []
+
+
+def _external_outbox(tmp_path: Path, name: str) -> Path:
+    """リポジトリの外にある、古いまとめを持つ置き場を作る。"""
+    external = tmp_path / "external" / name
+    external.mkdir(parents=True)
+    stale = external / "other1.md"
+    stale.write_text("private")
+    _age(stale, hook.RECOVER_AFTER_SECONDS + 60)
+    return stale
+
+
+def test_置き場がsymlinkなら回収しない(
+    repo: Path, config_dir: Path, state_dir: Path, box: Path, tmp_path: Path
+) -> None:
+    stale = _external_outbox(tmp_path, "outbox")
+    (repo / ".cache").mkdir()
+    (repo / ".cache" / "feedbacks-outbox").symlink_to(stale.parent)
+    assert hook.handle_session(_payload(repo)) is not None
+    assert stale.exists()
+    assert _boxed(box) == []
+
+
+def test_cacheがsymlinkなら回収しない(
+    repo: Path, config_dir: Path, state_dir: Path, box: Path, tmp_path: Path
+) -> None:
+    stale = _external_outbox(tmp_path, "feedbacks-outbox")
+    (repo / ".cache").symlink_to(stale.parent.parent)
+    assert hook.handle_session(_payload(repo)) is not None
+    assert stale.exists()
+    assert _boxed(box) == []
+
+
+@pytest.mark.parametrize("linked", ["outbox", "cache"])
+def test_SessionEndは置き場かcacheがsymlinkなら届けない(
+    linked: str, repo: Path, state_dir: Path, box: Path, tmp_path: Path
+) -> None:
+    if linked == "outbox":
+        real = tmp_path / "external" / "outbox"
+        real.mkdir(parents=True)
+        (repo / ".cache").mkdir()
+        (repo / ".cache" / "feedbacks-outbox").symlink_to(real)
+        private = real / "s1.md"
+    else:
+        real = tmp_path / "external" / "cache"
+        (real / "feedbacks-outbox").mkdir(parents=True)
+        (repo / ".cache").symlink_to(real)
+        private = real / "feedbacks-outbox" / "s1.md"
+    private.write_text("private")
+    _write_state(state_dir, outbox=str(repo / ".cache" / "feedbacks-outbox" / "s1.md"))
+    assert hook.handle_end(_payload(repo)) is None
+    assert private.read_text() == "private"
+    assert _boxed(box) == []

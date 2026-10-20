@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 import time
@@ -183,15 +184,31 @@ def notice(outbox: Path) -> str:
     )
 
 
+def _is_regular_file(path: Path) -> bool:
+    """symlink を辿らず、通常のファイルであるか。
+
+    リンク先の私的ファイルを箱へ複製しないため、また FIFO などの read が戻らない
+    ファイルで hook を固めないため。
+    """
+    try:
+        return stat.S_ISREG(os.lstat(path).st_mode)
+    except OSError:
+        return False
+
+
+def _in_plain_dirs(directory: Path) -> bool:
+    """置き場とその親が symlink でないか。リポジトリの外を走査・読み出ししないための検査。"""
+    return not (directory.is_symlink() or directory.parent.is_symlink())
+
+
 def deliver(outbox: Path, box: Path, repo_name: str, today: str) -> Path | None:
     """まとめを箱へ届け、成功したら元を消して届け先を返す。届けなかったときは None。
 
-    箱が無い、まとめが無い (symlink は無いものとして扱い、読まず消さない)、
+    箱が無い、まとめが無い (通常のファイル以外は無いものとして扱い、読まず消さない)、
     届け先に同名のファイルがある場合は元を残す。
     中身が空白だけのまとめは届ける価値が無いので、届けずに消す。
     """
-    # symlink は辿らない。他リポジトリが置いたリンクの先の私的ファイルを箱へ複製しないため
-    if outbox.is_symlink() or not (outbox.is_file() and box.is_dir()):
+    if not (_is_regular_file(outbox) and box.is_dir()):
         return None
     body = outbox.read_bytes()
     if not body.strip():
@@ -217,6 +234,8 @@ def _today() -> str:
 
 def recover_stale(outbox: Path, box: Path, repo_name: str) -> None:
     """同じリポジトリの置き場にある、他のセッションの古いまとめを箱へ届ける。"""
+    if not _in_plain_dirs(outbox.parent):
+        return
     cutoff = time.time() - RECOVER_AFTER_SECONDS
     today = _today()
     for path in sorted(outbox.parent.glob("*.md")):
@@ -308,7 +327,10 @@ def handle_end(payload: dict[str, Any]) -> None:
     repo_name = state.get("repo") if state else None
     if state is None or not isinstance(repo_name, str):
         return None
-    deliver(Path(state["outbox"]), dotfiles_box(), _sanitize(repo_name), _today())
+    outbox = Path(state["outbox"])
+    if not _in_plain_dirs(outbox.parent):
+        return None
+    deliver(outbox, dotfiles_box(), _sanitize(repo_name), _today())
     return None
 
 
