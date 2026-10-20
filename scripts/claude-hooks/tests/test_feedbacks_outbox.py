@@ -381,7 +381,18 @@ def test_状態が無ければ基準を作るだけで案内しない(
 
 @pytest.mark.parametrize(
     "content",
-    ["{not json", "[]", '"x"', json.dumps({"since": "1", "nudges": 0}), json.dumps({"nudges": 0})],
+    [
+        "{not json",
+        "[]",
+        '"x"',
+        # 各検査を単独で外すと対応する形だけが生き残るよう、他の項目は正しい値にする
+        json.dumps({"since": "1", "nudges": 0, "outbox": "/o"}),
+        json.dumps({"nudges": 0, "outbox": "/o"}),
+        json.dumps({"since": True, "nudges": 0, "outbox": "/o"}),
+        json.dumps({"since": 1, "nudges": "0", "outbox": "/o"}),
+        json.dumps({"since": 1, "nudges": 0}),
+        json.dumps({"since": 1, "nudges": 0, "outbox": 1}),
+    ],
 )
 def test_壊れた状態は無いものとして基準を作り直し案内しない(
     content: str, repo: Path, config_dir: Path, state_dir: Path
