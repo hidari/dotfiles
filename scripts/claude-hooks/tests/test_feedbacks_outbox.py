@@ -695,3 +695,47 @@ def test_linked_worktreeのまとめは本体のディレクトリ名で届く(
     (delivered,) = _boxed(box)
     assert delivered.name.startswith("from-main-repo-")
     assert "wt-name" not in delivered.name
+
+
+def _symlink_to_private(tmp_path: Path, link: Path) -> Path:
+    """リンク先の私的ファイルを tmp に作り、link をそこへ向ける。"""
+    private = tmp_path / "private-key"
+    private.write_text("secret")
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.symlink_to(private)
+    return private
+
+
+def test_symlinkのまとめは読まず届けず消さない(tmp_path: Path, box: Path) -> None:
+    link = tmp_path / "s1.md"
+    private = _symlink_to_private(tmp_path, link)
+    assert hook.deliver(link, box, "repo", TODAY) is None
+    assert _boxed(box) == []
+    assert link.is_symlink()
+    assert private.read_text() == "secret"
+
+
+def test_回収の対象がsymlinkなら届けず消さない(
+    repo: Path, config_dir: Path, state_dir: Path, box: Path, tmp_path: Path
+) -> None:
+    link = hook.outbox_path(str(repo), "other1")
+    private = _symlink_to_private(tmp_path, link)
+    # 回収の判定は stat (リンクを辿る) なので、リンク先を古くして回収の対象に入れる
+    old = time.time() - hook.RECOVER_AFTER_SECONDS - 60
+    os.utime(link, (old, old))
+    assert hook.handle_session(_payload(repo)) is not None
+    assert _boxed(box) == []
+    assert link.is_symlink()
+    assert private.read_text() == "secret"
+
+
+def test_SessionEndのまとめがsymlinkなら届けず消さない(
+    repo: Path, config_dir: Path, state_dir: Path, box: Path, tmp_path: Path
+) -> None:
+    hook.handle_session(_payload(repo))
+    link = hook.outbox_path(str(repo), "s1")
+    private = _symlink_to_private(tmp_path, link)
+    assert hook.handle_end(_payload(repo)) is None
+    assert _boxed(box) == []
+    assert link.is_symlink()
+    assert private.read_text() == "secret"

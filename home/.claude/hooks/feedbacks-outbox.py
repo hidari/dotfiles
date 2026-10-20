@@ -186,10 +186,12 @@ def notice(outbox: Path) -> str:
 def deliver(outbox: Path, box: Path, repo_name: str, today: str) -> Path | None:
     """まとめを箱へ届け、成功したら元を消して届け先を返す。届けなかったときは None。
 
-    箱が無い、まとめが無い、届け先に同名のファイルがある場合は元を残す。
+    箱が無い、まとめが無い (symlink は無いものとして扱い、読まず消さない)、
+    届け先に同名のファイルがある場合は元を残す。
     中身が空白だけのまとめは届ける価値が無いので、届けずに消す。
     """
-    if not (outbox.is_file() and box.is_dir()):
+    # symlink は辿らない。他リポジトリが置いたリンクの先の私的ファイルを箱へ複製しないため
+    if outbox.is_symlink() or not (outbox.is_file() and box.is_dir()):
         return None
     body = outbox.read_bytes()
     if not body.strip():
