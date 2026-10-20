@@ -420,15 +420,16 @@ def test_stop_hook_activeでは判定せず状態も変えない(
 def test_案内の上限と2回目の_Stop_では_git_を起動しない(
     repo: Path, config_dir: Path, state_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Stop は毎ターン発火するので、結論が決まっている枝で git を起動しないことを回数で見る
+    # Stop は毎ターン発火するので、結論が決まっている枝で git を起動しないことを回数で見る。
+    # git の起動はすべて hook_git.git を通る (rev_parse もその上にある) ので、そこで数える
     calls: list[tuple[object, ...]] = []
-    rev_parse = hook.hook_git.rev_parse
+    git = hook.hook_git.git
 
-    def counting(*args: object) -> object:
+    def counting(*args: object, **kwargs: object) -> object:
         calls.append(args)
-        return rev_parse(*args)
+        return git(*args, **kwargs)
 
-    monkeypatch.setattr(hook.hook_git, "rev_parse", counting)
+    monkeypatch.setattr(hook.hook_git, "git", counting)
     _commit(repo, T0 + 10)
     # 2回目の Stop は上限の判定を通る状態で呼び、上限の枝に先取りされないようにする
     _write_state(state_dir, nudges=0)
@@ -493,19 +494,14 @@ def test_コミットが無いリポジトリでは案内せず状態も変え�
     assert path.read_bytes() == before
 
 
-def test_reflogを読めなければコミットが無いものとして扱う(
-    repo: Path, config_dir: Path, state_dir: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    path = _write_state(state_dir)
+def test_reflogを読めなければコミットが無いものとして扱う(repo: Path, tmp_path: Path) -> None:
+    # git の失敗の潰し方は hook_git が pin する。ここでは潰した結果を空として扱うことだけを見る。
+    # handle_stop 越しに git を壊すと active の判定が先に落ち、この分岐まで届かない
+    plain = tmp_path / "plain"
+    plain.mkdir()
     _commit(repo, T0 + 10)
-    before = path.read_bytes()
-
-    def boom(*args: object, **kwargs: object) -> None:
-        raise subprocess.TimeoutExpired("git", 1)
-
-    monkeypatch.setattr(hook.subprocess, "run", boom)
-    assert hook.handle_stop(_payload(repo)) is None
-    assert path.read_bytes() == before
+    assert hook.commits_since(repo, T0) == [T0 + 10]
+    assert hook.commits_since(plain, T0) == []
 
 
 def test_除外の条件ではStopも状態を読み書きしない(

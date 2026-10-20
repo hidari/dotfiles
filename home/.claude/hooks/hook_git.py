@@ -1,9 +1,9 @@
 """フックから git へ問い合わせる leaf。
 
-同じリポジトリルートの解決を複数のフックが要る。handoff-sentinel は状態ファイルの名前を
-作るために、guard_probes はタスクリスト識別子の導出元を決めるために、feedbacks-box は箱の
-位置を決めるために呼ぶ。同じ規則を 2 箇所へ書くと片方だけ直したときに沈黙して食い違うので、
-これらの canonical をここへ置く。
+複数のフックが git を起動し、リポジトリルートと本体のチェックアウトを解決する。起動の定型
+(位置を上書きする環境変数を外す、上限の時間で打ち切る、失敗を None に潰す) とルートの解決
+規則を 2 箇所へ書くと片方だけ直したときに沈黙して食い違うので、これらの canonical をここへ
+置く。呼び出し側の一覧はここに持たない (足したときにここだけが取り残される)。
 
 リポジトリ全体の canonical ではない。config_guard は venv を持つので自前の同じ集合を持ち、
 両者が drift しないことは config-guard 側の import 照合が pin する。apm-install-guard は
@@ -25,6 +25,7 @@ from __future__ import annotations
 import os
 import subprocess
 from pathlib import Path
+from typing import Literal, overload
 
 # git への問い合わせの上限 (秒)。「応答しない」を判定するための上限であって通常経路の
 # 待ち時間ではない。
@@ -55,8 +56,12 @@ def isolated_env() -> dict[str, str]:
     return {k: v for k, v in os.environ.items() if k not in LOCATION_VARS}
 
 
-def rev_parse(cwd: str | Path, *args: str) -> str | None:
-    """`git -C <cwd> rev-parse <args>` の標準出力。答えが得られなければ None。
+@overload
+def git(cwd: str | Path, *args: str, text: Literal[True] = ...) -> str | None: ...
+@overload
+def git(cwd: str | Path, *args: str, text: Literal[False]) -> bytes | None: ...
+def git(cwd: str | Path, *args: str, text: bool = True) -> str | bytes | None:
+    """`git -C <cwd> <args>` の標準出力を加工せずに返す。終了コードが 0 でなければ None。
 
     失敗の種類を呼び出し側へ伝えない。git 不在・リポジトリ外・タイムアウトのいずれも
     「答えが無い」に潰す。呼び出し側はどれも同じ手当て (フックを止めずに落とす) をするので、
@@ -64,17 +69,28 @@ def rev_parse(cwd: str | Path, *args: str) -> str | None:
     """
     try:
         result = subprocess.run(
-            ["git", "-C", str(cwd), "rev-parse", *args],
+            ["git", "-C", str(cwd), *args],
             capture_output=True,
-            text=True,
+            text=text,
             timeout=RESOLVE_TIMEOUT,
             check=False,
             env=isolated_env(),
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
-    out = result.stdout.strip()
-    return out if result.returncode == 0 and out else None
+    if result.returncode != 0:
+        return None
+    # text を値で渡すと CompletedProcess の型が決まらず Any になるので、ここで型を付け直す
+    out: str | bytes = result.stdout
+    return out
+
+
+def rev_parse(cwd: str | Path, *args: str) -> str | None:
+    """`git -C <cwd> rev-parse <args>` の標準出力から前後の空白を落としたもの。空も None。"""
+    out = git(cwd, "rev-parse", *args)
+    if out is None:
+        return None
+    return out.strip() or None
 
 
 def repo_root(cwd: str | Path) -> Path:

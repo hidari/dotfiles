@@ -19,7 +19,6 @@ import json
 import os
 import re
 import stat
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -176,32 +175,20 @@ def commits_since(repo_root: Path, since: int) -> list[int]:
 
     読めない (git の失敗、タイムアウト、コミットが無い) ときは空を返す。
     """
-    try:
-        result = subprocess.run(
-            [
-                "git",
-                "-C",
-                str(repo_root),
-                "log",
-                "-g",
-                "-n",
-                str(REFLOG_LIMIT),
-                "--date=unix",
-                "--format=%gd%x09%gs",
-                "HEAD",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=hook_git.RESOLVE_TIMEOUT,
-            check=False,
-            env=hook_git.isolated_env(),
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return []
-    if result.returncode != 0:
+    out = hook_git.git(
+        repo_root,
+        "log",
+        "-g",
+        "-n",
+        str(REFLOG_LIMIT),
+        "--date=unix",
+        "--format=%gd%x09%gs",
+        "HEAD",
+    )
+    if out is None:
         return []
     times: list[int] = []
-    for line in result.stdout.splitlines():
+    for line in out.splitlines():
         selector, _, subject = line.partition("\t")
         match = re.fullmatch(r"HEAD@\{(\d+)\}", selector)
         if match and subject.startswith(_COMMIT_SUBJECTS) and int(match.group(1)) > since:
@@ -294,19 +281,10 @@ def _tracked_names(directory: Path) -> set[bytes] | None:
 
     名前の復号に失敗して例外で告知ごと落ちないよう、バイト列のまま比べる。
     """
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(directory), "ls-files", "-z", "--", "."],
-            capture_output=True,
-            timeout=hook_git.RESOLVE_TIMEOUT,
-            check=False,
-            env=hook_git.isolated_env(),
-        )
-    except (OSError, subprocess.TimeoutExpired):
+    out = hook_git.git(directory, "ls-files", "-z", "--", ".", text=False)
+    if out is None:
         return None
-    if result.returncode != 0:
-        return None
-    return set(result.stdout.split(b"\0"))
+    return set(out.split(b"\0"))
 
 
 def recover_stale(outbox: Path, box: Path, repo_name: str) -> None:
