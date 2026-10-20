@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -33,6 +34,12 @@ OUTBOX_RELATIVE = Path(".cache") / "feedbacks-outbox"
 _BOX_RELATIVE = Path("docs") / ".feedbacks-box"
 
 SUBCOMMANDS = ("session", "stop", "end")
+
+# 1セッションで案内する回数の上限
+MAX_NUDGES = 3
+
+# コミットを作った reflog の件名。amend / checkout / reset / pull / rebase / fast-forward は含めない
+_COMMIT_SUBJECTS = ("commit:", "commit (initial):", "commit (merge):")
 
 
 def _sanitize(name: str) -> str:
@@ -96,6 +103,69 @@ def _write_state(path: Path, state: dict[str, Any]) -> None:
         tmp.unlink(missing_ok=True)
 
 
+def _read_state(path: Path) -> dict[str, Any] | None:
+    """状態ファイルを読む。無い、読めない、形が違うときは None (状態が無いのと同じ扱い)。"""
+    try:
+        state = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return None
+    if not isinstance(state, dict):
+        return None
+    since, nudges, outbox = state.get("since"), state.get("nudges"), state.get("outbox")
+    # bool は int の部分型なので除く
+    if any(isinstance(v, bool) or not isinstance(v, int) for v in (since, nudges)):
+        return None
+    if not isinstance(outbox, str):
+        return None
+    return state
+
+
+def commits_since(repo_root: Path, since: int) -> list[int]:
+    """HEAD の reflog のうち、since より後に作ったコミットの unix 秒。
+
+    読めない (git の失敗、タイムアウト、コミットが無い) ときは空を返す。
+    """
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo_root),
+                "log",
+                "-g",
+                "--date=unix",
+                "--format=%gd%x09%gs",
+                "HEAD",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=hook_git.RESOLVE_TIMEOUT,
+            check=False,
+            env=hook_git.isolated_env(),
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    if result.returncode != 0:
+        return []
+    times: list[int] = []
+    for line in result.stdout.splitlines():
+        selector, _, subject = line.partition("\t")
+        match = re.fullmatch(r"HEAD@\{(\d+)\}", selector)
+        if match and subject.startswith(_COMMIT_SUBJECTS) and int(match.group(1)) > since:
+            times.append(int(match.group(1)))
+    return times
+
+
+def stop_notice(outbox: str) -> str:
+    quoted = json.dumps(outbox, ensure_ascii=False)
+    return (
+        f"コミットを作りました。このセッションのまとめの置き場は {quoted} です。"
+        "リポジトリを越えて効く知見が出ていれば、"
+        f"{SKILL_NAME} skill に従ってそこを更新してください。"
+        "知見が無ければ何もしないでください。"
+    )
+
+
 def notice(outbox: Path) -> str:
     # 外から来たパスは引用して載せる
     quoted = json.dumps(str(outbox), ensure_ascii=False)
@@ -136,13 +206,53 @@ def handle_session(payload: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def handle_stop(payload: dict[str, Any]) -> dict[str, Any] | None:
+    root = active(payload)
+    session_id = payload.get("session_id")
+    if root is None or not (isinstance(session_id, str) and session_id):
+        return None
+    # 案内で続いた2回目の Stop。判定も状態の更新もしない
+    if payload.get("stop_hook_active"):
+        return None
+    state_path = state_dir() / f"{_sanitize(session_id)}.json"
+    state = _read_state(state_path)
+    if state is None:
+        # hook を入れる前から続いているセッション、または壊れた状態。その時点を基準にする
+        cwd = str(payload["cwd"])
+        main_root = hook_git.main_checkout_root(cwd) or root
+        _write_state(
+            state_path,
+            {
+                "since": int(time.time()),
+                "nudges": 0,
+                "outbox": str(outbox_path(cwd, session_id)),
+                "repo": _sanitize(main_root.name),
+            },
+        )
+        return None
+    if state["nudges"] >= MAX_NUDGES:
+        return None
+    commits = commits_since(root, state["since"])
+    if not commits:
+        return None
+    _write_state(state_path, {**state, "since": max(commits), "nudges": state["nudges"] + 1})
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "Stop",
+            "additionalContext": stop_notice(state["outbox"]),
+        }
+    }
+
+
 def main(argv: list[str]) -> int:
     try:
         payload = json.loads(sys.stdin.read())
         if not isinstance(payload, dict) or not argv or argv[0] not in SUBCOMMANDS:
             return 0
-        # stop / end の本体は後続のタスクで足す
-        output = handle_session(payload) if argv[0] == "session" else None
+        # end の本体は後続のタスクで足す
+        handlers = {"session": handle_session, "stop": handle_stop}
+        handler = handlers.get(argv[0])
+        output = handler(payload) if handler else None
         if output is not None:
             print(json.dumps(output, ensure_ascii=False))
     except Exception:

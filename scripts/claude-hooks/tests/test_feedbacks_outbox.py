@@ -208,3 +208,220 @@ def test_repo名は区切り文字を潰して記録する(
     odd = make_git_repo(tmp_path / "my repo.x")
     hook.handle_session(_payload(odd))
     assert json.loads((state_dir / "s1.json").read_text())["repo"] == "my_repo_x"
+
+
+# --- Stop: コミットのあとに案内する ---
+
+T0 = 1_700_000_000
+
+
+def _git(repo: Path, *args: str, at: int) -> None:
+    """reflog の時刻を固定して git を打つ (reflog は秒単位なので sleep に頼らない)。"""
+    stamp = f"{at} +0000"
+    env = {**git_scope_free_env(), "GIT_COMMITTER_DATE": stamp, "GIT_AUTHOR_DATE": stamp}
+    subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, env=env)
+
+
+def _commit(repo: Path, at: int, message: str = "c") -> None:
+    _git(repo, "commit", "-q", "--allow-empty", "-m", message, at=at)
+
+
+def _write_state(state_dir: Path, **fields: object) -> Path:
+    state_dir.mkdir(parents=True, exist_ok=True)
+    state = {"since": T0, "nudges": 0, "outbox": "/o/s1.md", "repo": "repo", **fields}
+    path = state_dir / "s1.json"
+    path.write_text(json.dumps(state))
+    return path
+
+
+def _stop_context(output: dict[str, object] | None) -> str:
+    assert output is not None
+    specific = output["hookSpecificOutput"]
+    assert isinstance(specific, dict)
+    assert specific["hookEventName"] == "Stop"
+    assert "decision" not in output
+    return str(specific["additionalContext"])
+
+
+def test_基準のあとのコミットで案内する(repo: Path, config_dir: Path, state_dir: Path) -> None:
+    _write_state(state_dir, outbox="/o/s 1.md")
+    _commit(repo, T0 + 10)
+    context = _stop_context(hook.handle_stop(_payload(repo)))
+    assert json.dumps("/o/s 1.md", ensure_ascii=False) in context
+    assert hook.SKILL_NAME in context
+    assert "知見が無ければ何もしない" in context
+
+
+def test_基準より前のコミットでは案内しない(repo: Path, config_dir: Path, state_dir: Path) -> None:
+    _commit(repo, T0 - 10)
+    _write_state(state_dir)
+    assert hook.handle_stop(_payload(repo)) is None
+
+
+def test_基準と同じ秒のコミットでは案内しない(
+    repo: Path, config_dir: Path, state_dir: Path
+) -> None:
+    _commit(repo, T0)
+    _write_state(state_dir)
+    assert hook.handle_stop(_payload(repo)) is None
+
+
+def test_ブランチの切り替えだけでは案内しない(
+    repo: Path, config_dir: Path, state_dir: Path
+) -> None:
+    _commit(repo, T0 - 10)
+    _write_state(state_dir)
+    _git(repo, "checkout", "-q", "-b", "other", at=T0 + 10)
+    _git(repo, "checkout", "-q", "-", at=T0 + 20)
+    assert hook.handle_stop(_payload(repo)) is None
+
+
+def test_amendだけでは案内しない(repo: Path, config_dir: Path, state_dir: Path) -> None:
+    _commit(repo, T0 - 10)
+    _write_state(state_dir)
+    _git(repo, "commit", "-q", "--amend", "--allow-empty", "-m", "again", at=T0 + 10)
+    assert hook.handle_stop(_payload(repo)) is None
+
+
+def test_resetだけでは案内しない(repo: Path, config_dir: Path, state_dir: Path) -> None:
+    _commit(repo, T0 - 20)
+    _commit(repo, T0 - 10)
+    _write_state(state_dir)
+    _git(repo, "reset", "-q", "--hard", "HEAD~1", at=T0 + 10)
+    assert hook.handle_stop(_payload(repo)) is None
+
+
+def test_commits_sinceは件名の接頭辞で数える(repo: Path) -> None:
+    _commit(repo, T0 + 1)
+    _git(repo, "checkout", "-q", "-b", "side", at=T0 + 2)
+    _commit(repo, T0 + 3)
+    _git(repo, "checkout", "-q", "-", at=T0 + 4)
+    _commit(repo, T0 + 5)
+    _git(repo, "merge", "-q", "--no-ff", "-m", "m", "side", at=T0 + 6)
+    _git(repo, "commit", "-q", "--amend", "--allow-empty", "-m", "a", at=T0 + 7)
+    # initial と通常のコミットを数え、checkout・merge の自動コミット・amend は数えない
+    assert sorted(hook.commits_since(repo, 0)) == [T0 + 1, T0 + 3, T0 + 5]
+    assert sorted(hook.commits_since(repo, T0 + 3)) == [T0 + 5]
+
+
+def test_衝突を解いたマージのコミットは数える(repo: Path) -> None:
+    (repo / "f").write_text("base")
+    _git(repo, "add", "f", at=T0)
+    _commit(repo, T0 + 1)
+    _git(repo, "checkout", "-q", "-b", "side", at=T0 + 2)
+    (repo / "f").write_text("side")
+    _git(repo, "commit", "-q", "-am", "side", at=T0 + 3)
+    _git(repo, "checkout", "-q", "-", at=T0 + 4)
+    (repo / "f").write_text("main")
+    _git(repo, "commit", "-q", "-am", "main", at=T0 + 5)
+    stamp = f"{T0 + 6} +0000"
+    env = {**git_scope_free_env(), "GIT_COMMITTER_DATE": stamp, "GIT_AUTHOR_DATE": stamp}
+    merge = subprocess.run(
+        ["git", "merge", "-q", "side"], cwd=repo, capture_output=True, env=env, check=False
+    )
+    assert merge.returncode != 0
+    (repo / "f").write_text("resolved")
+    _git(repo, "commit", "-q", "-a", "--no-edit", at=T0 + 7)
+    assert T0 + 7 in hook.commits_since(repo, T0 + 6)
+
+
+def test_案内したコミットでは二度案内しない(repo: Path, config_dir: Path, state_dir: Path) -> None:
+    path = _write_state(state_dir)
+    _commit(repo, T0 + 10)
+    assert hook.handle_stop(_payload(repo)) is not None
+    state = json.loads(path.read_text())
+    assert (state["since"], state["nudges"]) == (T0 + 10, 1)
+    assert hook.handle_stop(_payload(repo)) is None
+
+
+def test_新しいコミットがあれば再び案内する(repo: Path, config_dir: Path, state_dir: Path) -> None:
+    path = _write_state(state_dir)
+    _commit(repo, T0 + 10)
+    assert hook.handle_stop(_payload(repo)) is not None
+    _commit(repo, T0 + 20)
+    _commit(repo, T0 + 30)
+    assert hook.handle_stop(_payload(repo)) is not None
+    state = json.loads(path.read_text())
+    assert (state["since"], state["nudges"]) == (T0 + 30, 2)
+
+
+def test_案内はMAX_NUDGES回まで(repo: Path, config_dir: Path, state_dir: Path) -> None:
+    path = _write_state(state_dir)
+    for i in range(hook.MAX_NUDGES):
+        _commit(repo, T0 + 10 * (i + 1))
+        assert hook.handle_stop(_payload(repo)) is not None
+    _commit(repo, T0 + 1000)
+    before = path.read_bytes()
+    assert hook.handle_stop(_payload(repo)) is None
+    assert path.read_bytes() == before
+
+
+def test_stop_hook_activeでは判定せず状態も変えない(
+    repo: Path, config_dir: Path, state_dir: Path
+) -> None:
+    path = _write_state(state_dir)
+    _commit(repo, T0 + 10)
+    before = path.read_bytes()
+    assert hook.handle_stop(_payload(repo, stop_hook_active=True)) is None
+    assert path.read_bytes() == before
+
+
+def test_状態が無ければ基準を作るだけで案内しない(
+    repo: Path, config_dir: Path, state_dir: Path
+) -> None:
+    _commit(repo, T0 + 10)
+    before = int(time.time())
+    assert hook.handle_stop(_payload(repo)) is None
+    state = json.loads((state_dir / "s1.json").read_text())
+    assert before <= state["since"] <= int(time.time())
+    assert state["nudges"] == 0
+    assert state["outbox"] == str(hook.outbox_path(str(repo), "s1"))
+    assert state["repo"] == "repo"
+
+
+@pytest.mark.parametrize(
+    "content",
+    ["{not json", "[]", '"x"', json.dumps({"since": "1", "nudges": 0}), json.dumps({"nudges": 0})],
+)
+def test_壊れた状態は無いものとして基準を作り直し案内しない(
+    content: str, repo: Path, config_dir: Path, state_dir: Path
+) -> None:
+    state_dir.mkdir()
+    (state_dir / "s1.json").write_text(content)
+    _commit(repo, T0 + 10)
+    before = int(time.time())
+    assert hook.handle_stop(_payload(repo)) is None
+    state = json.loads((state_dir / "s1.json").read_text())
+    assert before <= state["since"] <= int(time.time())
+    assert state["nudges"] == 0
+
+
+def test_コミットが無いリポジトリでは案内せず状態も変えない(
+    repo: Path, config_dir: Path, state_dir: Path
+) -> None:
+    path = _write_state(state_dir)
+    before = path.read_bytes()
+    assert hook.handle_stop(_payload(repo)) is None
+    assert path.read_bytes() == before
+
+
+def test_reflogを読めなければコミットが無いものとして扱う(
+    repo: Path, config_dir: Path, state_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _write_state(state_dir)
+    _commit(repo, T0 + 10)
+    before = path.read_bytes()
+
+    def boom(*args: object, **kwargs: object) -> None:
+        raise subprocess.TimeoutExpired("git", 1)
+
+    monkeypatch.setattr(hook.subprocess, "run", boom)
+    assert hook.handle_stop(_payload(repo)) is None
+    assert path.read_bytes() == before
+
+
+def test_除外の条件ではStopも状態を読み書きしない(
+    repo: Path, config_dir: Path, state_dir: Path
+) -> None:
+    assert hook.handle_stop(_payload(repo, agent_id="a1")) is None
+    assert not state_dir.exists()
