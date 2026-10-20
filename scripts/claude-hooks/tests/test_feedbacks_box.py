@@ -174,7 +174,7 @@ def test_告知は仕分けの手順を持つ(repo: Path) -> None:
     assert f"{box}/.in-progress" in context
     assert context.index(".in-progress") < context.index("worktree")
     # 作業場所
-    assert "main から切った" in context
+    assert "から切った別の worktree" in context
     assert "worktree" in context
     assert "home/.claude/skills/" in context
     # 出口は main の in-repo Issue だけ
@@ -185,8 +185,17 @@ def test_告知は仕分けの手順を持つ(repo: Path) -> None:
     assert "漏洩スイープ" in context
     assert "元のまとめ" in context
     # 消す手順
-    assert f'`rm -- "{box}/.in-progress/<名前>"`' in context
-    assert context.index("マージ") < context.rindex("rm --")
+    step6 = context[context.index("6) ") :]
+    assert f'`rm -- "{box}/.in-progress/<名前>"`' in step6
+    assert step6.index("マージしてから") < step6.index("rm --")
+    assert "マージを終えるまで消さない" in step6
+    # rename の失敗時と、仕分け中の一覧への扱い
+    assert "無ければ作る" in context
+    assert "先に取った" in context
+    assert "ユーザーに知らせる" in context
+    # 切る元と、触らない working tree (linked worktree から起動しても本体を指す)
+    assert "`origin/main` を fetch" in context
+    assert f"本体の working tree ({repo}" in context
 
 
 def test_名前の改行は一覧の行を増やさない(repo: Path) -> None:
