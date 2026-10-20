@@ -73,6 +73,26 @@ def test_受け箱を持つリポジトリでは動かない(repo: Path, config_
     assert hook.active(_payload(repo)) is None
 
 
+def test_gitリポジトリの外では動かず告知も状態も置き場も作らない(
+    tmp_path: Path, git_location_vars_stripped: None, config_dir: Path, state_dir: Path
+) -> None:
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    assert hook.active(_payload(plain)) is None
+    assert hook.handle_session(_payload(plain)) is None
+    assert not state_dir.exists()
+    assert not (plain / ".cache").exists()
+
+
+def test_受け箱のリポジトリでは箱がまだ無くても動かない(
+    repo: Path, config_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """新しいマシンで箱を作る前に、dotfiles 自身のセッションが送る側にならない。"""
+    monkeypatch.setenv("FEEDBACKS_BOX_DIR", str(repo / "docs" / ".feedbacks-box"))
+    assert not (repo / "docs").exists()
+    assert hook.active(_payload(repo)) is None
+
+
 def test_skillが入っていなければ動かない(
     repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -490,15 +510,48 @@ def test_箱が無ければまとめを残す(tmp_path: Path) -> None:
     assert not (tmp_path / "no-box").exists()
 
 
-def test_同名のファイルが箱にあれば上書きしない(tmp_path: Path, box: Path) -> None:
+@pytest.mark.parametrize("taken_in", [".", ".in-progress"])
+def test_同名のファイルが箱か仕分け中にあれば別の名前で届ける(
+    taken_in: str, tmp_path: Path, box: Path
+) -> None:
+    """仕分け中へ移す mv が先に移したものを上書きしないよう、仕分け中の名前も避ける。"""
     outbox = tmp_path / "s1.md"
     outbox.write_text("new")
-    existing = box / "from-repo-2026-10-20-s1.md"
+    existing = box / taken_in / "from-repo-2026-10-20-s1.md"
+    existing.parent.mkdir(exist_ok=True)
     existing.write_text("old")
-    assert hook.deliver(outbox, box, "repo", TODAY) is None
+    assert hook.deliver(outbox, box, "repo", TODAY) == box / "from-repo-2026-10-20-s1-2.md"
     assert existing.read_text() == "old"
+    assert (box / "from-repo-2026-10-20-s1-2.md").read_text() == "new"
+    assert not outbox.exists()
+
+
+def test_連番を使い切ったらまとめを残し一時ファイルも残さない(
+    tmp_path: Path, box: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(hook, "_MAX_NAME_TRIES", 2)
+    for name in ("from-repo-2026-10-20-s1.md", "from-repo-2026-10-20-s1-2.md"):
+        (box / name).write_text("old")
+    outbox = tmp_path / "s1.md"
+    outbox.write_text("new")
+    assert hook.deliver(outbox, box, "repo", TODAY) is None
     assert outbox.read_text() == "new"
-    assert _boxed(box) == [existing]
+    assert [p.name for p in _boxed(box)] == [
+        "from-repo-2026-10-20-s1-2.md",
+        "from-repo-2026-10-20-s1.md",
+    ]
+
+
+def test_同じまとめを2回届けると別の名前で両方残る(tmp_path: Path, box: Path) -> None:
+    """同じ session_id で resume したセッションが、同じ日にもう一度届ける形。"""
+    outbox = tmp_path / "s1.md"
+    delivered = []
+    for body in ("first", "second"):
+        outbox.write_text(body)
+        delivered.append(hook.deliver(outbox, box, "repo", TODAY))
+    assert delivered == [box / "from-repo-2026-10-20-s1.md", box / "from-repo-2026-10-20-s1-2.md"]
+    assert [p.read_text() for p in delivered if p] == ["first", "second"]
+    assert len(_boxed(box)) == 2
 
 
 @pytest.mark.parametrize("body", [b"", b" \n\t\n"])
@@ -517,7 +570,7 @@ def test_書きかけを箱に残さない(tmp_path: Path, box: Path, monkeypatc
     def boom(*args: object, **kwargs: object) -> None:
         raise OSError("replace failed")
 
-    monkeypatch.setattr(hook.os, "replace", boom)
+    monkeypatch.setattr(hook.os, "link", boom)
     with pytest.raises(OSError):
         hook.deliver(outbox, box, "repo", TODAY)
     assert _boxed(box) == []
@@ -616,8 +669,10 @@ def _age(path: Path, seconds: int) -> None:
 
 
 def test_次のSessionStartで古い取り残しを届ける(
-    repo: Path, config_dir: Path, state_dir: Path, box: Path
+    repo: Path, config_dir: Path, state_dir: Path, box: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # UTC の0時をまたいでも名前の日付が揺れないよう、日付を固定する
+    monkeypatch.setattr(hook, "_today", lambda: TODAY)
     stale = _summary(repo, "other1")
     _age(stale, hook.RECOVER_AFTER_SECONDS + 60)
     current = _summary(repo, "s1")
@@ -625,8 +680,7 @@ def test_次のSessionStartで古い取り残しを届ける(
     assert hook.handle_session(_payload(repo)) is not None
     (delivered,) = _boxed(box)
     # 名前の repo と日付は回収する今のセッションのもの、末尾は取り残しの持ち主のもの
-    today = time.strftime("%Y-%m-%d", time.gmtime())
-    assert delivered.name == f"from-repo-{today}-other1.md"
+    assert delivered.name == f"from-repo-{TODAY}-other1.md"
     assert not stale.exists()
     # 今のセッションのまとめは古くても届けない
     assert current.exists()

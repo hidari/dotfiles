@@ -35,6 +35,12 @@ OUTBOX_RELATIVE = Path(".cache") / "feedbacks-outbox"
 # 受け箱のリポジトリルートからの位置 (feedbacks-box.py の BOX_RELATIVE と同じ約束)
 _BOX_RELATIVE = Path("docs") / ".feedbacks-box"
 
+# 受け取る側が仕分けに取りかかったものを移す先 (feedbacks-box.py の CLAIMED_DIRNAME と同じ約束)
+CLAIMED_DIRNAME = ".in-progress"
+
+# 届け先の名前が埋まっているときに連番を試す回数の上限
+_MAX_NAME_TRIES = 100
+
 SUBCOMMANDS = ("session", "stop", "end")
 
 # 1セッションで案内する回数の上限
@@ -86,11 +92,19 @@ def active(payload: dict[str, Any]) -> Path | None:
         return None
     if not skill_installed():
         return None
+    # リポジトリの外 (ホームなど) では置き場を作らない
+    top = hook_git.rev_parse(cwd, "--show-toplevel")
+    if top is None:
+        return None
+    root = Path(top)
     # 受け箱は ignore されて linked worktree には無いので、本体のチェックアウトで探す
-    main_root = hook_git.main_checkout_root(cwd) or hook_git.repo_root(cwd)
+    main_root = hook_git.main_checkout_root(cwd) or root
     if (main_root / _BOX_RELATIVE).is_dir():
         return None
-    return hook_git.repo_root(cwd)
+    # 箱をまだ作っていないマシンでも、受け箱を持つ dotfiles 自身は送る側にしない
+    if main_root.resolve() == dotfiles_box().parents[1].resolve():
+        return None
+    return root
 
 
 def state_dir() -> Path:
@@ -208,10 +222,11 @@ def _in_plain_dirs(directory: Path) -> bool:
 def deliver(outbox: Path, box: Path, repo_name: str, today: str) -> Path | None:
     """まとめを箱へ届け、成功したら元を消して届け先を返す。届けなかったときは None。
 
-    箱が無い、まとめが無い (上限以下の通常のファイル以外は無いものとして扱い、読まず消さない)、
-    届け先に同名のファイルがある場合は元を残す。
-    中身が空白だけのまとめは届ける価値が無いので、届けずに消す。
+    箱が無いか、まとめが無い (上限以下の通常のファイル以外は無いものとして扱い、読まず消さない)
+    場合は元を残す。中身が空白だけのまとめは届ける価値が無いので、届けずに消す。
     名前は受け取る側の告知がシェルのコマンドへ引用して載せるので、識別子の文字だけにする。
+    同じ session_id の resume は同じ名前を作るので、箱か仕分け中に同名があれば連番へ逃がす。
+    仕分け中の名前も避けるのは、受け取る側の mv が仕分け中のものを黙って上書きしないため。
     """
     if not (_deliverable(outbox) and box.is_dir()):
         return None
@@ -219,18 +234,25 @@ def deliver(outbox: Path, box: Path, repo_name: str, today: str) -> Path | None:
     if not body.strip():
         outbox.unlink(missing_ok=True)
         return None
-    dest = box / f"from-{repo_name}-{today}-{_sanitize(outbox.stem[:8])}.md"
-    if dest.exists():
-        return None
-    # 受け取る側が書きかけを読まないよう、箱の中の一時ファイルへ書いてから名前を付ける
-    tmp = box / f".{dest.name}.{os.getpid()}.tmp"
+    base = f"from-{repo_name}-{today}-{_sanitize(outbox.stem[:8])}"
+    # 受け取る側が書きかけを読まないよう、箱の中の一時ファイルへ書いてから名前を付ける。
+    # 名前は link で付ける。replace と違い既存のファイルを上書きせず、同名なら失敗する
+    tmp = box / f".{base}.{os.getpid()}.tmp"
     try:
         tmp.write_bytes(body)
-        os.replace(tmp, dest)
+        for n in range(1, _MAX_NAME_TRIES + 1):
+            dest = box / (f"{base}.md" if n == 1 else f"{base}-{n}.md")
+            if (box / CLAIMED_DIRNAME / dest.name).exists():
+                continue
+            try:
+                os.link(tmp, dest)
+            except FileExistsError:
+                continue
+            outbox.unlink(missing_ok=True)
+            return dest
     finally:
         tmp.unlink(missing_ok=True)
-    outbox.unlink(missing_ok=True)
-    return dest
+    return None
 
 
 def _today() -> str:
