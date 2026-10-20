@@ -19,10 +19,10 @@ ISSUE-97 の「集める側の経路が無い」を、受け箱の送る側と�
 
 - [x] spec を書いてレビューを通す
 - [x] plan を書く
-- [ ] 実装前に、Stop の additionalContext の効き方と Workflow の子の見分け方を実測する
-- [ ] 送る側: 置き場を伝え、コミットのあとに案内し、セッションの終わりに箱へ届ける hook を作る
-- [ ] 送る側: まとめの書式を持つ skill を agentic-coding-tools に作り、pin を上げる
-- [ ] 受け取る側: 箱の中身を main の in-repo Issue へ仕分ける告知と手順に変える
+- [x] 実装前に、Stop の additionalContext の効き方と Workflow の子の見分け方を実測する
+- [x] 送る側: 置き場を伝え、コミットのあとに案内し、セッションの終わりに箱へ届ける hook を作る
+- [x] 送る側: まとめの書式を持つ skill を agentic-coding-tools に作り、pin を上げる
+- [x] 受け取る側: 箱の中身を main の in-repo Issue へ仕分ける告知と手順に変える
 - [ ] 通しで確かめ、非公開の運用指示を書き換える
 
 ## 関連
