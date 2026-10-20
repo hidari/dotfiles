@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -27,6 +28,14 @@ def config_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     skill.parent.mkdir(parents=True)
     skill.write_text("x")
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(path))
+    return path
+
+
+@pytest.fixture
+def state_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """状態ファイルの置き場を tmp へ向ける。"""
+    path = tmp_path / "state"
+    monkeypatch.setenv("FEEDBACKS_OUTBOX_STATE_DIR", str(path))
     return path
 
 
@@ -133,3 +142,69 @@ def test_引数が無くても無出力でexit0(tmp_path: Path) -> None:
         check=False,
     )
     assert (result.returncode, result.stdout) == (0, "")
+
+
+def _context(output: dict[str, object] | None) -> str:
+    assert output is not None
+    specific = output["hookSpecificOutput"]
+    assert isinstance(specific, dict)
+    assert specific["hookEventName"] == "SessionStart"
+    return str(specific["additionalContext"])
+
+
+def test_置き場とskill名を告げる(repo: Path, config_dir: Path, state_dir: Path) -> None:
+    context = _context(hook.handle_session(_payload(repo)))
+    assert json.dumps(str(hook.outbox_path(str(repo), "s1")), ensure_ascii=False) in context
+    assert hook.SKILL_NAME in context
+
+
+def test_基準時刻を記録する(repo: Path, config_dir: Path, state_dir: Path) -> None:
+    before = int(time.time())
+    hook.handle_session(_payload(repo))
+    after = int(time.time())
+    state = json.loads((state_dir / "s1.json").read_text())
+    assert before <= state["since"] <= after
+    assert state["nudges"] == 0
+    assert state["outbox"] == str(hook.outbox_path(str(repo), "s1"))
+    assert state["repo"] == "repo"
+    assert list(state_dir.iterdir()) == [state_dir / "s1.json"]
+
+
+def test_compactやresumeで再実行しても基準時刻を巻き戻さない(
+    repo: Path, config_dir: Path, state_dir: Path
+) -> None:
+    state_dir.mkdir()
+    existing = {"since": 1, "nudges": 2, "outbox": "/x.md", "repo": "old"}
+    (state_dir / "s1.json").write_text(json.dumps(existing))
+    assert hook.handle_session(_payload(repo)) is not None
+    assert json.loads((state_dir / "s1.json").read_text()) == existing
+
+
+def test_除外の条件では何も告げず状態も作らない(
+    repo: Path, config_dir: Path, state_dir: Path
+) -> None:
+    assert hook.handle_session(_payload(repo, agent_id="a1")) is None
+    assert not state_dir.exists()
+
+
+def test_受け箱を持つリポジトリのlinked_worktreeでも告げず状態も作らない(
+    repo: Path, config_dir: Path, state_dir: Path, tmp_path: Path
+) -> None:
+    (repo / "docs" / ".feedbacks-box").mkdir(parents=True)
+    env = git_scope_free_env()
+    for args in (
+        ["commit", "-q", "--allow-empty", "-m", "x"],
+        ["worktree", "add", "-q", str(tmp_path / "wt")],
+    ):
+        subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, env=env)
+    assert not (tmp_path / "wt" / "docs" / ".feedbacks-box").exists()
+    assert hook.handle_session(_payload(tmp_path / "wt")) is None
+    assert not state_dir.exists()
+
+
+def test_repo名は区切り文字を潰して記録する(
+    tmp_path: Path, git_location_vars_stripped: None, config_dir: Path, state_dir: Path
+) -> None:
+    odd = make_git_repo(tmp_path / "my repo.x")
+    hook.handle_session(_payload(odd))
+    assert json.loads((state_dir / "s1.json").read_text())["repo"] == "my_repo_x"
