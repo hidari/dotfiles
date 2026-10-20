@@ -132,6 +132,13 @@ def test_dotfilesの箱は自分の実体から導く(monkeypatch: pytest.Monkey
     assert hook.dotfiles_box() == REPO_ROOT / "docs" / ".feedbacks-box"
 
 
+def test_受け取る側のhookと箱の位置と仕分け中の名前の約束が等しい() -> None:
+    """送る側は受け取る側を import できないので、同じ約束を定数で持つ。"""
+    box_hook = load_hook("feedbacks-box.py")
+    assert hook._BOX_RELATIVE == box_hook.BOX_RELATIVE
+    assert hook.CLAIMED_DIRNAME == box_hook.CLAIMED_DIRNAME
+
+
 def test_環境変数があれば箱の位置を差し替える(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -325,6 +332,27 @@ def test_commits_sinceは件名の接頭辞で数える(repo: Path) -> None:
     # initial と通常のコミットを数え、checkout・merge の自動コミット・amend は数えない
     assert sorted(hook.commits_since(repo, 0)) == [T0 + 1, T0 + 3, T0 + 5]
     assert sorted(hook.commits_since(repo, T0 + 3)) == [T0 + 5]
+
+
+def test_reflogは新しい側から上限の件数だけ読む(repo: Path) -> None:
+    """Stop のたびに reflog を全件読まない。読むのは新しい側なので直近のコミットは落ちない。"""
+    _commit(repo, T0)
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+        env=git_scope_free_env(),
+    ).stdout.strip()
+    # git を上限+50回打つ代わりに、同じコミットを指す reflog の行を足す
+    count = hook.REFLOG_LIMIT + 50
+    with (repo / ".git" / "logs" / "HEAD").open("a") as log:
+        for i in range(1, count + 1):
+            log.write(f"{head} {head} t <> {T0 + i} +0000\tcommit: c{i}\n")
+    times = hook.commits_since(repo, 0)
+    assert len(times) == hook.REFLOG_LIMIT
+    assert max(times) == T0 + count
 
 
 def test_衝突を解いたマージのコミットは数える(repo: Path) -> None:

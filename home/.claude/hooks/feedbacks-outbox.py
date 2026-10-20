@@ -56,6 +56,9 @@ MAX_SUMMARY_BYTES = 1_048_576
 # コミットを作った reflog の件名。amend / checkout / reset / pull / rebase / fast-forward は含めない
 _COMMIT_SUBJECTS = ("commit:", "commit (initial):", "commit (merge):")
 
+# Stop ごとに読む reflog の件数の上限 (新しい側から)
+REFLOG_LIMIT = 200
+
 
 def _sanitize(name: str) -> str:
     """ファイル名に使う識別子の区切り文字等を潰す (handoff-sentinel と同じ文字集合)。"""
@@ -156,6 +159,8 @@ def commits_since(repo_root: Path, since: int) -> list[int]:
                 str(repo_root),
                 "log",
                 "-g",
+                "-n",
+                str(REFLOG_LIMIT),
                 "--date=unix",
                 "--format=%gd%x09%gs",
                 "HEAD",
