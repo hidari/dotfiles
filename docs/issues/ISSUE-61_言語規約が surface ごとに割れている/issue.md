@@ -83,15 +83,15 @@ PR #183 のボーイスカウト掃きで見つけた。新規に足した `scri
 
 ## テスト名の区切り (2026-10-20)
 
-日本語を許した pytest のテスト名で、ASCII の語の前後を `_` で区切る書き方 (`test_symlink_の箱は見ない`) と区切らない書き方 (`test_sidechainのassistantは無視される`) が並んでいる。PR 270 のマージ前のゲートで、ボーイスカウトの観点が新しいテストファイルの 44 件を隣のファイルに合わせて改名するよう提案したが、揃える先の書き方が決まっていないので採らなかった。
+日本語を許した pytest のテスト名で、ASCII の語の前後を `_` で区切る書き方 (`test_symlink_の箱は見ない`) と区切らない書き方 (`test_sidechainのassistantは無視される`) が並んでいる。PR 270 のマージ前のゲートで、ボーイスカウトの観点が新しいテストファイルの44件を隣のファイルに合わせて改名するよう提案したが、揃える先の書き方が決まっていないので採らなかった。
 
-追跡下の pytest のテストファイル 46 本、925 件を数えた。判定は「ASCII の英数字と非 ASCII の文字が `_` を挟まずに隣り合う箇所が 1 つでもあるか」による機械的なもの。
+追跡下の pytest のテストファイル46本、925件を数えた。判定は「ASCII の英数字と非 ASCII の文字が `_` を挟まずに隣り合う箇所が1つでもあるか」による機械的なもの。
 
-- 両方の文字を含む名前は 197 件で、区切る書き方が 78 件、区切らない書き方が 119 件
-- ファイルの中ではほぼどちらかに揃っている。両方が混ざるファイルは `test_handoff_sentinel.py` (区切る 1 件、区切らない 65 件) だけ
-- 区切らない書き方は `scripts/claude-hooks/tests` の 4 本 (`test_feedbacks_outbox.py`、`test_handoff_sentinel.py`、`test_instructions_loaded_log.py`、`test_private_ops_hook.py`) にある。区切る書き方は同じディレクトリの残り 4 本と `scripts/config-guard/tests` の 3 本にある
+- 両方の文字を含む名前は197件で、区切る書き方が78件、区切らない書き方が119件
+- ファイルの中ではほぼどちらかに揃っている。両方が混ざるファイルは `test_handoff_sentinel.py` (区切る1件、区切らない65件) だけ
+- 区切らない書き方は `scripts/claude-hooks/tests` の4本 (`test_feedbacks_outbox.py`、`test_handoff_sentinel.py`、`test_instructions_loaded_log.py`、`test_private_ops_hook.py`) にある。区切る書き方は同じディレクトリの残り4本と `scripts/config-guard/tests` の3本にある
 
-2026-10-02 の裁定は機械検査を付けないと決めているので、どちらかに決めても守るのはレビューだけになる。
+2026-10-02の裁定は機械検査を付けないと決めているので、どちらかに決めても守るのはレビューだけになる。
 
 ## 関連
 

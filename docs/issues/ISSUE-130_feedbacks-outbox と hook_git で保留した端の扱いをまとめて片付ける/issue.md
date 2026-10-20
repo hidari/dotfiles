@@ -8,13 +8,13 @@ status: open
 
 ISSUE-126 で入れた送る側の hook (`home/.claude/hooks/feedbacks-outbox.py`) の最終レビューで、直さずに保留した小問題が5件あった。保留の判断はどれも「正しさへの影響が小さいか、この PR の範囲外」で、別の作業として残した。
 
-保留を記録した台帳は実装の worktree の中にあり、worktree と一緒に消えた。下の各項目の判断の文面は消える前に会話へ写したものから取った。submodule の件だけは台帳に詳細があって写していなかったので、2026-10-20 に挙動を測り直して書いた。
+保留を記録した台帳は実装の worktree の中にあり、worktree と一緒に消えた。下の各項目の判断の文面は消える前に会話へ写したものから取った。submodule の件だけは台帳に詳細があって写していなかったので、2026-10-20に挙動を測り直して書いた。
 
 ### 本体の位置が linked worktree の位置にずれる
 
 `hook_git.main_checkout_root` は、common dir が `.git` という名前でないとき (submodule の `.git/modules/<name>` と `--separate-git-dir`) に `None` を返す。この挙動はテストが pin している。feedbacks-outbox はそのとき作業ツリーのルートへ落とすので、こうした repo の linked worktree では、本体ではなく worktree の位置と名前を使う。
 
-2026-10-20 に、使い捨てのリポジトリで `_active_roots` が返す本体の名前を測った。
+2026-10-20に、使い捨てのリポジトリで `_active_roots` が返す本体の名前を測った。
 
 - 対照の普通のリポジトリ: 本体からも linked worktree からも本体の名前になる
 - `--separate-git-dir` のリポジトリ: 本体では本体の名前、linked worktree では worktree のディレクトリ名になる

@@ -160,7 +160,13 @@ def test_git_は成功した問い合わせの標準出力を加工せずに返�
 ) -> None:
     """行の区切りを読む呼び出し側があるので、rev_parse と違って空白を落とさない。"""
     repo = make_git_repo(tmp_path / "myrepo")
-    _commit_and_add_worktree(repo, tmp_path / "wt")
+    subprocess.run(
+        ["git", "commit", "-q", "--allow-empty", "-m", "init"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        env=git_scope_free_env(),
+    )
 
     assert hook_git.git(repo, "log", "-1", "--format=%s") == "init\n"
 

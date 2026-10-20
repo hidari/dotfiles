@@ -420,15 +420,16 @@ def test_stop_hook_activeでは判定せず状態も変えない(
 def test_案内の上限と2回目の_Stop_では_git_を起動しない(
     repo: Path, config_dir: Path, state_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Stop は毎ターン発火するので、結論が決まっている枝で git を起動しないことを回数で見る
+    # Stop は毎ターン発火するので、結論が決まっている枝で git を起動しないことを回数で見る。
+    # git の起動はすべて hook_git.git を通る (rev_parse もその上にある) ので、そこで数える
     calls: list[tuple[object, ...]] = []
-    rev_parse = hook.hook_git.rev_parse
+    git = hook.hook_git.git
 
-    def counting(*args: object) -> object:
+    def counting(*args: object, **kwargs: object) -> object:
         calls.append(args)
-        return rev_parse(*args)
+        return git(*args, **kwargs)
 
-    monkeypatch.setattr(hook.hook_git, "rev_parse", counting)
+    monkeypatch.setattr(hook.hook_git, "git", counting)
     _commit(repo, T0 + 10)
     # 2回目の Stop は上限の判定を通る状態で呼び、上限の枝に先取りされないようにする
     _write_state(state_dir, nudges=0)
