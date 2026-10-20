@@ -374,11 +374,9 @@ TWO_MESSAGES: dict[str, object] = {
 
 
 def single_message(occupied: int) -> dict[str, object]:
-    """advisor を挟まない応答。占有量 (入力の3フィールドの和) がちょうど occupied になる。"""
-    return {
-        **counts(2, occupied - 2, 0, 700),
-        "iterations": [stage("message", 2, occupied - 2, 0, 700)],
-    }
+    """advisor を挟まない応答。トップレベルと段のどちらで数えても占有量が occupied になる。"""
+    fields = counts(0, occupied, 0, 0)
+    return {**fields, "iterations": [{"type": "message", **fields}]}
 
 
 # 段を使えないときに戻る先。どの段の値とも違う合計 (450) にして、どちらを数えたかを区別する
@@ -438,6 +436,11 @@ class TestContextEstimate:
     def test_advisorを挟んで誤って鳴った応答は既定のしきい値で鳴らない(
         self, tmp_path: Path
     ) -> None:
+        # 段 (465439) とトップレベル (928518) が既定の境界をまたぐときだけ、段の選び方を
+        # 見分けられる。またがなくなると選び方を壊しても緑のままになるので、既定を動かしたら止める
+        hook = load_hook(HOOK.name)
+        boundary = hook.DEFAULT_CONTEXT_WINDOW_TOKENS * hook.DEFAULT_CONTEXT_THRESHOLD_PCT
+        assert 465439 * 100 < boundary <= 928518 * 100, "検体が既定の境界をまたいでいない"
         assert not fires_with_defaults(tmp_path, ADVISOR_BETWEEN_MESSAGES)
 
     def test_既定のしきい値は1M窓の65パーセントちょうどで鳴る(self, tmp_path: Path) -> None:
