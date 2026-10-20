@@ -6,8 +6,8 @@ SessionStart / Stop / SessionEnd の処理へ分ける。
 SessionEnd (end) は持ち時間が短いので git を起動せず、状態ファイルの指すまとめを届けるだけ。
 
 動かない場合: subagent (agent_id を持つ payload)、cwd が無いか実在しない、
-cwd のリポジトリが受け箱 (main checkout の docs/.feedbacks-box/) を持つ、
-skill (cross-repo-learnings) が入っていない。
+cwd が git リポジトリの外、cwd のリポジトリが受け箱 (main checkout の docs/.feedbacks-box/) を
+持つか dotfiles 自身である、skill (cross-repo-learnings) が入っていない。
 
 箱の位置は絶対パスを設定へ書かず、この hook の実体の位置から導く。
 hook として呼ばれる経路は fail-safe (無出力 + exit 0)。
