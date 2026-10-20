@@ -44,6 +44,9 @@ MAX_NUDGES = 3
 # 同じリポジトリで並行して生きているセッションのまとめを、後から起動したセッションが奪わないため
 RECOVER_AFTER_SECONDS = 86400
 
+# 届けるまとめの大きさの上限 (バイト)。超えたものは読まず届けず消さない
+MAX_SUMMARY_BYTES = 1_048_576
+
 # コミットを作った reflog の件名。amend / checkout / reset / pull / rebase / fast-forward は含めない
 _COMMIT_SUBJECTS = ("commit:", "commit (initial):", "commit (merge):")
 
@@ -184,16 +187,17 @@ def notice(outbox: Path) -> str:
     )
 
 
-def _is_regular_file(path: Path) -> bool:
-    """symlink を辿らず、通常のファイルであるか。
+def _deliverable(path: Path) -> bool:
+    """symlink を辿らず、上限以下の大きさの通常のファイルであるか。
 
-    リンク先の私的ファイルを箱へ複製しないため、また FIFO などの read が戻らない
-    ファイルで hook を固めないため。
+    リンク先の私的ファイルを箱へ複製しないため、FIFO などの read が戻らないファイルで
+    hook を固めないため、大きなファイルを丸ごと読まないため。
     """
     try:
-        return stat.S_ISREG(os.lstat(path).st_mode)
+        st = os.lstat(path)
     except OSError:
         return False
+    return stat.S_ISREG(st.st_mode) and st.st_size <= MAX_SUMMARY_BYTES
 
 
 def _in_plain_dirs(directory: Path) -> bool:
@@ -204,17 +208,18 @@ def _in_plain_dirs(directory: Path) -> bool:
 def deliver(outbox: Path, box: Path, repo_name: str, today: str) -> Path | None:
     """まとめを箱へ届け、成功したら元を消して届け先を返す。届けなかったときは None。
 
-    箱が無い、まとめが無い (通常のファイル以外は無いものとして扱い、読まず消さない)、
+    箱が無い、まとめが無い (上限以下の通常のファイル以外は無いものとして扱い、読まず消さない)、
     届け先に同名のファイルがある場合は元を残す。
     中身が空白だけのまとめは届ける価値が無いので、届けずに消す。
+    名前は受け取る側の告知がシェルのコマンドへ引用して載せるので、識別子の文字だけにする。
     """
-    if not (_is_regular_file(outbox) and box.is_dir()):
+    if not (_deliverable(outbox) and box.is_dir()):
         return None
     body = outbox.read_bytes()
     if not body.strip():
         outbox.unlink(missing_ok=True)
         return None
-    dest = box / f"from-{repo_name}-{today}-{outbox.stem[:8]}.md"
+    dest = box / f"from-{repo_name}-{today}-{_sanitize(outbox.stem[:8])}.md"
     if dest.exists():
         return None
     # 受け取る側が書きかけを読まないよう、箱の中の一時ファイルへ書いてから名前を付ける
@@ -232,15 +237,52 @@ def _today() -> str:
     return time.strftime("%Y-%m-%d", time.gmtime())
 
 
+def _tracked_names(directory: Path) -> set[bytes] | None:
+    """directory の直下で git の追跡下にある名前。確かめられなければ None。
+
+    名前の復号に失敗して例外で告知ごと落ちないよう、バイト列のまま比べる。
+    """
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(directory), "ls-files", "-z", "--", "."],
+            capture_output=True,
+            timeout=hook_git.RESOLVE_TIMEOUT,
+            check=False,
+            env=hook_git.isolated_env(),
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    return set(result.stdout.split(b"\0"))
+
+
 def recover_stale(outbox: Path, box: Path, repo_name: str) -> None:
-    """同じリポジトリの置き場にある、他のセッションの古いまとめを箱へ届ける。"""
+    """同じリポジトリの置き場にある、他のセッションの古いまとめを箱へ届ける。
+
+    回収は持ち主の居ないファイルを動かすので、hook が作る形 (識別子の stem) のものだけを
+    対象にし、追跡下のものは動かさない。追跡下を確かめられなければ回収しない。
+    ドットで始まる名前は `_sanitize` で形が変わるので、形の検査で一緒に除かれる。
+    """
     if not _in_plain_dirs(outbox.parent):
+        return
+    candidates = [
+        path
+        for path in sorted(outbox.parent.glob("*.md"))
+        if path != outbox and _sanitize(path.stem) == path.stem
+    ]
+    if not candidates:
+        return
+    tracked = _tracked_names(outbox.parent)
+    if tracked is None:
         return
     cutoff = time.time() - RECOVER_AFTER_SECONDS
     today = _today()
-    for path in sorted(outbox.parent.glob("*.md")):
+    for path in candidates:
+        if os.fsencode(path.name) in tracked:
+            continue
         try:
-            if path != outbox and path.stat().st_mtime <= cutoff:
+            if path.stat().st_mtime <= cutoff:
                 deliver(path, box, repo_name, today)
         except OSError:
             # 1件の失敗で SessionStart の告知まで止めない。次の機会に回収する

@@ -743,6 +743,74 @@ def test_SessionEndのまとめがsymlinkなら届けず消さない(
     assert private.read_text() == "secret"
 
 
+def test_届け先の名前は識別子の区切り文字を潰す(tmp_path: Path, box: Path) -> None:
+    outbox = tmp_path / "`reboot`x.md"
+    outbox.write_text("x")
+    assert hook.deliver(outbox, box, "repo", TODAY) == box / "from-repo-2026-10-20-_reboot_.md"
+
+
+@pytest.mark.parametrize("name", ["`reboot`x.md", ".h.md", "a b.md", "$(x).md"])
+def test_回収は識別子の形でない名前を届けず消さない(
+    name: str, repo: Path, config_dir: Path, state_dir: Path, box: Path
+) -> None:
+    stale = hook.outbox_path(str(repo), "s1").parent / name
+    stale.parent.mkdir(parents=True)
+    stale.write_text("x")
+    _age(stale, hook.RECOVER_AFTER_SECONDS + 60)
+    assert hook.handle_session(_payload(repo)) is not None
+    assert stale.exists()
+    assert _boxed(box) == []
+
+
+def test_回収は追跡下のまとめを届けず作業ツリーにも残す(
+    repo: Path, config_dir: Path, state_dir: Path, box: Path
+) -> None:
+    tracked = _summary(repo, "other1")
+    # 利用者の global gitignore が .cache を除くことがあるので -f で追跡下へ入れる
+    _git(repo, "add", "-f", str(tracked), at=T0)
+    _commit(repo, T0 + 1)
+    _age(tracked, hook.RECOVER_AFTER_SECONDS + 60)
+    assert hook.handle_session(_payload(repo)) is not None
+    assert _boxed(box) == []
+    assert tracked.exists()
+    status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+        env=git_scope_free_env(),
+    )
+    assert status.stdout == ""
+
+
+def test_追跡下を確かめられなければ回収しない(tmp_path: Path, box: Path) -> None:
+    # git リポジトリの外の置き場では ls-files が失敗する
+    outbox_dir = tmp_path / "plain" / "feedbacks-outbox"
+    outbox_dir.mkdir(parents=True)
+    stale = outbox_dir / "other1.md"
+    stale.write_text("x")
+    _age(stale, hook.RECOVER_AFTER_SECONDS + 60)
+    hook.recover_stale(outbox_dir / "s1.md", box, "repo")
+    assert stale.exists()
+    assert _boxed(box) == []
+
+
+@pytest.mark.parametrize(
+    ("size", "delivered"),
+    [(hook.MAX_SUMMARY_BYTES, True), (hook.MAX_SUMMARY_BYTES + 1, False)],
+)
+def test_上限を超える大きさのまとめは届けず消さない(
+    size: int, delivered: bool, tmp_path: Path, box: Path
+) -> None:
+    outbox = tmp_path / "s1.md"
+    outbox.write_bytes(b"x")
+    os.truncate(outbox, size)
+    result = hook.deliver(outbox, box, "repo", TODAY)
+    assert (result is not None, outbox.exists()) == (delivered, not delivered)
+    assert len(_boxed(box)) == int(delivered)
+
+
 @pytest.fixture
 def watchdog() -> Iterator[None]:
     """FIFO を読んで固まる実装を、ハングではなくテストの失敗にする。"""
