@@ -372,11 +372,12 @@ TWO_MESSAGES: dict[str, object] = {
     ],
 }
 
-# advisor を挟まない、本物のしきい値超えの実測 (2026-09-25)
-SINGLE_MESSAGE: dict[str, object] = {
-    **counts(2, 496425, 5025, 705),
-    "iterations": [stage("message", 2, 496425, 5025, 705)],
-}
+
+def single_message(occupied: int) -> dict[str, object]:
+    """advisor を挟まない応答。トップレベルと段のどちらで数えても占有量が occupied になる。"""
+    fields = counts(0, occupied, 0, 0)
+    return {**fields, "iterations": [{"type": "message", **fields}]}
+
 
 # 段を使えないときに戻る先。どの段の値とも違う合計 (450) にして、どちらを数えたかを区別する
 TOP_LEVEL = counts(100, 300, 50, 7)
@@ -435,12 +436,18 @@ class TestContextEstimate:
     def test_advisorを挟んで誤って鳴った応答は既定のしきい値で鳴らない(
         self, tmp_path: Path
     ) -> None:
+        # 段 (465439) とトップレベル (928518) が既定の境界をまたぐときだけ、段の選び方を
+        # 見分けられる。またがなくなると選び方を壊しても緑のままになるので、既定を動かしたら止める
+        hook = load_hook(HOOK.name)
+        boundary = hook.DEFAULT_CONTEXT_WINDOW_TOKENS * hook.DEFAULT_CONTEXT_THRESHOLD_PCT
+        assert 465439 * 100 < boundary <= 928518 * 100, "検体が既定の境界をまたいでいない"
         assert not fires_with_defaults(tmp_path, ADVISOR_BETWEEN_MESSAGES)
 
-    def test_advisorを挟まない本物のしきい値超えは既定のしきい値で鳴る(
-        self, tmp_path: Path
-    ) -> None:
-        assert fires_with_defaults(tmp_path, SINGLE_MESSAGE)
+    def test_既定のしきい値は1M窓の65パーセントちょうどで鳴る(self, tmp_path: Path) -> None:
+        assert fires_with_defaults(tmp_path, single_message(650_000))
+
+    def test_既定のしきい値の1つ手前では鳴らない(self, tmp_path: Path) -> None:
+        assert not fires_with_defaults(tmp_path, single_message(649_999))
 
     def test_iterationsが無ければトップレベルの合計を使う(self, tmp_path: Path) -> None:
         assert_estimate(tmp_path, TOP_LEVEL, 450)
