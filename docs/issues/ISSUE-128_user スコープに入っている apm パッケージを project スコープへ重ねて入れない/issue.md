@@ -8,7 +8,7 @@ status: open
 
 2026-10-20 に他リポジトリのセッションから届いた報告。security-audit skill を試用するとき、dotfiles の apm で user スコープへ入っている同じコミットを、そのリポジトリの project スコープへも apm install した。入れる前に user スコープを確かめなかった。報告元では取り下げてある (ISSUE-114 の「full audit の試用記録」節と同じ試用)。
 
-報告者の提案は、apm install の前に user スコープの lock (`home/apm.lock.yaml`) に同じ `repo_url` があるかを見る門を置くこと。
+報告者の提案は、apm install の前に user スコープの lock (`home/apm.lock.yaml`) に同じ `repo_url` があるかを確かめる検査を置くこと。
 
 既存の `home/.claude/hooks/apm-install-guard.py` と `scripts/apm-guard/` の shim は、ツリーが汚れているときに apm の書き込みを止めるもので、重ねて入れることは見ていない。
 
