@@ -248,4 +248,10 @@ agentic-coding-tools のリポジトリで、そのリポジトリの CLAUDE.md 
 
 ## 実測の記録
 
-(Task 0 で埋める)
+2026-10-20、Claude Code 2.1.304。`.cache/` に作った使い捨てのリポジトリの `.claude/settings.local.json` にだけプローブの hook を配線し、`claude -p` の別プロセスで観測した。
+
+- Step 1: Stop の hook が `hookSpecificOutput.additionalContext` を返すと会話が続き、モデルは文面に従った。2回目の Stop は `stop_hook_active: true` で来た。transcript には `hook_success` と `hook_additional_context` の attachment として残り、`decision: block` を返したときの `hook_blocking_error` とは別の種類で記録される
+- Step 2: 同じ Stop に `decision: block` の hook と additionalContext の hook を並べると、両方の文面が同じ継続の中で届き、モデルは両方に従った
+- Step 3: Workflow の子は同じプロセスの subagent として動き、Stop ではなく SubagentStop を発火させた。payload は `agent_id` と `agent_type: "workflow-subagent"` を持つ。Stop は親のセッション (`agent_id` 無し) でだけ発火した。`agent_id` のガードで足り、Task 3 の除外条件に足すものは無い
+- Step 4: SessionEnd の payload は `session_id`、`cwd`、`transcript_path`、`reason` を持つ
+- Stop の payload は `background_tasks` を持つ。バックグラウンドの作業が走っている途中でも Stop は発火する
