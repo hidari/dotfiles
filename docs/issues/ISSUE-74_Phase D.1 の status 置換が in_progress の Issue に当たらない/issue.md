@@ -30,8 +30,8 @@ D.4 の理由文も同じ前提を再掲している。
 
 ## タスク
 
-- [ ] Phase D.1 から literal 前提を外す。`status` 行が `open` と `in_progress` のどちらでもありうることを書き、literal 置換ではなく「`status` 行を `closed` にする」形の指示にする
-- [ ] Phase D.4 の理由文を `open` 固定ではなく「編集前の値のまま `closed/` 配下に入る」形へ直す。あわせて、その状態が検索手順のどの経路からも異常として現れないことを述べる
+- [x] Phase D.1 から literal 前提を外す。`status` 行が `open` と `in_progress` のどちらでもありうることを書き、literal 置換ではなく「`status` 行を `closed` にする」形の指示にする
+- [ ] Phase D.4 の理由文を `open` 固定ではなく「編集前の値のまま `closed/` 配下に入る」形へ直す。あわせて、その状態が検索手順のどの経路からも異常として現れないことを述べる。前半は agentic-coding-tools v0.19.0 で直った (「元の status の値のまま closed/ 配下に入り、配置と status が食い違う」)。後半は残っている
 - [ ] 他に `status: open` を literal で前提している箇所が無いか skill 全体を走査する。「検索手順」節の grep と「Red flags」の表が少なくとも該当する
 
 ## 関連
