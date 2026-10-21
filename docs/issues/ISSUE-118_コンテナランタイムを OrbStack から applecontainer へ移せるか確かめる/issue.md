@@ -6,9 +6,9 @@ status: open
 
 ## 背景
 
-開発機のコンテナランタイムは OrbStack で、`/usr/local/bin/docker` は OrbStack.app 内の docker への symlink になっている。apple/container も pkg インストーラで入っているが、版は1.0.0のまま止まっている。どちらも Brewfile の外にある。
+起票した時点 (2026-10-10) では、開発機のコンテナランタイムは OrbStack で、`/usr/local/bin/docker` は OrbStack.app 内の docker への symlink になっていた。apple/container も pkg インストーラで入っていたが、版は1.0.0のまま止まっていた。どちらも Brewfile の外にあった。その後 container は brew 版へ寄せて Brewfile に載せた (「進め方の方針」節)。
 
-以前 apple/container へ寄せようとしたときは `docker compose` に相当するものが無く、compose 互換のツールを別リポジトリで自作して試した。その後の状況を2026-10-10時点で調べ直した結果が下の節で、移行するかどうかはまだ決めていない。
+以前 apple/container へ寄せようとしたときは `docker compose` に相当するものが無く、compose 互換のツールを別リポジトリで自作して試した。その後の状況を2026-10-10時点で調べ直した結果が下の節にある。そのあと Docker.app と OrbStack は外す方針に決めたが、外すのは試して動いてからで、移行の可否はまだ確かめている途中である。
 
 ## 調査結果 (2026-10-10時点のスナップショット)
 
@@ -101,7 +101,7 @@ Docker.app と OrbStack は外す (2026-10-10にユーザーが決定)。OrbStac
 
 ## 関連
 
-- ISSUE-95 (Brewfile の射程が実機とずれている。OrbStack も container も Brewfile の外にある)
+- ISSUE-95 (Brewfile の射程が実機とずれている。OrbStack は Brewfile の外にある)
 - apple/container#239、apple/container#2123 (compose を本体に入れない方針)
 - apple/container#66 (Docker Engine API を提供しない)
 - apple/container#141、apple/container#1809、apple/container#2142 (本体に欠けたままの機能)
