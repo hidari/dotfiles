@@ -89,14 +89,14 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | # | マイルストーン | 指す Issue |
 | --- | --- | --- |
 | M1 | Issue 維持コストの原因を消す | Issue 43、ISSUE-52、ISSUE-74 |
-| M2 | 検査を配布先で走る状態にする | ISSUE-53、ISSUE-72、ISSUE-86、ISSUE-97、ISSUE-101、agentic-coding-tools の ISSUE-32 |
+| M2 | 検査を配布先で走る状態にする | ISSUE-53、ISSUE-72、ISSUE-86、ISSUE-97、ISSUE-101、ISSUE-121、agentic-coding-tools の ISSUE-32 |
 | M3 | skill バンドルの二重登録を止める | Issue 40 |
 | M4 | PUBLIC 露出の scrub | Issue 21、Issue 29、ISSUE-87 |
-| M5 | 静的検査の基盤を寄せ射程の穴を塞ぐ | Issue 39、Issue 30、ISSUE-57、ISSUE-60、Issue 41、ISSUE-47、Issue 17、Issue 18、ISSUE-75、ISSUE-90、ISSUE-94、ISSUE-98、ISSUE-104、ISSUE-110、ISSUE-112 |
+| M5 | 静的検査の基盤を寄せ射程の穴を塞ぐ | Issue 39、Issue 30、ISSUE-57、ISSUE-60、Issue 41、ISSUE-47、Issue 17、Issue 18、ISSUE-75、ISSUE-90、ISSUE-94、ISSUE-98、ISSUE-104、ISSUE-110、ISSUE-112、ISSUE-122 |
 | M6 | winvm の実装品質 | 上流の winvm 系 Issue |
 | M7 | 環境とテスト網の個別 | 下の細分表 |
 | M8 | CI の必須チェックを実効化する | ISSUE-50 |
-| M9 | フックの共通基盤とガードの穴 | Issue 26、ISSUE-58、ISSUE-67、ISSUE-71、ISSUE-66、ISSUE-83、ISSUE-84 |
+| M9 | フックの共通基盤とガードの穴 | Issue 26、ISSUE-58、ISSUE-67、ISSUE-71、ISSUE-66、ISSUE-83、ISSUE-84、ISSUE-119、ISSUE-124 |
 | M10 | 規範層の構造を直す | ISSUE-48、ISSUE-61、ISSUE-88、ISSUE-100、ISSUE-108 |
 | M11 | セッションの取り違えを検出する | ISSUE-78、ISSUE-82、ISSUE-91 |
 
@@ -112,7 +112,7 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | CI の安定性 | Issue 37、Issue 38 |
 | Raycast | Issue 22、Issue 23 |
 | PowerShell | Issue 27、Issue 28 |
-| 単独 | Issue 31、Issue 33、ISSUE-51、ISSUE-95、ISSUE-109、ISSUE-111 |
+| 単独 | Issue 31、Issue 33、ISSUE-51、ISSUE-95、ISSUE-109、ISSUE-114、ISSUE-116、ISSUE-123、ISSUE-125 |
 
 ### 数え方
 
@@ -150,6 +150,18 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
   `git show <ref>:<path>` で読む。数えた SHA は「件数の推移」節に残す。並行するセッションが上流の
   作業ツリーを feature ブランチへ切り替えていると、その枝でだけ status が動いた Issue の分がずれる
   (2026-09-17 に実例がある)
+
+### 割り当ての検算 (2026-10-20、ISSUE-111 のクローズと、未割り当て8件の割り当ての後)
+
+dotfiles の active な Issue は68件 (open が66件、in_progress が2件) で、その全件がいずれかのマイルストーンへ入ることを、この変更の tree で数えて確かめた。M1 は3件、M2 は6件 (dotfiles 側のみ)、M3 は1件、M4 は3件、M5 は16件、M6 は0件 (上流のみ)、M7 は20件、M8 は1件、M9 は9件、M10 は5件、M11 は3件で、この Issue 自身の1件と合わせて68件になる。表の腐りは0件、未割り当てはこの Issue 自身の1件だけだった。
+
+下の10-02の検算からの動きは次のとおり。10-02のあとに起票された8件が表に入っていなかった (未割り当て8件)。
+
+- ISSUE-111 を M7 の単独から外した。この変更で closed になる
+- ISSUE-119 (handoff-sentinel の破損判定) と ISSUE-124 (apm-install-guard の起動失敗と誤検知) を M9 へ入れた
+- ISSUE-121 (issue-id.py の接頭辞と走査の除外) を M2 へ入れた。旧記法のリポジトリでも検査を走らせるための変更にあたる
+- ISSUE-122 (skill 一覧の予算超過) を M5 へ入れた。同じ常時ロード層の検知を扱う ISSUE-90 と並べる
+- ISSUE-114、ISSUE-116、ISSUE-123、ISSUE-125 を M7 の単独へ入れた。既存の群に主題が重なる Issue が無い
 
 ### 割り当ての検算 (2026-10-02、判断待ち18件の裁定と ISSUE-85・96・99 のクローズの後)
 

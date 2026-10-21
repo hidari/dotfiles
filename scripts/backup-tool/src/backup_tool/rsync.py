@@ -12,7 +12,8 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-# backup.sh:280 で定義されていたフィルタ正規表現を 1:1 で移植。
+RSYNC_COMMAND = "rsync"
+
 # macOS が保護しているシステムディレクトリへのアクセス/削除エラーを抑制する。
 _SUPPRESSIBLE_PATTERN = re.compile(
     r"\.(Trashes|Spotlight-V100|fseventsd|TemporaryItems).*failed: Operation not permitted"
@@ -83,7 +84,7 @@ def run(
     source_arg = f"{str(source).rstrip('/')}/"
     destination_arg = str(destination).rstrip("/")
 
-    argv = ["rsync", *options, source_arg, destination_arg]
+    argv = [RSYNC_COMMAND, *options, source_arg, destination_arg]
 
     filtered: list[str] = []
     with subprocess.Popen(
@@ -91,6 +92,9 @@ def run(
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        # ファイル名に UTF-8 でないバイトがあっても、その行だけを置換文字にして読み続ける
+        encoding="utf-8",
+        errors="replace",
         bufsize=1,
     ) as process:
         assert process.stdout is not None

@@ -3,7 +3,8 @@
   "env": {
     "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR": "true",
     "ENABLE_TOOL_SEARCH": "true",
-    "CLAUDE_CODE_THRIFTY_SONIC": "false"
+    "CLAUDE_CODE_THRIFTY_SONIC": "false",
+    "CLAUDE_CODE_ELEGANT_MEADOW": "0"
   },
   "attribution": {
     "commit": "",
@@ -46,6 +47,7 @@
     "ask": [],
     "defaultMode": "auto"
   },
+  "model": "opus",
   "hooks": {
     "PreToolUse": [
       {
@@ -104,7 +106,17 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cat \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.hidari/private-ops/PRIVATE_CLAUDE.md\" 2>/dev/null"
+            "command": "python3 \"$HOME/.claude/hooks/feedbacks-outbox.py\" session",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.hidari/private-ops/PRIVATE_CLAUDE.md\" 2>/dev/null || true"
           }
         ]
       }
@@ -130,6 +142,26 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.claude/hooks/feedbacks-outbox.py\" stop",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.claude/hooks/feedbacks-outbox.py\" end",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "InstructionsLoaded": [
@@ -152,14 +184,10 @@
   },
   "enabledPlugins": {
     "chrome-devtools-mcp@chrome-devtools-plugins": true,
-    "code-review@claude-plugins-official": true,
-    "code-simplifier@claude-plugins-official": true,
     "feature-dev@claude-plugins-official": true,
-    "frontend-design@claude-plugins-official": true,
     "modern-web-guidance@googlechrome": true,
     "playwright@claude-plugins-official": true,
     "superpowers-chrome@superpowers-marketplace": true,
-    "superpowers-developing-for-claude-code@superpowers-marketplace": true,
     "superpowers@superpowers-marketplace": true
   },
   "extraKnownMarketplaces": {

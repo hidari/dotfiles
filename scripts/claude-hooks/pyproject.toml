@@ -34,11 +34,13 @@ ignore = ["RUF002", "RUF003"]
 # 小文字判定できない ruff の誤検知を許容する。現行 pin の ruff でも再現する。
 # 日本語名を持つファイルだけに限る。tests/* へ広げると ASCII の camelCase を見逃す。
 "tests/test_feedbacks_box.py" = ["N802"]
+"tests/test_feedbacks_outbox.py" = ["N802"]
 "tests/test_guard_health.py" = ["N802"]
 "tests/test_guard_probes.py" = ["N802"]
 "tests/test_handoff_sentinel.py" = ["N802"]
 "tests/test_hook_git.py" = ["N802"]
 "tests/test_instructions_loaded_log.py" = ["N802"]
+"tests/test_private_ops_hook.py" = ["N802"]
 
 [tool.mypy]
 strict = true

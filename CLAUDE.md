@@ -14,9 +14,7 @@ dotfiles はユーザーが自身のMacの設定ファイルなどを管理す�
 - ファイルを変更する作業の開始前に `dev-workflow:git-branch-switcher` スキルでブランチを選択する
 - 原則として feature-devプラグイン を使用して設計・実装・レビューを行う
 - superpowers の spec / plan は Issue ディレクトリ配下へ `<ID>-spec.md` / `<ID>-plan.md` として置く（規約と手順の canonical は `dev-workflow:issue-scoped-artifacts` skill）
-- ブランチのpush後は以下の手順でPull Requestを確認してください
-   1. `gh pr list --head $(git branch --show-current) --base main` で Pull Request の存在を確認
-   2. Pull Requestが無ければ `gh pr create --assignee @me --base main --fill` で作成
+- ブランチのpush後は `gh pr list --head $(git branch --show-current) --base main` で Pull Request の有無を確かめ、無ければ `gh pr create --assignee @me --base main --fill` で作成する
 - PRのマージ前には必ず `/simplify` と `feature-dev:code-reviewer` プラグインによるレビューを実行すること
 - 本リポジトリでの言語は次のとおり確定させる（user CLAUDE.md が「プロジェクトごとに確定させる」ことを求めている）
    - ログメッセージはシステム内部ログを日本語、フロント側など外部に見えるものを英語にする

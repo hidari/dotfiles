@@ -15,6 +15,14 @@ ISSUE-97 のタスクと実例を切り出し、ISSUE-53 を待たずに進め�
 出していた。v0.7.0 から v0.8.0 で変わった SKILL.md は 5 つあり、配布済みの 5 つはすべて v0.7.0 と
 バイト単位で一致し、v0.8.0 とは一致しない。上流のセッションからの連絡で気づいた。
 
+### 実例: 上流のパス配置が変わった (2026-10-19)
+
+mizchi/skills は pin した d7999453 のあと、`testing/` `tooling/` `meta/` などの分類ディレクトリを畳んで skill を直下へ並べた。HEAD (2026-10-18の ab4eb2f7) では `testing/` が404を返す。`home/apm.yml` が pin しているパス (`mizchi/skills/tooling/justfile` など) は HEAD に存在しない。
+
+この形は版の差ではなく、pin したパスが上流の最新に無いという遅れ方になる。`apm outdated` / `apm update` がこれを報告できるかは、タスクの1つ目で確かめる。pin を上げるときは、パスを新しい配置へ書き換えてから SHA を揃える。
+
+GitHub の compare API で距離を測るときは、`files` が300件で切られる。切られた一覧を「変わったファイルが無い」と読まないこと。
+
 ### 今ある経路と、足りなかった理由
 
 - 上流の release 手順は、release を切ったら消費側 (dotfiles の `home/apm.yml`) の pin を揃えるよう

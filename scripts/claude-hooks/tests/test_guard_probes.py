@@ -163,16 +163,55 @@ def test_hidari_が無ければ対象外として健全(tmp_path: Path, monkeypa
     assert result.detail == ""
 
 
-def test_private_ops_が解決すれば健全(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    root = _repo(tmp_path, monkeypatch)
+def _wire_private_ops(tmp_path: Path, root: Path) -> Path:
+    """外部ストレージ側の実体ディレクトリを作り、.hidari/private-ops を symlink で張る。"""
     target = tmp_path / "cloud" / "private-ops"
     target.mkdir(parents=True)
     (root / ".hidari").mkdir()
     (root / ".hidari" / "private-ops").symlink_to(target)
+    return target
+
+
+def test_private_ops_が解決すれば健全(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = _repo(tmp_path, monkeypatch)
+    _wire_private_ops(tmp_path, root).joinpath("PRIVATE_CLAUDE.md").write_text(
+        "指示\n", encoding="utf-8"
+    )
 
     result = guard_probes.probe_private_ops()
 
     assert result.healthy is True
+
+
+def test_symlink_は解決するのに運用指示のファイルが無ければ沈黙(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """読み込む SessionStart コマンドは cat の失敗を成功に畳むので、ここが唯一の告知になる。"""
+    root = _repo(tmp_path, monkeypatch)
+    _wire_private_ops(tmp_path, root)
+
+    result = guard_probes.probe_private_ops()
+
+    assert result.healthy is False
+    assert "PRIVATE_CLAUDE.md" in result.detail
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root はパーミッションに関係なく読めてしまう")
+def test_運用指示のファイルが読めなければ沈黙(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _repo(tmp_path, monkeypatch)
+    private = _wire_private_ops(tmp_path, root) / "PRIVATE_CLAUDE.md"
+    private.write_text("指示\n", encoding="utf-8")
+    private.chmod(0o000)
+
+    try:
+        result = guard_probes.probe_private_ops()
+    finally:
+        private.chmod(0o644)
+
+    assert result.healthy is False
+    assert "PRIVATE_CLAUDE.md" in result.detail
 
 
 def test_hidari_はあるのに_private_ops_が無ければ沈黙(

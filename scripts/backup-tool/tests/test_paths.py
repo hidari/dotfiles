@@ -1,25 +1,12 @@
-"""paths モジュールのテスト。
-
-is_mounted は偽の mount を PATH に置いて、mount の失敗を False へ畳むことを確かめる。
-"""
+"""paths モジュールのテスト。"""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 
 from backup_tool.paths import classify, extract_volume_path, is_mounted
-
-if TYPE_CHECKING:
-    from tests.conftest import FakeCommand
-
-# どの検査も、偽の mount が効いていなければ落ちる形にする。
-# True を期待する検査は、本物の mount には載らないボリューム名を問う。
-# False を期待する検査は、本物の mount なら必ず載る / を問う。
-_FAKE_VOLUME = "/Volumes/BackupToolFakeVolume"
-_FAKE_MOUNT_LINE = f"/dev/disk99s1 on {_FAKE_VOLUME} (apfs, local, journaled)"
-_ROOT_MOUNT_LINE = "/dev/disk99s1 on / (apfs, local, journaled)"
 
 
 class TestClassify:
@@ -57,15 +44,18 @@ class TestExtractVolumePath:
 
 
 class TestIsMounted:
-    def test_true_when_mount_lists_the_path(self, fake_command: FakeCommand) -> None:
-        fake_command("mount", f"printf '%s\\n' '{_FAKE_MOUNT_LINE}'")
-        assert is_mounted(_FAKE_VOLUME) is True
-
+    # / はどのホストでも必ずマウントポイントなので、True の対照に使える
     @pytest.mark.usefixtures("empty_path")
-    def test_false_when_mount_command_is_missing(self) -> None:
-        assert is_mounted("/") is False
+    def test_root_is_mounted_without_any_external_command(self) -> None:
+        assert is_mounted("/") is True
 
-    def test_false_when_mount_exits_nonzero(self, fake_command: FakeCommand) -> None:
-        # 出力には対象の行があっても、非0終了なら出力を信用しない
-        fake_command("mount", f"printf '%s\\n' '{_ROOT_MOUNT_LINE}'\nexit 1")
-        assert is_mounted("/") is False
+    def test_plain_directory_is_not_mounted(self, tmp_path: Path) -> None:
+        assert is_mounted(str(tmp_path)) is False
+
+    def test_symlink_to_root_is_not_mounted(self, tmp_path: Path) -> None:
+        link = tmp_path / "link-to-root"
+        link.symlink_to("/")
+        assert is_mounted(str(link)) is False
+
+    def test_missing_path_is_not_mounted(self, tmp_path: Path) -> None:
+        assert is_mounted(str(tmp_path / "missing")) is False

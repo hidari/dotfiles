@@ -10,8 +10,11 @@ from __future__ import annotations
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from shutil import disk_usage
 
 _GB_TO_KB = 1024 * 1024
+
+DU_COMMAND = "du"
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,35 +41,32 @@ def required_total_kb(*, source_size_kb: int, margin_gb: int) -> int:
 
 
 def measure_source_size_kb(path: Path) -> int | None:
-    """du -sk でディレクトリ使用容量 (KB) を返す。取得失敗時は None。"""
-    return _measure_kb(["du", "-sk", str(path)], field=0)
+    """du -sk でディレクトリ使用容量 (KB) を返す。取得できないか値が範囲外なら None。"""
+    completed = subprocess.run(
+        [DU_COMMAND, "-sk", str(path)], capture_output=True, text=True, check=False
+    )
+    if completed.returncode != 0:
+        return None
+    # du -sk の出力: <KB>\t<path>
+    fields = completed.stdout.split()
+    if not fields:
+        return None
+    try:
+        size = int(fields[0])
+    except ValueError:
+        return None
+    # 空のディレクトリでは0になるので、0は正当な使用量
+    return size if size >= 0 else None
 
 
 def measure_dest_total_kb(path: Path) -> int | None:
-    """df -k でファイルシステム総容量 (KB) を返す。取得失敗時は None。"""
-    # df 出力: Filesystem 1024-blocks Used Available Capacity iused ifree %iused Mounted on
-    return _measure_kb(["df", "-k", str(path)], field=1, use_last_line=True)
-
-
-def _measure_kb(argv: list[str], *, field: int, use_last_line: bool = False) -> int | None:
+    """path を含むファイルシステムの総容量 (KB) を返す。取得できないか値が範囲外なら None。"""
     try:
-        completed = subprocess.run(argv, capture_output=True, text=True, check=False)
-    except FileNotFoundError:
+        total_kb = disk_usage(path).total // 1024
+    except OSError:
         return None
-    if completed.returncode != 0:
-        return None
-    lines = completed.stdout.strip().splitlines()
-    if not lines:
-        return None
-    target = lines[-1] if use_last_line else lines[0]
-    fields = target.split()
-    if len(fields) <= field:
-        return None
-    try:
-        size = int(fields[field])
-    except ValueError:
-        return None
-    return size if size > 0 else None
+    # 総容量が0のファイルシステムには書けないので、測定の異常として扱う
+    return total_kb if total_kb > 0 else None
 
 
 def format_gb(kb: int) -> str:

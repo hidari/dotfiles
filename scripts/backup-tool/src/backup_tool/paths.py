@@ -1,14 +1,13 @@
 """パス種別判定とマウント確認。
 
 純粋関数 (classify / extract_volume_path) と
-副作用境界 (is_mounted / check_readable / check_writable) を分離する。
+副作用境界 (is_mounted / ensure_readable / ensure_writable) を分離する。
 """
 
 from __future__ import annotations
 
 import os
 import re
-import subprocess
 from pathlib import Path
 from typing import Literal
 
@@ -38,21 +37,8 @@ def extract_volume_path(path: str) -> str | None:
 
 
 def is_mounted(mount_point: str) -> bool:
-    """mount コマンドの出力から、指定パスが実マウントかを確認する。
-
-    backup.sh:217 の ``mount | grep -q "on $mount_point "`` を移植。
-    """
-    try:
-        completed = subprocess.run(
-            ["mount"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        return False
-    needle = f" on {mount_point} "
-    return needle in completed.stdout
+    """指定パスがマウントポイントかを返す。シンボリックリンクはマウントポイントとみなさない。"""
+    return os.path.ismount(mount_point)
 
 
 def ensure_readable(path: Path) -> bool:
