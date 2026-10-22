@@ -16,7 +16,7 @@ status: open
 
 dotfiles で確かめたこと (2026-10-22):
 
-- この開発機の mise は 2026.9.4 で、`mise settings get idiomatic_version_file_enable_tools` は `[]` を返した。global の設定 (`home/.config/mise/config.toml`) はこの設定を持たない
+- この開発機の mise は2026.9.4で、`mise settings get idiomatic_version_file_enable_tools` は `[]` を返した。global の設定 (`home/.config/mise/config.toml`) はこの設定を持たない
 - 開発用のディレクトリの直下にある27のリポジトリのうち、`.node-version` を持つのは1つだけで、`.tool-versions` と `.nvmrc` は0件だった。その1つは自前の `mise.toml` で既にこの設定を `["node"]` にしていて、`mise current node` は `.node-version` と同じ版を返した。今の時点で global を有効にしても、新しく版が切り替わるリポジトリは0件になる
 
 ## 決める前に見ること

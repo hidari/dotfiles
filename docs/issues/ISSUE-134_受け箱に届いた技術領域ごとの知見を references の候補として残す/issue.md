@@ -8,7 +8,7 @@ status: open
 
 2026-10-21 に受け箱へ届いたまとめのうち、特定の技術領域に閉じた知見をここへ残す (ユーザー決定 2026-10-22: 技術領域に閉じた知見も捨てずに1本にまとめる)。どの領域にも閉じない知見は ISSUE-133 へ分けた。
 
-どれも他のセッションの報告で、dotfiles では再現していない。根拠は報告者の申告 (実測 / 推測 / ドキュメントのみ) をそのまま書く。版や仕様は届いた時点 (2026-10-21 か 2026-10-22) のもので、古びる。2026-10-22 に届いた7件から足した分は、各節の末尾と、新しく立てた節に置いた。
+どれも他のセッションの報告で、dotfiles では再現していない。根拠は報告者の申告 (実測 / 推測 / ドキュメントのみ) をそのまま書く。版や仕様は届いた時点 (2026-10-21か2026-10-22) のもので、古びる。2026-10-22に届いた7件から足した分は、各節の末尾と、新しく立てた節に置いた。
 
 ### Cloudflare Access の後ろの環境へ繋ぐ
 
@@ -30,7 +30,7 @@ status: open
 - iOS の URLSessionConfiguration の httpAdditionalHeaders は URLProtocol の stub に届く要求にも載る (作成と GET の2経路で確認)。組み立て役で構成を1つ作って各通信クラスへ渡せば通信クラスを触らずに済む。WebSocket の upgrade に載るかは未確認 (実測)
 - シミュレータのアプリの通信の成否は、アプリにログを足さずに CFNetwork のログ (`Task ... received response, status 101` など) で読める (実測)
 - Xcode 27 系には Simulator.app が無く、シミュレータの画面は Xcode の `Contents/Applications` にある DeviceHub.app で開く (実測)
-- URLSession の task に `task.delegate` を据え、その delegate が `willPerformHTTPRedirection` を実装しなければ、redirect の判断は session の delegate へ回る。WebSocket の task でも、開いた・メッセージ・完了の出来事は task の delegate に届いた。session の delegate を状態の無い共有の1つに固定し、出来事を受けたい側を task の delegate に下げると、session を作る口を1つに閉じられる (実測、iOS 26 のシミュレータ。loopback の 302 と wrangler dev)。ただし redirect の判断は task の delegate でも上書きできるので、口を閉じても性質は閉じない (ISSUE-88 の INS-23)
+- URLSession の task に `task.delegate` を据え、その delegate が `willPerformHTTPRedirection` を実装しなければ、redirect の判断は session の delegate へ回る。WebSocket の task でも、開いた・メッセージ・完了の出来事は task の delegate に届いた。session の delegate を状態の無い共有の1つに固定し、出来事を受けたい側を task の delegate に下げると、session を作る口を1つに閉じられる (実測、iOS 26のシミュレータ)。ただし redirect の判断は task の delegate でも上書きできるので、口を閉じても性質は閉じない (ISSUE-88 の INS-23)
 - Apple のネットワークのログ (CFNetwork) は、WebSocket のプロトコルの ping の送信を記録しない。送ったことの証拠はクライアントのログからは取れないので、テストでの送信の確認と、対照付きの生存の組で主張するしかない (実測)
 
 ### React と E2E (Playwright)
@@ -85,14 +85,14 @@ status: open
 
 ### 正規表現の計算量
 
-- `/\s*[\r\n]\s*/g` のような「空白の並び、区切り、空白の並び」の正規表現は、区切りを含まない長い空白で位置ごとに後戻りして、長さの2乗の時間になる (64,000文字で7秒台)。先頭に後読み `(?<!\s)` を足して照合の始まりを空白の並びの先頭に限ると線形になり、結果は変わらない (実測)。入力の検査より前に正規化を置く変更の観点は ISSUE-133
+- `/\s*[\r\n]\s*/g` のような「空白の並び、区切り、空白の並び」の正規表現は、区切りを含まない長い空白で位置ごとに後戻りして、長さの2乗の時間になる (64,000文字で7秒台)。先頭に後読み `(?<!\s)` を足して照合の始まりを空白の並びの先頭に限ると線形になり、結果は変わらない (実測)。入力の検査より前に正規化を置く変更の観点は ISSUE-133、処理時間の上限の pin の形は ISSUE-88 の INS-21
 
 ### その他のツール
 
 - 1Password CLI の `op read 'op://<vault>/<item>/<日付の欄>'` は、画面の表示ではなく UNIX 時刻の秒 (10桁の整数) と改行を返す。期限を判定するコードは秒の整数を読む前提で書く。値の形は実物を1回読んで `od -c` で確かめる (実測)
 - 依存の柵 (特定のライブラリを import してよいのは1パッケージだけ) は、設定ファイルの文字列ではなくビルドツールが出す依存グラフの JSON (辺ごとに source / test の種類つき) で検査できる。標準ライブラリに同梱されたパッケージは依存グラフの JSON に現れないので、それへの直 import は柵で見えない (実測)
 - mise の `github:` backend で入れた単体バイナリの CLI が npm パッケージを `deno compile` したもので、gRPC クライアントが Deno の node:http2 互換層の上で動いていた (実測。導入時の確かめ方は ISSUE-133)
-- pnpm 10 の「Ignored build scripts: <pkg>」の警告は、install に `--ignore-scripts` を付けると消え、lockfile も変わらない。設定ファイルの側 (package.json) で消す方法もあるが、その package.json をキャッシュの指紋に入れていると長い検査をやり直すことになるので、フラグの方を選んだ。消せることは、付けない対照で1件出て、付けた形で0件になることで確かめた (実測)
+- pnpm 10の「Ignored build scripts: <pkg>」の警告は、install に `--ignore-scripts` を付けると消え、lockfile も変わらない。設定ファイルの側 (package.json) で消す方法もあるが、その package.json をキャッシュの指紋に入れていると長い検査をやり直すことになるので、フラグの方を選んだ。消せることは、付けない対照で1件出て、付けた形で0件になることで確かめた (実測)
 
 ## タスク
 
@@ -104,6 +104,6 @@ status: open
 
 - ISSUE-133: 同じ受け箱から届いた、技術領域に閉じない知見
 - ISSUE-97: 集めた知見を磨いて配る工程
-- ISSUE-88: 検査と変異注入の知見。E2E と ast-grep の項目の pin の側を INS-19〜23 に置いた
+- ISSUE-88: 検査と変異注入の知見。今回足した項目のうち、pin の作り方にあたる部分を INS-19〜23 に置いた
 - ISSUE-118: コンテナランタイムの移行。Supabase CLI のネイティブのランタイムの報告を置いた
 - ISSUE-136: global の mise に `.node-version` を読ませるか

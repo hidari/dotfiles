@@ -121,3 +121,4 @@ Docker.app と OrbStack は外す (2026-10-10にユーザーが決定)。OrbStac
 - apple/container#141、apple/container#1809、apple/container#2142 (本体に欠けたままの機能)
 - socktainer/socktainer#212 (compose 対応)、socktainer/socktainer#392 (formula の依存で container が重複する)
 - supabase/cli#7200 (stack モードが `content_path` のメールテンプレートで起動を拒否する)
+- ISSUE-134: 同じ報告のうち、CI で Supabase を立てる費用についての報告者の提案を持つ

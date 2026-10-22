@@ -6,39 +6,28 @@ status: open
 
 ## 背景
 
-委譲元から届いた「検査機構を作るときの落とし穴」の知見を、dotfiles の規範層 (常時層の
-CLAUDE.md / paths 付き rules / references) へ取り込む。
+委譲元から届いた「検査機構を作るときの落とし穴」の知見を、dotfiles の規範層 (常時層の CLAUDE.md / paths 付き rules / references) へ取り込む。
 
-材料は検証ワークフローで実測と突き合わせてある。**委譲元の主張のうち 3 件は反証または
-解釈依存なので、そのまま規範として書かないこと。**
+材料は検証ワークフローで実測と突き合わせてある。委譲元の主張のうち 3 件は反証または解釈依存なので、そのまま規範として書かないこと。
 
 ### 反証された前提
 
-- 「分母と分子を両方数えて突き合わせる手当てが既存に無い」は偽。`rules/testing-practices.md`
-  が既に「数える」ことを規定し、`references/testing.md` の「範囲の穴は 3 種の変異では
-  見えない」節が Pester の実例を分母と分子の形で持つ。**新規なのは 2 点だけ** — (a) 突き合わせを
-  常設の別検査として置くこと (b) 落ちた側が列数最大という偏りの向き
-- 委譲元の推測「INS-1 と INS-6 は失敗側にトリガがあるので paths 付き rules へ寄せられる」の
-  うち INS-1 は誤り。検査機構を足すときに編集するのは `scripts/**/*.py` / `rules/*.yml` /
-  `sgconfig.yml` / `.pre-commit-config.yaml` / `.github/workflows/*.yml` で、どの rules の
-  `paths` にも一致しない。同型は ISSUE-48 の軸F が既に記録している
-- INS-3 の新規性は解釈に依存する。`references/observation.md` の既存 3 実例はいずれも
-  その場で書いた使い捨てコマンドなので、射程は実質すでに届いている。確実に新規なのは
-  「ツールの出力どうしを突き合わせている限り決着しない、一次の実体へ降りて初めて付く」という
-  決め手の方
+- 「分母と分子を両方数えて突き合わせる手当てが既存に無い」は偽。`rules/testing-practices.md` が既に「数える」ことを規定し、`references/testing.md` の「範囲の穴は 3 種の変異では見えない」節が Pester の実例を分母と分子の形で持つ。新規なのは 2 点だけ — (a) 突き合わせを常設の別検査として置くこと (b) 落ちた側が列数最大という偏りの向き
+- 委譲元の推測「INS-1 と INS-6 は失敗側にトリガがあるので paths 付き rules へ寄せられる」のうち INS-1 は誤り。検査機構を足すときに編集するのは `scripts//*.py` / `rules/*.yml` / `sgconfig.yml` / `.pre-commit-config.yaml` / `.github/workflows/*.yml` で、どの rules の `paths` にも一致しない。同型は ISSUE-48 の軸F が既に記録している
+- INS-3 の新規性は解釈に依存する。`references/observation.md` の既存 3 実例はいずれもその場で書いた使い捨てコマンドなので、射程は実質すでに届いている。確実に新規なのは「ツールの出力どうしを突き合わせている限り決着しない、一次の実体へ降りて初めて付く」という決め手の方
 
 ### 取り込む知見
 
-識別子は検証ワークフローの採番。材料は追跡外の `.cache/` 配下に置いていたが、2026-10-22 の時点で残っていない。
+識別子は検証ワークフローの採番。材料 (委譲元の原文と、反証・配置提案・予算影響の検証結果) は追跡外の `.cache/` 配下に置いていたが、2026-10-22 の時点で残っていない。
 
 | ID | 内容 | 置き場の提案 |
 | --- | --- | --- |
 | INS-1 | 検査機構を足したら「対象が何件あり、そのうち何件を実際に見たか」を突き合わせる検査を別に常設する | `references/testing.md` へ追記 + `rules/testing-practices.md` の「数える」項を締める |
 | INS-1B | 件数の閾値で置いた陽性対照は総崩れしか検出しない | `references/observation.md` の「非 0 件も証明にならない」節 |
-| INS-2 | 検証手段の層の優先順位 (型システム > 構文木 > トークナイザ > 正規表現)。さらに上位として、外部からの検証よりテストコードへ落とせないかを先に問う | **未決** (常時層が素直だが余裕 0) |
-| INS-2C | 実装の確認や調査でコードを引くとき grep より ast-grep を優先する | **未決** (dotfiles の指示層か skill の description か) |
+| INS-2 | 検証手段の層の優先順位 (型システム > 構文木 > トークナイザ > 正規表現)。さらに上位として、外部からの検証よりテストコードへ落とせないかを先に問う | 未決 (常時層が素直だが余裕 0) |
+| INS-2C | 実装の確認や調査でコードを引くとき grep より ast-grep を優先する | 未決 (dotfiles の指示層か skill の description か) |
 | INS-3 | 使い捨ての検証ツールの誤りは検証対象の欠陥と同じ形で出る。決着はツールの出力どうしでは付かず一次の実体へ降りる | `references/observation.md` の「対照側も同じだけ壊れる」節 |
-| INS-4 | 外部サービスとの契約を増やしたら Fake 側にも同じ契約を足す。テストの本数では防げない | **未決** (失敗の瞬間は本番アダプタ側の編集) |
+| INS-4 | 外部サービスとの契約を増やしたら Fake 側にも同じ契約を足す。テストの本数では防げない | 未決 (失敗の瞬間は本番アダプタ側の編集) |
 | INS-5 | 変異の見逃しは pin が弱いとは限らない。到達不能な分岐は見逃しとして現れ、正解は pin の強化ではなく分岐の撤去 | `rules/testing-practices.md` + `references/testing.md` |
 | INS-6 | fixture の深さが pin の射程を決める。実コードの構造の深さを fixture が持たないとその深さに依存する機構が守られない | `rules/testing-practices.md` + `references/testing.md` |
 
@@ -69,7 +58,7 @@ dotfiles で確かめたこと: `references/testing.md` / `references/observatio
 
 | ID | 内容 | 根拠 |
 | --- | --- | --- |
-| INS-19 | ライブラリの assertion が実装の切り替えの前後で同じ意味を持つと、既存のテストは切り替えを pin しない。Playwright 1.62 の toBeDisabled / toBeEnabled と click の actionability は `aria-disabled="true"` も無効として数えるので、disabled から aria-disabled への切り替えで既存の assertion はすべて緑のまま通った。切り替えを pin できたのは toBeFocused だけで、変異を1つずつ入れて狙ったテストだけが赤になることで確かめた | 実測 |
+| INS-19 | ライブラリの assertion が実装の切り替えの前後で同じ意味を持つと、既存のテストは切り替えを pin しない。Playwright 1.62の toBeDisabled / toBeEnabled と click の actionability は `aria-disabled="true"` も無効として数えるので、disabled から aria-disabled への切り替えで既存の assertion はすべて緑のまま通った。切り替えを pin できたのは toBeFocused だけで、変異を1つずつ入れて狙ったテストだけが赤になることで確かめた | 実測 |
 | INS-20 | 経路を通ったことの確認には、計測の仕組みを外す変異を少なくとも2形当てる。E2E で「古い応答が届いた」をテストランナー側の時刻で近似した確認は、変異「遅延0」では赤だったが「待つ相手を外す」変異では緑のままで、dead pin だった。判定を時刻ではなく応答の本文 (作った行の識別子が無いこと) へ置き換えると、計測を外す変異で赤になった | 実測 |
 | INS-21 | node:test の `test(name, { timeout }, fn)` の timeout は、テスト関数が同期の処理でイベントループを塞いでいるあいだは発火せず、処理が終わると緑で通る (89秒かかって緑だった)。処理時間の上限は、テスト本体の中で `performance.now()` の差を測って上限と比べる形で pin する。2乗に後戻りする正規表現へ戻す変異で赤になった。かかった時間は2乗の形で2.1秒、線形の形で1.3msと分かれた | 実測 |
 | INS-22 | 綴りで行を数える検査は、同じ綴りを含むコメント行を拾う。workflow の YAML で「`node-version` を含む行」を数えたらコメント行で数が割れ、しかも変異の赤は手前のファイルのコメントで出ていて、狙った側の変異は一度も見られていなかった。「その綴りで始まる行」へ直し、変異ごとに失敗の文言まで読んで気づいた。INS-9 と同じ「赤の原因を読む」の別の形 | 実測 |
@@ -84,13 +73,11 @@ INS-7 と INS-10 には2件目の報告が届いた。どちらも新しい番�
 
 常時層 +600B / scoped +350B / references +1800B (検証ワークフローの見積もり)。
 
-常時層は余裕 0 なので、INS-2 / INS-2C / INS-4 を常時層へ置くなら `BUDGET_RAISES` への記録が
-要る。予算の上限の canonical は config-guard の `instruction_budget`。
+常時層は余裕 0 なので、INS-2 / INS-2C / INS-4 を常時層へ置くなら `BUDGET_RAISES` への記録が要る。予算の上限の canonical は config-guard の `instruction_budget`。
 
 ## タスク
 
-- [ ] INS-1 を `references/testing.md` へ追記し、`rules/testing-practices.md` の「数える」項を
-      「分母と分子を両方数えて突き合わせる検査を別に置く」へ締める
+- [ ] INS-1 を `references/testing.md` へ追記し、`rules/testing-practices.md` の「数える」項を「分母と分子を両方数えて突き合わせる検査を別に置く」へ締める
 - [ ] INS-1B を `references/observation.md` の陽性対照の項へ足す
 - [ ] INS-3 を `references/observation.md` の対照の節へ足す
 - [ ] INS-5 を `rules/testing-practices.md` と `references/testing.md` へ足す
@@ -100,47 +87,25 @@ INS-7 と INS-10 には2件目の報告が届いた。どちらも新しい番�
 - [ ] INS-4 の置き場を決めて入れる
 - [ ] INS-7〜18 を INS-1〜6 と同じ検証 (反証と置き場の検討) に通し、取り込むものを選ぶ
 - [ ] INS-19〜23 と、INS-7 / INS-10 の2件目を同じ検証に通し、取り込むものを選ぶ
-- [ ] 足した規範が委譲元のトリガから到達するかを確かめる。`references/` へ足すだけでは常時層から
-      到達できず、ISSUE-48 が孤児の節の実例を持つ
-- [ ] 新規の scoped rules を足した場合は `config_guard.rules_paths.EXPECTED_PATHS` への pin を
-      足す (`check_rules_paths` が「pin が無い」で報告する)
+- [ ] 足した規範が委譲元のトリガから到達するかを確かめる。`references/` へ足すだけでは常時層から到達できず、ISSUE-48 が孤児の節の実例を持つ
+- [ ] 新規の scoped rules を足した場合は `config_guard.rules_paths.EXPECTED_PATHS` への pin を足す (`check_rules_paths` が「pin が無い」で報告する)
 
 ## 未決
 
 着手前に決める。決めずに個別へ入れると常時層の配分が判断できなくなる。
 
-- **INS-2 の置き場。** トリガ (検証手段を選ぶ瞬間) に file surface が無いので Issue 36 の基準では
-  常時層だが余裕 0 で `BUDGET_RAISES` が要る。代案は (a) 検査記述面 (`sgconfig.yml` /
-  `rules/*.yml` / `.pre-commit-config.yaml` / `scripts/**/*.py` / `.github/workflows/*.yml`) へ
-  向けた新規 `paths` 付き rules (b) ISSUE-48 の再構成で観測カテゴリを圧縮した分で払う。
-  (a) は scoped rules が Read ツールでしか発火しないため、検査を書く前に検査ファイルを Read する
-  とは限らず到達が弱い
-- **INS-2C の置き場。** dotfiles の指示層へ置くか、`ast-grep-practice` skill の description へ
-  置くか。後者なら常時層のバイトを 1 も使わず (skill description は別勘定) トリガも全セッションへ
-  届くが、実体は agentic-coding-tools 側にあり dotfiles 単独では完結しない。cross-repo の変更を
-  許すか
-- **INS-4 の置き場。** 失敗の瞬間は本番アダプタ側の編集なので `rules/testing-practices.md` の
-  `paths` は届かない。CLAUDE.md の語彙定義 (契約テスト) を +60B 程度で締めれば正しいトリガに
-  載るが `BUDGET_RAISES` が要る。`testing-practices.md` へ置く案は「Fake を開いた時点で発火する」
-  ので遅いが非ゼロ
-- **ISSUE-48 との着手順。** INS-1B と INS-3 は観測カテゴリの参照先に触るので、ISSUE-48 の
-  再構成より先に足すと再構成のたたき台が動く。逆に後追いにすると滞留する
-- **1 Issue にまとめるか置き場ごとに割るか。** references と scoped rules だけで完結する
-  INS-1 / INS-1B / INS-3 / INS-5 / INS-6 は予算に当たらないので先に通せる。予算に当たる
-  INS-2 / INS-2C と INS-4 だけを別 Issue にして ISSUE-48 の隣へ置く形もある
-- **BUDGET_RAISES をまとめるか。** ISSUE-89 (Rust のビルド規範) も常時層に触りうる。
-  ISSUE-99 (「SDD」の語義の明示) と ISSUE-97 (集めた知見の書き出し) も触りうる。
-  予算に当たる項目をまとめて 1 回で払うか、個別に上げるか
-- **INS-3 の扱い。** 上記のとおり新規性が解釈に依存する。散文が「使い捨て」を名指ししていない
-  だけを理由に追記するなら、canonical カテゴリの検算 3 (書いた宣言の範囲が実態より広くないか) の
-  逆方向 (既存の宣言が実態より狭く読まれていた) を根拠にすることになる
+- INS-2 の置き場。トリガ (検証手段を選ぶ瞬間) に file surface が無いので Issue 36 の基準では常時層だが余裕 0 で `BUDGET_RAISES` が要る。代案は (a) 検査記述面 (`sgconfig.yml` / `rules/*.yml` / `.pre-commit-config.yaml` / `scripts//*.py` / `.github/workflows/*.yml`) へ向けた新規 `paths` 付き rules (b) ISSUE-48 の再構成で観測カテゴリを圧縮した分で払う。(a) は scoped rules が Read ツールでしか発火しないため、検査を書く前に検査ファイルを Read するとは限らず到達が弱い
+- INS-2C の置き場。dotfiles の指示層へ置くか、`ast-grep-practice` skill の description へ置くか。後者なら常時層のバイトを 1 も使わず (skill description は別勘定) トリガも全セッションへ届くが、実体は agentic-coding-tools 側にあり dotfiles 単独では完結しない。cross-repo の変更を許すか
+- INS-4 の置き場。失敗の瞬間は本番アダプタ側の編集なので `rules/testing-practices.md` の `paths` は届かない。CLAUDE.md の語彙定義 (契約テスト) を +60B 程度で締めれば正しいトリガに載るが `BUDGET_RAISES` が要る。`testing-practices.md` へ置く案は「Fake を開いた時点で発火する」ので遅いが非ゼロ
+- ISSUE-48 との着手順。INS-1B と INS-3 は観測カテゴリの参照先に触るので、ISSUE-48 の再構成より先に足すと再構成のたたき台が動く。逆に後追いにすると滞留する
+- 1 Issue にまとめるか置き場ごとに割るか。references と scoped rules だけで完結する INS-1 / INS-1B / INS-3 / INS-5 / INS-6 は予算に当たらないので先に通せる。予算に当たる INS-2 / INS-2C と INS-4 だけを別 Issue にして ISSUE-48 の隣へ置く形もある
+- BUDGET_RAISES をまとめるか。ISSUE-89 (Rust のビルド規範) も常時層に触りうる。ISSUE-99 (「SDD」の語義の明示) と ISSUE-97 (集めた知見の書き出し) も触りうる。予算に当たる項目をまとめて 1 回で払うか、個別に上げるか
+- INS-3 の扱い。上記のとおり新規性が解釈に依存する。散文が「使い捨て」を名指ししていないだけを理由に追記するなら、canonical カテゴリの検算 3 (書いた宣言の範囲が実態より広くないか) の逆方向 (既存の宣言が実態より狭く読まれていた) を根拠にすることになる
 
 ## 関連
 
-- ISSUE-48 — 観測カテゴリの主語を観測へ引き上げ未被覆の軸を塞ぐ。INS-1B と INS-3 が触る
-  `references/observation.md` はあちらの再構成対象。着手順は上の未決
-- ISSUE-46 — 両リポジトリの Issue をマイルストーンへ整理し着手順を決める。所属の canonical は
-  あちらの表
+- ISSUE-48 — 観測カテゴリの主語を観測へ引き上げ未被覆の軸を塞ぐ。INS-1B と INS-3 が触る `references/observation.md` はあちらの再構成対象。着手順は上の未決
+- ISSUE-46 — 両リポジトリの Issue をマイルストーンへ整理し着手順を決める。所属の canonical はあちらの表
 - ISSUE-89 — Rust のビルド規範。常時層の予算を共有するので配分をまとめて決める
 - ISSUE-99 と ISSUE-97 — どちらも常時層へ書き足しうるので、同じ予算の配分に入る
-- 委譲元の原文と検証結果 (反証・配置提案・予算影響) は追跡外の `.cache/` 配下に置いていたが、2026-10-22 の時点で残っていない
+- ISSUE-133 と ISSUE-134 — INS-7〜23 と同じ受け箱から届いた知見。INS-19〜23 の報告の技術の側の記述を持つ

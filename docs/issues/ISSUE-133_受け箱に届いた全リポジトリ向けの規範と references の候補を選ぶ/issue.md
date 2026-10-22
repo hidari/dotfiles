@@ -6,7 +6,7 @@ status: open
 
 ## 背景
 
-2026-10-21 に受け箱へ届いたまとめのうち、特定の技術領域に閉じず、どのリポジトリの作業にも効きうる知見をここへ集める。2026-10-22 に届いた7件から足した分は、各節の末尾に置いた。検査と変異注入の知見は ISSUE-88、初回の exec の遅れは ISSUE-66、起動元シェルの PATH の鮮度は ISSUE-69 へ分けた。特定の技術領域の知見は ISSUE-134 へ分けた。
+2026-10-21 に受け箱へ届いたまとめのうち、特定の技術領域に閉じず、どのリポジトリの作業にも効きうる知見をここへ集める。2026-10-22に届いた7件から足した分は、各節の末尾に置いた。検査と変異注入の知見は ISSUE-88、初回の exec の遅れは ISSUE-66、起動元シェルの PATH の鮮度は ISSUE-69 へ分けた。特定の技術領域の知見は ISSUE-134 へ分けた。
 
 どれも他のリポジトリのセッションの報告で、根拠は報告者の申告 (実測 / 推測 / ドキュメントのみ) をそのまま書く。dotfiles で確かめたものは項目の中で分けて書く。採るかどうかと置き場は未決。
 
@@ -74,7 +74,7 @@ status: open
 
 - グローバル CLAUDE.md の「完了前に `.cache/` の書き捨てを消す」が、後のセッションが読むキャッシュ (期限の記憶など) を巻き込むという報告があった。報告者の案は、残すものをリポジトリの CLAUDE.md で名指しすると規則の側に書くこと (推測)。dotfiles で確かめたこと: 今の規則は「残すのは次のセッションが読むもの (未消費の `.cache/handoff.md` など) だけで、既定は削除」と書いていて、例外の枠は既にある。足りないのは、何がそれに当たるかをどこで名指しするかである
 - repository ruleset はブランチとタグで target が別系統なので、`gh api repos/<owner>/<repo>/rulesets/<id>` で target と conditions を読むと、既定のブランチを守る ruleset がタグの push を止めないことを確かめられる。bypass_actors が空でも target が branch ならタグは対象外 (実測)。報告者の提案は、タグを push する workflow を作る手順に「target: tag の ruleset があるか確かめる。後からタグの ruleset を足すと、bypass に GitHub Actions を入れない限りその push が落ちる」を加えること (ドキュメントのみ)
-  - 2026-10-22 に別のリポジトリから実測の報告が届いた。target: tag の ruleset で削除と付け替えだけを止めて作成は止めない形にすると、bypass_actors を空のまま GitHub Actions のタグの push を通せた。`update` の rule は REST の文書では parameters が required だが、parameters 無しで POST して保存された。ref_name の pattern は `refs/tags/` を前置きし、`[0-9]` の範囲の文字集合が効いた。pattern に当たる既存のタグの削除は `Cannot delete this tag`、force push は `Cannot update this protected ref` の GH013 で拒否され、admin も止まった。対照として、pattern に当たらないタグでは作成、付け替え、削除が通った。pattern に当たる探針のタグを作ると、bypass が空なので二度と消せない (実測)。タグの ruleset には `rules/branches/{branch}` に当たる「効いている規則」を返すエンドポイントが無く、適用後に読み直せるのは保存された ruleset 自体までで、効き目は実地の push で確かめるしかない (ドキュメントのみ)。見立て (推測。仕分けたセッションの解釈): 上の提案の「bypass に GitHub Actions を入れない限り落ちる」は作成も止める ruleset の話で、作成を止めない形なら当たらない
+  - 2026-10-22に別のリポジトリから実測の報告が届いた。target: tag の ruleset で削除と付け替えだけを止めて作成は止めない形にすると、bypass_actors を空のまま GitHub Actions のタグの push を通せた。`update` の rule は REST の文書では parameters が required だが、parameters 無しで POST して保存された。ref_name の pattern は `refs/tags/` を前置きし、`[0-9]` の範囲の文字集合が効いた。pattern に当たる既存のタグの削除は `Cannot delete this tag`、force push は `Cannot update this protected ref` の GH013 で拒否され、admin も止まった。対照として、pattern に当たらないタグでは作成、付け替え、削除が通った。pattern に当たる探針のタグを作ると、bypass が空なので二度と消せない (実測)。タグの ruleset には `rules/branches/{branch}` に当たる「効いている規則」を返すエンドポイントが無く、適用後に読み直せるのは保存された ruleset 自体までで、効き目は実地の push で確かめるしかない (ドキュメントのみ)。見立て (推測。仕分けたセッションの解釈): 上の提案の「bypass に GitHub Actions を入れない限り落ちる」は作成も止める ruleset の話で、作成を止めない形なら当たらない
 - 文書や設定のコメントに「既定でこう上書きされる」のような未検証の断定を書くと、レビューで確信度の低い指摘として毎回戻ってくる。確かめた範囲の主張に弱めて書くほうが安い (実測)
 - Draft PR を作った直後は、作成の run が立ったのを見てから Ready にすると、Ready の run が取り消されずに残った (実測)
 
@@ -87,7 +87,7 @@ status: open
 
 ## 関連
 
-- ISSUE-88: 検査と変異注入の知見。この Issue と同じ受け箱から INS-7〜18 を足した
+- ISSUE-88: 検査と変異注入の知見。この Issue と同じ受け箱から INS-7〜18 を足し、2026-10-22の2回目の仕分けで INS-19〜23 を足した
 - ISSUE-134: 特定の技術領域に閉じた知見
 - ISSUE-48: 足した規範が委譲元のトリガから到達するか
 - ISSUE-50: repository ruleset の導入。タグの ruleset の項目が関わる
