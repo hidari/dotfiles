@@ -60,7 +60,8 @@ status: open
 - 毎日の定期チェックの workflow では、前提のステップを checkout の直後に置き、その後ろの検査をすべて `if: always()` にそろえると、1つが落ちても残りの検知が止まらない。集約のステップは、内訳が空でも job が赤なら「正常」と言わずに1行残す (実測。変異16種がすべて赤)
 - sparse-checkout で必要なファイルだけ取り出す workflow は、テストでもその一覧のファイルだけを一時ディレクトリへ写してステップを走らせると、取り出し漏れ (毎朝の偽の赤) をマージ前に捕まえられる (実測)
 - 報告者の提案: setup-node にメジャーだけの範囲を渡しているリポジトリは、パッチが runner イメージ任せになっている。各リポジトリの CI ログで掴んだ版を数えてから、下限付きの範囲か check-latest を検討する (推測)
-- node の版をリポジトリ直下の `.node-version` の1箇所に寄せ、CI は actions/setup-node の `node-version-file` で、手元は mise に同じファイルを読ませる形にした報告がある (実測)。mise の側の設定と、dotfiles の global の mise 設定で有効にするかの提案は ISSUE-136
+- node の版を `.node-version` へ寄せて CI と mise で共有する報告と、その mise の設定は ISSUE-136 に置いた
+- Draft PR を作った直後は、作成の run が立ったのを見てから Ready にすると、Ready の run が取り消されずに残った (実測)
 
 ### PostgreSQL
 

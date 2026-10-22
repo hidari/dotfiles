@@ -45,7 +45,7 @@ status: open
 - bash の `set -e` は、`cd "$(git rev-parse --git-common-dir)"` のように引数の中のコマンド置換の失敗を見ない。`cd ""` が成功して処理が続き、パスがリポジトリの外を指した。コマンド置換は単独の代入の行で受ける (委譲先の reviewer がリポジトリの外で再現)
 - `make -n` は再帰の `$(MAKE)` を含む行とその中で呼ばれるコマンドを実際に走らせる。待機ループを持つターゲットに当てるとループが実走する。`make -n` を当てるのは再帰の無い葉のターゲットだけにする (実測)
 - macOS の zsh には `timeout` コマンドが無い (実測)。dotfiles で確かめたこと: この開発機でも `timeout` と `gtimeout` はどちらも PATH に無い
-- zsh で `=` から始まる語を引数に置くと、`=cmd` のコマンドパス展開として解釈される。`echo ======` は `===== not found` でコマンドごと失敗する。区切り線は `-----` にするか引用符で囲む (実測)。dotfiles で確かめたこと: この開発機の Bash ツールでも `echo ====x` が `===x not found` で失敗した。このまとめを仕分けたセッション自身も、同じ日に区切り線の `echo` で踏んでいる
+- zsh で `=` から始まる語を引数に置くと、`=cmd` のコマンドパス展開として解釈される。`echo ======` は `===== not found` でコマンドごと失敗する。区切り線は `-----` にするか引用符で囲む (実測)。dotfiles で確かめたこと: この開発機の Bash ツールでも `echo ====x` が `===x not found` で失敗した
 - `until ! pgrep -f "<コマンド>"; do sleep N; done` の形の待ちのループを background に置くと、終わらないまま残った。`pgrep -f` はコマンド行の全文を照合するので、その文字列を含むループ自身の zsh に当たり、条件が永遠に偽になる。待つ対象はプロセス名ではなく、pid (`kill -0 <pid>`) か、終わったときに書かれるファイルで見る (実測)
 - 同じ生成物ディレクトリを作り直す2つのタスクランナーの recipe (全体のゲートと E2E) を並べて走らせたら、片方が途中のディレクトリを読んで ENOENT で赤くなった。コードの不具合に見えるので取り違えやすい (実測)。報告者の提案は、ホスト環境やタスクランナーの規範に「同じ生成物ディレクトリを書く recipe を並べて走らせない」を足すこと
 
@@ -76,7 +76,6 @@ status: open
 - repository ruleset はブランチとタグで target が別系統なので、`gh api repos/<owner>/<repo>/rulesets/<id>` で target と conditions を読むと、既定のブランチを守る ruleset がタグの push を止めないことを確かめられる。bypass_actors が空でも target が branch ならタグは対象外 (実測)。報告者の提案は、タグを push する workflow を作る手順に「target: tag の ruleset があるか確かめる。後からタグの ruleset を足すと、bypass に GitHub Actions を入れない限りその push が落ちる」を加えること (ドキュメントのみ)
   - 2026-10-22に別のリポジトリから実測の報告が届いた。target: tag の ruleset で削除と付け替えだけを止めて作成は止めない形にすると、bypass_actors を空のまま GitHub Actions のタグの push を通せた。`update` の rule は REST の文書では parameters が required だが、parameters 無しで POST して保存された。ref_name の pattern は `refs/tags/` を前置きし、`[0-9]` の範囲の文字集合が効いた。pattern に当たる既存のタグの削除は `Cannot delete this tag`、force push は `Cannot update this protected ref` の GH013 で拒否され、admin も止まった。対照として、pattern に当たらないタグでは作成、付け替え、削除が通った。pattern に当たる探針のタグを作ると、bypass が空なので二度と消せない (実測)。タグの ruleset には `rules/branches/{branch}` に当たる「効いている規則」を返すエンドポイントが無く、適用後に読み直せるのは保存された ruleset 自体までで、効き目は実地の push で確かめるしかない (ドキュメントのみ)。見立て (推測。仕分けたセッションの解釈): 上の提案の「bypass に GitHub Actions を入れない限り落ちる」は作成も止める ruleset の話で、作成を止めない形なら当たらない
 - 文書や設定のコメントに「既定でこう上書きされる」のような未検証の断定を書くと、レビューで確信度の低い指摘として毎回戻ってくる。確かめた範囲の主張に弱めて書くほうが安い (実測)
-- Draft PR を作った直後は、作成の run が立ったのを見てから Ready にすると、Ready の run が取り消されずに残った (実測)
 
 ## タスク
 

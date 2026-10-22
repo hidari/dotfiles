@@ -22,12 +22,12 @@ dotfiles で確かめたこと (2026-10-22):
 ## 決める前に見ること
 
 - `probe_node_security` (ISSUE-131) は global の `[tools]` にある node の pin だけを security リリースと比べる。`.node-version` で手元の版が切り替わるリポジトリでは、その版が古くてもプローブは告げない。これは global を有効にするかどうかに関わらず、自前の `mise.toml` で有効にしているリポジトリでも既に同じである
-- config-guard の tool_provisioning は、検査とテストに要るコマンドが Brewfile か mise の `[tools]` に宣言されているかだけを見て、版は見ない。`.node-version` で版が切り替わってもこの検査の結果は変わらない
+- config-guard の tool_provisioning は版を見ないので影響しない (確認済み)
 
 ## タスク
 
 - [ ] global で有効にするか、`.node-version` を持つリポジトリの `mise.toml` に任せたままにするかを決める
-- [ ] `.node-version` で版が切り替わるリポジトリの版を、security リリースと比べる対象に入れるかを決める
+- [ ] `.node-version` で版が切り替わるリポジトリの版を、security リリースと比べる対象に入れるかを決める。これは上のタスクの結論に関わらず要る、独立した決定である (自前の `mise.toml` で有効にしているリポジトリが既にある)。上のタスクを「任せたまま」で閉じるときも、このタスクは別に片付ける
 
 ## 関連
 

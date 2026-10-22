@@ -96,8 +96,6 @@ Docker.app と OrbStack は外す (2026-10-10にユーザーが決定)。OrbStac
 
 報告者の提案は、ネイティブのランタイムを検討するときは先に `content_path` の有無を grep すること。
 
-見立て (推測。報告者の指摘ではなく仕分けたセッションの解釈): Supabase CLI がネイティブで動くなら、そのツールについては socktainer を経由しなくて済む。
-
 ## タスク
 
 - [x] container の入手経路を決める (pkg のままか brew へ寄せるか)。brew へ寄せるなら Brewfile に載せる (ISSUE-95 の射程の議論と合わせる)
@@ -110,7 +108,7 @@ Docker.app と OrbStack は外す (2026-10-10にユーザーが決定)。OrbStac
 - [ ] 移行するかを決め、決めた結果を `home/.claude/references/host-environment.md` の隔離先コンテナの記述へ反映する
 - [ ] 移行するなら、OrbStack.app と Docker.app、`/usr/local/bin/docker` の symlink、docker context の扱いを決める
 - [ ] 自作した compose 互換ツールを畳むか続けるかを、そのリポジトリ側の Issue で決める
-- [ ] Supabase CLI のネイティブのランタイムで、実際に使うプロジェクトの Supabase を起動できるか確かめる。起動できるなら、socktainer で試す対象から Supabase CLI を外す
+- [ ] 実際に使うプロジェクトの Supabase の設定に `content_path` があるかを grep し、無ければ Supabase CLI のネイティブのランタイムで起動できるか確かめる。起動できるなら、socktainer で試す対象から Supabase CLI を外す
 
 ## 関連
 

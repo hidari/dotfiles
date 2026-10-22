@@ -13,7 +13,7 @@ status: open
 ### 反証された前提
 
 - 「分母と分子を両方数えて突き合わせる手当てが既存に無い」は偽。`rules/testing-practices.md` が既に「数える」ことを規定し、`references/testing.md` の「範囲の穴は 3 種の変異では見えない」節が Pester の実例を分母と分子の形で持つ。新規なのは 2 点だけ — (a) 突き合わせを常設の別検査として置くこと (b) 落ちた側が列数最大という偏りの向き
-- 委譲元の推測「INS-1 と INS-6 は失敗側にトリガがあるので paths 付き rules へ寄せられる」のうち INS-1 は誤り。検査機構を足すときに編集するのは `scripts//*.py` / `rules/*.yml` / `sgconfig.yml` / `.pre-commit-config.yaml` / `.github/workflows/*.yml` で、どの rules の `paths` にも一致しない。同型は ISSUE-48 の軸F が既に記録している
+- 委譲元の推測「INS-1 と INS-6 は失敗側にトリガがあるので paths 付き rules へ寄せられる」のうち INS-1 は誤り。検査機構を足すときに編集するのは `scripts/**/*.py` / `rules/*.yml` / `sgconfig.yml` / `.pre-commit-config.yaml` / `.github/workflows/*.yml` で、どの rules の `paths` にも一致しない。同型は ISSUE-48 の軸F が既に記録している
 - INS-3 の新規性は解釈に依存する。`references/observation.md` の既存 3 実例はいずれもその場で書いた使い捨てコマンドなので、射程は実質すでに届いている。確実に新規なのは「ツールの出力どうしを突き合わせている限り決着しない、一次の実体へ降りて初めて付く」という決め手の方
 
 ### 取り込む知見
@@ -94,7 +94,7 @@ INS-7 と INS-10 には2件目の報告が届いた。どちらも新しい番�
 
 着手前に決める。決めずに個別へ入れると常時層の配分が判断できなくなる。
 
-- INS-2 の置き場。トリガ (検証手段を選ぶ瞬間) に file surface が無いので Issue 36 の基準では常時層だが余裕 0 で `BUDGET_RAISES` が要る。代案は (a) 検査記述面 (`sgconfig.yml` / `rules/*.yml` / `.pre-commit-config.yaml` / `scripts//*.py` / `.github/workflows/*.yml`) へ向けた新規 `paths` 付き rules (b) ISSUE-48 の再構成で観測カテゴリを圧縮した分で払う。(a) は scoped rules が Read ツールでしか発火しないため、検査を書く前に検査ファイルを Read するとは限らず到達が弱い
+- INS-2 の置き場。トリガ (検証手段を選ぶ瞬間) に file surface が無いので Issue 36 の基準では常時層だが余裕 0 で `BUDGET_RAISES` が要る。代案は (a) 検査記述面 (`sgconfig.yml` / `rules/*.yml` / `.pre-commit-config.yaml` / `scripts/**/*.py` / `.github/workflows/*.yml`) へ向けた新規 `paths` 付き rules (b) ISSUE-48 の再構成で観測カテゴリを圧縮した分で払う。(a) は scoped rules が Read ツールでしか発火しないため、検査を書く前に検査ファイルを Read するとは限らず到達が弱い
 - INS-2C の置き場。dotfiles の指示層へ置くか、`ast-grep-practice` skill の description へ置くか。後者なら常時層のバイトを 1 も使わず (skill description は別勘定) トリガも全セッションへ届くが、実体は agentic-coding-tools 側にあり dotfiles 単独では完結しない。cross-repo の変更を許すか
 - INS-4 の置き場。失敗の瞬間は本番アダプタ側の編集なので `rules/testing-practices.md` の `paths` は届かない。CLAUDE.md の語彙定義 (契約テスト) を +60B 程度で締めれば正しいトリガに載るが `BUDGET_RAISES` が要る。`testing-practices.md` へ置く案は「Fake を開いた時点で発火する」ので遅いが非ゼロ
 - ISSUE-48 との着手順。INS-1B と INS-3 は観測カテゴリの参照先に触るので、ISSUE-48 の再構成より先に足すと再構成のたたき台が動く。逆に後追いにすると滞留する
