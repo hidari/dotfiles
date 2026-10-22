@@ -14,6 +14,9 @@
 #   ルール評価ロジックは共通なので dir で検証して問題ない。
 # =============================================================================
 
+# run ! (否定のアサーション) に必要。宣言しないと bats が BW02 警告を出す。
+bats_require_minimum_version 1.5.0
+
 load test_helper
 
 GITLEAKS_CONFIG="$REPO_ROOT/.gitleaks.toml"
@@ -50,7 +53,7 @@ fired() {
     scan
     [ "$status" -ne 0 ]
     # custom rule ではなく既定ルールが拾ったこと (= 継承が効いている証明)
-    ! fired "macos-user-path"
+    run ! fired "macos-user-path"
 }
 
 @test "detects a real-username absolute path (custom rule)" {

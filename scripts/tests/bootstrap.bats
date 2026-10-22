@@ -5,7 +5,7 @@
 
 load test_helper
 
-# run --separate-stderr (stdout と stderr を分けて観測する) に必要。
+# run --separate-stderr (stdout と stderr を分けて観測する) と run ! (否定のアサーション) に必要。
 # 宣言しないと bats が BW02 警告を出す。CI は v1.13.0 を pin している。
 bats_require_minimum_version 1.5.0
 
@@ -219,8 +219,8 @@ teardown() {
     [ -f "$dest" ]
     grep -q "/repo/scripts/run.sh" "$dest"
     grep -q "$TEST_HOME/log" "$dest"
-    ! grep -q "__DOTFILES_DIR__" "$dest"
-    ! grep -q "__HOME__" "$dest"
+    run ! grep -q "__DOTFILES_DIR__" "$dest"
+    run ! grep -q "__HOME__" "$dest"
 }
 
 @test "render_launch_agent_plist: dry-run does not write" {

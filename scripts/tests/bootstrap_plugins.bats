@@ -3,6 +3,9 @@
 # bootstrap.sh: Claude plugin セットアップのテスト
 # =============================================================================
 
+# run ! (否定のアサーション) に必要。宣言しないと bats が BW02 警告を出す。
+bats_require_minimum_version 1.5.0
+
 load test_helper
 
 setup() {
@@ -59,7 +62,7 @@ JSON
     run claude_plugin_targets "$TEST_HOME/settings.json"
 
     [ "$status" -eq 0 ]
-    ! echo "$output" | grep -q "inline-one"
+    run ! grep -q "inline-one" <<< "$output"
 }
 
 @test "claude_plugin_targets: emits only enabled (true) plugins" {
@@ -71,7 +74,7 @@ JSON
     echo "$output" | grep -qF $'plugin\tcode-review@claude-plugins-official'
     echo "$output" | grep -qF $'plugin\tmodern-web-guidance@googlechrome'
     # false の plugin は除外される
-    ! echo "$output" | grep -q "disabled-one"
+    run ! grep -q "disabled-one" <<< "$output"
 }
 
 @test "claude_plugin_targets: empty settings.json produces no output and does not fail" {
@@ -143,14 +146,14 @@ JSON
     run setup_claude_plugins "$TEST_HOME/settings.json"
 
     [ "$status" -eq 0 ]
-    # 既存のものは add / install しない
-    ! grep -qF 'marketplace add https://github.com/GoogleChrome/modern-web-guidance.git' "$FAKE_CLAUDE_LOG"
-    ! grep -qF 'install modern-web-guidance@googlechrome' "$FAKE_CLAUDE_LOG"
     # 未登録 / 未インストールのものは実行する
     grep -qF 'marketplace add obra/superpowers-marketplace' "$FAKE_CLAUDE_LOG"
     grep -qF 'install code-review@claude-plugins-official' "$FAKE_CLAUDE_LOG"
     # スキップしたことがログに出る
     assert_contains "$output" "already"
+    # 既存のものは add / install しない。run ! は $output を上書きするので最後に置く
+    run ! grep -qF 'marketplace add https://github.com/GoogleChrome/modern-web-guidance.git' "$FAKE_CLAUDE_LOG"
+    run ! grep -qF 'install modern-web-guidance@googlechrome' "$FAKE_CLAUDE_LOG"
 }
 
 @test "setup_claude_plugins: continues best-effort when one install fails" {

@@ -234,7 +234,7 @@ repos:
         files: ^scripts/(windows-vm/|ci/run-pester\.ps1$)
 
       # シェルスクリプトの静的解析。CLAUDE.md の「警告0/ノイズ0」を prose でなくツールで担保する。
-      # .bats は bats 構文 (@test) を shellcheck がパースできないため対象外。
+      # .bats はこの hook ではなく下の shellcheck-bats が受け持つ。
       # CI (.github/workflows/test.yml の shellcheck job) でもミラーし --no-verify を backstop する。
       # local hook は language:system で dev の brew shellcheck を使う。CI 側は同 version を
       # download+verify で pin し (test.yml, gitleaks と同じ「開発機と揃える」)、ubuntu 同梱の
@@ -251,6 +251,17 @@ repos:
         language: system
         entry: shellcheck -x -P SCRIPTDIR
         files: (\.sh$|\.bash$|^scripts/apm-guard/apm$|^scripts/repo-wiring/repo-wiring$)
+
+      # .bats の静的解析。shellcheck は bats の構文を読め、SC2314 / SC2315 は bats を前提にした
+      # ルールである。bats では最後の文でない `!` がテストを失敗させないので、否定のアサーションが
+      # 黙って死ぬ。ルールを全部当てると、run がサブシェルで走ることによる SC2030 / SC2031 の
+      # 誤検出の族が大半を占めるため、この2つのコードに絞る。
+      # CI (.github/workflows/test.yml の shellcheck job) でもミラーし --no-verify を backstop する。
+      - id: shellcheck-bats
+        name: shellcheck (bats の否定)
+        language: system
+        entry: shellcheck -x -P SCRIPTDIR --include=SC2314,SC2315
+        files: \.bats$
 
   # 標準 hook。CLAUDE.md の「末尾は改行1つ」「行末空白なし/ノイズ0」を prose でなくツールで担保する。
   # この2 hook は cosmetic (機能に無影響) ゆえ pre-commit-only とし CI ミラーは張らない (--no-verify で main に
