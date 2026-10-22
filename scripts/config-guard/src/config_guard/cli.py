@@ -11,7 +11,8 @@ Markdown の相対リンクが実在するか / 常時ロードされる指示�
 その予算そのものが main から無音で上がっていないか / rules の paths 宣言が pin と
 一致するか / 指示ファイルどうしの参照 (パスと見出し) が実在するか / rules が定義する語が
 定義の届かない層で使われていないか / Issue の `## 関連` 節がリンクを持たず識別子だけで書かれ
-その識別子が実在するかを検査する。
+その識別子が実在するか / 追跡下の docs/ 直下が規約のサブディレクトリだけで構成されているかを
+検査する。
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from pathlib import Path
 from config_guard.apm_gitignore import check_apm_deployed_files_ignored
 from config_guard.apm_pins import check_apm_pins
 from config_guard.budget_ratchet import check_budget_ratchet
+from config_guard.docs_layout import check_docs_layout
 from config_guard.extractors import extract_skill_tokens
 from config_guard.git_source import read_committed_settings
 from config_guard.herdr_keys import check_herdr_keys, run_config_check
@@ -127,6 +129,9 @@ def scan(repo_root: str) -> list[Finding]:
     # Issue の `## 関連` 節がリンクを持たず、識別子が実在するか。リンクを外すと
     # markdown_links の検査は届かなくなるので、識別子を見る側をここで足す
     findings.extend(check_related_refs(str(root)))
+
+    # 追跡下の docs/ 直下が規約の置き場だけか (CI で走る理由は docs_layout の docstring)
+    findings.extend(check_docs_layout(str(root)))
 
     return findings
 

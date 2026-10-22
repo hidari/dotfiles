@@ -208,6 +208,19 @@ repos:
         pass_filenames: false
         always_run: true
 
+      # 禁止語リスト (追跡外のリスト) を追跡ファイルのパスと内容へ当てる。gitleaks が持てない
+      # 固有名詞 (private リポジトリ名など) の流入をここで止める。checker は index 全体を
+      # 走査するので always_run で毎コミット走らせる。
+      # リストは開発機にしか無いので CI ミラーは張らない (--no-verify の backstop は
+      # config-guard の docs_layout が別の角度から持つ)。入口を checker の直接呼び出しに
+      # しない理由 (fail-closed) は入口のスクリプトが持つ。
+      - id: leak-guard-denylist
+        name: 禁止語リスト (追跡ファイルのパスと内容)
+        language: system
+        entry: bash scripts/leak-guard/denylist-check.sh
+        pass_filenames: false
+        always_run: true
+
       - id: ast-grep-scan
         name: ast-grep scan (構文レベル lint / rules)
         language: system

@@ -25,7 +25,7 @@ skill 本体だけでなく `SKILL.md` (150 行) と `references/troubleshooting
 
 ## 決定 (実機で確かめた結果)
 
-検証環境は Parallels Desktop 26.4.0-57513 + `Staccato - Windows 11 ARM` (Windows 11 ARM, ビルド 10.0.26200.8875)。
+検証環境は Parallels Desktop 26.4.0-57513 + 検証用の VM (Windows 11 ARM, ビルド 10.0.26200.8875)。
 
 ### VMware Fusion は捨てる
 

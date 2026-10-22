@@ -230,6 +230,17 @@ def test_unresolvable_related_ref_is_detected(tmp_path: Path) -> None:
     assert any(f.detail == "Issue 99" for f in findings)
 
 
+def test_docs_outside_the_conventional_subdirectories_is_detected(tmp_path: Path) -> None:
+    # docs/ の置き場の検査が scan に配線されていること
+    repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
+    write_file(repo, "docs/notes/a.md", "x\n")
+    run_git(repo, "add", "-A")
+
+    findings = scan(str(repo))
+
+    assert [(f.source, f.detail) for f in findings] == [("docs/notes/a.md", "notes")]
+
+
 def test_unprovisioned_tool_is_detected(tmp_path: Path) -> None:
     # 供給の検査が scan に配線されていること。配線を忘れると、要求されるコマンドが
     # どの実体化経路からも外れても誰も赤くならない状態へ戻る。手元には実体が残るので

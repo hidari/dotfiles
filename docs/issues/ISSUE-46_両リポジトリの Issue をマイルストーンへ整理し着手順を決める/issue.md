@@ -91,7 +91,7 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | M1 | Issue 維持コストの原因を消す | Issue 43、ISSUE-52、ISSUE-74 |
 | M2 | 検査を配布先で走る状態にする | ISSUE-53、ISSUE-72、ISSUE-86、ISSUE-97、ISSUE-101、ISSUE-121、agentic-coding-tools の ISSUE-32 |
 | M3 | skill バンドルの二重登録を止める | Issue 40、ISSUE-128 |
-| M4 | PUBLIC 露出の scrub | Issue 21、ISSUE-87、ISSUE-135 |
+| M4 | PUBLIC 露出の scrub | Issue 21、ISSUE-87 |
 | M5 | 静的検査の基盤を寄せ射程の穴を塞ぐ | Issue 39、Issue 30、ISSUE-57、ISSUE-60、Issue 41、ISSUE-47、Issue 17、Issue 18、ISSUE-75、ISSUE-90、ISSUE-94、ISSUE-98、ISSUE-110、ISSUE-112、ISSUE-122、ISSUE-113 |
 | M6 | winvm の実装品質 | 上流の winvm 系 Issue |
 | M7 | 環境とテスト網の個別 | 下の細分表 |
@@ -152,6 +152,12 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
   `git show <ref>:<path>` で読む。数えた SHA は「件数の推移」節に残す。並行するセッションが上流の
   作業ツリーを feature ブランチへ切り替えていると、その枝でだけ status が動いた Issue の分がずれる
   (2026-09-17 に実例がある)
+
+### 割り当ての検算 (2026-10-22、ISSUE-135 のクローズの後)
+
+dotfiles の active な Issue は73件 (open が71件、in_progress が2件) で、その全件がいずれかのマイルストーンへ入ることを、この変更の tree で数えて確かめた。M4 は2件になり、ほかのマイルストーンの件数は下の検算から動いていない。この Issue 自身の1件と合わせて73件になる。表の腐りは0件、未割り当てはこの Issue 自身の1件だけだった。
+
+下の検算からの動きは、ISSUE-135 を M4 から外したことだけである。この変更で closed になる。
 
 ### 割り当ての検算 (2026-10-22、ISSUE-136 の起票の後)
 
