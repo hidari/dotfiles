@@ -58,7 +58,6 @@ Pester 版で、こちらは逆に skipped が total に載るために起きる
 
 ## 関連
 
-- private リポジトリ A の PR — 同型のラッパで両方を直した実装がある。
-  あちら側は `-MinimumCount` を Mandatory にし、呼び出し側が件数を明示する形になっている
+- private リポジトリ A の同型のラッパ — `-MinimumCount` を Mandatory にし、呼び出し側が件数を明示する形
 - `scripts/ci/run-pester.ps1` — 本 Issue の対象
 - `.pre-commit-config.yaml` / `.github/workflows/test.yml` — 呼び出し元
