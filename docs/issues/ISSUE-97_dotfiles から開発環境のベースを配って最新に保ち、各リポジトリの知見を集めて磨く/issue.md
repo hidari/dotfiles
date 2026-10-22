@@ -15,7 +15,7 @@ children: [ISSUE-126]
 | --- | --- | --- |
 | apm (agentic-coding-tools から) | skill / plugin | deploy 先はホーム直下の 1 箇所で、全リポジトリへ同時に届く (上流 ISSUE-22) |
 | symlink (dotfiles から) | hooks / settings / CLAUDE.md / rules | 同じく全リポジトリ共通 |
-| リポジトリごとの写し | `.gitleaks.toml` と pre-commit の設定 (ISSUE-86)、in-repo Issue の template と採番スクリプト、issue-scoped-artifacts の hook block | 写した時点で止まる |
+| リポジトリごとの写し | PUBLIC へ置く `.gitleaks.toml` と pre-commit の設定 (ISSUE-86。PRIVATE には既定ルールだけの設定を置く)、in-repo Issue の template と採番スクリプト、issue-scoped-artifacts の hook block | 写した時点で止まる |
 | GitHub の設定 (計画中) | ruleset (ISSUE-50) | dotfiles の汎用定義を API で各リポジトリへ適用する |
 
 ### 鮮度が落ちても誰も告げない
@@ -134,7 +134,7 @@ stale な記述の検出には使わない。ISSUE-115 の試験で、過去形�
 - ISSUE-53: 配布先の加入状況と写しの drift を見る層。写しの drift の判定はあちらが持ち、この Issue の写しの告知はあちらの判定の形が決まってから着手する
 - ISSUE-101: apm の pin の鮮度を告げる。この Issue から切り出した
 - ISSUE-72: 開発機にある全リポジトリの母集団。この Issue はあちらと ISSUE-53 の決定に従う
-- ISSUE-86: `.gitleaks.toml` の写しを各リポジトリへ置く作業。写しか参照かの切り分けで方針が変わりうる (変わるのは内容で、着手順ではない)
+- ISSUE-86 (closed): `.gitleaks.toml` の写しを PUBLIC のリポジトリへ置き、PRIVATE には既定ルールだけの設定を置いた展開。写しか参照かの切り分けで方針が変わりうる (変わるのは内容で、着手順ではない)
 - ISSUE-50: ruleset の汎用定義を dotfiles に置き、各リポジトリへ適用する計画を持つ。対象のリポジトリは実行時に取得するので、母集団の決定とも重なる
 - ISSUE-83 と ISSUE-71: SessionStart へ告知を足すときの前提
 - ISSUE-88 と ISSUE-89: 委譲による収集の実例 (もう1つの経路は ISSUE-126 の受け箱)
