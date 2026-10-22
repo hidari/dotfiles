@@ -108,7 +108,7 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 
 | 群 | 指す Issue |
 | --- | --- |
-| zsh 層 | Issue 11、Issue 12、Issue 34、Issue 44、ISSUE-69 |
+| zsh 層 | Issue 11、Issue 12、Issue 34、ISSUE-69 |
 | CI の安定性 | Issue 37、Issue 38 |
 | Raycast | Issue 22、Issue 23 |
 | PowerShell | Issue 27、Issue 28 |
@@ -466,7 +466,6 @@ canonical で、マイルストーン表と細分表は所属だけを持つ。
 | Issue 39 | Issue 30 | フェンス走査の 3 つ目を別実装で足さない |
 | Issue 37 | ISSUE-50 | 必須チェックを入れると取得の一時障害がマージを止める |
 | ISSUE-58 | Issue 26 の必須フック検査タスク | handoff-sentinel の位置づけを先に決める |
-| Issue 44 | ISSUE-69 (逆でもよい) | `.zshrc` の置き場が衝突する |
 | ISSUE-72 | ISSUE-53 (逆でもよい) | 全リポの母集団を共有し、先に着手した側が形を決める |
 | Issue 17 | Issue 18 (同時が自然) | 同種の検査で、片方を入れるときもう片方も入れる |
 | Issue 22 | Issue 23 | 同一スクリプトの別の欠陥 |

@@ -46,26 +46,29 @@ path=(
 
 ##################################
 # プロンプト設定
+#
+# 対話シェルに限る。理由はオプションのブロック冒頭と同じ。
+if [[ -o interactive ]]; then
+  # 色を使用出来るようにする
+  autoload -Uz colors
+  colors
 
-# 色を使用出来るようにする
-autoload -Uz colors
-colors
+  # プロンプトが表示されるたびにプロンプト文字列を評価、置換する
+  setopt prompt_subst
 
-# プロンプトが表示されるたびにプロンプト文字列を評価、置換する
-setopt prompt_subst
+  # gitのステータスを表示
+  autoload -Uz vcs_info
+  zstyle ':vcs_info:git:*' check-for-changes true
+  zstyle ':vcs_info:git:*' stagedstr "%F{magenta}!"
+  zstyle ':vcs_info:git:*' unstagedstr "%F{yellow}+"
+  zstyle ':vcs_info:*' formats "%F{087}%c%u[%b]%f"
+  zstyle ':vcs_info:*' actionformats '[%b|%a]'
+  precmd () { vcs_info }
 
-# gitのステータスを表示
-autoload -Uz vcs_info
-zstyle ':vcs_info:git:*' check-for-changes true
-zstyle ':vcs_info:git:*' stagedstr "%F{magenta}!"
-zstyle ':vcs_info:git:*' unstagedstr "%F{yellow}+"
-zstyle ':vcs_info:*' formats "%F{087}%c%u[%b]%f"
-zstyle ':vcs_info:*' actionformats '[%b|%a]'
-precmd () { vcs_info }
-
-# プロンプト表示
-PROMPT='%F{141}[%D %*]%f %~ %F{087}$vcs_info_msg_0_%f
+  # プロンプト表示
+  PROMPT='%F{141}[%D %*]%f %~ %F{087}$vcs_info_msg_0_%f
 %F{081}❯%f '
+fi
 
 ########################################
 # 補完
@@ -101,58 +104,66 @@ zstyle ':completion:*:processes' command 'ps x -o pid,s,args'
 
 ########################################
 # オプション
+#
+# 対話シェルに限る。このファイルは非対話シェル (エージェントの Bash ツール等) でも
+# 読まれ、そこで有効になったオプションは Claude Code のシェルスナップショットへ焼き込まれる。
+# nonomatch は一致0件の glob をエラーにせずリテラル1件として渡し、auto_cd はコマンド名に
+# 見えるディレクトリ名へ cd する。どちらもエラーではなくもっともらしい結果を返すので、
+# 出力を見ても気づけない。
+# 関数と PATH は非対話でも要るのでガードの外に置く。claude のランチャだけは例外で、
+# 「非対話シェルへ運ばないランチャ」の節が外す。
+if [[ -o interactive ]]; then
+  # 日本語ファイル名を表示可能にする
+  setopt print_eight_bit
 
-# 日本語ファイル名を表示可能にする
-setopt print_eight_bit
+  # beep を無効にする
+  setopt no_beep
 
-# beep を無効にする
-setopt no_beep
+  # フローコントロールを無効にする
+  setopt no_flow_control
 
-# フローコントロールを無効にする
-setopt no_flow_control
+  # Ctrl+Dでzshを終了しない
+  setopt ignore_eof
 
-# Ctrl+Dでzshを終了しない
-setopt ignore_eof
+  # '#' 以降をコメントとして扱う
+  setopt interactive_comments
 
-# '#' 以降をコメントとして扱う
-setopt interactive_comments
+  # ディレクトリ名だけでcdする
+  setopt auto_cd
 
-# ディレクトリ名だけでcdする
-setopt auto_cd
+  # cd したら自動的にpushdする
+  setopt auto_pushd
 
-# cd したら自動的にpushdする
-setopt auto_pushd
+  # 重複したディレクトリを追加しない
+  setopt pushd_ignore_dups
 
-# 重複したディレクトリを追加しない
-setopt pushd_ignore_dups
+  # 同時に起動したzshの間でヒストリを共有する
+  setopt share_history
 
-# 同時に起動したzshの間でヒストリを共有する
-setopt share_history
+  # 同じコマンドをヒストリに残さない
+  setopt hist_ignore_all_dups
 
-# 同じコマンドをヒストリに残さない
-setopt hist_ignore_all_dups
+  # スペースから始まるコマンド行はヒストリに残さない
+  setopt hist_ignore_space
 
-# スペースから始まるコマンド行はヒストリに残さない
-setopt hist_ignore_space
+  # ヒストリに保存するときに余分なスペースを削除する
+  setopt hist_reduce_blanks
 
-# ヒストリに保存するときに余分なスペースを削除する
-setopt hist_reduce_blanks
+  # 重複を記録しない
+  setopt hist_ignore_dups
 
-# 重複を記録しない
-setopt hist_ignore_dups
+  # 高機能なワイルドカード展開を使用する
+  setopt extended_glob
 
-# 高機能なワイルドカード展開を使用する
-setopt extended_glob
-
-# globでメタ文字列が含まれるとファイル名と判断される問題の対処
-setopt nonomatch
+  # globでメタ文字列が含まれるとファイル名と判断される問題の対処
+  setopt nonomatch
+fi
 
 ########################################
 # エイリアス
 #
-# 対話シェルに限る。このファイルは非対話シェル（エージェントの Bash ツール等）
-# でも読まれ、そこで ls が -a を持つと件数が . と .. のぶん 2 件多く出る。
-# エラーではなくもっともらしい数字で返るので、出力を見ても気づけない。
+# 対話シェルに限る。前提はオプションのブロック冒頭と同じ。エイリアスでは、非対話で
+# ls が -a を持つと件数が . と .. のぶん 2 件多く出る。
 # 個別ではなくブロックごと囲うのは、後から足すエイリアスが同じ穴を作り直すため。
 if [[ -o interactive ]]; then
   # ファイル一覧を表示（隠しファイル含む、色付き）
@@ -394,6 +405,17 @@ function ${name}-dev() {
 }
 
 _claude_define_launchers
+
+########################################
+# 非対話シェルへ運ばないランチャ
+#
+# claude と、それを包むランチャ (claude-dev と、追加アカウントごとに生成したもの) は
+# 非対話シェルでは関数として残さない。Claude Code のシェルスナップショットは _ 始まりの
+# 補助関数を運ばないので、運ばれたランチャは呼ぶと補助関数が見つからずに落ちる。
+# 外せば同名のバイナリへ解決される。
+# 定義そのものを囲わず定義のあとで外すのは、上のブロックを bash へ source して関数を
+# 検査するテストがあり、bash には interactive オプションが無いため。
+[[ -o interactive ]] || unfunction -m 'claude*'
 
 ########################################
 # その他
