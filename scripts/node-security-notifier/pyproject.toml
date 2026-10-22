@@ -1,7 +1,7 @@
 [project]
 name = "node-security-notifier"
 version = "0.1.0"
-description = "Node の脆弱性 RSS を監視し新着セキュリティリリースを macOS 通知する"
+description = "Node の security リリースの一覧を日次で取得し、セッション開始時の検査が読む状態ファイルへ書く"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }

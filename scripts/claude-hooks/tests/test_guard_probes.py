@@ -137,7 +137,7 @@ def test_登録簿は名前と関数の組を持つ() -> None:
     持つ表現のほうが集合より強く、両方を別のテストで持つと片方が完全に包含される側になるため。
     """
     names = [name for name, _ in guard_probes.PROBES]
-    assert names == ["apm", "private-ops", "task-list-id", "herdr-ids"]
+    assert names == ["apm", "private-ops", "task-list-id", "herdr-ids", "node-security"]
     for _, probe in guard_probes.PROBES:
         assert callable(probe)
 

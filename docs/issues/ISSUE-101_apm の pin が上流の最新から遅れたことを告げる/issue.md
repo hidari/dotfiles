@@ -58,8 +58,7 @@ ISSUE-53 は、配布先の母数の定義から始まる。この Issue が見�
   通知はやがて見られなくなるため (`scripts/mise-update-notifier/README.md`)
 - 同じ README は、exact pin こそが素の `mise outdated` を無力化すると記録している。SHA で pin した
   apm の manifest でも同じことが起きうる
-- `scripts/node-security-notifier` は、LaunchAgent で日次に起動して macOS へ通知する、ローカルの
-  定期経路である
+- `scripts/node-security-notifier` は、LaunchAgent で日次に起動するローカルの定期経路である。ISSUE-131 で macOS への通知をやめ、日次の取得結果を状態ファイルへ書いて SessionStart のプローブ (guard_probes) が pin と比べて告げる形にした。この Issue と同じ「告げる経路はあるが誰も見ない」への手当てなので、apm の pin でも同じ形が採れる
 
 ## 決めること
 
