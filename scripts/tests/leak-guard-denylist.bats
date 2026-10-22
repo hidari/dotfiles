@@ -26,11 +26,7 @@ setup() {
     unset LEAK_GUARD_DENYLIST
     WORK="$(mktemp -d)"
     REPO="$WORK/repo"
-    mkdir -p "$REPO"
-    git -C "$REPO" init -q
-    # identity はリポジトリへ書く (CI の runner には global の identity が無い)
-    git -C "$REPO" config user.name test
-    git -C "$REPO" config user.email test@example.com
+    setup_test_repo "$REPO"
     # 本物のリポジトリと同じく deploy 先を追跡しない。checker 自身を走査対象へ入れないため
     printf 'home/.claude/skills/\n' > "$REPO/.gitignore"
     printf 'hello\n' > "$REPO/a.txt"
@@ -69,7 +65,7 @@ EOF
 
 @test "an empty value reaches the checker instead of being treated as unset" {
     # 空は checker が rc 2 で拒む値 (未設定とは別の枝)。入口が :+ で判定すると
-    # 空を未設定と同じに扱い、checker の分岐表の 1 行を握りつぶす
+    # 空を未設定と同じに扱い、checker の分岐表の1行を握りつぶす
     install_fake_checker 2
     export LEAK_GUARD_DENYLIST=""
 
@@ -120,7 +116,7 @@ EOF
 }
 
 # 本物の checker を通す。陽性の検体で止まり、陰性の側で通ることを両方見る。
-# 禁止語は printf で組み立てる。リストの書式と照合の仕様は checker が canonical。
+# 禁止語は printf で組み立てる。
 live_setup() {
     local real="$REPO_ROOT/$CHECKER_REL"
     [ -f "$real" ] || skip_outside_ci "checker が deploy されていない: $CHECKER_REL"

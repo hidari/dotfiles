@@ -130,8 +130,7 @@ def scan(repo_root: str) -> list[Finding]:
     # markdown_links の検査は届かなくなるので、識別子を見る側をここで足す
     findings.extend(check_related_refs(str(root)))
 
-    # 追跡下の docs/ 直下が規約の置き場だけか。private な固有名詞の流入は規約外の置き場へ
-    # 着地した。名前を見る禁止語リストの hook は CI で走らないので、置き場の側をここで見る
+    # 追跡下の docs/ 直下が規約の置き場だけか (CI で走る理由は docs_layout の docstring)
     findings.extend(check_docs_layout(str(root)))
 
     return findings

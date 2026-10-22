@@ -26,8 +26,8 @@ Issue 29 の残タスク「現ツリーに新規露出を足さないことを�
 
 checker (`check-leak-guard-denylist.py`、apm の deploy 先に在る) には追跡ファイル全体を index の blob で走査する `--check` が既にあり、pre-commit へ取り付ける前提で書かれていた。手で当てると次のとおりで、1回あたり0.5秒、常駐36MB だった。
 
-- 追跡435件のパスすべてと、431件の内容を照合した。内容を読まなかった4件は 1MiB を超える blob (cheatsheet の `.af` と `.png`) で、checker の上限による除外である
-- 既存の露出が3件見つかった。closed 配下の Issue 文書2ファイルに、リストの「ローカル開発環境」の区分にある1語が現れていた。private リポジトリ名ではないが、Issue 21 の露出一覧に載っていない項目だった。この PR で伏字にし、Issue 21 の一覧へ8番として足した
+- 追跡435件のパスすべてと、431件の内容を照合した。内容を読まなかった4件は1MiB を超える blob (cheatsheet の `.af` と `.png`) で、checker の上限による除外である
+- 既存の露出が見つかった。closed 配下の Issue 文書に、リストに載っている1語が現れていた。private リポジトリ名ではないが、Issue 21 の露出一覧に載っていない項目だった。伏字にし、Issue 21 の一覧へ8番として足した
 
 checker は `--check` しか持たず差分だけを見る形が無いので、既存の露出を残したまま hook を入れると最初のコミットから赤くなる。伏字化を同じ PR に入れたのはこのためである。
 
@@ -63,7 +63,7 @@ checker は環境変数が未設定のとき rc 0 の skip で、pre-commit は 
 入口は bats が `LEAK_GUARD_HOOK` で変異体を指して検査した (本体は書き換えていない)。config-guard 側は1箇所ずつ書き換えて pytest を回し、戻したあとハッシュで一致を確かめた。
 
 - 対象: 禁止語を含むファイルを stage すると止まる (live の bats と下の live smoke)。`docs/notes/` へ置くと config-guard が止める
-- 機構: 入口の8件 (未設定の判定を `:+` にする、判定を外す、止めずに rc 0 で抜ける、`--check` を落とす、rc を `|| true` で握りつぶす、cwd から checker を引く、抜け方の hook id を変える、checker を別の bundle のパスへ向ける) はすべて落ちた。`exec` を外すだけの変異と `exec ... || true` は、どちらも `set -e` と exec の下で rc が変わらない等価変異だった。docs_layout の6件 (allowlist を無効にする、前方一致にする、直下のファイルを許す、allowlist を広げる、`-z` を落とす、`docs` の判定を前方一致にする) もすべて落ちた
+- 機構: 入口の8件 (未設定の判定を `:+` にする、判定を外す、止めずに rc 0 で抜ける、`--check` を落とす、rc を `|| true` で握りつぶす、cwd から checker を引く、抜け方の hook id を変える、checker を別の bundle のパスへ向ける) はすべて落ちた。`exec` を外すだけの変異と `exec ... || true` は、どちらも `set -e` と exec の下で rc が変わらない等価変異だった。docs_layout の9件 (allowlist を無効にする、前方一致にする、直下のファイルを許す、allowlist を広げる、`-z` を落とす、`docs` の判定を前方一致にする、大小文字の違う `Docs/` を通す、その判定と pathspec の `icase` を外す) もすべて落ちた。`Docs/` を通す変異は、検体が `Docs/notes/` だけのあいだ allowlist の側が先に止めて生き残ったので、置き場が規約どおりの `Docs/issues/` を検体に足した
 - 取り付け: hook の id を変える、`always_run` を `files` に替える、入口を checker の直接呼び出しへ戻すの3件は `test_precommit_wiring.py` が落とした。`scan()` から docs_layout を外すと `test_cli.py` が落とした
 
 途中で、bats の最後の文でない `[[ ]]` が偽でもテストを落とさないことを踏んだ (この環境の bats は bash 3.2 で動く)。`test_helper.bash` の `assert_contains` / `refute_contains` に揃えて直した。

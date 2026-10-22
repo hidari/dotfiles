@@ -231,8 +231,7 @@ def test_unresolvable_related_ref_is_detected(tmp_path: Path) -> None:
 
 
 def test_docs_outside_the_conventional_subdirectories_is_detected(tmp_path: Path) -> None:
-    # docs/ の置き場の検査が scan に配線されていること。禁止語リストの hook は CI で
-    # 走らないので、配線を忘れると --no-verify で入った分を見る検査が 1 つも無くなる
+    # docs/ の置き場の検査が scan に配線されていること
     repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
     write_file(repo, "docs/notes/a.md", "x\n")
     run_git(repo, "add", "-A")

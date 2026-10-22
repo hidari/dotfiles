@@ -11,7 +11,7 @@ PUBLIC リポジトリへの private な固有名詞の流入は、規約に無�
 
 from __future__ import annotations
 
-from config_guard.git_run import run_git_checked
+from config_guard.git_run import tracked_files
 from config_guard.models import Finding
 
 # docs/ 直下に置いてよいサブディレクトリ。足すときは置き場の規約ごと決める
@@ -21,8 +21,12 @@ ALLOWED_DOCS_DIRS: frozenset[str] = frozenset({"issues", "known-issues", "superp
 def docs_layout_reason(path: str) -> str | None:
     """repo 相対パスが docs/ の規約に反するなら理由を返す。"""
     parts = path.split("/")
-    if parts[0] != "docs":
+    # macOS の既定のファイルシステムは大小文字を区別せず、Docs/ も docs/ と同じ場所に現れる。
+    # Linux の CI では別のディレクトリになるので、綴りの違いは置き場に依らず違反にする
+    if parts[0].lower() != "docs":
         return None
+    if parts[0] != "docs":
+        return f"{parts[0]}/ は docs/ と大小文字だけが違う"
     if len(parts) == 2:
         return "docs/ 直下にファイルを置かない"
     if parts[1] not in ALLOWED_DOCS_DIRS:
@@ -33,12 +37,10 @@ def docs_layout_reason(path: str) -> str | None:
 def check_docs_layout(repo_root: str) -> list[Finding]:
     """規約外の置き場にある追跡ファイルを検査する。
 
-    NUL 区切りで受ける。既定の出力は非 ASCII パスをクォートするので、先頭要素が
-    "docs ではない" と読まれて黙って落ちる。
+    pathspec は既定では大小文字を区別するので、Docs/ も拾えるよう icase で引く。
     """
-    stdout = run_git_checked(repo_root, "ls-files", "-z", "--", "docs")
     findings: list[Finding] = []
-    for path in (p for p in stdout.split("\0") if p):
+    for path in tracked_files(repo_root, ":(icase)docs"):
         reason = docs_layout_reason(path)
         if reason is not None:
             findings.append(Finding(path, path.split("/")[1], reason))
