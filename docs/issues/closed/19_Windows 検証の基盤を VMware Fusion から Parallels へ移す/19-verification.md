@@ -2,7 +2,7 @@
 
 `issue.md` が結論と理由を持つのに対し、こちらは**証跡**を持つ。何をどう測って、どんな値が出たか。結論だけを読んで足りるなら `issue.md` で止めてよい。
 
-実行日は 2026-08-07。対象は Parallels Desktop 26.4.0-57513 + `Staccato - Windows 11 ARM` (Windows 11 ARM, ビルド 10.0.26200.8875, ja-JP)。
+実行日は 2026-08-07。対象は Parallels Desktop 26.4.0-57513 + 検証用の VM (Windows 11 ARM, ビルド 10.0.26200.8875, ja-JP)。
 
 ## `winvm` の移行 (Parallels 対応)
 
@@ -29,7 +29,7 @@
 実機に対して 7 項目すべて `[ OK ]`。
 
 ```
-[ OK ] VM              : Staccato - Windows 11 ARM (4eb49f98-7f09-4b43-a3f1-35f285ad4d26)
+[ OK ] VM              : <VM 名> (4eb49f98-7f09-4b43-a3f1-35f285ad4d26)
 [ OK ] status          : running
 [ OK ] IP              : 10.211.55.3
 [ OK ] Parallels Tools : installed 26.4.0-57513

@@ -80,3 +80,15 @@ def test_issue_scoped_artifacts_hook_matches_upstream_default_paths_only() -> No
     assert not pattern.search("docs/superpowers/archive/2026-07-03-session-handoff-design.md")
     assert not pattern.search("docs/issues/16_example/16-spec.md")
     assert not pattern.search("docs/issues/closed/15_example/15-plan.md")
+
+
+def test_leak_guard_denylist_hook_runs_the_fail_closed_entry_on_every_commit() -> None:
+    # CI ミラーを持たない hook (リストは開発機にしか無い) なので、配線が外れても誰も気づかない。
+    # 入口の選択と fail-closed の理由は .pre-commit-config.yaml の hook 直上が持つ。
+    hook = _single_hook("leak-guard-denylist")
+    # checker を直接呼ぶ形へ戻ると、変数が届かない起動元で rc 0 の skip になり黙って通る
+    assert hook["entry"] == "bash scripts/leak-guard/denylist-check.sh"
+    # checker は index 全体を走査し、ファイル名を引数に取らない。always_run が外れると
+    # 「対象の files に当たらないコミットでは走らない」に化ける
+    assert hook.get("pass_filenames") is False
+    assert hook.get("always_run") is True

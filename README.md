@@ -101,11 +101,13 @@ bootstrap は既存の `projects/` を移行しない。実体を持つ設定デ
 
 PUBLIC リポジトリへ書けない禁止語リストの在り処を、`home/.zshenv` が環境変数
 `LEAK_GUARD_DENYLIST` で指す。検査本体は別リポジトリ (agentic-coding-tools) が持ち、ここの
-持ち場は export の配線だけ。
+持ち場は export の配線と、このリポジトリの pre-commit hook (`leak-guard-denylist`) への取り付け。
 
 指す先は中立な固定パスで、そこをリスト実体への symlink として人が手で張る。`bootstrap.sh` は
-この symlink を作らないので、新しいマシンでは張るまで検査が働かない。指す先のパスと、
-bootstrap に作らせない理由と、判定に使う演算子の根拠は `home/.zshenv` のコメントが持つ。
+この symlink を作らないので、新しいマシンでは張るまでこのリポジトリへのコミットが hook で止まる。
+張れないマシンでは `SKIP=leak-guard-denylist` を付けてコミットする。指す先のパスと、
+bootstrap に作らせない理由と、判定に使う演算子の根拠は `home/.zshenv` のコメントが、止める理由は
+`scripts/leak-guard/denylist-check.sh` のコメントが持つ。
 
 ## apm による skill 配信 (vendored skills)
 
