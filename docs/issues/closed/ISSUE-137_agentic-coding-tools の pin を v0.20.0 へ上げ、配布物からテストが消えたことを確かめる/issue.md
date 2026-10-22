@@ -15,10 +15,9 @@ agentic-coding-tools が v0.20.0 をリリースし、そちらのセッショ�
 apm 0.34.0 で、`home/apm.yml` の同リポジトリの pin 10行を 2673c03 (v0.20.0) へ揃えて `apm install` し、rc 0 で終わった。続けて `apm install --frozen` も rc 0 で、展開先のハッシュは変わらなかった。`apm audit` は rc 0 で drift なしを返した。
 
 - 2つのアカウントの設定ディレクトリの `skills/` は、どちらも `home/.claude/skills` への symlink で、実体は1か所だった。apm の展開先は lock の `deployed_files` から数えて `skills` / `agents` / `commands` の3つだけで、この3つを上げる前と後で sha256 の一覧に取って比べた
-- テストのファイル (`test_*.py` と `*.test.mjs`) は、上げる前に16件、上げた後に0件だった。16件は上流で消えた13本と、dev-workflow の plugin の内側の skill を展開先の最上位へ写した flat の写しの3件 (`commit-and-pr-message` の2本と `in-repo-issue` の1本) にあたる。`schemas/tests/` のディレクトリも残っていない
-- 展開済みの古いテストのファイルは apm が消した。配布物に入っていない `__pycache__` の `.pyc` も1件、同じく消えた
-- 上の2つを除く829件は sha256 が変わらず、中身が変わったのは `check-leak-guard-denylist.py` の2か所だけだった。上流の v0.19.0 と v0.20.0 の配布物 (`plugins/` と `skills/`) の差分は、テストの13本の削除と、このファイルの docstring がテストの在り処を指す文の書き換えだけで、展開されたファイルは v0.20.0 の blob と sha256 が一致した
-- lock の差分では、テストのファイルを指す行が48行から0行になった (1件につき deployed_files の一覧・ファイルごとのハッシュ・所有者のブロックの3か所)。SKILL.md の行 (30行) と本体のスクリプトの行 (9行) は上げる前と同じ数が残り、展開先にも本体のファイルが揃っていた
+- テストのファイル (`test_*.py` と `*.test.mjs`) は、上げる前に16件、上げた後に0件だった。16件は上流で消えた13本と、dev-workflow の plugin の内側の skill を展開先の最上位へ写した flat の写しの3件 (`commit-and-pr-message` の2本と `in-repo-issue` の1本) にあたる。`schemas/tests/` のディレクトリも残っていない。展開済みの古いテストのファイルは apm が消し、配布物に入っていない `__pycache__` の `.pyc` も1件、同じく消えた
+- 展開先のファイルは848件から831件になった。残った831件のうち829件は sha256 が変わらず、変わった2件は `check-leak-guard-denylist.py` の展開された2つの写し (flat の写しと dev-workflow の plugin の内側) だった。上流の v0.19.0 と v0.20.0 の配布物 (`plugins/` と `skills/`) の差分は、テストの13本の削除と、このファイルの docstring がテストの在り処を指す文の書き換えだけで、展開されたファイルは v0.20.0 の blob と sha256 が一致した
+- lock の差分では、テストのファイルを指す行が48行から0行になった (1件につき deployed_files の一覧・ファイルごとのハッシュ・所有者のブロックの3か所)。`deployed_files` の一覧の行 (行頭が `  - .claude/skills/`) で数えると、SKILL.md は上げる前と後のどちらも30行、本体のスクリプト (`check-outgoing-text.py` / `check-leak-guard-denylist.py` / `issue-id.py` / `macvm.py` / `winvm.py` / `jevlint.py`) はどちらも9行で、展開先にも本体のファイルが揃っていた
 - 依頼元のセッションは、この結果が出た時点の ListAgents に無かったので、この記録で返す
 
 ## タスク
