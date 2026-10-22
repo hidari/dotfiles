@@ -11,7 +11,7 @@ ISSUE-49 でメモリを共有したときに切り出した。共有そのも�
 
 canonical はファイル名の stem を kebab 化したもので、frontmatter の `name` も同じ値へ揃える、
 という規約は 2026-08-24 の移行時に確定している。規約に従っているのは手で移行した 3 プロジェクト
-(dotfiles / scriptoria / miterude) だけで、残りは移行前の命名のまま残っている。
+(dotfiles / private リポジトリ D / private リポジトリ E) だけで、残りは移行前の命名のまま残っている。
 
 `[[...]]` 記法は `name` を指すので、`name` がファイル名からずれていると参照が解決しない。
 
@@ -25,11 +25,11 @@ canonical はファイル名の stem を kebab 化したもので、frontmatter 
 | `[[...]]` の総数 | 1111 |
 | うち解決しない参照 | 97 |
 
-アンダースコア命名が残っているのは 7 プロジェクト。多い順に astralys-art 154 / relay 130 /
-studio-Hamiltonian-logo-automation 87 / mock 9 / rip-zip 5 / spectoru 5 / tolove-ru 3。
+アンダースコア命名が残っているのは 7 プロジェクト。多い順に private リポジトリ C 154 / private リポジトリ A 130 /
+private リポジトリ B 87 / mock 9 / rip-zip 5 / spectoru 5 / tolove-ru 3。
 
-解決しない 97 件の内訳は astralys-art 27 / studio-Hamiltonian-logo-automation 25 /
-scriptoria 16 / dotfiles 13 / relay 11 / canbright-miterude 3 / その他 2。
+解決しない 97 件の内訳は private リポジトリ C 27 / private リポジトリ B 25 /
+private リポジトリ D 16 / dotfiles 13 / private リポジトリ A 11 / private リポジトリ E 3 / その他 2。
 
 ## 着手前に確認すること
 

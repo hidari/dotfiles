@@ -90,15 +90,16 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | --- | --- | --- |
 | M1 | Issue 維持コストの原因を消す | Issue 43、ISSUE-52、ISSUE-74 |
 | M2 | 検査を配布先で走る状態にする | ISSUE-53、ISSUE-72、ISSUE-86、ISSUE-97、ISSUE-101、ISSUE-121、agentic-coding-tools の ISSUE-32 |
-| M3 | skill バンドルの二重登録を止める | Issue 40 |
+| M3 | skill バンドルの二重登録を止める | Issue 40、ISSUE-128 |
 | M4 | PUBLIC 露出の scrub | Issue 21、ISSUE-87、ISSUE-135 |
-| M5 | 静的検査の基盤を寄せ射程の穴を塞ぐ | Issue 39、Issue 30、ISSUE-57、ISSUE-60、Issue 41、ISSUE-47、Issue 17、Issue 18、ISSUE-75、ISSUE-90、ISSUE-94、ISSUE-98、ISSUE-110、ISSUE-112、ISSUE-122 |
+| M5 | 静的検査の基盤を寄せ射程の穴を塞ぐ | Issue 39、Issue 30、ISSUE-57、ISSUE-60、Issue 41、ISSUE-47、Issue 17、Issue 18、ISSUE-75、ISSUE-90、ISSUE-94、ISSUE-98、ISSUE-110、ISSUE-112、ISSUE-122、ISSUE-113 |
 | M6 | winvm の実装品質 | 上流の winvm 系 Issue |
 | M7 | 環境とテスト網の個別 | 下の細分表 |
 | M8 | CI の必須チェックを実効化する | ISSUE-50 |
-| M9 | フックの共通基盤とガードの穴 | Issue 26、ISSUE-58、ISSUE-67、ISSUE-71、ISSUE-66、ISSUE-83、ISSUE-84、ISSUE-119、ISSUE-124 |
+| M9 | フックの共通基盤とガードの穴 | Issue 26、ISSUE-58、ISSUE-67、ISSUE-71、ISSUE-66、ISSUE-83、ISSUE-84、ISSUE-119、ISSUE-124、ISSUE-130 |
 | M10 | 規範層の構造を直す | ISSUE-48、ISSUE-61、ISSUE-88、ISSUE-100、ISSUE-108 |
 | M11 | セッションの取り違えを検出する | ISSUE-78、ISSUE-82、ISSUE-91 |
+| M12 | 受け箱の知見を行き先へ渡す | ISSUE-132、ISSUE-133、ISSUE-134 |
 
 ### M7 の細分 (2026-09-02)
 
@@ -112,7 +113,8 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | CI の安定性 | Issue 37、Issue 38 |
 | Raycast | Issue 22、Issue 23 |
 | PowerShell | Issue 27、Issue 28 |
-| 単独 | Issue 31、Issue 33、ISSUE-51、ISSUE-95、ISSUE-109、ISSUE-114、ISSUE-116、ISSUE-123、ISSUE-125 |
+| コンテナ | ISSUE-118、ISSUE-127 |
+| 単独 | Issue 31、Issue 33、ISSUE-51、ISSUE-95、ISSUE-109、ISSUE-114、ISSUE-116、ISSUE-123、ISSUE-125、ISSUE-131 |
 
 ### 数え方
 
@@ -151,6 +153,20 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
   作業ツリーを feature ブランチへ切り替えていると、その枝でだけ status が動いた Issue の分がずれる
   (2026-09-17 に実例がある)
 
+### 割り当ての検算 (2026-10-22、未割り当て9件の割り当ての後)
+
+dotfiles の active な Issue は75件 (open が73件、in_progress が2件) で、その全件がいずれかのマイルストーンへ入ることを、この変更の tree で数えて確かめた。M1 は3件、M2 は6件 (dotfiles 側のみ)、M3 は2件、M4 は3件、M5 は16件、M6 は0件 (上流のみ)、M7 は22件、M8 は1件、M9 は10件、M10 は5件、M11 は3件、M12 は3件で、この Issue 自身の1件と合わせて75件になる。表の腐りは0件、未割り当てはこの Issue 自身の1件だけだった。
+
+下の10-20の検算からの動きは次のとおり。10-20の検算のあとに main へ入った9件が表に入っていなかった。所属はユーザーが決めた。
+
+- この検算の前に、PR #277 から PR #279 が表を動かしていた。Issue 29 を M4 から、Issue 44 を M7 の zsh 層から、ISSUE-104 を M5 から外し (どれも closed)、ISSUE-135 を M4 へ入れた。10-20の68件からこの差し引きで66件になり、未割り当ての9件を足して75件になる
+- ISSUE-113 (jev-lint が非 ASCII のパスを黙って落とす) を M5 へ入れた。静的検査が射程を黙って失う欠陥にあたる
+- ISSUE-118 (コンテナランタイムの移行) と ISSUE-127 (監査用の砂箱イメージ) を M7 の新しい群「コンテナ」へ入れた。2件の順序は順序制約表に足した
+- ISSUE-128 (apm パッケージを user と project の両スコープへ重ねて入れない) を M3 へ入れた。同じ skill が二重に載るかどうかの話にあたる
+- ISSUE-130 (feedbacks-outbox と hook_git の端) を M9 へ入れた
+- ISSUE-131 (node のセキュリティ修正が pin へ届かない) を M7 の単独へ入れた。既存の群に主題が重なる Issue が無い
+- ISSUE-132、ISSUE-133、ISSUE-134 のために M12 を置いた。理由は「マイルストーンの構成の変遷」節が持つ
+
 ### 割り当ての検算 (2026-10-20、ISSUE-111 のクローズと、未割り当て8件の割り当ての後)
 
 dotfiles の active な Issue は68件 (open が66件、in_progress が2件) で、その全件がいずれかのマイルストーンへ入ることを、この変更の tree で数えて確かめた。M1 は3件、M2 は6件 (dotfiles 側のみ)、M3 は1件、M4 は3件、M5 は16件、M6 は0件 (上流のみ)、M7 は20件、M8 は1件、M9 は9件、M10 は5件、M11 は3件で、この Issue 自身の1件と合わせて68件になる。表の腐りは0件、未割り当てはこの Issue 自身の1件だけだった。
@@ -169,7 +185,7 @@ dotfiles の active な Issue は61件 (open が59件、in_progress が2件) で
 
 下の検算からの動きはクローズ3件で、起票は無かった。棚卸しで判断待ちと仕分けた18件にユーザーが裁定を出し、各 Issue の「裁定」節に書き戻した。そのうち次の3件を閉じた。理由は各 Issue の「クローズの記録」節が持つ。
 
-- ISSUE-85 を M5 から外した。dotfiles では構文の穴が塞がっていると確かめ、relay と studio への展開を ISSUE-86 へ寄せた
+- ISSUE-85 を M5 から外した。dotfiles では構文の穴が塞がっていると確かめ、private リポジトリ 2 つへの展開を ISSUE-86 へ寄せた
 - ISSUE-96 を M7 の単独から外した。やらないと決めた
 - ISSUE-99 を M10 から外した。衝突の本体が上流で消えていた
 
@@ -437,6 +453,8 @@ ISSUE-79 と ISSUE-82 の 3 件が daemon の構造 (設定ディレクトリ単
 かったためである。同じ 5 件のうち ISSUE-80 と ISSUE-81 は handoff-sentinel のフックを触るので
 M9 へ入れた。境界は実装の対象がフックか、Claude Code のセッション基盤かに置いている。
 
+M12 は 2026-10-22 に置いた。受け箱に届いた知見を仕分けて起票した ISSUE-132 から ISSUE-134 の 3 件が、知見の行き先 (上流の skill、全リポジトリ向けの規範、references) を決める Issue で、既存のどのマイルストーンにも収まらなかったためである。受け箱からは今後も同じ形の Issue が起票されるので、その受け皿にもなる。
+
 ### 俯瞰の訂正 (2026-09-02)
 
 着手の根拠にする前に dotfiles の active 44 件を全件読み直した。表は 4 箇所で実態と違っていた。
@@ -477,6 +495,7 @@ canonical で、マイルストーン表と細分表は所属だけを持つ。
 | ISSUE-71 | ISSUE-97 (SessionStart で告げる形を採るときだけ) | SessionStart の告知が subagent へ届かない |
 | ISSUE-71 | ISSUE-101 (SessionStart で告げる形を採るときだけ) | SessionStart の告知が subagent へ届かない |
 | agentic-coding-tools の ISSUE-47 | ISSUE-100 (同時が自然) | 起動数の写しの置き場が、テンプレート化で動く |
+| ISSUE-118 | ISSUE-127 のコンテナランタイムを決めるタスク | 砂箱を載せるランタイムは移行の結論に従う |
 | ISSUE-53 | agentic-coding-tools の ISSUE-32 の実地確認タスク | 層 3 のスイープが完成してから、規模の小さい配布先から取り付けを通す |
 
 満たされた制約はこの表から外す。先行側が closed になれば後続を止めるものが無くなるので、

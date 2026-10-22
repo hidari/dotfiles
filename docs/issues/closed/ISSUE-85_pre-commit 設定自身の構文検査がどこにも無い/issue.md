@@ -6,7 +6,7 @@ status: closed
 
 ## 背景
 
-2026-09-11に studio へ pre-commit を取り付ける作業の live smoke で踏んだ。
+2026-09-11に private リポジトリ B へ pre-commit を取り付ける作業の live smoke で踏んだ。
 
 `.pre-commit-config.yaml` の `name` の値に裸のコロンがあると、YAML がそこを mapping と
 解釈して構文エラーになる。
@@ -21,7 +21,7 @@ pre-commit は起動時に `InvalidConfigError` を返し、hook を 1 つも実
 
 ## 何が観測されていないか
 
-配線を pin するテストは通る。studio では `crates/repo-guards` の 8 件がすべて緑のまま
+配線を pin するテストは通る。B ではリポジトリ検査のテスト 8 件がすべて緑のまま
 この構文エラーを見逃した。テストが YAML をテキストとして読み、行を `- id: ` で切り出して
 いるためで、パーサを通していない。
 
@@ -29,14 +29,14 @@ pre-commit は起動時に `InvalidConfigError` を返し、hook を 1 つも実
 
 | 層 | 見るもの | 構文エラーを検出するか |
 | --- | --- | --- |
-| repo-guards のテスト | 行の文字列 | しない |
+| リポジトリ検査のテスト | 行の文字列 | しない |
 | pre-commit の `check-yaml` | YAML の妥当性 | **自分自身の設定は見ない** |
 | CI | (pre-commit を走らせる job が無い) | しない |
 
 `check-yaml` が自分自身を検出しないのは、設定が壊れていると pre-commit そのものが起動
 しないため。順序として、設定を読む側が設定を検査することはできない。
 
-同じ穴は relay 側にもある。両リポジトリとも CI に pre-commit を走らせる job が無く、
+同じ穴は private リポジトリ A 側にもある。両リポジトリとも CI に pre-commit を走らせる job が無く、
 `pre-commit validate-config` を呼ぶ経路もどこにも無い。dotfiles 自身も同様である。
 
 ## 失敗の形
@@ -60,11 +60,11 @@ pre-commit は起動時に `InvalidConfigError` を返し、hook を 1 つも実
    テストが外部コマンドへ依存する。CI の `bats` job は skip を 1 件も許さないので
    (Issue 45 で解消済み)、この案は `bats` job へ pre-commit を入れる作業とセットになる
 3. テストで YAML をパースする。外部コマンドに依存せず、CI でも同じ結果になる。ただし
-   YAML パーサの依存が要る (studio の repo-guards は依存ゼロを設計として選んでいる)
+   YAML パーサの依存が要る (B のリポジトリ検査は依存ゼロを設計として選んでいる)
 
 ### 対象をどこまで広げるか
 
-穴があるのは 3 リポジトリすべてである。dotfiles / relay / studio のどこから塞ぐか、
+穴があるのは 3 リポジトリすべてである。dotfiles / A / B のどこから塞ぐか、
 形を揃えるかを決める。ISSUE-53 が配布先の加入状況を見る層を扱うので、そちらと同じ
 機構に乗せられるかも見る。
 
@@ -82,13 +82,13 @@ pre-commit は起動時に `InvalidConfigError` を返し、hook を 1 つも実
 2026-10-02の棚卸しのあと、ユーザーが閉じると決めた。
 
 - 検査の置き場: dotfiles は今のままでよいと認めた。config-guard のテスト (test_precommit_wiring.py) が .pre-commit-config.yaml を yaml.safe_load で読み、CI で毎回走る。2026-10-02に HEAD の複製で、hook の name に裸のコロンを入れる変異を入れると、このテストの3件が `yaml.scanner.ScannerError` で落ちることを確かめた (壊す前は3件とも通る)。CI の trigger にパスの絞り込みは無い。構文の穴は塞がっている
-- 対象の広げ方: relay と studio への展開は ISSUE-86 (pre-commit と gitleaks を残りのリポジトリへ展開) へ寄せた。schema 違反はローカルの pre-commit 実行で落ちるので、追加の層は要らない
+- 対象の広げ方: A と B への展開は ISSUE-86 (pre-commit と gitleaks を残りのリポジトリへ展開) へ寄せた。schema 違反はローカルの pre-commit 実行で落ちるので、追加の層は要らない
 - ISSUE-86 へ寄せたもの: タスク3の「残る2リポジトリへ展開する」は、ISSUE-86 の展開の作業で扱う
 - タスク2とタスク4は箱を埋めていない。dotfiles の構文は上の config-guard のテストが検査している
 
 ## 関連
 
-ISSUE-64 が studio と relay への取り付けを扱い、この欠陥はその live smoke で見つかった。
+ISSUE-64 が private リポジトリ A と B への取り付けを扱い、この欠陥はその live smoke で見つかった。
 取り付けの経緯と実測はあちらが持ち、塞ぎ方の比較と決定はこの Issue が持つ
 
 ISSUE-53 が配布先の加入状況と写しの drift を見る層を扱う。設定の存在を見る層と設定の
@@ -100,4 +100,4 @@ Issue 45 が「導入しないコマンドのテストが静かに全 skip す�
 Issue 30 が Markdown 内のシェルスニペットの構文検査を扱う。埋め込まれた別言語の構文が
 ホスト側の検査を素通りするという形はこの Issue と同型で、対象が違う
 
-ISSUE-86 が pre-commit と gitleaks を残りのリポジトリへ展開する。relay と studio への展開はあちらへ寄せた
+ISSUE-86 が pre-commit と gitleaks を残りのリポジトリへ展開する。A と B への展開はあちらへ寄せた

@@ -102,6 +102,7 @@ Docker.app と OrbStack は外す (2026-10-10にユーザーが決定)。OrbStac
 ## 関連
 
 - ISSUE-95 (Brewfile の射程が実機とずれている。OrbStack は Brewfile の外にある)
+- ISSUE-127 (監査用の砂箱イメージ)。こちらが先行する。根拠は ISSUE-46 の順序制約表が持つ
 - apple/container#239、apple/container#2123 (compose を本体に入れない方針)
 - apple/container#66 (Docker Engine API を提供しない)
 - apple/container#141、apple/container#1809、apple/container#2142 (本体に欠けたままの機能)

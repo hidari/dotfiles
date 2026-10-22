@@ -88,5 +88,5 @@ pin できるが、検査対象が追跡外のファイルになるため、既�
   配る仕組みを増やす前に、外す仕組みが動くかを確かめる必要がある
 - ISSUE-53: 配布先の加入状況と写しの drift を見る層が無い。
   この Issue が作った検出層 (一覧 / probe / 棚卸し) があちらのタスクの前例になる
-- ISSUE-64: relay と studio へ pre-commit と gitleaks を入れる。
+- ISSUE-64: private リポジトリ 2 つへ pre-commit と gitleaks を入れる。
   追跡下の検査層はあちらが canonical で、この Issue の範囲には含めない

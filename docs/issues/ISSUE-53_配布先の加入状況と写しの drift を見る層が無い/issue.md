@@ -108,7 +108,7 @@ git hook や CI から呼ぶ」という土俵そのものを疑うところか�
   canonical はあちらの表
 - Issue 42 (closed): リポジトリ固有の運用指示を外部ストレージから注入する仕組みを固める。
   一覧による母数の定義・probe と棚卸しの二層・母数を常に出す形の前例を作った側
-- ISSUE-64: relay と studio-Hamiltonian へ pre-commit と gitleaks を入れる作業。
+- ISSUE-64: private リポジトリ 2 つへ pre-commit と gitleaks を入れる作業。
   この Issue が「pre-commit 自体を持たないリポジトリには載せる土台が無い」と書いた、
   その土台を作る側。着手はあちらが先だったが、2026-09-11 に closed になったので
   この制約は満たされている

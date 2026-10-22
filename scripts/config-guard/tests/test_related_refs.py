@@ -107,8 +107,9 @@ def test_self_identifiers_reads_an_identifier_written_before_the_foreign_prefix(
 
 def test_self_identifiers_ignores_identifiers_inside_a_link() -> None:
     # リンクは形式検査と markdown_links が見る。角括弧が `PR ` の直前判定を壊すため、
-    # リンクごと落としてから識別子を読む (`- relay PR [#588](url)` が実在する)
-    assert self_identifiers("- relay PR [#588](https://example.test/pull/588)") == []
+    # リンクごと落としてから識別子を読む。`#` と番号を分けて書くのは、in-repo Issue の
+    # 記法検査がこの形をテストデータの中でも違反として報告するため
+    assert self_identifiers("- PR [#" + "123](https://example.test/pull/123)") == []
 
 
 def test_self_identifiers_reads_a_bare_identifier_next_to_a_link() -> None:

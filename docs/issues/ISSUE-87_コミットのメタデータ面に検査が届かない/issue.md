@@ -66,7 +66,7 @@ identity を予約形にすれば以後のコミットは守られる。
 (集合の正本は `.gitleaks.toml` の `email-address` ルール自身)。
 
 noreply 形は公開を前提に設計されたアドレスなので、allowlist に入れる方が筋は通る。ただし
-`.gitleaks.toml` は canonical で、変更すると relay と studio の写しへも配り直しが要る。
+`.gitleaks.toml` は canonical で、変更すると ISSUE-64 の 2 リポジトリの写しへも配り直しが要る。
 今回はテンプレート側を placeholder のままにして回避した。
 
 ### 他マシンへの配りかた
