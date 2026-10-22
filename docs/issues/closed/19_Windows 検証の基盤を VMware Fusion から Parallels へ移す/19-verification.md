@@ -35,7 +35,7 @@
 [ OK ] Parallels Tools : installed 26.4.0-57513
 [ OK ] host isolation  : off
 [ OK ] prlctl exec     : Microsoft Windows [Version 10.0.26200.8875]
-[ OK ] ssh relay-winvm : 到達
+[ OK ] ssh <alias>     : 到達
 ```
 
 ## `bootstrap.ps1` の検証

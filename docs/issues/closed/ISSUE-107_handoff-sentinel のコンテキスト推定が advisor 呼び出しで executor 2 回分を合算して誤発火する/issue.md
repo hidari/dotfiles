@@ -6,7 +6,7 @@ status: closed
 
 ## 背景
 
-2026-09-25 に scriptoria のセッションで、handoff-sentinel の posttool が「コンテキスト使用率がしきい値を超えた (推定 551679 tokens)」と通知し、エージェントが作業を打ち切って handoff を書いた。実際の占有量は約 30% で、ユーザーの手元の表示 (30%) とも一致しており、誤発火だった。
+2026-09-25 に private リポジトリのセッションで、handoff-sentinel の posttool が「コンテキスト使用率がしきい値を超えた (推定 551679 tokens)」と通知し、エージェントが作業を打ち切って handoff を書いた。実際の占有量は約 30% で、ユーザーの手元の表示 (30%) とも一致しており、誤発火だった。
 
 `_context_tokens` は最後の非 sidechain の assistant エントリの `usage` から `input_tokens + cache_read_input_tokens + cache_creation_input_tokens` を足している。advisor ツールを呼んだ応答では、トップレベルの `usage` が executor の複数回の推論を合算した値になっていて、占有量のほぼ 2 倍になる。
 
@@ -58,7 +58,7 @@ Claude Code 2.1.282のバイナリで、statusline の入力を組む関数と�
 
 ## 関連
 
-- 発見元: scriptoria のセッション (2026-09-25)。`.cache/usage-probe.py` と `.cache/usage-spike-keys.py` で transcript を実測した (scriptoria 側の書き捨てで、追跡対象ではない)
+- 発見元: private リポジトリのセッション (2026-09-25)。`.cache/usage-probe.py` と `.cache/usage-spike-keys.py` で transcript を実測した (あちら側の書き捨てで、追跡対象ではない)
 - `home/.claude/hooks/handoff-sentinel.py` の `_context_tokens`
 - ISSUE-67: 同じ推定値を使うしきい値通知が 1 セッション 1 回しか鳴らない件。再通知を入れると、advisor を呼ぶたびの誤発火がそのまま繰り返しになる
 - ISSUE-106: F05 が同じ通知文から推定値を落とす。数値が見えなくなっても推定の誤りと誤発火は残る

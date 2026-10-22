@@ -2,12 +2,12 @@
 status: closed
 ---
 
-# chore: relay と studio へ pre-commit と gitleaks を入れる
+# chore: private リポジトリ 2 つへ pre-commit と gitleaks を入れる
 
 ## 背景
 
-ユーザーが管理権を持つ 3 リポジトリ (agentic-coding-tools / relay /
-studio-Hamiltonian-logo-automation) を dotfiles と agentic-coding-tools の運用へ揃えたい、
+ユーザーが管理権を持つ 3 リポジトリ (agentic-coding-tools / private リポジトリ A /
+private リポジトリ B) を dotfiles と agentic-coding-tools の運用へ揃えたい、
 という依頼から始まった。範囲を実測で絞った結果、揃っていないのは品質ゲートだけだった。
 
 秘密の混入を止める層が 2 リポジトリに無い。どちらも PRIVATE だが、非公開であることは
@@ -16,11 +16,11 @@ studio-Hamiltonian-logo-automation) を dotfiles と agentic-coding-tools の運
 
 ## 実測 (2026-08-30)
 
-| 項目 | agentic-coding-tools | relay | studio-Hamiltonian |
+| 項目 | agentic-coding-tools | private リポジトリ A | private リポジトリ B |
 | --- | --- | --- | --- |
 | `.hidari/` | あり | あり | あり |
 | `.claude/settings.local.json` | あり | あり | あり |
-| `docs/issues/` | 45 件 | 127 件 | 147 件 |
+| `docs/issues/` | あり | あり | あり |
 | `apm.yml` | なし | なし | なし |
 | pre-commit | あり | **なし** | **なし** |
 | `.gitleaks.toml` | あり | **なし** | **なし** |
@@ -33,7 +33,7 @@ studio-Hamiltonian-logo-automation) を dotfiles と agentic-coding-tools の運
 
 上の表の「pre-commit: なし」は 2 つのことを区別していない。実際に無かったのはツールの
 ほうだけで、フック体系そのものは両リポジトリとも持っていた。どちらも `core.hooksPath` で
-`.githooks/` を指しており、relay は 3 経路、studio は pre-push 1 本を動かしていた。
+`.githooks/` を指しており、A は 3 経路、B は pre-push 1 本を動かしていた。
 
 この取り違えは着手の見積もりを歪める。「フックが無いので入れる」ではなく「既存のフック体系を
 別の機構へ移す」が実際の作業で、移植と旧手順の撤去がついてくる。
@@ -50,13 +50,13 @@ dotfiles 自身に対して `pre-commit install` を実行している。
 ## 既存履歴の走査 (2026-09-07)
 
 取り付ける前に既存履歴を測った。走査は両リポジトリとも全 ref を対象にしている (`--log-opts=--all`)。
-既定ブランチだけを見ると、作業中のブランチにしかない履歴が母集団から落ちる。実際 studio 側は
+既定ブランチだけを見ると、作業中のブランチにしかない履歴が母集団から落ちる。実際 B 側は
 既定ブランチではない場所にいた。
 
 | 対象 | 走査量 | 検出 |
 | --- | --- | --- |
-| relay | 613 commits | 0 件 |
-| studio-Hamiltonian | 389 commits | 2 件 |
+| private リポジトリ A | 全 ref | 0 件 |
+| private リポジトリ B | 全 ref | 2 件 |
 | 対照 (使い捨てリポジトリ) | 1 commit | 2 件 |
 
 **検出の 2 件はどちらも偽陽性だった。**1 件はテスト用に生成した鍵で、ソース自身のコメントが
@@ -69,10 +69,10 @@ dotfiles 自身に対して `pre-commit install` を実行している。
 
 ### HEAD ツリーの検出は 2 件とも偽陽性 (2026-09-11 に判定)
 
-履歴の走査とは別に、studio の HEAD ツリーにも検出が残っていた。前セッションが
+履歴の走査とは別に、B の HEAD ツリーにも検出が残っていた。前セッションが
 「セキュリティ判断なので再開時の最初に確認する」として保留していたものを判定した。
 
-追跡下 498 ファイル / 95 MB を走査して 94 件。内訳は PII 系が 92 件 (macos-user-path 85 /
+追跡下を走査して 94 件。内訳は PII 系が 92 件 (macos-user-path 85 /
 email-address 7)、secret 系が 2 件 (private-key 1 / generic-api-key 1) で、前セッションの
 走査結果と rule 別の件数まで一致した。
 
@@ -86,8 +86,7 @@ literal のプレースホルダになっている。もう 1 件は closed の 
 足す) は変えないが、踏むのは今回の判定を知らないセッションになる。
 
 走査の母集団に注意すること。`gitleaks dir` は `.gitignore` を尊重しないので、リポジトリ
-ルートで走らせると Rust のビルド成果物を巻き込む。実測では 1.44 GB を走査して 223,763 件が
-出た。追跡下だけを見るには `git archive HEAD` で展開してから走らせる。**この差はエラーでは
+ルートで走らせるとビルド成果物を巻き込む。実測では件数が桁違いに増えた。追跡下だけを見るには `git archive HEAD` で展開してから走らせる。**この差はエラーでは
 なく件数の違いとして返るので、桁が違うことに気づかなければ実態として読んでしまう。**
 
 ### 0 件を信じる前に対照が要る
@@ -98,7 +97,7 @@ literal のプレースホルダになっている。もう 1 件は closed の 
 0 件を読むこと。
 
 検体を秘密鍵の PEM と Slack のボットトークンへ替えたところ 2 件を検出し、走査経路が働いている
-ことを確かめられた。relay の 0 件はこの対照の上で読んだ値である。
+ことを確かめられた。A の 0 件はこの対照の上で読んだ値である。
 
 ## 設計の論点
 
@@ -112,7 +111,7 @@ clone しただけでは効かない。`pre-commit install` を各リポジト�
 汎用化するかどうかがこの Issue の論点になる。
 
 **この論点は実測で解消した (2026-09-11)。**両リポジトリとも既に自前の取り付け経路を持って
-いた。relay は `cargo xtask setup`、studio は README の手順である。どちらも
+いた。A はリポジトリ自前のセットアップコマンド、B は README の手順である。どちらも
 `core.hooksPath` を設定する形だったものを `pre-commit install` へ差し替えれば済み、
 `bootstrap.sh` の汎用化は要らない。対象リポジトリの一覧をどこが持つかという drift の火種も
 発生しない。
@@ -121,10 +120,10 @@ clone しただけでは効かない。`pre-commit install` を各リポジト�
 
 移行で最も踏みやすいのはここだった。`core.hooksPath` が設定されていると `pre-commit install`
 は警告を出して取り付けに失敗するが、コミット自体は成功する。検査が一度も走らないまま緑が
-続くので、`--all-files` の緑だけを見ていると「取り付いた」と誤判定する。relay の最初の
+続くので、`--all-files` の緑だけを見ていると「取り付いた」と誤判定する。A の最初の
 live smoke で実際に陽性検体が素通りした。
 
-relay は `run_setup` の `--unset-all` で塞ぎ、studio は `.githooks/` の撤去と README /
+A はセットアップ処理の `--unset-all` で塞ぎ、B は `.githooks/` の撤去と README /
 CLAUDE.md からの旧手順の削除で塞いだ。どちらもテストで pin してある。
 
 ### apm.yml は置かない (決定済み)
@@ -149,7 +148,7 @@ in-repo Issue の記法検査 (`issue-id-notation` 系) を含めるかは別の
 両リポジトリとも `docs/issues/` を持つので対象にはなるが、既存違反の量を先に測らないと
 取り付けた瞬間に赤くなる。上流の増分モードが既存違反を直さずに取り付ける入口になる。
 
-**測って決めた。含めない (2026-09-11)。**既存違反は relay 1745 件 / studio 2010 件あり、
+**測って決めた。含めない (2026-09-11)。**既存違反は両リポジトリとも千件を超え、
 中身は `#242424` のような hex color が主だった。識別子が裸の数字である両リポジトリでは、
 本文中の参照と数量表現・色指定を機械的に区別できない。増分モードで取り付けても、色を
 1 つ足すたびに偽陽性が出る。
@@ -165,31 +164,31 @@ gitleaks と pre-commit をどこから供給するかは 2 リポジトリで�
 
 | リポジトリ | 供給 | 起動 |
 | --- | --- | --- |
-| relay | mise.toml の pin | `mise exec -- gitleaks` |
-| studio | Homebrew | PATH 直起動 |
+| A | mise.toml の pin | `mise exec -- gitleaks` |
+| B | Homebrew | PATH 直起動 |
 
-relay を mise のままにしたのは、あちらの 2026-07-11 の設計 (toolchain-version-guardrails) が
+A を mise のままにしたのは、あちらの 2026-07-11 の設計が
 PATH 直起動を明示的に禁じているためである。理由は開発機に古い版が残って pin と食い違った
 ことで、gitleaks にも同じ経路が開く。既に actionlint と shellcheck が同じ機構に乗っている。
 
-studio には mise が無く、持ち込むと使っていないリポジトリへ新しいツールチェーンを足すことに
+B には mise が無く、持ち込むと使っていないリポジトリへ新しいツールチェーンを足すことに
 なるので Homebrew 前提にした。どちらもテストで pin してあり、片方の形をもう片方へ写すと
 赤くなる。
 
 ### 設定ファイル自身の構文検査が無い (未決)
 
-studio の live smoke で見つけた。`.pre-commit-config.yaml` の `name` の値に裸のコロンが
+B の live smoke で見つけた。`.pre-commit-config.yaml` の `name` の値に裸のコロンが
 あると YAML が mapping と解釈し、pre-commit が `InvalidConfigError` で起動しない。
 
-配線を pin するテストは YAML をテキストとして読むので、この形を素通りする。実際に studio では
+配線を pin するテストは YAML をテキストとして読むので、この形を素通りする。実際に B では
 テスト 8 件すべてが緑のまま構文エラーを見逃し、取り付け後の live smoke で初めて露見した。
 
-同じ穴は relay 側にもある。どちらの CI にも `pre-commit validate-config` を呼ぶ経路が無い。
+同じ穴は A 側にもある。どちらの CI にも `pre-commit validate-config` を呼ぶ経路が無い。
 塞ぎ方の比較と決定は ISSUE-85 が持つ。
 
 ## タスク
 
-- [x] relay と studio の既存履歴に対して gitleaks を走らせ、検出の有無と量を測る。
+- [x] A と B の既存履歴に対して gitleaks を走らせ、検出の有無と量を測る。
       検出があれば扱い (直すのか allowlist へ入れるのか) を決めてから取り付ける。
       結果と扱いの判断は「既存履歴の走査 (2026-09-07)」節が持つ
 - [x] `.gitleaks.toml` を 2 リポジトリへ置く。dotfiles の検出集合をそのまま採るのか、
@@ -199,12 +198,12 @@ studio の live smoke で見つけた。`.pre-commit-config.yaml` の `name` の
       PII ルールのコストは `--staged` が差分しか見ないことの実測で消えている
 - [x] `.pre-commit-config.yaml` を 2 リポジトリへ置く。汎用の hook だけを採り、
       リポジトリ固有のものは持ち込まない
-      → relay は PR #606、studio は PR #316。旧 `.githooks` が持っていた検査は両方とも
+      → 両リポジトリそれぞれの PR で入れた。旧 `.githooks` が持っていた検査は両方とも
       全経路を移してある
 - [x] 取り付けが実際に効いていることを、検出されるべき文字列を含む一時ファイルで確かめる。
       走らせて 0 件だったことを健全の根拠にしない (正常なら非空になる対照を並べる)
       → 両リポジトリとも陽性検体で HEAD が動かないことと、陰性側で全 hook を通過することの
-      両方を live smoke で確認した。studio では pre-push stage の 714 テスト実行も見ている
+      両方を live smoke で確認した。B では pre-push stage のテスト実行も見ている
 - [x] `pre-commit install` の実行経路を決める。dotfiles の `bootstrap.sh` を汎用化して
       他リポジトリへも取り付けるのか、各リポジトリで手動にするのかを比較する。
       汎用化するなら対象リポジトリの一覧をどこが持つかが drift の火種になる

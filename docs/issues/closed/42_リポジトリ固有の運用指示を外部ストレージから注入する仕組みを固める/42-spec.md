@@ -400,7 +400,7 @@ ISSUE-64 の対象と重なるという関係の記録である。実装計画�
 - ISSUE-53: 配布先の加入状況と写しの drift を見る層が無い。
   この spec の検出層があちらのタスク 4 件を進める。母数の定義は一覧が、
   「hook や CI から呼ぶ以外の土俵」は probe が、実地の 1 件は上記が担当する
-- ISSUE-64: relay と studio へ pre-commit と gitleaks を入れる。
+- ISSUE-64: private リポジトリ 2 つへ pre-commit と gitleaks を入れる。
   追跡下の検査層はあちらが canonical。この spec は範囲に含めない
 - Issue 26: Claude Code フックの共通基盤を集約する。
   テンプレートが載せていた 4 フックの集約先

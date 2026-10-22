@@ -6,8 +6,8 @@ status: open
 
 ## 背景
 
-relay の PR #588 で同型のラッパを実装した際、dotfiles 側の `scripts/ci/run-pester.ps1`
-にガードが 2 つとも効いていない状態が見つかった。relay 側では両方直してある。
+private リポジトリ A で同型のラッパを実装した際、dotfiles 側の `scripts/ci/run-pester.ps1`
+にガードが 2 つとも効いていない状態が見つかった。あちら側では両方直してある。
 
 このラッパの存在理由は `.DESCRIPTION` に書いてあるとおり「Pester はテストを 1 件も
 見つけられなくても成功として終わる」ことへの対策である。その対策が現状は働いていない。
@@ -58,8 +58,7 @@ Pester 版で、こちらは逆に skipped が total に載るために起きる
 
 ## 関連
 
-- relay PR [#588](https://github.com/HermitianHQ/relay/pull/588) — 同型のラッパで両方を直した実装がある
-  (`crates/xtask/pester/run-pester.ps1`)。relay 側は `-MinimumCount` を Mandatory にし、
-  `check_pester` が呼び出し時に件数を明示する形になっている
+- private リポジトリ A の PR — 同型のラッパで両方を直した実装がある。
+  あちら側は `-MinimumCount` を Mandatory にし、呼び出し側が件数を明示する形になっている
 - `scripts/ci/run-pester.ps1` — 本 Issue の対象
 - `.pre-commit-config.yaml` / `.github/workflows/test.yml` — 呼び出し元
