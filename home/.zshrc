@@ -260,8 +260,7 @@ function claude() {
 
 # 開発版 (agentic-coding-tools の作業ツリー) のパッケージを --plugin-dir の並びとして
 # 集める。既定の起動では skill は apm が配置したコピーを読むが、plugin は同名の
-# marketplace 版が優先されるため実際には別経路から載る。経路の canonical は
-# claude-plugins の CLAUDE.md にある供給経路の表。開発版は直しながら試すときだけ使う。
+# marketplace 版が優先されるため実際には別経路から載る。開発版は直しながら試すときだけ使う。
 # 全アカウントのランチャが同じ並びを使うため構築をここへ閉じる。
 # 戻り値では配列を運べないので、呼び出し側が local で宣言した配列へ書き込む。
 function _claude_dev_plugin_args() {

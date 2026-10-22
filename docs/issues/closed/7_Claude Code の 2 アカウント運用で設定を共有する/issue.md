@@ -122,7 +122,7 @@ alias は環境変数の前置に名前を付けただけなので、スニペ�
 
 両方を関数に固定すると 2×N 個の関数が要る組み合わせ爆発になる。値が少なく検査できるアカウントだけを関数が持ち、タスクリストは前置で渡す。前置は関数呼び出しにも効くため `CLAUDE_CODE_TASK_LIST_ID=dotfiles claude-hamiltonian` がそのまま動く。
 
-タスクリスト ID をリポジトリ名から自動導出はしない。既存のタスクリスト名には `dotfiles` `claude-plugins` のようなリポジトリ名と一致するものに加え、`cospl` `cpspl` `sptth` のような短縮コードや `studio-Hamiltonian-logo-automation` のような粒度違いが混在する。自動導出すると短縮コードを使うリポジトリで新しいリストが静かに作られ履歴が分裂する。代わりに未知の ID のときだけ標準エラーへ知らせる。新規作成自体は正当なのでブロックはしない。
+タスクリスト ID をリポジトリ名から自動導出はしない。既存のタスクリスト名には `dotfiles` のようなリポジトリ名と一致するものに加え、リポジトリ名と一致しない短縮コードや、リポジトリより細かい粒度の名前が混在する。自動導出すると短縮コードを使うリポジトリで新しいリストが静かに作られ履歴が分裂する。代わりに未知の ID のときだけ標準エラーへ知らせる。新規作成自体は正当なのでブロックはしない。
 
 ### 個人アカウント側は CLAUDE_CONFIG_DIR に触らない
 
@@ -207,7 +207,7 @@ live smoke で両アカウントの statusLine を実際に描画し、外部 CL
 
 ### settings.json の skip-worktree
 
-`home/.claude/settings.json` は skip-worktree が立っており、コミット済みの内容と live の内容が異なる。live にはローカルの `claude-plugins` marketplace などホーム配下の絶対パスが含まれ、gitleaks の `macos-user-path` ルールがコミットを止める。コミットが必要な変更を入れるときは save → `--no-skip-worktree` → 編集 → commit → restore の手順を踏む。本 Issue では settings.json の内容変更は不要。
+`home/.claude/settings.json` は skip-worktree が立っており、コミット済みの内容と live の内容が異なる。live にはローカルの `<private plugin リポジトリ>` marketplace などホーム配下の絶対パスが含まれ、gitleaks の `macos-user-path` ルールがコミットを止める。コミットが必要な変更を入れるときは save → `--no-skip-worktree` → 編集 → commit → restore の手順を踏む。本 Issue では settings.json の内容変更は不要。
 
 ### live の絶対パスを $HOME 化できるか（フォローアップ）
 
@@ -218,7 +218,7 @@ skip-worktree を無くせるかを調べた。live の settings.json に残る 
    しかもコミット済み版にはこの hook 自体が無いため、直せばコミット可能になる。
 2. marketplace の `directory` source の `path` — 未確定。
 
-2 について分かったこと: `claude plugin marketplace add '~/Develop/claude-plugins'` は成功する
+2 について分かったこと: `claude plugin marketplace add '~/Develop/<private plugin リポジトリ>'` は成功する
 が、settings.json と known_marketplaces.json の両方へ絶対パスに正規化して書き込む。つまり
 CLI は書き込み時にチルダを展開する。読み込み側が手書きのチルダを展開するかは別問題で、
 `marketplace list` と `plugin list` はどちらも settings.json を同期しないため

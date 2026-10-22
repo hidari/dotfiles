@@ -128,7 +128,7 @@ closed 配下の 2 ファイル 17 行だけが残り、それを除くと 0 件
   「追加の設定ディレクトリ名の露出」が漏れているため、#21 側への追記が必要
 - [Issue #26: refactor: Claude Code フックの共通基盤を集約する](../../26_Claude%20Code%20フックの共通基盤を集約する/issue.md)
   Phase 3a のレビューで検出したフック周りの重複。本 Issue のスコープを超えるため分けた
-- [Issue #29: refactor: PUBLIC リポジトリに残る private リポジトリ名の露出を棚卸しする](../../29_PUBLIC%20リポジトリに残る%20private%20リポジトリ名の露出を棚卸しする/issue.md)
+- [Issue 29: refactor: PUBLIC リポジトリに残る private リポジトリ名の露出を棚卸しする](../29_PUBLIC%20リポジトリに残る%20private%20リポジトリ名の露出を棚卸しする/issue.md)
   Phase 4 のゲートが検出。本 Issue の露出の棚卸しは追加の設定ディレクトリ名しか数えておらず、
   private リポジトリ名の現ツリー露出が抜けていた
 - [Issue #30: feat: Markdown 内のシェルスニペットを構文検査する](../../30_Markdown%20内のシェルスニペットを構文検査する/issue.md)

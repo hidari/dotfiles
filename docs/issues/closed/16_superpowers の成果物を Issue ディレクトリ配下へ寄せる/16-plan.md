@@ -4,7 +4,7 @@
 
 **Goal:** superpowers の spec と plan を Issue ディレクトリ配下へ寄せ、その規約を再利用可能な opt-in skill として切り出す。
 
-**Architecture:** 規約の実体を claude-plugins の新 skill `dev-workflow:issue-scoped-artifacts` に 1 箇所だけ置き、各プロジェクトの CLAUDE.md にはポインタ 1 行を置く 2 層構成。検出は移植可能な pre-commit の `language: fail` hook 1 本のみとし、上流 skill の既定パスに成果物が落ちた場合を捕捉する。
+**Architecture:** 規約の実体を <private plugin リポジトリ> の新 skill `dev-workflow:issue-scoped-artifacts` に 1 箇所だけ置き、各プロジェクトの CLAUDE.md にはポインタ 1 行を置く 2 層構成。検出は移植可能な pre-commit の `language: fail` hook 1 本のみとし、上流 skill の既定パスに成果物が落ちた場合を捕捉する。
 
 **Tech Stack:** Markdown (skill / spec / plan / Issue)、YAML (pre-commit 設定)、git (移行は `git mv`)。新しい実行時依存は追加しない。
 
@@ -22,12 +22,12 @@
 
 ## 前提ゲート
 
-- [x] **claude-plugins の PR #5 がマージ済みであること** (`state=MERGED` / `mergedAt=2026-08-01T15:52:24Z` / merge commit `0154798`。ローカル main を fast-forward し、マージ済みブランチはローカル・リモートとも削除済み)
+- [x] **<private plugin リポジトリ> の PR #5 がマージ済みであること** (`state=MERGED` / `mergedAt=2026-08-01T15:52:24Z` / merge commit `0154798`。ローカル main を fast-forward し、マージ済みブランチはローカル・リモートとも削除済み)
 
 `gh pr merge 5 --squash` は Claude Code の auto mode classifier にブロックされるため、ユーザーが手動で実行する。実行後に次で確認する。
 
 ```bash
-cd ~/Develop/claude-plugins && gh pr view 5 --json state,mergedAt
+cd ~/Develop/<private plugin リポジトリ> && gh pr view 5 --json state,mergedAt
 ```
 
 Expected: `"state":"MERGED"` と非 null の `mergedAt`。
@@ -36,10 +36,10 @@ Expected: `"state":"MERGED"` と非 null の `mergedAt`。
 
 ---
 
-### Task 1: claude-plugins に issue-scoped-artifacts skill を新設する
+### Task 1: <private plugin リポジトリ> に issue-scoped-artifacts skill を新設する
 
 **Files:**
-- Create: `~/Develop/claude-plugins/plugins/dev-workflow/skills/issue-scoped-artifacts/SKILL.md`
+- Create: `~/Develop/<private plugin リポジトリ>/plugins/dev-workflow/skills/issue-scoped-artifacts/SKILL.md`
 - Test: スクラッチリポジトリでの live smoke (下記 Step 4)
 
 **Interfaces:**
@@ -49,7 +49,7 @@ Expected: `"state":"MERGED"` と非 null の `mergedAt`。
 - [x] **Step 1: ブランチを切る**
 
 ```bash
-cd ~/Develop/claude-plugins && git checkout main && git pull --ff-only && git checkout -b feat/issue-scoped-artifacts-skill
+cd ~/Develop/<private plugin リポジトリ> && git checkout main && git pull --ff-only && git checkout -b feat/issue-scoped-artifacts-skill
 ```
 
 - [x] **Step 2: SKILL.md を書く**
@@ -106,7 +106,7 @@ pre-commit スニペットは次の literal とする。既に `repo: local` エ
 skill が配るスニペットが実際に機能することを確かめる。ここで検証しないと、誤ったスニペットが全プロジェクトへ配られる。
 
 ```bash
-mkdir -p ~/Develop/claude-plugins/.cache/snippet-smoke && cd ~/Develop/claude-plugins/.cache/snippet-smoke && git init -q . && git config user.email t@e && git config user.name t && mkdir -p docs/superpowers/specs 'docs/issues/16_テスト'
+mkdir -p ~/Develop/<private plugin リポジトリ>/.cache/snippet-smoke && cd ~/Develop/<private plugin リポジトリ>/.cache/snippet-smoke && git init -q . && git config user.email t@e && git config user.name t && mkdir -p docs/superpowers/specs 'docs/issues/16_テスト'
 ```
 
 `.pre-commit-config.yaml` を Write ツールで作る。中身は Step 2 のスニペットに `repos:` を付けたもの。
@@ -125,13 +125,13 @@ repos:
 規約に従うファイルと違反するファイルを 1 つずつ置いて stage する。
 
 ```bash
-cd ~/Develop/claude-plugins/.cache/snippet-smoke && printf '# ok\n' > 'docs/issues/16_テスト/16-spec.md' && printf '# ng\n' > docs/superpowers/specs/2026-08-02-x-design.md && git add -A
+cd ~/Develop/<private plugin リポジトリ>/.cache/snippet-smoke && printf '# ok\n' > 'docs/issues/16_テスト/16-spec.md' && printf '# ng\n' > docs/superpowers/specs/2026-08-02-x-design.md && git add -A
 ```
 
 - [x] **Step 4: 違反ありで落ちることを確認する**
 
 ```bash
-cd ~/Develop/claude-plugins/.cache/snippet-smoke && pre-commit run --all-files > run1.txt 2>&1
+cd ~/Develop/<private plugin リポジトリ>/.cache/snippet-smoke && pre-commit run --all-files > run1.txt 2>&1
 ```
 
 Expected: exit 1。`run1.txt` を読み、`Failed` と違反ファイル名 `docs/superpowers/specs/2026-08-02-x-design.md` の両方が出ていること。
@@ -141,7 +141,7 @@ Expected: exit 1。`run1.txt` を読み、`Failed` と違反ファイル名 `doc
 この negative case を確認しなければ「何をしても落ちる hook」と区別できない。
 
 ```bash
-cd ~/Develop/claude-plugins/.cache/snippet-smoke && git rm -q --cached docs/superpowers/specs/2026-08-02-x-design.md && rm -rf docs/superpowers && pre-commit run --all-files > run2.txt 2>&1
+cd ~/Develop/<private plugin リポジトリ>/.cache/snippet-smoke && git rm -q --cached docs/superpowers/specs/2026-08-02-x-design.md && rm -rf docs/superpowers && pre-commit run --all-files > run2.txt 2>&1
 ```
 
 Expected: exit 0。`run2.txt` に `(no files to check)Skipped` が出ていること。日本語ディレクトリ名の `docs/issues/16_テスト/16-spec.md` が誤検出されていないこと。
@@ -149,15 +149,15 @@ Expected: exit 0。`run2.txt` に `(no files to check)Skipped` が出ている�
 - [x] **Step 6: スクラッチを片付ける**
 
 ```bash
-rm -rf ~/Develop/claude-plugins/.cache/snippet-smoke
+rm -rf ~/Develop/<private plugin リポジトリ>/.cache/snippet-smoke
 ```
 
 - [x] **Step 7: コミットして PR を出す**
 
-コミット本文を `~/Develop/claude-plugins/.cache/commit-issue-scoped-artifacts.txt` に Write ツールで書き、prefix は `feat:` を使う。PR 本文は `~/Develop/claude-plugins/.cache/pr-issue-scoped-artifacts.md` に書き、dotfiles の Issue #16 を参照する。
+コミット本文を `~/Develop/<private plugin リポジトリ>/.cache/commit-issue-scoped-artifacts.txt` に Write ツールで書き、prefix は `feat:` を使う。PR 本文は `~/Develop/<private plugin リポジトリ>/.cache/pr-issue-scoped-artifacts.md` に書き、dotfiles の Issue 16 を参照する。
 
 ```bash
-cd ~/Develop/claude-plugins && git add plugins/dev-workflow/skills/issue-scoped-artifacts/SKILL.md && git commit -F .cache/commit-issue-scoped-artifacts.txt
+cd ~/Develop/<private plugin リポジトリ> && git add plugins/dev-workflow/skills/issue-scoped-artifacts/SKILL.md && git commit -F .cache/commit-issue-scoped-artifacts.txt
 ```
 
 push と PR 作成はグローバル CLAUDE.md の push ルールに従う。push 後は `git ls-remote --heads origin feat/issue-scoped-artifacts-skill` と `git status -sb` で成否を直接確認する。
@@ -508,15 +508,15 @@ Expected: exit 0。`.cache/precommit-all.txt` を読み、`Failed` が 1 件も�
 
 `dev-workflow:pre-merge-quality-gate` skill を使う。simplify / code-reviewer / boy-scout-sweep が並列で走る。指摘は confidence の高いものから対応する。
 
-- [ ] **Step 3: claude-plugins の PR #6 がマージ済みであることを確認する**
+- [ ] **Step 3: <private plugin リポジトリ> の PR #6 がマージ済みであることを確認する**
 
 ```bash
-cd ~/Develop/claude-plugins && gh pr view 6 --json state,mergedAt
+cd ~/Develop/<private plugin リポジトリ> && gh pr view 6 --json state,mergedAt
 ```
 
 Expected: `"state":"MERGED"` と非 null の `mergedAt`。
 
-dotfiles の CLAUDE.md は `dev-workflow:issue-scoped-artifacts` skill を参照するが、この skill は claude-plugins の PR #6 にしか存在しない。PR #6 が未マージのまま dotfiles を先にマージすると、skill が消えたのにポインタだけが残る期間ができる。
+dotfiles の CLAUDE.md は `dev-workflow:issue-scoped-artifacts` skill を参照するが、この skill は <private plugin リポジトリ> の PR #6 にしか存在しない。PR #6 が未マージのまま dotfiles を先にマージすると、skill が消えたのにポインタだけが残る期間ができる。
 
 `gh pr merge 6 --squash` は Claude Code の auto mode classifier にブロックされるため、ユーザーが手動で実行する。
 
@@ -524,7 +524,7 @@ dotfiles の CLAUDE.md は `dev-workflow:issue-scoped-artifacts` skill を参照
 
 push はグローバル CLAUDE.md の push ルールに従う。push 後は `git ls-remote --heads origin refactor/issue-scoped-artifacts` と `git status -sb` で成否を直接確認する。
 
-PR 本文を `.cache/pr-issue-scoped-artifacts.md` に Write ツールで書く。`Closes` リンクの書式は `dev-workflow:in-repo-issue` が canonical。claude-plugins 側の PR への参照も入れる。
+PR 本文を `.cache/pr-issue-scoped-artifacts.md` に Write ツールで書く。`Closes` リンクの書式は `dev-workflow:in-repo-issue` が canonical。<private plugin リポジトリ> 側の PR への参照も入れる。
 
 ```bash
 cd ~/Develop/dotfiles && gh pr create --assignee @me --base main --body-file .cache/pr-issue-scoped-artifacts.md --title "refactor: superpowers の成果物を Issue ディレクトリ配下へ寄せる"
