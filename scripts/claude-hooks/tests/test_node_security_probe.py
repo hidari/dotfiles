@@ -9,8 +9,8 @@ HOME を差し替えて状態を作る。プローブは HOME 配下の mise の
 
 from __future__ import annotations
 
-import importlib.util
 import json
+import plistlib
 import subprocess
 import sys
 import time
@@ -19,7 +19,7 @@ from types import ModuleType
 
 import guard_probes
 import pytest
-from conftest import HOOKS_DIR, REPO_ROOT
+from conftest import HOOKS_DIR, REPO_ROOT, load_module
 
 NOW = 1_761_100_000
 DAY = 86_400
@@ -28,12 +28,9 @@ SECURITY_VERSIONS = ["26.12.1", "25.8.2", "24.22.1", "24.18.1", "22.22.0"]
 
 
 def _writer() -> ModuleType:
-    path = REPO_ROOT / "scripts/node-security-notifier/src/node_security_notifier/state.py"
-    spec = importlib.util.spec_from_file_location("node_security_state", path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return load_module(
+        REPO_ROOT / "scripts/node-security-notifier/src/node_security_notifier/state.py"
+    )
 
 
 def _home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
@@ -62,6 +59,15 @@ def _status(home: Path, *, fetched_at: int = NOW, versions: list[str] | None = N
 
 def test_状態ファイルの置き場は書き手と一致する() -> None:
     assert _writer().STATE_RELPATH == guard_probes.NODE_SECURITY_STATE_RELPATH
+
+
+def test_告げるラベルとログの置き場は_plist_と一致する() -> None:
+    notifier = REPO_ROOT / "scripts/node-security-notifier"
+    with (notifier / "com.hidari.node-security-notifier.plist").open("rb") as f:
+        plist = plistlib.load(f)
+
+    assert plist["Label"] == guard_probes._NODE_SECURITY_LABEL
+    assert plist["StandardErrorPath"].replace("__HOME__", "~") == guard_probes._NODE_SECURITY_LOG
 
 
 def test_pin_が最新の_security_版なら健全(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

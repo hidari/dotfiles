@@ -1,5 +1,5 @@
 ---
-status: open
+status: closed
 ---
 
 # chore: ruff の per-file-ignores に残る dead な S101 を掃除する
@@ -26,12 +26,23 @@ assert が通る。宣言と実態が食い違ったまま検査に出ない状�
 
 ## タスク
 
-- [ ] 4 プロジェクトのどちらへ寄せるか決める。`S101` を落として現状の検査面に合わせるか、
+- [x] 4 プロジェクトのどちらへ寄せるか決める。`S101` を落として現状の検査面に合わせるか、
       `select` へ `S` を足して tests 以外のベア `assert` を検出する側へ寄せるか
-- [ ] 決めた方針を 4 プロジェクトへ一斉に適用する。1 本だけ直すとリポジトリ内で表記が割れる
-- [ ] `select` へ `S` を足す側を選んだ場合は、既存コードに S 系の指摘が出ないか実測してから入れる
-- [ ] 同種の dead config が他にないか確認する。`per-file-ignores` の各エントリについて、
+- [x] 決めた方針を 4 プロジェクトへ一斉に適用する。1 本だけ直すとリポジトリ内で表記が割れる
+- [x] `select` へ `S` を足す側を選んだ場合は、既存コードに S 系の指摘が出ないか実測してから入れる (S を足す側は選ばなかったので該当しない)
+- [x] 同種の dead config が他にないか確認する。`per-file-ignores` の各エントリについて、
       対応するルールが `select` に含まれるかを突き合わせる
+
+## 決めたこと (2026-10-22)
+
+`S101` を落とす側へ寄せた (ユーザー裁定)。ISSUE-131 の PR のボーイスカウトで 4 本の `pyproject.toml` から `"tests/*" = ["S101"]` を消し、中身が空になった `[tool.ruff.lint.per-file-ignores]` の見出しも消した。tests 以外のベア `assert` の検出は今回は増やしていない。
+
+## 残りの ignore の突き合わせ (2026-10-22)
+
+`select` に含まれるかだけでなく、ignore を外したときに実際に抑止しているものがあるかを `ruff check --isolated --select <ルール>` で数えた。
+
+- `per-file-ignores` に残るのは claude-hooks の 9 ファイルと config-guard の 3 ファイルの `N802` だけで、12 エントリすべてが 2〜103 件を抑止している。死んだものは無い
+- 共通の `ignore` にある `RUF002` / `RUF003` は、config-guard で 65 件、backup-tool と claude-hooks で各 2 件を抑止している。mise-update-notifier と node-security-notifier では今は 0 件だが、`RUF` が `select` に入っているので日本語の docstring に全角の括弧を書いた時点で発火する。`S101` のように原理的に発火しない設定とは違い、方針として生きているので残した
 
 ## 関連
 

@@ -47,9 +47,6 @@ ignore = [
     "RUF003", # 同上 (コメント内)
 ]
 
-[tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101"]
-
 [tool.mypy]
 strict = true
 python_version = "3.12"

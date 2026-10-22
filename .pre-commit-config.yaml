@@ -198,7 +198,8 @@ repos:
         language: system
         entry: uv run --directory scripts/claude-hooks pytest -q
         pass_filenames: false
-        files: ^(home/\.claude/hooks/.*\.py|scripts/claude-hooks/.*)$
+        # node-security-notifier の state.py と plist は、ここのテストが読み手との一致を突き合わせる
+        files: ^(home/\.claude/hooks/.*\.py|scripts/claude-hooks/.*|scripts/node-security-notifier/(src/node_security_notifier/state\.py|com\.hidari\.node-security-notifier\.plist))$
 
       - id: gitleaks
         name: gitleaks (leak guard)

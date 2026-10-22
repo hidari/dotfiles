@@ -5,10 +5,11 @@ from __future__ import annotations
 import urllib.request
 
 INDEX_URL = "https://nodejs.org/dist/index.json"
+_TIMEOUT_SECONDS = 30.0
 
 
-def fetch_index(url: str = INDEX_URL, *, timeout: float = 30.0) -> bytes:
+def fetch_index() -> bytes:
     """配布一覧を取得し生バイト列を返す。失敗時は OSError 系を送出。"""
-    with urllib.request.urlopen(url, timeout=timeout) as resp:
+    with urllib.request.urlopen(INDEX_URL, timeout=_TIMEOUT_SECONDS) as resp:
         data: bytes = resp.read()
     return data

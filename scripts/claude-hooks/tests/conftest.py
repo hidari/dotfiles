@@ -47,10 +47,17 @@ def load_hook(filename: str) -> ModuleType:
     """フック本体をモジュールとして読む。
 
     フック本体はファイル名にハイフンを含み通常の import では解決できないので、ファイルから
-    直接読む。呼ぶたびに新しいモジュールを返すので、テストがモジュール属性を差し替えても
-    他のテストへ漏れない。
+    直接読む。
     """
-    path = HOOKS_DIR / filename
+    return load_module(HOOKS_DIR / filename)
+
+
+def load_module(path: Path) -> ModuleType:
+    """パスの Python ファイルをモジュールとして読む。
+
+    呼ぶたびに新しいモジュールを返すので、テストがモジュール属性を差し替えても他のテストへ
+    漏れない。
+    """
     spec = importlib.util.spec_from_file_location(path.stem.replace("-", "_"), path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
