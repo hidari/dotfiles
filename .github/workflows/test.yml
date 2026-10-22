@@ -119,6 +119,10 @@ jobs:
       - name: Run shellcheck
         run: git ls-files -z '*.sh' '*.bash' 'scripts/apm-guard/apm' 'scripts/repo-wiring/repo-wiring' | xargs -0 -r shellcheck -x -P SCRIPTDIR
 
+      # pre-commit の shellcheck-bats hook の CI ミラー (backstop)。コードを絞る理由は向こうのコメント。
+      - name: Run shellcheck on bats
+        run: git ls-files -z '*.bats' | xargs -0 -r shellcheck -x -P SCRIPTDIR --include=SC2314,SC2315
+
   pester:
     name: Pester (PowerShell)
     runs-on: ubuntu-24.04

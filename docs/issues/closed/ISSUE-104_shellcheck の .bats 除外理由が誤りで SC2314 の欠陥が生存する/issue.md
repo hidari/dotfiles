@@ -1,5 +1,5 @@
 ---
-status: open
+status: closed
 ---
 
 # fix(ci): shellcheck の .bats 除外理由が誤りで SC2314 の欠陥が生存する
@@ -53,11 +53,18 @@ shellcheck の severity が実際の状態を分けている。
 
 ## タスク
 
-- [ ] `.pre-commit-config.yaml:237` 付近の除外理由のコメントを、実測 (パースエラーは出ない、SC2314 自体が bats 前提のルール) に合わせて訂正する
-- [ ] `.bats` の SC2314 を捕まえる形を決める。shellcheck を `.bats` へ広げるなら、生き残らせるコード (SC2030 / SC2031 の抑制、あるいは SC2314 だけを individually 有効化する形など) を決める。shellcheck を広げずに、既存の ast-grep の層へ最後の文でない `!` を捕まえるルールを足す形もある (`rules/bats-no-bare-double-bracket.yml` が同じ種類の欠陥を扱い、`sgconfig.yml` が `.bats` を bash として読む)
-- [ ] shellcheck を広げる形を採るなら、`.pre-commit-config.yaml` の shellcheck hook の `files:` と `.github/workflows/test.yml` の shellcheck job の pathspec の両方に `.bats` を足す。ISSUE-60 が対象選択を 1 箇所へまとめていれば、その 1 箇所へ足す
-- [ ] SC2314 の 7 件を直す (死んでいる 3 件・生きているが壊れやすい 4 件の両方)。死んでいる 3 件は「既存のものは add / install しない」の要件が実際にピン留めされているかを合わせて見直す
-- [ ] 対象を壊す / 機構を壊す / 取り付けを外すの 3 種の変異で、追加した検査が赤くなることを確かめる
+- [x] `.pre-commit-config.yaml:237` 付近の除外理由のコメントを、実測 (パースエラーは出ない、SC2314 自体が bats 前提のルール) に合わせて訂正する
+- [x] `.bats` の SC2314 を捕まえる形を決める。shellcheck を `.bats` へ広げるなら、生き残らせるコード (SC2030 / SC2031 の抑制、あるいは SC2314 だけを individually 有効化する形など) を決める。shellcheck を広げずに、既存の ast-grep の層へ最後の文でない `!` を捕まえるルールを足す形もある (`rules/bats-no-bare-double-bracket.yml` が同じ種類の欠陥を扱い、`sgconfig.yml` が `.bats` を bash として読む)
+      (shellcheck を `--include=SC2314,SC2315` に絞って `.bats` へ当てる。ユーザー裁定)
+- [x] shellcheck を広げる形を採るなら、`.pre-commit-config.yaml` の shellcheck hook の `files:` と `.github/workflows/test.yml` の shellcheck job の pathspec の両方に `.bats` を足す。ISSUE-60 が対象選択を 1 箇所へまとめていれば、その 1 箇所へ足す
+- [x] SC2314 の 7 件を直す (死んでいる 3 件・生きているが壊れやすい 4 件の両方)。死んでいる 3 件は「既存のものは add / install しない」の要件が実際にピン留めされているかを合わせて見直す
+- [x] 対象を壊す / 機構を壊す / 取り付けを外すの 3 種の変異で、追加した検査が赤くなることを確かめる
+
+## クローズの記録 (2026-10-22)
+
+- 新しい pre-commit の hook `shellcheck-bats` と、CI の shellcheck job の step が、`.bats` に `shellcheck -x -P SCRIPTDIR --include=SC2314,SC2315` を当てる。対象選択は ISSUE-60 の案3がまだ入っていないので、`.pre-commit-config.yaml` の `files:` と `.github/workflows/test.yml` の pathspec の2箇所に足した。足す場所が2箇所に増えた分は ISSUE-60 が1箇所へまとめるときに合流させる
+- 7件はすべて `run !` へ直した。`run !` は `$output` を上書きするので、死んでいた2件 (bootstrap_plugins.bats) は `$output` を読むアサーションより後ろへ移した。直したあとの要件は成り立っていて (テストが緑)、前提を壊した写し (既にインストール済みの一覧を空にする) では `run !` の行がちょうど赤くなる
+- 変異: 対象 (最後の文でない `!` へ戻す) で hook が SC2314 で赤、機構 (`--include` を別のコードへ向ける) と取り付け (hook を外す) を壊すと、同じ対象の変異が素通りした。対象の変異を赤くしていたのがこの hook とその指定であることの確かめで、検査の穴ではない。新しい hook は追跡下のファイルだけを見るので、実行件数で Skipped でないことを確かめた
 
 ## 関連
 
