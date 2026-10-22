@@ -3,8 +3,9 @@
 # 個々のルールが何を見るかは各 [[rules]] の description が正本なので、ここでは
 # 列挙しない。
 #
-# 正本は dotfiles リポジトリの .gitleaks.toml で、他リポジトリには同一内容の写しを置く。
+# 正本は dotfiles リポジトリの .gitleaks.toml で、PUBLIC リポジトリには同一内容の写しを置く。
 # 変更は dotfiles 側で行い、写しへ配り直すこと。写しとの乖離は内容の一致で判定できる。
+# PRIVATE リポジトリには PII のルールを当てず、gitleaks の既定ルールだけを持つ設定を置く。
 # 呼び出し元はこのファイルを置いたリポジトリ側が持つ。pre-commit から呼ぶか CI から
 # 呼ぶかはリポジトリごとに違うので、ここでは所在を断定しない。
 title = "hidari shared gitleaks config"
