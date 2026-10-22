@@ -155,6 +155,6 @@ skill 側の実装は `agentic-coding-tools` の main (`d039316`) に入って�
 
 ゲスト側のツール導入は dotfiles の `scripts/windows-vm/bootstrap.ps1` が持つ。skill ではなく dotfiles に置いたのは、skill が公開リポジトリの汎用 CLI であるのに対し、VM のプロビジョニングは個人の環境構築だからである。skill 側の `references/windows-bootstrap.md` は手順と理由を持ち、こちらはその自動化にあたる。
 
-skill 新設当時の設計と実装計画は `docs/superpowers/archive/2026-06-26-windows-vm-verification-skill-design.md` と同 `-skill.md` にある。Issue 起票の運用より前の成果物なので Issue ディレクトリ配下には無く、archive に退避されている。
+skill 新設当時の設計と実装計画は `docs/superpowers/archive/2026-06-26-windows-vm-verification-skill-design.md` と同 `-skill.md` にあったが、private リポジトリの内部構造を含んでいたため、Issue 21 の露出除去でファイルごと削除した (2026-10-22)。
 
 live smoke を最後のタスクに置いたのは、shell-out と外部 CLI のオーケストレーションはユニットテストが緑でも完了としないという規約による。シェルやコマンドのセマンティクスがランタイムで壊れる類の失敗はユニットテストでは原理的に捕捉できない。実際、この移行で見つかった罠のうち `prlctl exec` のトークン分割・ファイアウォールのプロファイル・進捗ログの順序入れ替わりの 3 つは live smoke でしか出なかった。

@@ -21,7 +21,7 @@
 
 ## 調査で確定した一次情報
 
-2026-08-01 から 02 にかけて、dotfiles は `7295a71`、claude-plugins は `19ed74a`、superpowers は 6.2.0 で実測した。
+2026-08-01 から 02 にかけて、dotfiles は `7295a71`、<private plugin リポジトリ> は `19ed74a`、superpowers は 6.2.0 で実測した。
 
 上流 skill の規定。
 
@@ -51,10 +51,10 @@ Issue ディレクトリの規約。
 
 再利用を阻む制約。
 
-- claude-plugins は PRIVATE、dotfiles は PUBLIC である。pre-commit の外部 repo 参照は dotfiles の CI で clone 認証に詰まる。
+- <private plugin リポジトリ> は PRIVATE、dotfiles は PUBLIC である。pre-commit の外部 repo 参照は dotfiles の CI で clone 認証に詰まる。
 - `CLAUDE_PLUGIN_ROOT` は plugin の hooks.json と MCP 設定内でのみ展開され、シェルには export されない。両リポジトリに使用例は 0 件。
 - 絶対パスの直書きは gitleaks の macos-user-path ルールが弾く。
-- claude-plugins には `.pre-commit-hooks.yaml` も実行可能スクリプトも CI も無い。skill 配下の非 SKILL.md ファイルの前例は `in-repo-issue/templates/issue.md` 1 件のみで、`cp` による vendoring を導線としている。
+- <private plugin リポジトリ> には `.pre-commit-hooks.yaml` も実行可能スクリプトも CI も無い。skill 配下の非 SKILL.md ファイルの前例は `in-repo-issue/templates/issue.md` 1 件のみで、`cp` による vendoring を導線としている。
 - プロジェクト単位で skill の有効・無効を宣言する公式機構は `enabledPlugins`（plugin 単位の明示列挙）だけである。SKILL.md の frontmatter は name / description / allowed-tools の 3 つのみで、条件付き有効化に使えるフィールドは存在しない。既存の「profile が無ければ動かない」skill 群は、harness の機能ではなく SKILL.md 本文の散文で停止条件を実現している。
 - config-guard を他プロジェクトで動かす障壁は Python ではない。zero-dep であり system python3 に PYTHONPATH を通すだけで完走する。真の障壁は `scan()` が無条件に `home/.claude/settings.json` を読む dotfiles 固有のハードコードで、他リポジトリを渡すと例外で落ちる。
 
@@ -68,7 +68,7 @@ Issue ディレクトリの規約。
 規約の実体を skill に 1 箇所だけ持ち、プロジェクト側にはポインタを置く。
 
 ```
-claude-plugins                              各プロジェクト
+<private plugin リポジトリ>                 各プロジェクト
 ────────────────────────────                ──────────────────────────────
 plugins/dev-workflow/skills/                CLAUDE.md
   issue-scoped-artifacts/       ◀ポインタ─    「spec / plan は skill の規約に従う」
@@ -126,15 +126,15 @@ Issue ディレクトリ配下に置くファイルは次のとおり。
 
 `.superpowers/sdd/` は削除する。追跡外なのでコミットには現れない。削除により次回の plan 実行時に `sdd-workspace` が `<NNN>-plan/` 形式のサブディレクトリを新規生成するため、上流最新形式への追随も同時に完了する。
 
-削除に伴い `.superpowers/sdd/.gitignore` も消える。現在 `.superpowers/` が git から隠れているのはこのファイルだけによるものなので、リポジトリの `.gitignore` に `.superpowers/` を加える。brainstorming の visual companion が書く `.superpowers/brainstorm/` はそもそも ignore されておらず、この追加で同時に塞がる。姉妹リポジトリの claude-plugins は既に `.superpowers/` を ignore しており、揃う形になる。
+削除に伴い `.superpowers/sdd/.gitignore` も消える。現在 `.superpowers/` が git から隠れているのはこのファイルだけによるものなので、リポジトリの `.gitignore` に `.superpowers/` を加える。brainstorming の visual companion が書く `.superpowers/brainstorm/` はそもそも ignore されておらず、この追加で同時に塞がる。姉妹リポジトリの <private plugin リポジトリ> は既に `.superpowers/` を ignore しており、揃う形になる。
 
 ## 作業の順序
 
-claude-plugins への skill 追加を先に行い、dotfiles の変更を後に行う。CLAUDE.md のポインタが指す skill が存在しない期間を作らないためである。
+<private plugin リポジトリ> への skill 追加を先に行い、dotfiles の変更を後に行う。CLAUDE.md のポインタが指す skill が存在しない期間を作らないためである。
 
-claude-plugins には skill 追加の前に PR #5 を処理する。この PR は in-repo-issue の採番を全ブランチ横断にする 1 ファイル 9 行追加 4 行削除の修正で、MERGEABLE かつ CLEAN のまま 2026-07-23 から開いている。marketplace が directory ソースでこの作業ディレクトリそのものを指すため、現在 live な採番挙動はこの未マージブランチのものである。main を checkout すると挙動が退行する状態にあり、新しい skill を足す前に main を live に一致させる。
+<private plugin リポジトリ> には skill 追加の前に PR #5 を処理する。この PR は in-repo-issue の採番を全ブランチ横断にする 1 ファイル 9 行追加 4 行削除の修正で、MERGEABLE かつ CLEAN のまま 2026-07-23 から開いている。marketplace が directory ソースでこの作業ディレクトリそのものを指すため、現在 live な採番挙動はこの未マージブランチのものである。main を checkout すると挙動が退行する状態にあり、新しい skill を足す前に main を live に一致させる。
 
-claude-plugins 側に Issue は起票しない。設計は dotfiles の Issue #16 が所有する 1 つであり、claude-plugins 側はその実装 PR として出す。規約の趣旨とも一貫する。
+<private plugin リポジトリ> 側に Issue は起票しない。設計は dotfiles の Issue 16 が所有する 1 つであり、<private plugin リポジトリ> 側はその実装 PR として出す。規約の趣旨とも一貫する。
 
 ## 検証方法
 
