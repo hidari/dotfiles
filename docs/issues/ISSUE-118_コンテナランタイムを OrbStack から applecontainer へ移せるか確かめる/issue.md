@@ -86,6 +86,18 @@ Docker.app と OrbStack は外す (2026-10-10にユーザーが決定)。OrbStac
 - `extends` で別ファイルのサービスを引き込んでいる (Container-Compose では未対応のまま open)
 - `host.docker.internal` でホストの Supabase へ繋いでいる。apple/container には相当する名前が無い
 
+## 受け箱から届いた関連情報 (2026-10-22)
+
+他のリポジトリのセッションから届いた報告で、報告者は公式のドキュメントと上流の Issue を読んだだけで、動かしてはいない (ドキュメントのみ)。dotfiles でも確かめていない。上の方針の「Supabase CLI は Docker Engine API を直接叩くので socktainer で試す」の前提に触る。
+
+- Supabase CLI には実験的な stack 機能があり、Docker を使わずにローカルで動くネイティブのランタイムを持つ
+- `--runtime` を省くと Docker、Podman、native の順に最初に応答したものを使う。Docker が動いているマシンでは `stack = true` を足しただけではネイティブにならない
+- Auth のメールテンプレートを `content_path` で指定する設定があると、stack モードはネイティブでも Docker のランタイムでも起動を拒否する。テンプレートを `content` に直接書く回避も弾かれる (上流の supabase/cli#7200、未修正)。カスタムのメールテンプレートを使うプロジェクトでは、stack モード自体がまだ使えない
+
+報告者の提案は、ネイティブのランタイムを検討するときは先に `content_path` の有無を grep すること。
+
+見立て (推測。報告者の指摘ではなく仕分けたセッションの解釈): Supabase CLI がネイティブで動くなら、そのツールについては socktainer を経由しなくて済む。
+
 ## タスク
 
 - [x] container の入手経路を決める (pkg のままか brew へ寄せるか)。brew へ寄せるなら Brewfile に載せる (ISSUE-95 の射程の議論と合わせる)
@@ -98,6 +110,7 @@ Docker.app と OrbStack は外す (2026-10-10にユーザーが決定)。OrbStac
 - [ ] 移行するかを決め、決めた結果を `home/.claude/references/host-environment.md` の隔離先コンテナの記述へ反映する
 - [ ] 移行するなら、OrbStack.app と Docker.app、`/usr/local/bin/docker` の symlink、docker context の扱いを決める
 - [ ] 自作した compose 互換ツールを畳むか続けるかを、そのリポジトリ側の Issue で決める
+- [ ] Supabase CLI のネイティブのランタイムで、実際に使うプロジェクトの Supabase を起動できるか確かめる。起動できるなら、socktainer で試す対象から Supabase CLI を外す
 
 ## 関連
 
@@ -107,3 +120,4 @@ Docker.app と OrbStack は外す (2026-10-10にユーザーが決定)。OrbStac
 - apple/container#66 (Docker Engine API を提供しない)
 - apple/container#141、apple/container#1809、apple/container#2142 (本体に欠けたままの機能)
 - socktainer/socktainer#212 (compose 対応)、socktainer/socktainer#392 (formula の依存で container が重複する)
+- supabase/cli#7200 (stack モードが `content_path` のメールテンプレートで起動を拒否する)
