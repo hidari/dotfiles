@@ -60,7 +60,7 @@ classic だけを見ると今も 404 なので、上の判定手順を使わな�
 - [ ] dotfiles の `protect-main` に必須ステータスチェックと linear history を足す
 - [ ] リポジトリ設定の「Allow merge commits」を OFF にする
 - [ ] bypass list の扱いを決める。空にするか、逃げ道として残すか
-- [ ] タグ用 ruleset を作る
+- [ ] タグ用 ruleset を作る。着手前に ISSUE-133 の作業の規範の節にある、別のリポジトリでの実測 (2026-10-22着) を読む。作成を止めない形なら bypass が空でも GitHub Actions のタグの push が通ること、pattern に当たる探針のタグは二度と消せないこと、効き目を読み直すエンドポイントが無いことが書いてある
 - [ ] ruleset の JSON をエクスポートし、汎用定義として dotfiles へ配置する。対象リポジトリの
       一覧は実行時に取得し、JSON へ列挙しない
 - [ ] 適用タスクの置き場を決める。`justfile` を新規に入れるか、既存のスクリプト群へ寄せるか

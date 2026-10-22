@@ -8,7 +8,7 @@ status: open
 
 2026-10-21 に受け箱へ届いたまとめのうち、特定の技術領域に閉じた知見をここへ残す (ユーザー決定 2026-10-22: 技術領域に閉じた知見も捨てずに1本にまとめる)。どの領域にも閉じない知見は ISSUE-133 へ分けた。
 
-どれも他のセッションの報告で、dotfiles では再現していない。根拠は報告者の申告 (実測 / 推測 / ドキュメントのみ) をそのまま書く。版や仕様は届いた時点 (2026-10-21) のもので、古びる。
+どれも他のセッションの報告で、dotfiles では再現していない。根拠は報告者の申告 (実測 / 推測 / ドキュメントのみ) をそのまま書く。版や仕様は届いた時点 (2026-10-21か2026-10-22) のもので、古びる。2026-10-22に届いた7件から足した分は、各節の末尾と、新しく立てた節に置いた。
 
 ### Cloudflare Access の後ろの環境へ繋ぐ
 
@@ -30,6 +30,8 @@ status: open
 - iOS の URLSessionConfiguration の httpAdditionalHeaders は URLProtocol の stub に届く要求にも載る (作成と GET の2経路で確認)。組み立て役で構成を1つ作って各通信クラスへ渡せば通信クラスを触らずに済む。WebSocket の upgrade に載るかは未確認 (実測)
 - シミュレータのアプリの通信の成否は、アプリにログを足さずに CFNetwork のログ (`Task ... received response, status 101` など) で読める (実測)
 - Xcode 27 系には Simulator.app が無く、シミュレータの画面は Xcode の `Contents/Applications` にある DeviceHub.app で開く (実測)
+- URLSession の task に `task.delegate` を据え、その delegate が `willPerformHTTPRedirection` を実装しなければ、redirect の判断は session の delegate へ回る。WebSocket の task でも、開いた・メッセージ・完了の出来事は task の delegate に届いた。session の delegate を状態の無い共有の1つに固定し、出来事を受けたい側を task の delegate に下げると、session を作る口を1つに閉じられる (実測、iOS 26のシミュレータ)。ただし redirect の判断は task の delegate でも上書きできるので、口を閉じても性質は閉じない (ISSUE-88 の INS-23)
+- Apple のネットワークのログ (CFNetwork) は、WebSocket のプロトコルの ping の送信を記録しない。送ったことの証拠はクライアントのログからは取れないので、テストでの送信の確認と、対照付きの生存の組で主張するしかない (実測)
 
 ### React と E2E (Playwright)
 
@@ -40,6 +42,11 @@ status: open
 - アプリが dispatch するカスタムイベントを `addInitScript` で DOM の data 属性へ写し、locator で待つと hydration の完了を待てた。tsconfig が DOM の型を持たない E2E では、`addInitScript` に content の文字列で渡すと型エラーを避けられる (実測)
 - 開発サーバの React StrictMode では、捨てられる1回目の effect も localStorage に書く。cancelled フラグを書き込みの後でしか見ていない hydration は、イベントの発火回数と書き込み回数が一致しない (推測。コードを読んだだけ)
 - UI の性能の上限を決めるとき、開発機の値に推測の倍率を掛けず、Playwright から CDP の `Emulation.setCPUThrottlingRate` (4倍と6倍) を掛けて独立プロセスで測った。長さの順を昇順と降順で入れ替えても中央値がほぼ動かないことで実行順の影響も確かめた (実測)
+- Playwright で応答を遅らせるときは、要求ではなく応答を握る (`route.fetch()` で取ってから待ち、`route.fulfill({ response })` で返す)。要求を握ると DB の問い合わせ自体が後ろへずれ、新しい値が返って競合が起きない (実測)
+- 競合を再現するために応答を握るときは、固定の時間で遅らせず、競合の相手の操作 (作成の RPC の応答) が返るまで握る。ホストが重いと固定の時間に操作が収まらず、製品が正しくてもテストが赤くなる (実測。レビューの指摘から採用)。「古い応答が届いた」の判定は時刻ではなく応答の本文で行う (ISSUE-88 の INS-20)
+- 閉じた details の中身は、`getByRole` の既定 (隠れた要素を除く) から外れる。中に live region があると、ページ全体の role の数を数える検査が別の理由で赤くなる (実測)
+- chromium では、disabled にしたボタンからフォーカスが body へ落ちた。送信中のボタンを aria-disabled とハンドラの先頭の早期リターンへ切り替えるとフォーカスが残る (実測、Playwright の chromium)。切り替えの pin については ISSUE-88 の INS-19
+- ESLint の prefer-const は、宣言のあとで1回だけ代入される `let` を、そのあいだにクロージャから読まれていても「const にできる」と報告する。クロージャへ渡す印を小さなオブジェクトのプロパティにすると通る (実測)
 
 ### GitHub Actions と Node の版
 
@@ -53,6 +60,8 @@ status: open
 - 毎日の定期チェックの workflow では、前提のステップを checkout の直後に置き、その後ろの検査をすべて `if: always()` にそろえると、1つが落ちても残りの検知が止まらない。集約のステップは、内訳が空でも job が赤なら「正常」と言わずに1行残す (実測。変異16種がすべて赤)
 - sparse-checkout で必要なファイルだけ取り出す workflow は、テストでもその一覧のファイルだけを一時ディレクトリへ写してステップを走らせると、取り出し漏れ (毎朝の偽の赤) をマージ前に捕まえられる (実測)
 - 報告者の提案: setup-node にメジャーだけの範囲を渡しているリポジトリは、パッチが runner イメージ任せになっている。各リポジトリの CI ログで掴んだ版を数えてから、下限付きの範囲か check-latest を検討する (推測)
+- node の版を `.node-version` へ寄せて CI と mise で共有する報告と、その mise の設定は ISSUE-136 に置いた
+- Draft PR を作った直後は、作成の run が立ったのを見てから Ready にすると、Ready の run が取り消されずに残った (実測)
 
 ### PostgreSQL
 
@@ -67,12 +76,24 @@ status: open
 - 本番のバイナリに載るかを `cargo tree -i <crate> --edges normal` で見るときは、`--target <本番のトリプル>` を付けないと手元のホストのターゲットで解決される (実測)
 - `cargo update -p A` が「available: 新しい版」と言いながら手前の版で止まることがある。A の新しい版が別の推移依存の新しい版を要求していると resolver が手前で止める。先に要求される側を上げてから A を当て直すと届いた。rc 0 は届いた証拠にならないので lock の版を読む (実測)
 - 報告者の提案: Rust を持つリポジトリでは、依存の脆弱性の定期点検に cargo audit (か cargo deny の advisories) を入れる
+- Rust の `std::time::Instant` は macOS ではスリープ中に進まない。同じ処理で、Instant で測った秒数と wall clock の差がスリープの区間と一致した。Instant を使うタイムアウトはスリープで誤発火しない代わりに、測った時間は wall clock より短く出る (実測)
+
+### Supabase CLI と外部サービスの CLI
+
+- Supabase CLI の stack モードのネイティブのランタイム (Docker なしのローカル実行) についての報告 (ドキュメントのみ) は、コンテナランタイムの移行の前提に触るので ISSUE-118 に置いた
+- 報告者の提案: CI のために Supabase を立てる目的なら、Docker のランタイムの `supabase start` の費用を先に見積もる。ネイティブは費用を下げる手段で、CI で Supabase を立てる前提を新しく作るものではない (ドキュメントのみ)
+- 一晩置いた開発環境で、Stripe CLI の `stripe listen` が OAuth トークンの期限切れで終了していた。E2E の前提チェックが待受の生存を見ていたので気づけた。再ログインにはブラウザでの承認が要るので利用者に頼む (実測)
+
+### 正規表現の計算量
+
+- `/\s*[\r\n]\s*/g` のような「空白の並び、区切り、空白の並び」の正規表現は、区切りを含まない長い空白で位置ごとに後戻りして、長さの2乗の時間になる (64,000文字で7秒台)。先頭に後読み `(?<!\s)` を足して照合の始まりを空白の並びの先頭に限ると線形になり、結果は変わらない (実測)。入力の検査より前に正規化を置く変更の観点は ISSUE-133、処理時間の上限の pin の形は ISSUE-88 の INS-21
 
 ### その他のツール
 
 - 1Password CLI の `op read 'op://<vault>/<item>/<日付の欄>'` は、画面の表示ではなく UNIX 時刻の秒 (10桁の整数) と改行を返す。期限を判定するコードは秒の整数を読む前提で書く。値の形は実物を1回読んで `od -c` で確かめる (実測)
 - 依存の柵 (特定のライブラリを import してよいのは1パッケージだけ) は、設定ファイルの文字列ではなくビルドツールが出す依存グラフの JSON (辺ごとに source / test の種類つき) で検査できる。標準ライブラリに同梱されたパッケージは依存グラフの JSON に現れないので、それへの直 import は柵で見えない (実測)
 - mise の `github:` backend で入れた単体バイナリの CLI が npm パッケージを `deno compile` したもので、gRPC クライアントが Deno の node:http2 互換層の上で動いていた (実測。導入時の確かめ方は ISSUE-133)
+- pnpm 10の「Ignored build scripts: <pkg>」の警告は、install に `--ignore-scripts` を付けると消え、lockfile も変わらない。設定ファイルの側 (package.json) で消す方法もあるが、その package.json をキャッシュの指紋に入れていると長い検査をやり直すことになるので、フラグの方を選んだ。消せることは、付けない対照で1件出て、付けた形で0件になることで確かめた (実測)
 
 ## タスク
 
@@ -84,3 +105,6 @@ status: open
 
 - ISSUE-133: 同じ受け箱から届いた、技術領域に閉じない知見
 - ISSUE-97: 集めた知見を磨いて配る工程
+- ISSUE-88: 検査と変異注入の知見。今回足した項目のうち、pin の作り方にあたる部分を INS-19〜23 に置いた
+- ISSUE-118: コンテナランタイムの移行。Supabase CLI のネイティブのランタイムの報告を置いた
+- ISSUE-136: global の mise に `.node-version` を読ませるか

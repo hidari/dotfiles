@@ -114,7 +114,7 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | Raycast | Issue 22、Issue 23 |
 | PowerShell | Issue 27、Issue 28 |
 | コンテナ | ISSUE-118、ISSUE-127 |
-| 単独 | Issue 31、Issue 33、ISSUE-51、ISSUE-95、ISSUE-109、ISSUE-114、ISSUE-116、ISSUE-123、ISSUE-125 |
+| 単独 | Issue 31、Issue 33、ISSUE-51、ISSUE-95、ISSUE-109、ISSUE-114、ISSUE-116、ISSUE-123、ISSUE-125、ISSUE-136 |
 
 ### 数え方
 
@@ -152,6 +152,12 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
   `git show <ref>:<path>` で読む。数えた SHA は「件数の推移」節に残す。並行するセッションが上流の
   作業ツリーを feature ブランチへ切り替えていると、その枝でだけ status が動いた Issue の分がずれる
   (2026-09-17 に実例がある)
+
+### 割り当ての検算 (2026-10-22、ISSUE-136 の起票の後)
+
+dotfiles の active な Issue は74件 (open が72件、in_progress が2件) で、その全件がいずれかのマイルストーンへ入ることを、この変更の tree で数えて確かめた。M7 は21件になり、ほかのマイルストーンの件数は下の検算から動いていない。この Issue 自身の1件と合わせて74件になる。表の腐りは0件、未割り当てはこの Issue 自身の1件だけだった。
+
+下の検算からの動きは、受け箱の仕分けで起票した ISSUE-136 を M7 の単独へ入れたことだけである。
 
 ### 割り当ての検算 (2026-10-22、ISSUE-131 と Issue 38 のクローズの後)
 
