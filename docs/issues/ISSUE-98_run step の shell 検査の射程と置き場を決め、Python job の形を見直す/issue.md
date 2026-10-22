@@ -84,7 +84,7 @@ working-directory と pytest の引数以外がほぼ同じである。
 - Issue 45 (closed): プローブを入れた PR が閉じた Issue
 - ISSUE-50: 必須ステータスチェックと集約ジョブ。job 名の変更と前後関係がある
 - Issue 37: setup-uv の取得失敗。job を減らすと取得回数も減る
-- Issue 38: 同じ 4 プロジェクト (claude-hooks 以外) へ一斉に適用する作業。job の見直しと着手を揃えられる
+- Issue 38: 同じ 4 プロジェクト (claude-hooks 以外) へ一斉に適用する作業。job の見直しと着手を揃えられる (2026-10-22 に S101 を落として closed。job の見直しとは揃えずに済ませた)
 - Issue 26: uv ハーネス 3 本を claude-hooks の 1 job へまとめた前例
 - ISSUE-60 と ISSUE-85 (closed): config-guard に置く検査の候補で、置き場の議論が重なる。ISSUE-85 は、既存の test_precommit_wiring.py で足りると認めて閉じた
 - ISSUE-57: `.sh` のヒアドキュメントと `settings.json` の hooks.command に埋め込んだ他言語の構文検査。

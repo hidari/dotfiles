@@ -8,7 +8,6 @@ set -euo pipefail
 # 設定
 # =============================================================================
 
-# スクリプトのディレクトリを取得
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES_DIR="${DOTFILES_DIR:-$SCRIPT_DIR}"
 
@@ -67,17 +66,14 @@ APM_SYMLINK_PAIRS=(
 # ヘルパー関数
 # =============================================================================
 
-# ログ出力
 log() {
     echo "[INFO] $*"
 }
 
-# 警告出力
 warn() {
     echo "[WARN] $*" >&2
 }
 
-# エラー出力
 error() {
     echo "[ERROR] $*" >&2
 }
@@ -180,7 +176,6 @@ copy_if_not_exists() {
     log "Copied: $source -> $target"
 }
 
-# 使用方法を表示
 usage() {
     cat <<EOF
 Usage: $(basename "$0") [OPTIONS]
@@ -445,8 +440,8 @@ claude_config_dir_line_kind() {
 # 受け入れるのは .claude- で始まる名前だけ。charset に "/" が無く先頭が .claude- に
 # 固定されるので、行が $HOME の外や既存の意味を持つドットディレクトリ (.git 等) を
 # 指すことはない (".." もこの文法を通らないので個別の分岐は要らない)。この前提は
-# 「追加ディレクトリが実在するか」の検査が使う glob (.claude-*) が元から賭けていた
-# もので、文法側へ昇格させて 2 つあった「追加ディレクトリとは何か」の定義を揃えた。
+# 「追加ディレクトリが実在するか」の検査が使う glob (.claude-*) と同じで、
+# 「追加ディレクトリとは何か」の定義はこの文法 1 箇所が持つ。
 #
 # 末尾が -dev の名前も落とす。.zshrc が 1 行につき <name> と <name>-dev を対で作る
 # ため、-dev を許すと別の行の派生名と衝突して後勝ちで静かに上書きされる。bootstrap は
@@ -703,7 +698,6 @@ setup_apm_symlinks() {
 setup_dotfiles() {
     log "Setting up dotfiles..."
 
-    # 必要なディレクトリを作成
     ensure_directory "$HOME/.config/git"
     ensure_directory "$HOME/.config/mise"
     ensure_directory "$HOME/.local/bin"
@@ -725,7 +719,6 @@ setup_dotfiles() {
     # pair も 1 件ずつではなくまとめて渡す (全件揃うときだけ張る判定があるため)
     setup_shared_symlinks < <(symlink_pairs_for shared)
 
-    # .gitconfig.private をコピー（既存の場合はスキップ）
     if [ -f "$DOTFILES_DIR/home/.gitconfig.private.example" ]; then
         copy_if_not_exists "$DOTFILES_DIR/home/.gitconfig.private.example" "$HOME/.gitconfig.private"
     fi
@@ -968,7 +961,6 @@ setup_claude_plugins() {
 # =============================================================================
 
 main() {
-    # 引数パース
     while [[ $# -gt 0 ]]; do
         case $1 in
             -y|--yes)
@@ -999,17 +991,16 @@ main() {
         esac
     done
 
-    # 確認プロンプト
     if [ "$YES_MODE" = false ] && [ "$DRY_RUN" = false ]; then
         echo "This script will:"
         if [ "$DOTFILES_ONLY" = false ]; then
-            echo "  - Install Homebrew, Rust, mise, Claude Code, apm"
+            echo "  - Install Homebrew, Pester, Rust, mise, Claude Code, apm"
             echo "  - Install Brewfile CLI tools (pre-commit, gitleaks, shellcheck, etc.)"
             echo "  - Install mise-managed tools"
-            echo "  - Install apm-managed skills"
+            echo "  - Install apm-managed skills and plugins"
             echo "  - Install Claude Code plugins declared in settings.json"
             echo "  - Enable pre-commit git hooks in this repo"
-            echo "  - Install a daily LaunchAgent (com.hidari.node-security-notifier) that polls the Node.js vulnerability feed"
+            echo "  - Install a daily LaunchAgent (com.hidari.node-security-notifier) that records Node.js security releases for the session-start check"
         fi
         echo "  - Create symlinks for dotfiles"
         echo ""
@@ -1023,7 +1014,6 @@ main() {
         fi
     fi
 
-    # ツールインストール
     if [ "$DOTFILES_ONLY" = false ]; then
         install_homebrew
         install_brew_packages
@@ -1037,7 +1027,6 @@ main() {
     # 設定ファイルの却下行をここで 1 回だけ知らせる。以降の読み取りは黙ってフィルタする
     warn_invalid_claude_config_dir_lines
 
-    # dotfiles セットアップ
     setup_dotfiles
 
     # 配列から消えた pair の残骸を退避する。集合は pair の定義 (配列 + 生成) から

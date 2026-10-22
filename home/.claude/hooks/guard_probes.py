@@ -1,12 +1,10 @@
 """セッションが正しい前提の上に乗っているかを見る述語と、その登録簿。
 
-出発点は検査層の生存だった。PreToolUse のガード (apm-install-guard.py) は自分が機能して
-いない状態を検出できない。検出できている箇所はあるが、射程が実態より狭い。この層はセッション
-頭でそれを測るためのものである。
-
-射程はそこから広がっている。運用指示が読めているか、掴んでいるタスクリストが作業ディレクトリと
-整合しているか、といった「検査層ではないがセッションの前提にあたるもの」も述語に含む。判定は
-対象が検査層かどうかではなく、壊れていても実行が続いてしまうかどうかで行う。
+PreToolUse のガード (apm-install-guard.py) のような検査層は、自分が機能していない状態を
+自分では検出できない (検出できる箇所はあっても、射程が実態より狭い)。この層はそれを
+セッション頭で測る。運用指示が読めているか、掴んでいるタスクリストが作業ディレクトリと
+整合しているか、といった「検査層ではないがセッションの前提にあたるもの」も述語に含む。
+判定は対象が検査層かどうかではなく、壊れていても実行が続いてしまうかどうかで行う。
 
 述語をここへ集めるのは、同じ判定を 2 箇所へ書くと片方だけ直したときに沈黙して食い違う
 ためである。それはこの層が扱っている欠陥そのものなので、canonical を 1 つにする。
@@ -25,8 +23,11 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
+import time
+import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -357,6 +358,112 @@ def probe_herdr_ids() -> ProbeResult:
     return ProbeResult(healthy=True)
 
 
+# 日次の LaunchAgent (scripts/node-security-notifier) が書く判定結果の置き場。書き手の
+# STATE_RELPATH と一致することはテストが両方を読み込んで突き合わせる。
+NODE_SECURITY_STATE_RELPATH = Path(".local/state/node-security-notifier/security-releases.json")
+_NODE_SECURITY_LABEL = "com.hidari.node-security-notifier"
+_NODE_SECURITY_LOG = "~/.local/state/node-security-notifier/launchd.log"
+_MISE_CONFIG_RELPATH = Path(".config/mise/config.toml")
+# 取得の失敗が一時的なら鳴らさず、週末をまたいだら気づける幅
+NODE_SECURITY_MAX_AGE = 3 * 86_400
+_EXACT_VERSION = re.compile(r"\d+\.\d+\.\d+")
+
+
+def _version_key(version: str) -> tuple[int, ...]:
+    # 文字列のまま比べると 24.9.0 が 24.22.1 より新しく見える
+    return tuple(int(part) for part in version.split("."))
+
+
+def _node_pin(home: Path) -> str:
+    """mise の global 設定から node の exact pin を読む。読めなければ ValueError。"""
+    try:
+        with (home / _MISE_CONFIG_RELPATH).open("rb") as f:
+            config = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise ValueError(f"設定を読めない ({exc})") from exc
+    tools = config.get("tools")
+    pin = tools.get("node") if isinstance(tools, dict) else None
+    if not isinstance(pin, str) or not _EXACT_VERSION.fullmatch(pin):
+        raise ValueError(f"[tools] の node が <数>.<数>.<数> の exact pin ではない ({pin!r})")
+    return pin
+
+
+def _node_security_status(path: Path) -> tuple[int, list[str]]:
+    """状態ファイルから (取得時刻, security の版の一覧) を読む。形が崩れていれば ValueError。"""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError("最上位がオブジェクトではない")
+    fetched_at = data.get("fetched_at")
+    versions = data.get("security_versions")
+    # bool は int の部分型なので先に外す
+    if isinstance(fetched_at, bool) or not isinstance(fetched_at, int):
+        raise ValueError("fetched_at が整数ではない")
+    if not isinstance(versions, list) or not all(
+        isinstance(v, str) and _EXACT_VERSION.fullmatch(v) for v in versions
+    ):
+        raise ValueError("security_versions が <数>.<数>.<数> の一覧ではない")
+    return fetched_at, versions
+
+
+def probe_node_security(now: float | None = None) -> ProbeResult:
+    """mise の node の pin が、既知の security リリースより古くないか。
+
+    判定の元は日次の LaunchAgent が書く状態ファイルで、ここは通信しない。比較を書き手では
+    なくここで行うのは、pin を上げた直後に古い判定が残って誤報にならないようにするため。
+    作業の場の外へ出す通知は読まれないまま残るので、作業の場であるセッションの頭で告げる。
+    """
+    home = Path.home()
+    try:
+        pin = _node_pin(home)
+    except ValueError as exc:
+        return ProbeResult(
+            healthy=False,
+            detail=f"node の pin を読めないので security リリースと比べられない: {exc}",
+        )
+
+    state = home / NODE_SECURITY_STATE_RELPATH
+    shown = f"~/{NODE_SECURITY_STATE_RELPATH}"
+    try:
+        fetched_at, versions = _node_security_status(state)
+    except FileNotFoundError:
+        return ProbeResult(
+            healthy=False,
+            detail=(
+                f"node の security リリースを一度も判定していない ({shown} が無い)。"
+                f"LaunchAgent ({_NODE_SECURITY_LABEL}) が未導入なら bootstrap.sh を実行し、"
+                "導入済みなら "
+                f"`launchctl kickstart gui/$(id -u)/{_NODE_SECURITY_LABEL}` で一度走らせる"
+            ),
+        )
+    except (OSError, ValueError) as exc:
+        return ProbeResult(
+            healthy=False,
+            detail=f"node の security リリースの判定結果 ({shown}) の形が崩れている: {exc}",
+        )
+
+    problems: list[str] = []
+    age = (time.time() if now is None else now) - fetched_at
+    if age > NODE_SECURITY_MAX_AGE:
+        problems.append(
+            "node の security リリースの判定が止まっている "
+            f"(最後の取得から {int(age // 86_400)} 日)。"
+            f"取得の失敗は {_NODE_SECURITY_LOG} に残っている"
+        )
+    pinned = _version_key(pin)
+    newer = sorted(
+        (v for v in versions if _version_key(v)[0] == pinned[0] and _version_key(v) > pinned),
+        key=_version_key,
+    )
+    if newer:
+        problems.append(
+            f"node の pin {pin} より新しい security リリースがある: {', '.join(newer)}。"
+            f"~/{_MISE_CONFIG_RELPATH} の pin を上げる"
+        )
+    if problems:
+        return ProbeResult(healthy=False, detail="\n".join(problems))
+    return ProbeResult(healthy=True)
+
+
 # プローブの登録簿。名前を結果ではなくここが持つのは、プローブの呼び出し自体が例外で
 # 落ちたときにも名前が要るためである。名前が無いと「検査できなかった」を報告できない。
 PROBES: tuple[tuple[str, Callable[[], ProbeResult]], ...] = (
@@ -364,4 +471,5 @@ PROBES: tuple[tuple[str, Callable[[], ProbeResult]], ...] = (
     ("private-ops", probe_private_ops),
     ("task-list-id", probe_task_list_id),
     ("herdr-ids", probe_herdr_ids),
+    ("node-security", probe_node_security),
 )
