@@ -26,9 +26,21 @@ dotfiles で確かめたこと: skill の frontmatter スキーマは `parent` /
 
 dotfiles で確かめたこと: 配布されている session-handoff の SKILL.md に subagent と resume への言及は無い。
 
+### session-handoff: cross-session の相手をセッション名で書かせない
+
+2026-10-23に仕分けた分で届いた。
+
+報告 (実測): handoff に書いた cross-session の相手のセッション名が、引き継いだ時点では別の名前になっていた。セッション名はセッションごとに変わる。
+
+報告者の提案: session-handoff の書式で、相手をセッション名で書かせず、「送る直前に ListAgents で引く」と書かせる。
+
+dotfiles で確かめたこと (2026-10-23): 同じ日に、別のリポジトリのセッションから dotfiles の前のセッションへ宛てた返信が、「宛先のソケットが消えていた」としてこのセッションへ届いた。宛先の名前は、前のセッションが依頼したときのものだった。届け先をどう見つけたかは送り手が書いていないので分からない。名前で覚えた宛先が後から使えなくなるという、上の報告と同じ型である。
+
 ### pre-merge-quality-gate の simplify: 並列の reviewer を読み取り専用にする
 
 報告 (実測): simplify を、読み取り専用の4観点の reviewer を並列に立てて指摘だけを受け取り、適用は親が行う形で回した。並列レビュー中に本体が書き換わらず、行番号のずれも起きなかった。4本で8件の指摘が返り、うち1件はクライアント側の重複処理を丸ごと消せる根本の直しだった。
+
+2026-10-23に仕分けた分で、別のリポジトリから同じ形の報告が届いた (実測)。マージ前の品質ゲートの4観点を Workflow の pipeline で回し、レビュー役は読むだけに縛って、修正の適用は指揮役だけが行った。検証役が補ったものは ISSUE-133 の「Claude Code の hook と委譲」節に置いた。
 
 ### superpowers の subagent-driven-development (外部の plugin)
 
@@ -40,7 +52,7 @@ dotfiles も agentic-coding-tools も canonical を持たない。直せるの�
 ## タスク
 
 - [ ] in-repo-issue の件を agentic-coding-tools へ渡す。規約外のキーを検出して知らせる形と、キー名を可変にする形のどちらにするかを決めてもらう
-- [ ] session-handoff の件を agentic-coding-tools へ渡す
+- [ ] session-handoff の2件 (subagent の resume、相手をセッション名で書かせない) を agentic-coding-tools へ渡す
 - [ ] simplify を読み取り専用の reviewer で回す形を、pre-merge-quality-gate に入れるかを決める。dotfiles の gate でも並列の4観点がブランチを書き換えうるかを確かめてから決める
 - [ ] superpowers の2件は、brief の雛形 (ISSUE-100) に「型検査の recipe」と「同梱スクリプトはリポジトリの中から絶対パスで呼ぶ」を入れるかを決める
 
