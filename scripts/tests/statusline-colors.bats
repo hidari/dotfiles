@@ -39,10 +39,7 @@ hook_threshold() {
 
 # コンテキストの使用率 (と任意の rate_limits) を持つ stdin で statusline を実行する
 run_with_usage() {
-    local rate_limits="${2:-null}"
-    run bash "$STATUSLINE_SCRIPT" <<< "$(jq -cn --argjson pct "$1" --argjson rl "$rate_limits" \
-        '{model: {display_name: "Test"}, context_window: {used_percentage: $pct}, cwd: ""}
-         + (if $rl == null then {} else {rate_limits: $rl} end)')"
+    run bash "$STATUSLINE_SCRIPT" <<< "$(statusline_input_json "" "${2:-}" "" "$1")"
     [ "$status" -eq 0 ]
 }
 

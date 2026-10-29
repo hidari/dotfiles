@@ -1227,8 +1227,16 @@ class TestThresholds:
         assert run_thresholds() == default_thresholds()
 
     def test_環境変数で上書きした値を返す(self) -> None:
-        env = {name: str(41 + i) for i, name in enumerate(THRESHOLD_ENV.values())}
-        assert run_thresholds(env) == {key: 41 + i for i, key in enumerate(THRESHOLD_ENV)}
+        env = {
+            "HANDOFF_CONTEXT_THRESHOLD_PCT": "41",
+            "HANDOFF_RATELIMIT_WARN_PCT": "42",
+            "HANDOFF_RATELIMIT_URGENT_PCT": "43",
+        }
+        assert run_thresholds(env) == {
+            "context_pct": 41,
+            "ratelimit_warn_pct": 42,
+            "ratelimit_urgent_pct": 43,
+        }
 
     @pytest.mark.parametrize("key", list(THRESHOLD_ENV))
     @pytest.mark.parametrize("raw", ["abc", "0", "-5", ""])

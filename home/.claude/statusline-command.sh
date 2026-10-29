@@ -40,15 +40,16 @@ CTX_RED_PCT=80
 # ---------- Hook thresholds ----------
 # 色の境界に使う、handoff-sentinel フックがいま効かせているしきい値を HOOK_* へ読む。
 # 値も環境変数の解釈もフックが canonical なので、ここでは書き写さずに問い合わせる。
-# 読めないとき (python3 が無い・非 0 終了・出力が空・キーの欠けや型違い) は rc 1 で、
-# HOOK_* は空のまま残り、color_for_pct が GRAY を返す。
+# 読めないとき (python3 が無い・非 0 終了・出力が空・キーの欠けや型違い) は HOOK_* を
+# 空のまま返し、color_for_pct が GRAY を返す。
+# 正の整数の検査は環境変数の解釈ではなく、算術展開へ渡せる値かというフックの出力の検査。
 load_hook_thresholds() {
   local hook="$1" out
   HOOK_CTX_PCT="" HOOK_RL_WARN_PCT="" HOOK_RL_URGENT_PCT=""
-  out=$(python3 "$hook" thresholds 2>/dev/null) || return 1
+  out=$(python3 "$hook" thresholds 2>/dev/null) || return
   out=$(jq -er '[.context_pct, .ratelimit_warn_pct, .ratelimit_urgent_pct]
     | if all(type == "number" and . > 0 and floor == .) then map(tostring) | join(" ") else error end' \
-    <<< "$out" 2>/dev/null) || return 1
+    <<< "$out" 2>/dev/null) || return
   read -r HOOK_CTX_PCT HOOK_RL_WARN_PCT HOOK_RL_URGENT_PCT <<< "$out"
 }
 
@@ -374,8 +375,7 @@ fi
 
 # ---------- Color thresholds ----------
 # フックはこのスクリプトの隣の hooks/ にある (live では ~/.claude/hooks、テストではリポジトリ)
-HOOK_CTX_PCT="" HOOK_RL_WARN_PCT="" HOOK_RL_URGENT_PCT=""
-load_hook_thresholds "$(dirname "${BASH_SOURCE[0]}")/hooks/handoff-sentinel.py" || true
+load_hook_thresholds "$(dirname "${BASH_SOURCE[0]}")/hooks/handoff-sentinel.py"
 # しきい値が CTX_RED_PCT 以上のときは赤の境界をしきい値まで上げ、黄より先に赤にならないようにする
 ctx_red=""
 if [ -n "$HOOK_CTX_PCT" ]; then

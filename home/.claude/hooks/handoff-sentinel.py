@@ -85,6 +85,7 @@ def _env_int(name: str, default: int) -> int:
 # しきい値の解決は通知の判定と thresholds アクションの両方がここを通る。
 # statusline は thresholds の出力を色の境界に使うので、経路が分かれると色と通知が食い違う
 def _context_threshold_pct() -> int:
+    """コンテキストの通知のしきい値 (%) を返す。"""
     return _env_int("HANDOFF_CONTEXT_THRESHOLD_PCT", DEFAULT_CONTEXT_THRESHOLD_PCT)
 
 
@@ -701,8 +702,8 @@ def main() -> int:
         # 例外は握らない。Python が非 0 で終わり、理由が stderr に残る
         return 0 if handle_record(os.getcwd()) else 1
     if action == "thresholds":
-        # statusline から呼ばれる読み取りコマンド (hook JSON は受けない)。失敗は非 0 で返し、
-        # statusline はそれを「しきい値が分からない」として色に出す
+        # statusline から呼ばれる読み取りコマンド (hook JSON は受けない)。例外は握らない。
+        # Python が非 0 で終わり、statusline はそれを「しきい値が分からない」として GRAY で出す
         print(json.dumps(handle_thresholds()))
         return 0
     try:
