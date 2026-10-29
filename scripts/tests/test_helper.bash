@@ -434,14 +434,15 @@ FAKE
 # 第 1 引数は cwd。省くと git 探索経路へ入らないため、アカウント分離の観測に絞れる。
 # 第 2 引数に rate_limits オブジェクトを与えると、Claude Code 本体が渡す形を再現する。
 # 第3引数は prompt_cache オブジェクト (null も可)。
+# 第4引数はコンテキストの used_percentage (省くと 10)。
 # 引数が空のときはキーごと出さない。本体が渡してこない実状況を再現するため、
 # "rate_limits":null との区別を保つ。
 statusline_input_json() {
     local rate_limits="" prompt_cache=""
     [ -n "${2:-}" ] && rate_limits=",\"rate_limits\":$2"
     [ -n "${3:-}" ] && prompt_cache=",\"prompt_cache\":$3"
-    printf '{"model":{"display_name":"Test"},"context_window":{"used_percentage":10},"cwd":"%s"%s%s}' \
-        "${1:-}" "$rate_limits" "$prompt_cache"
+    printf '{"model":{"display_name":"Test"},"context_window":{"used_percentage":%s},"cwd":"%s"%s%s}' \
+        "${4:-10}" "${1:-}" "$rate_limits" "$prompt_cache"
 }
 
 # 失効しない窓の reset。実時刻に依存させないために固定値を使う。

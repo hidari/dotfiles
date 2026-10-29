@@ -82,6 +82,31 @@ def _env_int(name: str, default: int) -> int:
     return value if value > 0 else default
 
 
+# しきい値の解決は通知の判定と thresholds アクションの両方がここを通る。
+# statusline は thresholds の出力を色の境界に使うので、経路が分かれると色と通知が食い違う
+def _context_threshold_pct() -> int:
+    """コンテキストの通知のしきい値 (%) を返す。"""
+    return _env_int("HANDOFF_CONTEXT_THRESHOLD_PCT", DEFAULT_CONTEXT_THRESHOLD_PCT)
+
+
+def _ratelimit_thresholds() -> tuple[int, int]:
+    """(warn, urgent) を返す。"""
+    return (
+        _env_int("HANDOFF_RATELIMIT_WARN_PCT", DEFAULT_RATELIMIT_WARN_PCT),
+        _env_int("HANDOFF_RATELIMIT_URGENT_PCT", DEFAULT_RATELIMIT_URGENT_PCT),
+    )
+
+
+def handle_thresholds() -> dict[str, int]:
+    """いま効いているしきい値。statusline が色の境界に使う。"""
+    warn_pct, urgent_pct = _ratelimit_thresholds()
+    return {
+        "context_pct": _context_threshold_pct(),
+        "ratelimit_warn_pct": warn_pct,
+        "ratelimit_urgent_pct": urgent_pct,
+    }
+
+
 def _cache_root() -> Path:
     """このフックが使うキャッシュの根。statusline-command.sh の CACHE_DIR と同じ規則。
 
@@ -285,8 +310,7 @@ def _ratelimit_notices(session_id: str) -> list[str]:
     windows = _read_json_dict(_rate_limits_path())
     if not windows:
         return []
-    warn_pct = _env_int("HANDOFF_RATELIMIT_WARN_PCT", DEFAULT_RATELIMIT_WARN_PCT)
-    urgent_pct = _env_int("HANDOFF_RATELIMIT_URGENT_PCT", DEFAULT_RATELIMIT_URGENT_PCT)
+    warn_pct, urgent_pct = _ratelimit_thresholds()
     now = datetime.now(UTC).timestamp()
     state_path = _session_state_file(session_id, "ratelimit")
     fired_resets = _read_json_dict(state_path)
@@ -342,7 +366,7 @@ def _context_notices(session_id: str, transcript_path: str) -> list[str]:
     if notified_marker.exists():
         return []
     window = _env_int("HANDOFF_CONTEXT_WINDOW_TOKENS", DEFAULT_CONTEXT_WINDOW_TOKENS)
-    threshold_pct = _env_int("HANDOFF_CONTEXT_THRESHOLD_PCT", DEFAULT_CONTEXT_THRESHOLD_PCT)
+    threshold_pct = _context_threshold_pct()
     tokens = _context_tokens(_assistants_newest_first(transcript_path))
     if tokens * 100 < window * threshold_pct:
         return []
@@ -677,6 +701,11 @@ def main() -> int:
         # skill から呼ばれる副作用コマンド (hook JSON は受けず cwd から解決する)。
         # 例外は握らない。Python が非 0 で終わり、理由が stderr に残る
         return 0 if handle_record(os.getcwd()) else 1
+    if action == "thresholds":
+        # statusline から呼ばれる読み取りコマンド (hook JSON は受けない)。例外は握らない。
+        # Python が非 0 で終わり、statusline はそれを「しきい値が分からない」として GRAY で出す
+        print(json.dumps(handle_thresholds()))
+        return 0
     try:
         handler = HANDLERS.get(action)
         if handler is None:

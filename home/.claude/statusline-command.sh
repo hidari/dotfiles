@@ -34,18 +34,37 @@ PURPLE=$'\e[38;5;141m'
 CYAN=$'\e[38;5;087m'
 PINK=$'\e[38;5;213m'
 
+# コンテキストの赤の境界。黄の境界 (フックの通知のしきい値) と違い、statusline だけが持つ値
+CTX_RED_PCT=80
+
+# ---------- Hook thresholds ----------
+# 色の境界に使う、handoff-sentinel フックがいま効かせているしきい値を HOOK_* へ読む。
+# 値も環境変数の解釈もフックが canonical なので、ここでは書き写さずに問い合わせる。
+# 読めないとき (python3 が無い・非 0 終了・出力が空・キーの欠けや型違い) は HOOK_* を
+# 空のまま返し、color_for_pct が GRAY を返す。
+# 正の整数の検査は環境変数の解釈ではなく、算術展開へ渡せる値かというフックの出力の検査。
+load_hook_thresholds() {
+  local hook="$1" out
+  HOOK_CTX_PCT="" HOOK_RL_WARN_PCT="" HOOK_RL_URGENT_PCT=""
+  out=$(python3 "$hook" thresholds 2>/dev/null) || return
+  out=$(jq -er '[.context_pct, .ratelimit_warn_pct, .ratelimit_urgent_pct]
+    | if all(type == "number" and . > 0 and floor == .) then map(tostring) | join(" ") else error end' \
+    <<< "$out" 2>/dev/null) || return
+  read -r HOOK_CTX_PCT HOOK_RL_WARN_PCT HOOK_RL_URGENT_PCT <<< "$out"
+}
+
 # ---------- Color by percentage ----------
+# 第2引数から黄、第3引数から赤。フックと同じく丸める前の値を比べ、上の段から判定する。
+# 境界が空 (しきい値を読めなかった) なら GRAY。
 color_for_pct() {
-  local pct="$1"
-  if [ -z "$pct" ] || [ "$pct" = "null" ]; then
+  local pct="$1" yellow="$2" red="$3"
+  if [ -z "$pct" ] || [ "$pct" = "null" ] || [ -z "$yellow" ] || [ -z "$red" ]; then
     printf '%s' "$GRAY"
     return
   fi
-  local ipct
-  ipct=$(printf "%.0f" "$pct" 2>/dev/null || echo "0")
-  if [ "$ipct" -ge 80 ]; then
+  if awk -v p="$pct" -v t="$red" 'BEGIN{exit !(p >= t)}'; then
     printf '%s' "$RED"
-  elif [ "$ipct" -ge 50 ]; then
+  elif awk -v p="$pct" -v t="$yellow" 'BEGIN{exit !(p >= t)}'; then
     printf '%s' "$YELLOW"
   else
     printf '%s' "$GREEN"
@@ -354,9 +373,18 @@ if [ -n "$used_pct" ] && [ "$used_pct" != "null" ] && [ "$used_pct" != "0" ]; th
   ctx_pct_int=$(printf "%.0f" "$used_pct" 2>/dev/null || echo 0)
 fi
 
+# ---------- Color thresholds ----------
+# フックはこのスクリプトの隣の hooks/ にある (live では ~/.claude/hooks、テストではリポジトリ)
+load_hook_thresholds "$(dirname "${BASH_SOURCE[0]}")/hooks/handoff-sentinel.py"
+# しきい値が CTX_RED_PCT 以上のときは赤の境界をしきい値まで上げ、黄より先に赤にならないようにする
+ctx_red=""
+if [ -n "$HOOK_CTX_PCT" ]; then
+  ctx_red=$((HOOK_CTX_PCT > CTX_RED_PCT ? HOOK_CTX_PCT : CTX_RED_PCT))
+fi
+
 # ---------- Line 1 ----------
 SEP="${GRAY} │ ${RESET}"
-ctx_color=$(color_for_pct "$ctx_pct_int")
+ctx_color=$(color_for_pct "${used_pct:-0}" "$HOOK_CTX_PCT" "$ctx_red")
 ctx_icon=$(ctx_gauge "$ctx_pct_int")
 
 line1=""
@@ -375,7 +403,7 @@ fi
 # ---------- Line 2 (5h) ----------
 line2=""
 if [ -n "$FIVE_HOUR_PCT" ]; then
-  c5=$(color_for_pct "$FIVE_HOUR_PCT")
+  c5=$(color_for_pct "$FIVE_HOUR_PCT" "$HOOK_RL_WARN_PCT" "$HOOK_RL_URGENT_PCT")
   bar5=$(progress_bar "$FIVE_HOUR_PCT")
   pct5=$(printf "%3.0f%%" "$FIVE_HOUR_PCT")
   line2="${c5}5h  ${bar5}  ${pct5}${RESET}"
@@ -387,7 +415,7 @@ fi
 # ---------- Line 3 (7d) ----------
 line3=""
 if [ -n "$SEVEN_DAY_PCT" ]; then
-  c7=$(color_for_pct "$SEVEN_DAY_PCT")
+  c7=$(color_for_pct "$SEVEN_DAY_PCT" "$HOOK_RL_WARN_PCT" "$HOOK_RL_URGENT_PCT")
   bar7=$(progress_bar "$SEVEN_DAY_PCT")
   pct7=$(printf "%3.0f%%" "$SEVEN_DAY_PCT")
   line3="${c7}7d  ${bar7}  ${pct7}${RESET}"
