@@ -1189,6 +1189,72 @@ class TestRecordExitCode:
         assert "NotADirectoryError" in result.stderr
 
 
+THRESHOLD_ENV = {
+    "context_pct": "HANDOFF_CONTEXT_THRESHOLD_PCT",
+    "ratelimit_warn_pct": "HANDOFF_RATELIMIT_WARN_PCT",
+    "ratelimit_urgent_pct": "HANDOFF_RATELIMIT_URGENT_PCT",
+}
+
+
+def run_thresholds(
+    extra_env: dict[str, str] | None = None, stdin: str | None = None
+) -> dict[str, object]:
+    result = run_hook("thresholds", stdin, extra_env=extra_env)
+    assert result.returncode == 0
+    assert result.stderr == ""
+    parsed = json.loads(result.stdout)
+    assert isinstance(parsed, dict)
+    return parsed
+
+
+def default_thresholds() -> dict[str, object]:
+    hook = load_hook(HOOK.name)
+    return {
+        "context_pct": hook.DEFAULT_CONTEXT_THRESHOLD_PCT,
+        "ratelimit_warn_pct": hook.DEFAULT_RATELIMIT_WARN_PCT,
+        "ratelimit_urgent_pct": hook.DEFAULT_RATELIMIT_URGENT_PCT,
+    }
+
+
+class TestThresholds:
+    """thresholds は statusline が色の境界に使う、いま効いているしきい値を返す。
+
+    値と環境変数の解釈はフックが canonical で、statusline は読むだけにする。
+    statusline 側で解釈を書き直すと、int() が受け付ける "+40" のような値で食い違う。
+    """
+
+    def test_環境変数が無ければ既定値を返す(self) -> None:
+        assert run_thresholds() == default_thresholds()
+
+    def test_環境変数で上書きした値を返す(self) -> None:
+        env = {name: str(41 + i) for i, name in enumerate(THRESHOLD_ENV.values())}
+        assert run_thresholds(env) == {key: 41 + i for i, key in enumerate(THRESHOLD_ENV)}
+
+    @pytest.mark.parametrize("key", list(THRESHOLD_ENV))
+    @pytest.mark.parametrize("raw", ["abc", "0", "-5", ""])
+    def test_不正な環境変数は既定値に落とす(self, key: str, raw: str) -> None:
+        assert run_thresholds({THRESHOLD_ENV[key]: raw}) == default_thresholds()
+
+    def test_int関数が受け付ける表記はそのまま効く(self) -> None:
+        assert run_thresholds({"HANDOFF_CONTEXT_THRESHOLD_PCT": "+40"})["context_pct"] == 40
+
+    def test_stdinを読まない(self) -> None:
+        # hook JSON を受ける経路へ入ると、非 JSON の stdin で無出力に落ちる
+        assert run_thresholds(stdin="this is not json") == default_thresholds()
+
+    def test_通知の判定と同じ値を使う(self, tmp_path: Path) -> None:
+        # 同じ生の値を渡したとき、thresholds が返す値の境界で通知が鳴り始めること。
+        # 1回鳴ると同じ session は二度と鳴らないので、state は境界の両側で分ける
+        env = {**base_env(tmp_path), "HANDOFF_CONTEXT_THRESHOLD_PCT": "+40"}
+        pct = run_thresholds(env)["context_pct"]
+        assert isinstance(pct, int)
+        boundary = int(env["HANDOFF_CONTEXT_WINDOW_TOKENS"]) * pct // 100
+        at = env | {"HANDOFF_STATE_DIR": str(tmp_path / "state-at")}
+        below = env | {"HANDOFF_STATE_DIR": str(tmp_path / "state-below")}
+        assert posttool_fires(tmp_path, single_message(boundary), at)
+        assert not posttool_fires(tmp_path, single_message(boundary - 1), below)
+
+
 class TestProvenanceGate:
     """SessionStart 注入は skill が record した provenance と一致する handoff.md にのみ行う。"""
 
