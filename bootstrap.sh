@@ -33,7 +33,6 @@ SYMLINK_PAIRS=(
     "home/.config/herdr-app/mods/unread|.config/herdr-app/mods/unread"
     "home/.config/herdr-app/mods/pane-next|.config/herdr-app/mods/pane-next"
     "home/.config/herdr-app/mods/pane-prev|.config/herdr-app/mods/pane-prev"
-    "home/.config/nvim|.config/nvim"
     "home/.config/ghostty/config|.config/ghostty/config"
     "home/.config/raycast/scripts|.config/raycast/scripts"
     "home/.claude/settings.json|.claude/settings.json"
@@ -739,20 +738,26 @@ current_symlink_targets() {
     done < <(symlink_pairs_for all)
 }
 
-# stdin の target ($HOME 相対) 列から、stale 検出で走査する親ディレクトリを
-# 絶対パス・重複無しで出力する。target 自身ではなく親を返すのは、配列から消えた
-# pair の残骸はもう集合に無く、位置は「今の target と同じディレクトリ」としか
-# 推定できないため。$HOME 全体の再帰走査は巨大なツリー (Library 等) を歩くうえ
+# stdin の target ($HOME 相対) 列から、stale 検出で走査するディレクトリ (target の親と、
+# その祖先を $HOME まで) を絶対パス・重複無しで出力する。target 自身ではなく親を返すのは、
+# 配列から消えた pair の残骸はもう集合に無く、位置は「今の target の近く」としか推定
+# できないため。祖先まで返すのは、撤去したツールの ~/.config/<tool> のように、祖先へ
+# 直接張った残骸を拾うため (親だけだと、そこに対応が残らない限り訪問されない)。
+# ツールのディレクトリの中 (~/.config/<tool>/<file>) に張った残骸は、そのディレクトリに
+# 対応がひとつも残らなければ祖先にも入らないので、ここでも拾えない。
+# どの階層も直下だけを見る。$HOME 全体の再帰走査は巨大なツリー (Library 等) を歩くうえ
 # 管理と無縁の場所まで候補に入れてしまうので採らない。
 symlink_scan_dirs() {
-    local target
+    local target dir
     while IFS= read -r target; do
-        case "$target" in
-            # "$HOME/." のような "." 成分を作らない。走査結果のパスに "." が挟まると
-            # $HOME 相対へ戻したとき target 集合と照合できず、生きたリンクを撤去する
-            */*) printf '%s\n' "$HOME/${target%/*}" ;;
-            *) printf '%s\n' "$HOME" ;;
-        esac
+        dir="$target"
+        # "$HOME/." のような "." 成分を作らない。走査結果のパスに "." が挟まると
+        # $HOME 相対へ戻したとき target 集合と照合できず、生きたリンクを撤去する
+        while [ "${dir%/*}" != "$dir" ]; do
+            dir="${dir%/*}"
+            printf '%s\n' "$HOME/$dir"
+        done
+        printf '%s\n' "$HOME"
     done | sort -u
 }
 

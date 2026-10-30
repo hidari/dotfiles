@@ -785,11 +785,11 @@ uncovered_symlink_targets() {
 
 @test "symlink_target_covered: covers exact and dir-descendant, rejects uncovered and prefix collisions" {
     # 粒度混在の吸収を pin する。file pair は exact 一致、dir pair は配下 (transitive) でカバー。
-    local -a srcs=("home/.config/nvim" "home/.config/ghostty/config")
+    local -a srcs=("home/.config/raycast/scripts" "home/.config/ghostty/config")
     # 自身が source (file pair) → covered
     symlink_target_covered "home/.config/ghostty/config" "${srcs[@]}"
     # dir pair の配下 (transitive) → covered
-    symlink_target_covered "home/.config/nvim/lua/init.lua" "${srcs[@]}"
+    symlink_target_covered "home/.config/raycast/scripts/sub/tool.sh" "${srcs[@]}"
     # どの source にも属さない → uncovered (false negative を防ぐ negative case)
     run symlink_target_covered "home/.config/unmanaged/settings.toml" "${srcs[@]}"
     [ "$status" -ne 0 ]
@@ -1418,10 +1418,22 @@ load_prune_arrays() {
     run symlink_scan_dirs < "$TEST_HOME/targets.txt"
 
     [ "$status" -eq 0 ]
-    [ "${#lines[@]}" -eq 3 ]
+    [ "${#lines[@]}" -eq 4 ]
     assert_array_contains "$TEST_HOME" "${lines[@]}"
     assert_array_contains "$TEST_HOME/.claude" "${lines[@]}"
     assert_array_contains "$TEST_HOME/.local/bin" "${lines[@]}"
+    assert_array_contains "$TEST_HOME/.local" "${lines[@]}"
+}
+
+@test "symlink_scan_dirs: includes every ancestor of a target's parent up to HOME" {
+    # 対応がひとつも残らないディレクトリへ直接張った古いリンク (撤去したツールの
+    # ~/.config/<tool> など) は、親だけを見る形では訪問されない。祖先を見ればそこで片付く
+    printf '%s\n' '.config/example/mods/one' > "$TEST_HOME/targets.txt"
+
+    run symlink_scan_dirs < "$TEST_HOME/targets.txt"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "$(printf '%s\n' "$TEST_HOME" "$TEST_HOME/.config" "$TEST_HOME/.config/example" "$TEST_HOME/.config/example/mods" | sort)" ]
 }
 
 @test "symlink_scan_dirs: omits an extra config dir whose targets are absent" {
@@ -1444,7 +1456,7 @@ load_prune_arrays() {
 
     run symlink_scan_dirs < "$TEST_HOME/targets.txt"
 
-    [ "$output" = "$TEST_HOME/.claude-alpha" ]
+    [ "$output" = "$(printf '%s\n' "$TEST_HOME" "$TEST_HOME/.claude-alpha" | sort)" ]
 }
 
 @test "prune_stale_symlinks: moves a dotfiles-owned link that left the pair set into the backup" {
