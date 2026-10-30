@@ -31,6 +31,8 @@ apm 0.28.0 にこれを抑止するノブは無い。この主張は commands / 
 作業の主体は PUBLIC リポジトリ [hidari/agentic-coding-tools](https://github.com/hidari/agentic-coding-tools)
 側にあり、dotfiles 側は flat 側の後始末と apm の pin を揃える部分を持つ。
 
+2026-10-31に仕分けた72件 (届いたのは2026-10-22〜2026-10-30) から足した分は、各節の末尾と、新しく立てた節に置いた。
+
 ## 着手前に確認すること
 
 `security-red-team` と `security-blue-team` の sub-skill は、長い日本語の description で
@@ -208,6 +210,13 @@ apm 0.33.0 でも dev-workflow の component の flat 分解は再現し、bare 
 flat 側を消す前に、bare 名の `Skill(skill="commit-and-pr-message")` が prefix 側へ解決するか、エラーになるかを headless の別プロセスで確かめる。棚卸しの委譲先は、過去の transcript に commit-and-pr-message の bare 名の呼び出しがあると報告した。件数は数え直していないので、着手時に数える。
 
 「flat の deploy 先が空であること」の不変条件から `.claude/skills/synced/` を外すこと。apm の deploy 先の中にあるが、claude.ai のアカウントから同期された skill の置き場で、apm とは別に状態ファイルが更新される (apm install の前後で `.last-complete-round` の2つだけが、install より前の時刻で変わっていた)。
+
+## 受け箱から届いた報告 (2026-10-31の仕分け)
+
+別のリポジトリのセッションの報告で、dotfiles では確かめていない。
+
+- apm の展開先の bundle の commands と、`~/.claude/commands/` に置かれた同名の素の command (security-redteam など4本) の中身が食い違っていた。どちらが canonical かを使う側から判断できない (実測)。報告者の提案: どちらかに寄せて片方を消す。二重登録の害が、description の重複だけでなく中身の食い違いにも及ぶ形
+- security-blue-red-team の bundle の置き場が `~/.claude/plugins/` から `~/.claude/skills/` に変わり、それを前提にした利用側の validator が「schema が見つからない」で落ちていた。make の rc を `| tail` で読んでいたので、最初は緑に見えた (実測)
 
 ## タスク
 

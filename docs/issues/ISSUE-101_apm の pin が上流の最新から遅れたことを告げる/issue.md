@@ -7,7 +7,7 @@ status: open
 ## 背景
 
 ISSUE-97 のタスクと実例を切り出し、ISSUE-53 を待たずに進める (2026-09-17、ユーザーの裁定)。
-担当の範囲は、ISSUE-53 が持つ横断スイープの報告項目の 1 つにあたる。
+担当の範囲は、ISSUE-53 が持つ横断スイープの報告項目の 1 つにあたる。2026-10-31に仕分けた72件 (届いたのは2026-10-22〜2026-10-30) から足した分は、各節の末尾と、新しく立てた節に置いた。
 
 ### 実例 (2026-09-17)
 
@@ -45,6 +45,7 @@ GitHub の compare API で距離を測るときは、`files` が300件で切ら�
 - dotfiles の Actions の pin は Dependabot で扱うと決めた (ユーザーの判断)。`.github/dependabot.yml` が github-actions の更新を週次で PR にし、SHA と行末の版の注記を一緒に上げる。外部 action を使う場所をすべて覆うことは `scripts/tests/ci-wiring.bats` が pin する。Dependabot の PR ごとに CI が回るので、minor と patch はディレクトリごとに1本の PR へまとめている (groups はディレクトリをまたがない)
 - Dependabot が上げるのは uses で参照した action だけである。.github/actions の composite のうち、ツールを curl で取得して版と sha256 をシェル変数で固定しているもの (2026-09-29時点で ast-grep、neovim、mise、bats、gitleaks の5つ) は Dependabot の外にあり、鮮度を知らせる経路が無いまま残る
 - Dependabot の cooldown (公開直後の版を提案しない) は、github-actions では使えない (公式ドキュメントの対応表)。改ざんされた版がすぐに PR になりうるので、Dependabot の PR も中身を読んでからマージする
+- 別のリポジトリから届いた報告。Dependabot は、SHA pin の行末の注記が曖昧な tag (`# v4`) だと注記を書き換えない。v6.4.0の SHA に `# v4` が付いていて、マージ後も v7.1.0の SHA に `# v4` が残った (実測)。報告者の提案: 注記は正確な版で書き、規範か lint に入れる
 
 ### 切り出した理由
 
@@ -59,6 +60,14 @@ ISSUE-53 は、配布先の母数の定義から始まる。この Issue が見�
 - 同じ README は、exact pin こそが素の `mise outdated` を無力化すると記録している。SHA で pin した
   apm の manifest でも同じことが起きうる
 - `scripts/node-security-notifier` は、LaunchAgent で日次に起動するローカルの定期経路である。ISSUE-131 で macOS への通知をやめ、日次の取得結果を状態ファイルへ書いて SessionStart のプローブ (guard_probes) が pin と比べて告げる形にした。この Issue と同じ「告げる経路はあるが誰も見ない」への手当てなので、apm の pin でも同じ形が採れる
+
+### 上流の版が CalVer へ移る (2026-10-23の連絡)
+
+agentic-coding-tools のセッションから受け箱経由で届いた連絡。
+
+- agentic-coding-tools は次の release から版を CalVer (`vYYYY.M.N`) に移すと決めた (agentic-coding-tools の ISSUE-96)。canonical は上流の release skill の「バージョン規則」節 (実測)
+- `home/apm.yml` の pin の行末の注記は `# v0.20.0` から `# v2026.10.0` の形に変わり、pin の機構は SHA のまま変わらない。報告者が git grep した範囲では、dotfiles に注記を正規表現で読むコードは見つからなかった (実測)
+- 下の「鳴る条件と黙る条件」は0.xで毎回 minor が上がる前提で書いてある。CalVer では v0.20.0から v2026.10.0への上げが major の差に見え、以後は月替わりで minor、同じ月の中で patch が上がるので、前例の互換範囲の規則を写すと鳴り方が変わる (推測)。報告者の提案: CalVer を前提に決める
 
 ### 2026-10-30 の変化
 
@@ -95,6 +104,7 @@ ISSUE-139 で nvim を撤去し、`.github/actions/setup-neovim` も消えた。
 
 - [ ] SHA で pin した manifest に対して `apm outdated` が何を報告するかを確かめ、結果に合わせて
       README の「apm による skill 配信」節を直す
+  - CalVer の tag でも確かめる。tag の形式を変えたあとの apm の振る舞いは、まだ誰も測っていない (推測)
 - [x] dotfiles の GitHub Actions の pin に Dependabot を入れる
 - [ ] 対象の範囲、基準点、鳴る条件と黙る条件を決める
 - [ ] 告げる経路と上流との分担を決める

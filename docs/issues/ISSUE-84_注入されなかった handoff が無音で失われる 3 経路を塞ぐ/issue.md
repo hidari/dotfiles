@@ -8,7 +8,7 @@ status: open
 
 2026-09-11 に、別リポジトリ (PRIVATE) のセッションで引き継ぎが 1 本失われた。
 `.cache/handoff.md` が存在するのに SessionStart が注入せず、ユーザーが明示的に
-「handoff から再開する」と言わなければ前セッションの内容は丸ごと消えていた。
+「handoff から再開する」と言わなければ前セッションの内容は丸ごと消えていた。2026-10-31に仕分けた72件 (届いたのは2026-10-22〜2026-10-30) から足した分は、各節の末尾と、新しく立てた節に置いた。
 
 `home/.claude/hooks/handoff-sentinel.py` の `_inject_handoff` は fail-closed で、
 provenance に記録した内容ハッシュと一致する handoff.md だけを注入する。この設計自体は
@@ -49,6 +49,10 @@ provenance を持たないまま正常に注入されている。
 一方でハッシュ不一致と rename 失敗はどちらも unlink の手前で `return None` するため
 provenance が残る。したがって provenance の有無は原因の切り分けには使えるが、
 異常の検出には使えない。
+
+## 4つ目の経路: 作業ディレクトリの移動
+
+別のリポジトリから届いた報告。provenance はリポジトリのルートの絶対パスのハッシュ (`_repo_id`) をキーにするので、作業ディレクトリを `mv` すると移動先では引き継ぎ書が注入されない (fail-closed)。報告者は `_repo_id` の実装を読んで確かめ、移行のスクリプトに移動先での record の打ち直しを足したが、移動後に注入されるかはまだ確かめていない (実測。後段は推測)。上の表の3経路のどれにも当たらない。改名の手順は ISSUE-141 が扱う。
 
 ## 決めたこと
 
@@ -108,6 +112,8 @@ ISSUE-58 が同じ provenance を prompt injection の面から扱う。`record`
 
 ISSUE-77 が `session-handoff` skill の説明と実装の乖離を扱う。上流が直せない制約と、
 pin を上げて `apm install` を通すまで手元へ届かない経路は本 Issue の委譲案にも同じく効く
+
+ISSUE-141 がリポジトリと作業ディレクトリの改名の手順を扱う。移動先での record の打ち直しを手順に含めるかはあちらで決める
 
 Issue 26 が Claude Code フックの共通基盤を扱う。本 Issue が足す probe は state を増やさない
 が、必須フック検査へ SessionStart 側を入れるかの判断は同 Issue と ISSUE-58 が持つ

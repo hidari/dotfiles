@@ -6,7 +6,7 @@ status: open
 
 ## 背景
 
-起票した時点 (2026-10-10) では、開発機のコンテナランタイムは OrbStack で、`/usr/local/bin/docker` は OrbStack.app 内の docker への symlink になっていた。apple/container も pkg インストーラで入っていたが、版は1.0.0のまま止まっていた。どちらも Brewfile の外にあった。その後 container は brew 版へ寄せて Brewfile に載せた (「進め方の方針」節)。
+起票した時点 (2026-10-10) では、開発機のコンテナランタイムは OrbStack で、`/usr/local/bin/docker` は OrbStack.app 内の docker への symlink になっていた。apple/container も pkg インストーラで入っていたが、版は1.0.0のまま止まっていた。どちらも Brewfile の外にあった。その後 container は brew 版へ寄せて Brewfile に載せた (「進め方の方針」節)。2026-10-31に仕分けた72件 (届いたのは2026-10-22〜2026-10-30) から足した分は、各節の末尾と、新しく立てた節に置いた。
 
 以前 apple/container へ寄せようとしたときは `docker compose` に相当するものが無く、compose 互換のツールを別リポジトリで自作して試した。その後の状況を2026-10-10時点で調べ直した結果が下の節にある。そのあと Docker.app と OrbStack は外す方針に決めたが、外すのは試して動いてからで、移行の可否はまだ確かめている途中である。
 
@@ -95,6 +95,14 @@ Docker.app と OrbStack は外す (2026-10-10にユーザーが決定)。OrbStac
 - Auth のメールテンプレートを `content_path` で指定する設定があると、stack モードはネイティブでも Docker のランタイムでも起動を拒否する。テンプレートを `content` に直接書く回避も弾かれる (上流の supabase/cli#7200、未修正)。カスタムのメールテンプレートを使うプロジェクトでは、stack モード自体がまだ使えない
 
 報告者の提案は、ネイティブのランタイムを検討するときは先に `content_path` の有無を grep すること。
+
+## 受け箱から届いた OrbStack の不具合 (2026-10-31の仕分け)
+
+別のリポジトリのセッションの報告で、dotfiles では確かめていない。移行を決めるときの OrbStack 側の材料にあたる。
+
+- macOS の OrbStack で、長いブラウザ E2E の途中からホスト側の経路 (netstat の OrbStack のサブネット) と `*.orb.local` のリゾルバ (`scutil --dns`) が消え、ホストのプロセスがコンテナへ届かなくなった。`orbctl stop` → `orbctl start` で戻るが、compose のコンテナは自動では起きないので、依存する DB の healthy を待って compose を上げ直す必要があった。ホストで動くアプリは再起動せずに接続が戻った (実測)
+- 切り分けでは、`/usr/bin/curl` (Apple 署名) が rc=6 (名前解決不可) で、経路表に OrbStack の経路が無ければ OrbStack 側の連携の消失と読める。macOS のローカルネットワーク許可の問題 (errno=65、Apple 署名のバイナリは通る) とはこれで区別できた (実測)
+- `orb restart` は Linux マシンの再起動用で、OrbStack 本体の再起動にはならない。引数なしだとヘルプを出して rc=0 で終わるので、効いたように見える。本体の再起動は `orbctl stop` / `orbctl start` (実測)
 
 ## タスク
 

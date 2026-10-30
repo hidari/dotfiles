@@ -7,7 +7,7 @@ status: open
 ## 背景
 
 2026-08-18 の 1 日で、CI が 3 回赤くなった。いずれもテストやコードの失敗ではなく、
-外部からのツール取得が失敗したものである。
+外部からのツール取得が失敗したものである。2026-10-31に仕分けた72件 (届いたのは2026-10-22〜2026-10-30) から足した分は、各節の末尾と、新しく立てた節に置いた。
 
 | job | 取得先 | 失敗 |
 | --- | --- | --- |
@@ -49,6 +49,13 @@ mise は exact pin で運用している。uv だけが action の pin だけで
 `setup-uv` composite action は `.github/workflows/test.yml` の、uv を使う全 job から呼ばれる
 (2026-09-17 時点で 6 job)。この 1 つの取得が失敗すると、それらがまとめて落ちうる。
 週次の `mise-update-check.yml` も同じ composite action を呼ぶので、失敗するとその週の更新通知が止まる。
+
+## 受け箱から届いた実例 (2026-10-31の仕分け)
+
+別のリポジトリの CI で、just の導入に使う setup-just が恒常的に落ちた報告。
+
+- setup-just (中身は setup-crate) の「no release for just matching version specifier」を一過性と読んで再実行するのは効かなかった。org へ移した後から起きはじめ (移管前の25回の run では0件、移管後はほぼすべての run のどこかの job)、release も asset も存在していた (実測)。setup-crate は API の例外を握らず、一覧の応答から target 名を含む asset のある release を絞るだけなので、一覧の応答が違ったときにも同じエラーになるという読みで、原因の特定まではしていない (推測)
+- 導入を、固定の URL で落として sha256 を照合する自前のスクリプトへ置き換えると、setup-just の失敗が消え、取得物の差し替えも検出できるようになった。sha256 は API の asset の digest、落とした実物、release の SHA256SUMS の3つで突き合わせ、macOS のランナーは `sha256sum` を持たないことがあるので `shasum -a 256 --check --strict` を使った。置き換えた後の最初の run で Linux と macOS の全 job が通った (実測)
 
 ## タスク
 
