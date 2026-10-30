@@ -83,9 +83,11 @@ dotfiles も agentic-coding-tools も canonical を持たない。直せるの�
 - 報告 (実測): subagent-driven-development の pre-flight scan で、各タスクが作る型と使う型を実際のツリーで grep して突き合わせると、散文のレビューを複数通した計画に順序の食い違い (後のタスクが定める型を前のタスクが使う) が残っていた。実装の前に spec を実コードと突き合わせる項は ISSUE-133 の「Claude Code の hook と委譲」節にある
 - 報告 (実測): subagent-driven-development の fix-loop の「Minor はループに入れず最終レビューへ回す」が、グローバル CLAUDE.md の警告0とボーイスカウトとぶつかった。規定どおりだと、タスクが新しく作った警告やテストの空回りが最後まで残る。CLAUDE.md を優先して修正のラウンドに入れた。報告者の提案は、「Minor が警告の新規発生や dead pin に当たるときはループに入れる」を規範か `references/delegation.md` に1行足すこと (足せば毎回の上書きが要らなくなる、は推測)。規範に足す候補としては ISSUE-133 の「Claude Code の hook と委譲」節にある
 
-### ast-grep-practice: 規則の例と許す側の対照
+### ast-grep-practice (第三者の上流): 規則の例と許す側の対照
 
-2026-10-31に仕分けた分で届いた。どれも別のリポジトリのセッションの報告。
+2026-10-31に仕分けた分で届いた。どれも別のリポジトリのセッションの報告。ast-grep-practice skill は apm 経由の第三者の上流なので、直せるのは使う側の書き方と上流への報告まで。
+
+dotfiles で確かめたこと (2026-10-31): `home/apm.yml` は ast-grep-practice を `mizchi/skills/tooling/ast-grep-practice` から入れている (justfile と同じ上流)。agentic-coding-tools のセッションも、自分のリポジトリの全履歴にこの skill が一度も出てこないと返してきた。仕分けた時点では agentic-coding-tools の skill として扱っていた。
 
 - tree-sitter の Rust では属性は struct の子ではなく直前の兄弟なので、`kind: struct_item` に `follows: {kind: attribute_item, regex}` を付けると引ける。名前は `has: {field: name}` で取り、JSON の metaVariables から読む。間に別のものを挟むと引けなくなるので、引いた集合を設定側の集合と等号で比べて取りこぼしを赤に倒す (実測。ast-grep の0.45.3)。報告者の提案: skill に例を足す
 - 自作の lint 規則 (GritQL / ast-grep など) をコードの片で書くときは、許す側の対照に「同じ字面を持つが別の構文」(別名の `as`、型注釈の中の `as` など) を置く。報告元が GritQL の規則で踏んだ件が根拠 (実測)。報告者の提案: 規則を書く skill の確認項目に足す
@@ -144,22 +146,34 @@ dotfiles も agentic-coding-tools も canonical を持たない。直せるの�
 
 ## タスク
 
-- [ ] in-repo-issue の件を agentic-coding-tools へ渡す。規約外のキーを検出して知らせる形と、キー名を可変にする形のどちらにするかを決めてもらう
-- [ ] session-handoff の2件 (subagent の resume、相手をセッション名で書かせない) を agentic-coding-tools へ渡す
+- [x] in-repo-issue の件を agentic-coding-tools へ渡す。規約外のキーを検出して知らせる形と、キー名を可変にする形のどちらにするかを決めてもらう
+  - 2026-10-31に渡した。agentic-coding-tools の ISSUE-38 (同じ機序と「規約外のキーを検出して報告する」タスクを既に持っていた) へ追記された。キー名を可変にするかの裁定は、ユーザーが決めるものとしてあちらに残っている
+- [x] session-handoff の2件 (subagent の resume、相手をセッション名で書かせない) を agentic-coding-tools へ渡す
+  - 2026-10-31に渡した。agentic-coding-tools の ISSUE-98 に1本で起票された
 - [ ] simplify を読み取り専用の reviewer で回す形を、pre-merge-quality-gate に入れるかを決める。dotfiles の gate でも並列の4観点がブランチを書き換えうるかを確かめてから決める
 - [ ] superpowers の2件は、brief の雛形 (ISSUE-100) に「型検査の recipe」と「同梱スクリプトはリポジトリの中から絶対パスで呼ぶ」を入れるかを決める
   - 2026-10-31に足した5件 (計画の冒頭の前提、目録の文書を Files に含める、件数の行はコントローラが持つ、最初に BASE へ ff-only、件数の両側のガード) も、同じく雛形に入れるかを決める
   - pre-flight scan の件と fix-loop の Minor の扱いの件は、ISSUE-133 の委譲の規範の候補と一緒に決める
-- [ ] in-repo-issue の2節 (後から取り付ける経路、Issue の外にある写しと参照) を agentic-coding-tools へ渡す。`always_run` のコメントは版を添えて測り直してもらい、`issue-id.py` の CLI にかかる分は ISSUE-121 と一緒に渡す
-- [ ] pre-merge-quality-gate の「ゲートの順序、増分、CI の待ち方」節を agentic-coding-tools へ渡す。Efficiency の判断の軸は、simplify を読み取り専用の reviewer で回す件と一緒に決める
-- [ ] ast-grep-practice の2件を agentic-coding-tools へ渡す
+- [x] in-repo-issue の2節 (後から取り付ける経路、Issue の外にある写しと参照) を agentic-coding-tools へ渡す。`always_run` のコメントは版を添えて測り直してもらい、`issue-id.py` の CLI にかかる分は ISSUE-121 と一緒に渡す
+  - 2026-10-31に渡した。後から取り付ける経路は agentic-coding-tools の ISSUE-32 へ追記され (`always_run` は版と files / types の絞り込みの有無をそろえて測り直すタスクになった)、写しと参照は agentic-coding-tools の ISSUE-97 として起票された。`--check-diff` の罠を SKILL.md に書くかは ISSUE-121 のタスクが持ったまま
+- [ ] in-repo-issue の「後から取り付ける経路」節の残り2項目 (採番の形式の変更を配るときの告知、配る `issue-id.py` が764行で全文を読むのが重い) を agentic-coding-tools へ渡すか決める。2026-10-31の依頼では範囲を3点に絞って書いたので外れた
+- [x] pre-merge-quality-gate の「ゲートの順序、増分、CI の待ち方」節を agentic-coding-tools へ渡す。Efficiency の判断の軸は、simplify を読み取り専用の reviewer で回す件と一緒に決める
+  - 2026-10-31に、節の最初の3項目を渡した。agentic-coding-tools の ISSUE-99 として起票された。4項目め (Efficiency の判断の軸) は、上の simplify のタスクと一緒に決める
+- [ ] ast-grep-practice の2件を、第三者の上流 (mizchi/skills) へ報告するか、使う側の書き方で受けるかを決める
 - [ ] security-blue-red-team の6件を agentic-coding-tools へ渡す。ISSUE-114 で寄せる範囲を決めてから、契約に足すか自作の層で持つかを決めてもらう
-- [ ] windows-vm-verification の3節を agentic-coding-tools へ渡す。CLI (winvm) にネットワークを切る区間の入口を足すかも決めてもらう
+- [x] windows-vm-verification の3節を agentic-coding-tools へ渡す。CLI (winvm) にネットワークを切る区間の入口を足すかも決めてもらう
+  - 2026-10-31に渡した。ディスクの容量と GUI 自動化は agentic-coding-tools の ISSUE-100、ネットワークを切る区間 (winvm の入口の判断を含む) は agentic-coding-tools の ISSUE-101 として起票された。配布版の gui-automation.md に既にあった2件 (日付の Spinner、インストーラの後の wuauserv) は除いた
 - [ ] justfile の `*args` の件を第三者の上流へ報告するか決める。workflow-authoring の件は brief を書く側で外すことを、ISSUE-100 のテンプレートに入れるか決める
 
 ## 関連
 
 - agentic-coding-tools の ISSUE-46: Phase E の子探索が空振りしたときの倒れ方。キーの不一致も同じく空振りとして現れる
+- agentic-coding-tools の ISSUE-38: Phase E の親伝播が frontmatter の乖離で発火しない。in-repo-issue のキーの件の渡し先
+- agentic-coding-tools の ISSUE-32: in-repo Issue の検査を配布先で走る状態にする。後から取り付ける経路の渡し先
+- agentic-coding-tools の ISSUE-97: Issue の外にある写しと参照。in-repo-issue の写しの件の渡し先
+- agentic-coding-tools の ISSUE-98: session-handoff の2件の渡し先
+- agentic-coding-tools の ISSUE-99: pre-merge-quality-gate のゲートの順序と CI の待ち方の渡し先
+- agentic-coding-tools の ISSUE-100 と agentic-coding-tools の ISSUE-101: windows-vm-verification の3節の渡し先
 - ISSUE-84: 引き継ぎが無音で失われる経路。resume できない subagent も、引き継ぎ書を読んだ側から見ると同じく黙って失われる
 - ISSUE-100: マージ前ゲートの dispatch プロンプトのテンプレート。brief の雛形の置き場
 - ISSUE-121: `issue-id.py` の接頭辞と走査の除外を外から渡す。in-repo-issue の後付けの取り付けと同じ面を持つ
