@@ -10,9 +10,10 @@ from pathlib import Path
 
 import pytest
 
-from config_guard import herdr_keys
+from config_guard import herdr_app_keys
 from config_guard.budget_ratchet import BUDGET_MODULE_PATH
 from config_guard.cli import main, scan
+from config_guard.herdr_app_keys import KEYS_PATH
 from config_guard.instruction_budget import (
     ALWAYS_LOADED_BUDGET_BYTES,
     CLAUDE_MD_PATH,
@@ -27,7 +28,7 @@ from tests.conftest import (
     pretooluse,
     run_git,
     session_start,
-    write_fake_herdr,
+    write_fake_binary,
     write_file,
 )
 
@@ -99,31 +100,32 @@ def test_bad_settings_is_detected(tmp_path: Path) -> None:
     assert any(f.detail == "enabledMcpjsonServers" for f in findings)
 
 
-def test_bad_herdr_keys_is_detected(tmp_path: Path) -> None:
-    # herdr の keybinding 検査が scan に配線されていること (next に前方向キー)
+def test_bad_herdr_app_keys_is_detected(tmp_path: Path) -> None:
+    # herdr-app の keys.json の静的な検査が scan に配線されていること (キーの重複)
     repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
-    write_file(repo, "home/.config/herdr/config.toml", '[keys]\nnext_workspace = "ctrl+alt+["\n')
+    write_file(repo, KEYS_PATH, '{"global": {"cmd-u": "tab.next", "cmd-u": "tab.prev"}}')
 
     findings = scan(str(repo))
 
-    assert any(f.detail == "next_workspace = ctrl+alt+[" for f in findings)
+    assert [f.detail for f in findings if f.source == KEYS_PATH] == ["global.cmd-u"]
 
 
-def test_herdr_config_check_is_wired(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # herdr 自身による config 検証が scan に配線されていること。検査を差し込む引数は既定で
-    # 何も起動しないので、配線を忘れると単体テストは緑のまま herdr が一度も呼ばれない
+def test_herdr_app_inventory_is_wired(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # herdr-app の一覧に照らす検査が scan に配線されていること。一覧を差し込む引数は既定で
+    # 何も起動しないので、配線を忘れると単体テストは緑のまま herdr-app が一度も呼ばれない
     (tmp_path / "repo").mkdir()
     repo = _make_repo(tmp_path / "repo", "good", GOOD_SKILL, GOOD_SETTINGS)
-    write_file(repo, "home/.config/herdr/config.toml", '[keys]\nnext_agent = "prefix+shift+j"\n')
+    write_file(repo, KEYS_PATH, '{"global": {"cmd-u": "tab.next"}}')
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    write_fake_herdr(bin_dir, "printf 'config: issues found\\nfrom fake herdr\\n'\nexit 1")
-    monkeypatch.setattr(herdr_keys, "_SUBPROCESS_TIMEOUT_SECONDS", 120)
+    write_fake_binary(bin_dir, "herdr-app", """printf '[{"name":"tab.prev"}]'""")
+    monkeypatch.setattr(herdr_app_keys, "_SUBPROCESS_TIMEOUT_SECONDS", 120)
     monkeypatch.setenv("PATH", f"{bin_dir}:{os.environ['PATH']}")
+    monkeypatch.setenv("HERDR_APP_HOME", str(tmp_path / "app-home"))
 
     findings = scan(str(repo))
 
-    assert any("from fake herdr" in f.message for f in findings)
+    assert [f.detail for f in findings if f.source == KEYS_PATH] == ["global.cmd-u = tab.next"]
 
 
 def test_hidden_index_flag_is_detected(tmp_path: Path) -> None:

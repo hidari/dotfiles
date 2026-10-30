@@ -10,3 +10,8 @@ apm_modules/
 .claude/skills/
 .claude/agents/
 .claude/commands/
+
+# herdr-app が mod フォルダへ書き込む型定義と editor 設定。mod はフォルダごと symlink で
+# 配るので、書き込み先がリポジトリになる。アプリが起動のたびに書き直すので追跡しない
+.config/herdr-app/mods/*/gpui-kit.d.ts
+.config/herdr-app/mods/*/jsconfig.json

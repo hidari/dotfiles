@@ -110,3 +110,4 @@ Phase 3a のスコープを大きく超えるため別 Issue に分けた。
 - ISSUE-57 が `home/.claude/hooks/herdr-agent-state.sh` の埋め込み Python を構文検査する。
   同ファイルは `scripts/claude-hooks/` の対象 (Python フック 4 本) に入っておらず、
   取り込むかどうかは本 Issue の範囲と重なる
+  (2026-10-30 に ISSUE-139 で同ファイルを撤去したので、取り込むかの問いは無くなった)

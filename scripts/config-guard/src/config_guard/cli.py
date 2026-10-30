@@ -6,7 +6,7 @@ stale なツール名参照 / committed settings.json の不変条件 / フッ�
 apm.lock.yaml の deployed_files が gitignore されているか(新しい deploy root の検出) /
 mise の global ツール pin が exact か / 要求されるコマンドが brew bundle か mise install の
 どちらかで供給されるか / apm.yml の依存 pin が commit SHA で固定され
-宣言どうしと実配置で揃っているか / herdr keybinding の方向整合と chord 重複 / 追跡下の
+宣言どうしと実配置で揃っているか / herdr-app の keybinding が重複せず解決するか / 追跡下の
 Markdown の相対リンクが実在するか / 常時ロードされる指示ファイルの総バイト数が予算内か /
 その予算そのものが main から無音で上がっていないか / rules の paths 宣言が pin と
 一致するか / 指示ファイルどうしの参照 (パスと見出し) が実在するか / rules が定義する語が
@@ -27,7 +27,7 @@ from config_guard.budget_ratchet import check_budget_ratchet
 from config_guard.docs_layout import check_docs_layout
 from config_guard.extractors import extract_skill_tokens
 from config_guard.git_source import read_committed_settings
-from config_guard.herdr_keys import check_herdr_keys, run_config_check
+from config_guard.herdr_app_keys import check_herdr_app_keys, read_app_inventory
 from config_guard.hook_wiring import check_hook_mode_shebang, check_hook_wiring
 from config_guard.index_flags import check_index_flags
 from config_guard.instruction_budget import (
@@ -97,10 +97,9 @@ def scan(repo_root: str) -> list[Finding]:
     # install が成功したまま、そのパッケージだけ古い版が配られる形で壊れる）
     findings.extend(check_apm_pins(str(root)))
 
-    # herdr の keybinding: previous/next の方向整合と chord 重複。
-    # herdr 自身による検証 (アクション名の綴りなど) は herdr がある環境でのみ行う
-    # (CI には herdr が無いので skip される)。
-    findings.extend(check_herdr_keys(str(root), run_config_check))
+    # herdr-app の keybinding: JSON の構文とキーの重複はどこでも、アクションの解決は
+    # herdr-app がある環境でのみ検査する (CI には herdr-app が無いので skip される)
+    findings.extend(check_herdr_app_keys(str(root), read_app_inventory))
 
     # 追跡下の Markdown の相対リンクが実在するか。Issue を closed/ へ移すと
     # 両端のリンクが切れるが、リンク元は変更されないため差分だけでは検出できない

@@ -10,7 +10,7 @@ PreToolUse のガード (apm-install-guard.py) のような検査層は、自分
 ためである。それはこの層が扱っている欠陥そのものなので、canonical を 1 つにする。
 
 print と sys.exit は持たない。副作用を持ち込むとこの層だけを直接テストできなくなる。
-subprocess は持つので純関数ではない。
+hook_git を通して子プロセスを起動するので純関数ではない。
 
 shim の解決そのものは guard_resolve.py (leaf) が持つ。あちらは PreToolUse (強制層) が
 ホットパスで import するため軽量に保つ必要があり、こちらは SessionStart (セッションに 1 回)
@@ -24,8 +24,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
-import subprocess
 import time
 import tomllib
 from collections.abc import Callable
@@ -34,10 +32,6 @@ from pathlib import Path
 
 import guard_resolve
 import hook_git
-
-# ペイン一覧の取得の上限 (秒)。通常の応答は数十ミリ秒のオーダーだが、この値は
-# 「応答しない」を判定するための上限であって通常経路の待ち時間ではない。
-HERDR_PROBE_TIMEOUT = 5.0
 
 # SessionStart コマンドが private-ops の下から読む運用指示のファイル名
 _PRIVATE_OPS_FILE = "PRIVATE_CLAUDE.md"
@@ -224,140 +218,6 @@ def probe_task_list_id() -> ProbeResult:
     )
 
 
-# 継承した ID のうち、ペインの所属として一覧から照合できるもの。HERDR_PANE_ID は照合の起点
-# なのでここには入らない。
-_HERDR_MEMBERSHIP_IDS: tuple[tuple[str, str], ...] = (
-    ("HERDR_TAB_ID", "tab_id"),
-    ("HERDR_WORKSPACE_ID", "workspace_id"),
-)
-
-
-def _herdr_bin() -> str | None:
-    """herdr の実体。herdr の中で起動していれば HERDR_BIN_PATH が指す。
-
-    同じディレクトリの herdr-agent-state.sh は socket へ直接話しかけるが、あちらは herdr が
-    統合を入れ直すたびに上書きする管理下のファイルである。上書きされる側の実装に合わせず、
-    公開された CLI を使う。
-    """
-    return os.environ.get("HERDR_BIN_PATH") or shutil.which("herdr")
-
-
-def _herdr_unverified(pane_id: str, subject: str, reason: str) -> ProbeResult:
-    """照合できなかったことを、何が確かめられなかったかとともに告げる。
-
-    「確かめられなかった」と「食い違っている」を同じ文面にしない。前者は herdr 側の問題で、
-    後者はセッション側の問題なので、読み手が取る手当てが違う。
-
-    subject を呼び出し側から受けるのは、一覧そのものが引けない状態 (実在が不明) と、一覧は
-    引けたがペインが所属を持たない状態 (所属が不明) を区別するためである。同じ文面へ潰すと、
-    herdr が応答しないことと応答の形が変わったことが読み手から見て同じになる。
-    """
-    return ProbeResult(healthy=False, detail=f"{reason}。{pane_id} の{subject}は未確認。")
-
-
-def probe_herdr_ids() -> ProbeResult:
-    """継承した herdr の ID が同じペインを指しているか。
-
-    これらの変数も claim で差し替わらない側にあり、既に閉じられたペインや別のセッションの
-    ものを指すことがある。その場合はエージェントの状態通知が黙って捨てられ、ユーザーからは
-    動いていないように見える。
-
-    照合は HERDR_PANE_ID を起点にする。一覧の応答では各ペインが自分の tab_id と workspace_id を
-    持つので、1 回の呼び出しで 3 つとも見られる。tab と workspace の一覧を別に引く形は採らない。
-    呼び出しが増えるとセッション頭の待ちの上限がそのぶん伸びる。ペインを起点にすると、ペインを
-    持たない workspace や tab が一覧に現れるかどうかにも依存しない。
-
-    HERDR_PANE_ID が未設定なら何も見ない。3 つは herdr が同時に設定するので、起点が無い状態で
-    残りだけを検査するには別の呼び出しが要る。tab と workspace が個別に未設定のときは、その
-    変数だけを対象外として通す。
-
-    herdr が設定する変数はこの 3 つだけではないが、残りは対象にしない (2026-09-07 に全数を
-    確かめた)。在否のフラグ、socket の固定パス、バイナリのパスはいずれもセッションではなく
-    マシンを指すので、spare 経由で継承されても汚染にならない。汚染が意味を持つのは、値が
-    セッションごとに変わりかつ実在する別のものを指しうる識別子に限られる。
-
-    未設定と herdr 不在は対象外として通す。herdr を使わない環境で常に鳴らすと、この層の
-    出力そのものが読まれなくなる。あるのに応答しないのは対象外ではないので沈黙として扱う。
-    """
-    pane_id = os.environ.get("HERDR_PANE_ID")
-    if not pane_id:
-        return ProbeResult(healthy=True)
-
-    herdr_bin = _herdr_bin()
-    if not herdr_bin:
-        return ProbeResult(healthy=True)
-
-    try:
-        result = subprocess.run(
-            [herdr_bin, "pane", "list"],
-            capture_output=True,
-            text=True,
-            timeout=HERDR_PROBE_TIMEOUT,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        return _herdr_unverified(pane_id, "実在", f"{herdr_bin} がペイン一覧を返さない ({exc})")
-
-    if result.returncode != 0:
-        return _herdr_unverified(
-            pane_id, "実在", f"{herdr_bin} がペイン一覧を返さない (exit {result.returncode})"
-        )
-
-    try:
-        payload = json.loads(result.stdout)
-    except ValueError as exc:
-        return _herdr_unverified(
-            pane_id, "実在", f"ペイン一覧を読めない ({exc})。応答の形が変わった"
-        )
-
-    # herdr は不在も誤用も exit 0 で返し、失敗は応答の中の error に入る (2026-09-07 実測)。
-    # 終了コードだけを見ていると、この形が「応答した」として後段のパースへ流れる。
-    error = payload.get("error") if isinstance(payload, dict) else None
-    if error:
-        return _herdr_unverified(pane_id, "実在", f"{herdr_bin} がエラーを返した ({error})")
-
-    try:
-        panes = payload["result"]["panes"]
-        pane = next((entry for entry in panes if entry["pane_id"] == pane_id), None)
-    except (LookupError, TypeError) as exc:
-        return _herdr_unverified(
-            pane_id, "実在", f"ペイン一覧を読めない ({exc})。応答の形が変わった"
-        )
-
-    if pane is None:
-        return ProbeResult(
-            healthy=False,
-            detail=(
-                f"HERDR_PANE_ID={pane_id} は実在しないペインを指している。"
-                "エージェントの状態通知は届かないまま捨てられる。"
-            ),
-        )
-
-    for var, key in _HERDR_MEMBERSHIP_IDS:
-        declared = os.environ.get(var)
-        if not declared:
-            continue
-        try:
-            actual = pane[key]
-        except LookupError as exc:
-            # TypeError は並べない。ここへ来る pane は上の next() で pane_id の添字を通って
-            # いるので dict に限られ、起こるのはキーの欠落だけである。到達しない型を書くと、
-            # 読み手が「添字の通らない pane がここまで来る」と誤読する。
-            return _herdr_unverified(
-                pane_id, "所属", f"ペインの所属を読めない ({exc})。応答の形が変わった"
-            )
-        if declared != actual:
-            return ProbeResult(
-                healthy=False,
-                detail=(
-                    f"{var}={declared} は、{pane_id} が実際に属する {actual} と食い違う。"
-                    "別のセッションの値を着たまま起動している。"
-                ),
-            )
-
-    return ProbeResult(healthy=True)
-
-
 # 日次の LaunchAgent (scripts/node-security-notifier) が書く判定結果の置き場。書き手の
 # STATE_RELPATH と一致することはテストが両方を読み込んで突き合わせる。
 NODE_SECURITY_STATE_RELPATH = Path(".local/state/node-security-notifier/security-releases.json")
@@ -470,6 +330,5 @@ PROBES: tuple[tuple[str, Callable[[], ProbeResult]], ...] = (
     ("apm", probe_apm),
     ("private-ops", probe_private_ops),
     ("task-list-id", probe_task_list_id),
-    ("herdr-ids", probe_herdr_ids),
     ("node-security", probe_node_security),
 )
