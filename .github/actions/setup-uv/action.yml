@@ -8,4 +8,4 @@ runs:
     # キャッシュを止めるイベント (pull_request_target など) でもキャッシュを使ってしまう
     # uv のマニフェスト (uv.ndjson) の取得は、接続の失敗なら setup-uv 自身がバックオフ付きで
     # 再試行するので、自前の再試行は足さない (HTTP のエラー応答は再試行されない)
-    - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+    - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
