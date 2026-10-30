@@ -6,7 +6,7 @@ status: open
 
 ## 背景
 
-2026-10-21 に受け箱へ届いたまとめのうち、配布している skill (canonical は agentic-coding-tools) と、外部の plugin の skill への改善提案をここへ集める。どれも他のリポジトリのセッションの報告で、dotfiles で確かめたことは項目ごとに分けて書く。2026-10-31に仕分けた72件 (届いたのは2026-10-22〜2026-10-30) から足した分は、各節の末尾と、新しく立てた節に置いた。
+2026-10-21 に受け箱へ届いたまとめのうち、配布している skill (canonical は agentic-coding-tools) と、外部の plugin の skill への改善提案をここへ集める。どれも他のリポジトリのセッションの報告で、dotfiles で確かめたことは項目ごとに分けて書く。
 
 ### in-repo-issue: 親子のキーを拡張したプロジェクトで Phase E が無音で終わる
 
@@ -24,7 +24,7 @@ dotfiles で確かめたこと: skill の frontmatter スキーマは `parent` /
 
 - 既に in-repo Issue を運用している配布先へ、`issue-id.py` の検査を後から取り付けた (pre-commit stage に `--check-diff`、commit-msg stage に `--check-text`、CI に `--check-diff --base origin/main`)。既存の違反を残したまま新しく入る違反だけを止められ、staged に違反を仕込んだ対照は rc=1、本物の変更は rc=0、commit-msg も対照で赤・正常で緑だった。取り付けの前の `--check` の全走査では、旧形式のディレクトリ名・他のリポジトリの Issue を裸の数字で書いたメモ・自リポジトリの古い記法・偽陽性の4種で57件あった (実測)
 - 「初期化」節は新規プロジェクト向けの手順で、既存の Issue を抱えたまま後から取り付ける経路 (`--check-diff` を使い、`--check` はまだ赤い) が節の中に無い。docstring には書いてあるので、読めば辿り着ける (実測)。報告者の提案: 増分の入口を使うことと、`--check` を backstop にする時期をどう決めるかを初期化の節に足す (ドキュメントのみ)
-- `--check-diff --base main` はコミット済みの差分しか見ず、作業ツリーを数えないので、コミット前の「違反なし」は証拠にならない (実測)。報告者の提案: skill の説明に書く。ISSUE-121 の SKILL.md の罠のタスクにも同じ項目がある
+- `--check-diff --base main` はコミット済みの差分しか見ず、作業ツリーを数えない件は、ISSUE-121 のタスクの「報告された使い方の罠を SKILL.md に書くか決める」にある
 - 上流の `.pre-commit-config.yaml` のコメントにある「commit-msg の hook は `always_run: true` が無いと常に skip される」が再現しなかった。pre-commit の4.7.0で使い捨てのリポジトリを作り、本物の git commit で `always_run` の有無を比べたら、どちらでも hook が走ってコミットを止めた (実測)。報告者の提案: 版を添えて測り直す
 - 採番が `ISSUE-<N>` へ移ったとき、利用先の置き場の検査が数字始まりだけを Issue ディレクトリとみなしていたので、新形式の配下が黙って検査の外になり、正しく名付けた plan が外に落ちたと誤検出された。件数が増えないことで気づいた (実測)。報告者の提案: 採番の形式の変更を配るときは、利用先に識別子の形を写した検査が無いかを確かめる手順か告知を添える
 - 初期化で配る `issue-id.py` は764行あり、追跡下へ入れる前の全文読みが重い (実測)
@@ -65,9 +65,9 @@ dotfiles で確かめたこと (2026-10-23): 同じ日に、別のリポジト�
 2026-10-31に仕分けた分で届いた。どれも別のリポジトリのセッションの報告。
 
 - 前回のゲートが CI や別のレビューと並行で走っていた場合、その指摘を直して積んだコミット自体はどのゲートも通っていない。ゲートが見た commit を特定し、HEAD までの増分にゲートを当てると、約600行の増分から確定の指摘が2件出た (実測)。報告者の提案: マージの経路にこの手順を足す
-- push の直後で新しい run が pending のとき、`gh pr checks --watch` は待たずに「no checks reported」で rc=1 で終わった。前の head の run が in_progress でも同じだった (実測)。報告者の提案: CI を待つ手順を、headSha で run を特定して `gh run watch` で待つ形へ置き換えるか、rc=1 と「no checks reported」の組を「まだ始まっていない」と扱う注記を足す
+- push の直後で新しい run が pending のとき、`gh pr checks --watch` は待たずに「no checks reported」で rc=1 で終わった。前の head の run が in_progress でも同じだった (実測)。報告者の提案: CI を待つ手順を、headSha で run を特定して `gh run watch` で待つ形へ置き換えるか、rc=1 と「no checks reported」の組を「まだ始まっていない」と扱う注記を足す。同じ報告で、新しい run を `gh run list --branch <branch> --json databaseId,headSha` で引き、push した commit と一致する run の ID を `gh run watch --exit-status` に渡すと、pending の間も待ち続けて rc 0で終わった (実測)。/goal の条件文に `gh pr checks --watch` を入れた件は ISSUE-133 の「Claude Code の /goal」節にある
 - 長いゲート (20〜30分) の前に並列レビューを先に回し、修正を入れてから最終のゲートを1回だけ回す順序にした (実測)
-- 前のゲートで simplify の Efficiency 観点が出した最適化を効果を数えずに採ったら、直前の処理が既に同じ表を全部読んでいて、省けるのは課金の枠のおよそ0.4%だった。次のゲートの Altitude 観点が「判断の分岐が shell 層に増えた」「adapter の doc と逆を言う」と指摘し、取り下げた (実測)。報告者の提案: Efficiency の提案を採る前に、隣の処理が既に払っている同じコストと課金や上限の枠に並べて効果を数えることを Phase 2 の判断の軸に足し、効果が枠の数%に満たなければ採らないのを既定にする (推測)
+- 前のゲートで simplify の Efficiency 観点が出した最適化を効果を数えずに採ったら、直前の処理が既に同じ表を全部読んでいて、省けるのは課金の枠のおよそ0.4%だった。次のゲートの Altitude 観点が「判断の分岐が shell 層に増えた」「adapter の doc と逆を言う」と指摘し、取り下げた (実測)。報告者の提案: Efficiency の提案を採る前に、隣の処理が既に払っている同じコストと課金や上限の枠に並べて効果を数えることを Phase 2 の判断の軸に足し、効果が枠の数%に満たなければ採らないのを既定にする (実測)
 
 ### superpowers の subagent-driven-development (外部の plugin)
 
@@ -78,8 +78,10 @@ dotfiles も agentic-coding-tools も canonical を持たない。直せるの�
 - 報告 (実測): 同梱の `task-brief` スクリプトはタスクの節だけを切り出すので、計画の冒頭の「前提と決定」が brief に入らず、dispatch に行番号つきで足す必要があった
 - 報告 (実測): SDD の最終の全ブランチレビューをマージ前ゲートのコードレビューと兼ねると、どのタスクのファイル一覧にも無かったテストの目録の文書の drift を拾った。タスク単位のレビューは brief の範囲しか見ないので、横断の文書は原理的に見えない。報告者の提案: writing-plans の指針に「テストを足すタスクは目録・索引の文書を Files に含める」を入れる
 - 報告 (実測): 実装者を Workflow の `isolation: worktree` で依存の無いタスクごとに並列に走らせ (wave)、コントローラが cherry-pick で統合した。件数の行の最終値はコントローラが統合後に実測して決めると brief に書いたので、衝突はその1行だけで、統合後の件数が各タスクの増分の和と一致することで取りこぼしが無いことも確かめられた。報告者の提案: brief の雛形に「件数などの共有の行はコントローラが持つ」を入れる
-- 報告 (実測): brief に BASE の SHA を書いておいたので、worktree が想定と違う基点で切られても、実装者が `git merge --ff-only <BASE>` で自力で合わせた。報告者の提案: brief の雛形に「最初に BASE へ ff-only」を入れる
+- 報告 (実測): brief に BASE の SHA を書いておいたので、worktree が想定と違う基点で切られても、実装者が `git merge --ff-only <BASE>` で自力で合わせた。報告者の提案: brief の雛形に「最初に BASE へ ff-only」を入れる。worktree が既定のブランチから切られる機構は ISSUE-133 の「Claude Code の hook と委譲」節にある
 - 報告 (実測): 件数の下限と上限 (下限 + 余裕) の両側で縛るテストのガードがあると、「件数の更新は最後のタスクでまとめてよい」という plan の指示は成り立たない。余裕を超えるテストを足したタスクは、自分のゲートで赤になった
+- 報告 (実測): subagent-driven-development の pre-flight scan で、各タスクが作る型と使う型を実際のツリーで grep して突き合わせると、散文のレビューを複数通した計画に順序の食い違い (後のタスクが定める型を前のタスクが使う) が残っていた。実装の前に spec を実コードと突き合わせる項は ISSUE-133 の「Claude Code の hook と委譲」節にある
+- 報告 (実測): subagent-driven-development の fix-loop の「Minor はループに入れず最終レビューへ回す」が、グローバル CLAUDE.md の警告0とボーイスカウトとぶつかった。規定どおりだと、タスクが新しく作った警告やテストの空回りが最後まで残る。CLAUDE.md を優先して修正のラウンドに入れた。報告者の提案は、「Minor が警告の新規発生や dead pin に当たるときはループに入れる」を規範か `references/delegation.md` に1行足すこと (足せば毎回の上書きが要らなくなる、は推測)。規範に足す候補としては ISSUE-133 の「Claude Code の hook と委譲」節にある
 
 ### ast-grep-practice: 規則の例と許す側の対照
 
@@ -147,6 +149,7 @@ dotfiles も agentic-coding-tools も canonical を持たない。直せるの�
 - [ ] simplify を読み取り専用の reviewer で回す形を、pre-merge-quality-gate に入れるかを決める。dotfiles の gate でも並列の4観点がブランチを書き換えうるかを確かめてから決める
 - [ ] superpowers の2件は、brief の雛形 (ISSUE-100) に「型検査の recipe」と「同梱スクリプトはリポジトリの中から絶対パスで呼ぶ」を入れるかを決める
   - 2026-10-31に足した5件 (計画の冒頭の前提、目録の文書を Files に含める、件数の行はコントローラが持つ、最初に BASE へ ff-only、件数の両側のガード) も、同じく雛形に入れるかを決める
+  - pre-flight scan の件と fix-loop の Minor の扱いの件は、ISSUE-133 の委譲の規範の候補と一緒に決める
 - [ ] in-repo-issue の2節 (後から取り付ける経路、Issue の外にある写しと参照) を agentic-coding-tools へ渡す。`always_run` のコメントは版を添えて測り直してもらい、`issue-id.py` の CLI にかかる分は ISSUE-121 と一緒に渡す
 - [ ] pre-merge-quality-gate の「ゲートの順序、増分、CI の待ち方」節を agentic-coding-tools へ渡す。Efficiency の判断の軸は、simplify を読み取り専用の reviewer で回す件と一緒に決める
 - [ ] ast-grep-practice の2件を agentic-coding-tools へ渡す

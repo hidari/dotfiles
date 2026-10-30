@@ -31,8 +31,6 @@ apm 0.28.0 にこれを抑止するノブは無い。この主張は commands / 
 作業の主体は PUBLIC リポジトリ [hidari/agentic-coding-tools](https://github.com/hidari/agentic-coding-tools)
 側にあり、dotfiles 側は flat 側の後始末と apm の pin を揃える部分を持つ。
 
-2026-10-31に仕分けた72件 (届いたのは2026-10-22〜2026-10-30) から足した分は、各節の末尾と、新しく立てた節に置いた。
-
 ## 着手前に確認すること
 
 `security-red-team` と `security-blue-team` の sub-skill は、長い日本語の description で

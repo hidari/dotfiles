@@ -27,7 +27,7 @@ status: open
 
 - Cloudflare のアカウント所有のトークンは `/user/tokens/verify` では401 (code 1000) になり、`/accounts/<id>/tokens/verify` で active が返る。401を見て無効と判断しない (実測)
 - Workers Logs の telemetry/query は、アカウント単位の「Workers Observability Read」だけのトークンで読めた。公式の API リファレンスは Write を要求すると書くが、Read で足りた (実測)
-- Worker 単位のロール (Individual Workers) のトークンでは telemetry の query / keys / values が読めず、Metadata Read-Only では403、Editor を付けても Authentication error (code 10000) だった。Workers Observability はアカウント単位の権限グループで Worker 単位のポリシーには出てこず、逆に telemetry を読めるトークンでは Worker の settings が403で、1本のトークンで両方は読めなかった (実測。docs と API の reference の食い違いは読みによる)
+- Worker 単位のロール (Individual Workers) のトークンでは telemetry の query / keys / values が読めず、Metadata Read-Only では403、Editor を付けても Authentication error (code 10000) だった。ロールの docs は Metadata Read-Only で logs を読めると書き、API の reference は query に Workers Observability Write を要求していて食い違う。Workers Observability はアカウント単位の権限グループで Worker 単位のポリシーには出てこず、逆に telemetry を読めるトークンでは Worker の settings が403で、1本のトークンで両方は読めなかった (実測)
 - Cloudflare 側に実際に載っている Workers の observability の設定は `GET /accounts/{account_id}/workers/scripts/{name}/script-settings` の observability で読め、wrangler.toml の解決ではなく Cloudflare 側で有効になったかをこれで閉じられる (実測)
 - telemetry の /keys と /values で鍵と値の実際の綴りを先に読むと、query の0件が「見ていない0」か「本当に0」かを切り分けられた。同じアカウントの別の Worker の値が写っていれば、トークンと鍵と取り込みの経路が生きている対照になる (実測)
 - invocation logs を有効にした検証環境へダミーの値を送ると、Authorization と Cookie と名前に token を含む独自ヘッダは伏せられたが、発信元の IP (x-real-ip / cf-connecting-ip)、位置の項目 (緯度経度・郵便番号・都市)、クエリ文字列を含む URL 全体は残った。Access の service token のヘッダは Worker まで届かず、cf-access-jwt-assertion は伏せられた (実測)
@@ -63,6 +63,7 @@ status: open
 - 報告者の提案: 同じ構成の他のリポジトリを棚卸しする
 - Workers 向けの Vitest で `*.module.css?raw` を import すると、文字列ではなく CSS Module の proxy が返る。vitest.config の `css.include` に対象を入れると文字列になった (実測)
 - vitest 5が出す isolate: false を勧めるヒントは、isolate を明示的に設定すると出なくなる (実測。条件は vitest のソースで確かめた)
+- vitest は既定で `.cache/` を除外しないので、`.cache/` にリポジトリの複製を置くとその中のテストまで収集し、テストの件数が303から4545に化けた。`test.exclude` に `.cache/` の配下を除くグロブを足して塞いだ (実測)。報告者の提案は、vitest を使うリポジトリでは `test.include` でテストの置き場を列挙すること。既定の全体探索のままだと、書き捨ての置き場や worktree に置いた複製の中のテストまで走る (実測)
 - wrangler.toml で Durable Object の束ねを守るなら、各要素の鍵を {name, class_name} に exact で縛る。wrangler は script_name (別の Worker) とそれに付随する environment も受け付けるので class_name だけを見る検査は storage を別の場所へ向ける差分を素通しし、migration も legacy の deleted / renamed / transferred_classes は storage を消すか移すので、置ける鍵を {tag, new_sqlite_classes} に絞る (実測。鍵の意味は公式の頁で確かめた)
 - wrangler dev では Content-Length を偽った要求が Worker に届かず、前段の ProxyWorker が待ち続ける。Worker 側で宣言を見て先に拒む門は手元では確かめられず、本番の経路で確かめるしかない (実測)
 - wrangler dev の前段は、Worker が本文を読み残して返した直後の POST を1件落とすことがある (GET は再試行される)。後ろに別の smoke を並べるなら、捨ての POST を1件送る (実測。原因が keep-alive の使い回しというのは推測)
@@ -204,6 +205,9 @@ status: open
 - planner の計画ファイル (planner_save_plan) は既定でリポジトリ直下の specs/ に未追跡で置かれるので、コミットの前に移さないと混入する (実測)
 - planner / generator に実画面の文言を推測と区別して報告させると、UX の欠陥 (無効化された利用者に通信失敗の汎用画面が出る) を探索の段階で見つけられた。generator は Bash を持たないので、テストの実行はコントローラ側が要る (実測)
 - chrome-devtools の MCP は、同じプロファイルのブラウザが他で動いていると起動できない。別の MCP のブラウザへ切り替えて回避した (実測)
+- セッションの途中で作った .mcp.json のサーバーは /mcp に出てこなかった (実測)。プロジェクトの MCP サーバーは起動時にしか読まれない様子で、Playwright Test Agents を使うにはセッションの再起動が要る (推測)。MCP の要らない配線を先に WIP コミットしてから再起動すると、待ちが無駄にならない。報告者の提案は、`references/testing.md` の「E2E の生成」に再起動の要否を足すこと
+- `init-agents --loop=claude` が書き出す .mcp.json は `npx playwright run-test-mcp-server` で起動し、seed と specs/ もリポジトリのルートに置かれた (実測)。報告者の提案は、npx を禁じている環境では pnpm exec に直す手順を足すこと。specs/ の扱いは上の planner の計画ファイルの項と同じ
+- 生成された Healer の定義に「直せなければ test.fixme() にして skip する」とある。失敗を緑に見せる経路なので、brief で禁止し、実行されたテストの ID の集合で skip が無いことを確かめる必要がある (ドキュメントのみ。生成された定義を読んだだけ)
 
 ### GitHub Actions と Node の版
 
@@ -285,6 +289,8 @@ status: open
 - 報告者の提案: 設定を移し、minimumReleaseAge と minimumReleaseAgeStrict を両方明示する手順を共通の規約に入れる
 - minimumReleaseAgeStrict の既定は「minimumReleaseAge を明示したときだけ true」で分かりにくいので、strict も明示する (明示した側の振る舞いは実測。既定の規則はドキュメントのみ)
 - pnpm 11以降の設定の移行は、公開1日未満の版を exact pin した依存を置き、workspace の設定に1440で ERR_PNPM_NO_MATURE_MATCHING_VERSION で落ち、0で入る、を並べて確かめる。組込の既定も1440なので、「設定を消しても落ちる」は設定が読まれている証拠にならない (実測)
+- minimumReleaseAge のあるリポジトリで「猶予を過ぎた最新へ上げる」とき、猶予期間の中にある新しい版の猶予明けを待つ必要はない。その時点で猶予を過ぎた最新の版に上げ、新しい版は猶予明けに Dependabot に任せると、作業が止まらなかった。待つ前提で計画すると作業が数時間止まる (実測)
+- pnpm のメジャー更新を、猶予期間 (minimumReleaseAge) を過ぎた1つ前の版で隔離コピーにリハーサルし、猶予が明けた版を本番に適用する前にハマりどころを洗い出した (実測)
 - pnpm 11以降は verifyDepsBeforeRun の既定が install で、package.json を変えたあとの pnpm run lint が lockfile を黙って書き換えた。error を明示すると、何も書き換えずに exit 1で止まる (実測)
 - 報告者の提案: pnpm 11以降へ上げるリポジトリでは verifyDepsBeforeRun を明示する。lockfile の更新を明示的な install に限るなら error が合う
 - verifyDepsBeforeRun は node_modules の同期の代わりにならない。workspace では package.json の mtime だけを見るので、lockfile だけが変わると古い node_modules のまま exit 0で走る。同期は frozen install を検査の先頭に置いて担保した (実測。委譲先が再現し、ソースで裏付けた)
@@ -306,6 +312,7 @@ status: open
 - pnpm audit は依存を変えていなくても、advisory の追加で翌日に赤くなる。推移的な依存が子を exact pin していると親を上げても直らないので、overrides で `親>子: ^修正版` に寄せ、外す時機は検査できないので依存の更新を待つ Issue のタスクに持たせた (実測)
 - 脆弱性の対応で下限を上げた pnpm.overrides が、上流がさらに上の下限を宣言したあとも残り、上流の要求より古い版に固定し続けた。上限の無い override は、将来のメジャーを全依存へ強制する形でもある (実測)
 - 依存の脆弱性のアラートが配信物に届くかは、`pnpm list --prod --depth Infinity --json` の木を名前で照合すると数えられる。本番の依存の既知の名前 (陽性の対照) と dev の木 (脆弱な名前が見える対照) を並べてから「0件」を読む (実測)
+- `.cache/` の下に置いた隔離のディレクトリに専用の pnpm-workspace.yaml が無いと、pnpm (と corepack、`pnpm self-update`) は親の方向へ workspace を探してリポジトリの本体を操作の対象にし、本体の package.json の packageManager と lockfile を書き換えた。並列の調査エージェントで3回起きた。`.cache/` が ignore されていても、pnpm から見れば本体の一部である。git archive で作ったコピーのルートに専用の pnpm-workspace.yaml を置くと本体をルートと判定しなくなり、前後で本体の package.json と lockfile のハッシュを照合して確かめた (実測)。報告者の提案は、隔離コピーで pnpm を動かす手順 (調査エージェントへの指示を含む) に、この2点を必須として書くこと
 
 ### Biome
 
@@ -355,12 +362,11 @@ status: open
 - PostgreSQL 16以降は lc_ctype と lc_collate が設定のパラメータではなく、current_setting('lc_ctype') はエラーになる。値は pg_database の datctype と datcollate から読む (実測)
 - psql の \if と psql の変数で評価の切り替えを渡し、各切り替えの効き目を「その切り替えでだけ結果が変わるクエリ」で対照してから集計した (実測)
 - RLS が有効でポリシーが0本の表は、GRANT を持つロールでも BYPASSRLS が無いと DELETE が例外なしに0行で終わる。前提の検査には GRANT と BYPASSRLS の両方を並べる (実測)
-- RLS のポリシーで引数の無い stable の関数を (select f()) で包む書き換えの検査は、deparse の正規表現ではなく、pg_node_tree を括弧の深さで読み、FUNCEXPR の祖先に SUBLINK があるかで決めた。総数を pg_proc 側の集計と突き合わせ、節の数を2通りで数えて読み落としを例外にした (実測。式ごと包む形も数えられた)
+- RLS のポリシーで引数の無い stable の関数を (select f()) で包む書き換えの検査は、deparse の正規表現ではなく、pg_node_tree を括弧の深さで読み、FUNCEXPR の祖先に SUBLINK があるかで決めた。総数を pg_proc 側の集計と突き合わせ、節の数を2通りで数えて読み落としを例外にした (実測。式ごと包む形も数えられた)。別の報告では、RLS のポリシーの中の関数の呼び出しを、deparse した文ではなく pg_policy の式木 (pg_node_tree) の :funcid から数え、既知の2件を持つポリシーを対照にして数え方が死んでいないことを確かめた。式木に出るのは直接の呼び出しだけで、関数の本体からの間接の呼び出しは別に追う (実測)
 - 報告者の提案: RLS を主な層にするリポジトリで、この検査をテストに固定する
 - 書き換えの等価性は、後の deparse から包みを外すと前の deparse と一字一句同じになることで示せた。ロール・コマンド・permissive も前後でバイト比較した (実測)
 - インデックスが選ばれる読み方では、stable の式は包む前から Index Cond として文ごとに1回だけ評価されるので、包んでも速くならない。効くのは Filter に落ちる読み方と、行ごとに呼ばれる関数の本体から届く呼び出しだけ (実測)
-- RLS のポリシーの中の関数の呼び出しを、deparse した文ではなく pg_policy の式木 (pg_node_tree) の :funcid から数え、既知の2件を持つポリシーを対照にして数え方が死んでいないことを確かめた。式木に出るのは直接の呼び出しだけで、関数の本体からの間接の呼び出しは別に追う (実測)
-- migration の `ENABLE ROW LEVEL SECURITY` を grep して RLS 必須の表を導出する方法は、表の改名 (RENAME TO) を拾えず古い名前を残し続けた (実測)。RLS のポリシーの期待値を持つ検証スクリプトの表を canonical にする方がよい (推測)
+- migration の `ENABLE ROW LEVEL SECURITY` を grep して RLS 必須の表を導出する方法は、表の改名 (RENAME TO) を拾えず古い名前を残し続けた。RLS のポリシーの期待値を持つ検証スクリプトの表を canonical にする方がよい (実測)
 - migration で関数を置き換えたときの照合として、migration の範囲の最後の create の本体の md5 と DB の md5(prosrc) を比べた。期待値の取り出しの正しさは、適用済みの環境で「後の側と一致し、前の側と不一致」を対照に確かめた (実測)
 - HEAD の全 migration で状態を作るベンチは、後から入る migration のたびに状態の検査や fixture が壊れ、気づかれないまま止まっていた (無関係な FK の追加で止まっていた)。比べる版に固定すると壊れない (実測)
 - 既存の migration を最終状態の DB へ流し直す冪等性のゲートを持つリポジトリで列を drop すると、その列を名指しする過去の migration (列の単位の grant など) の再適用が止まる。過去の文を「今ある列だけに与える」動的な形へ書き換えると順に流した結果を変えずに通せるが、適用済みの本文を変える判断は人に聞く (実測)
@@ -445,9 +451,10 @@ status: open
 - 1Password でアーカイブしたアイテムは `op read op://...` では読めず、失効の確認にならない。`op item get <item-id> --vault <vault> --include-archive --fields <field> --reveal` なら読めるので、失効の確認は読めた長さと HTTP のコードだけを出す形にする (実測)
 - 報告者の提案: 秘密を扱う手順書に、アーカイブしたアイテムの読み方を載せる
 - 1Password のアイテムは vault をまたいで移すと ID が変わりうるので、`op://<vault-id>/<item-id>/<field>` の参照が「どこにも無い」になったら、まず別の vault でタイトルを引く (推測。ID が変わった経緯は確かめていない)
+- `op item get` の失敗の出力を jq に渡すと、空入力で jq が rc 0を返し、`|| echo not found` の分岐に入らなかった (実測)
 - S3 互換のストレージの DELETE が存在しない key に204を返すかは、curl の --aws-sigv4 で1本叩き、同じ認証での一覧の取得 (200) を対照に並べて確かめられる (実測)
 - just はレシピの直前の最後のコメントの行を `just --list` の説明に使うので、理由のコメントを書くと説明の欄が崩れる。要約は `[doc("...")]` の属性に分け、コメントは理由だけにした (実測)
-- justfile の構造は `just --dump --dump-format json` で取れ、recipe ごとの依存 (priors 付き) と本体の行が返るので、regex で text-parse しなくて済む。CI に just が無いなら taiki-e/install-action で公式のリリースを入れる (実測)
+- justfile の構造は `just --dump --dump-format json` で取れ、recipe ごとの依存 (priors 付き) と本体の行が返るので、regex で text-parse しなくて済む。CI に just が無いなら taiki-e/install-action で公式のリリースを入れる (実測)。ISSUE-88 の INS-57 と同じ手法
 - CJK の Markdown で閉じない太字を探すとき、正規表現ではなくリポジトリが使う CommonMark の実装で描画し、残った太字の記号を旧版と新版で数え比べた。壊れるのは、太字の内側の端が約物で外側に文字が続く形だけだった (実測。正規表現は誤検出だらけで、描画なら対照付きで判定できた)
 - 報告者の提案: CJK の文書を扱うリポジトリ向けの検査の候補にする
 - 有界の探索で状態の上限に達したときに precondition で process ごと落とすと、同じ実行の他のテストの結果と要約の行が消える。印を立てて探索を止め、Issue.record でそのテストだけを落とす (実測)

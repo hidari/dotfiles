@@ -7,7 +7,7 @@ status: open
 ## 背景
 
 ISSUE-97 のタスクと実例を切り出し、ISSUE-53 を待たずに進める (2026-09-17、ユーザーの裁定)。
-担当の範囲は、ISSUE-53 が持つ横断スイープの報告項目の 1 つにあたる。2026-10-31に仕分けた72件 (届いたのは2026-10-22〜2026-10-30) から足した分は、各節の末尾と、新しく立てた節に置いた。
+担当の範囲は、ISSUE-53 が持つ横断スイープの報告項目の 1 つにあたる。
 
 ### 実例 (2026-09-17)
 
@@ -45,7 +45,7 @@ GitHub の compare API で距離を測るときは、`files` が300件で切ら�
 - dotfiles の Actions の pin は Dependabot で扱うと決めた (ユーザーの判断)。`.github/dependabot.yml` が github-actions の更新を週次で PR にし、SHA と行末の版の注記を一緒に上げる。外部 action を使う場所をすべて覆うことは `scripts/tests/ci-wiring.bats` が pin する。Dependabot の PR ごとに CI が回るので、minor と patch はディレクトリごとに1本の PR へまとめている (groups はディレクトリをまたがない)
 - Dependabot が上げるのは uses で参照した action だけである。.github/actions の composite のうち、ツールを curl で取得して版と sha256 をシェル変数で固定しているもの (2026-09-29時点で ast-grep、neovim、mise、bats、gitleaks の5つ) は Dependabot の外にあり、鮮度を知らせる経路が無いまま残る
 - Dependabot の cooldown (公開直後の版を提案しない) は、github-actions では使えない (公式ドキュメントの対応表)。改ざんされた版がすぐに PR になりうるので、Dependabot の PR も中身を読んでからマージする
-- 別のリポジトリから届いた報告。Dependabot は、SHA pin の行末の注記が曖昧な tag (`# v4`) だと注記を書き換えない。v6.4.0の SHA に `# v4` が付いていて、マージ後も v7.1.0の SHA に `# v4` が残った (実測)。報告者の提案: 注記は正確な版で書き、規範か lint に入れる
+- 2026-10-31の仕分けで届いた。別のリポジトリからの報告で、Dependabot は、SHA pin の行末の注記が曖昧な tag (`# v4`) だと注記を書き換えない。v6.4.0の SHA に `# v4` が付いていて、マージ後も v7.1.0の SHA に `# v4` が残った (実測)。報告者の提案: 注記は正確な版で書き、規範か lint に入れる
 
 ### 切り出した理由
 
@@ -63,7 +63,7 @@ ISSUE-53 は、配布先の母数の定義から始まる。この Issue が見�
 
 ### 上流の版が CalVer へ移る (2026-10-23の連絡)
 
-agentic-coding-tools のセッションから受け箱経由で届いた連絡。
+2026-10-31の仕分けで届いた。agentic-coding-tools のセッションから受け箱経由で届いた連絡。
 
 - agentic-coding-tools は次の release から版を CalVer (`vYYYY.M.N`) に移すと決めた (agentic-coding-tools の ISSUE-96)。canonical は上流の release skill の「バージョン規則」節 (実測)
 - `home/apm.yml` の pin の行末の注記は `# v0.20.0` から `# v2026.10.0` の形に変わり、pin の機構は SHA のまま変わらない。報告者が git grep した範囲では、dotfiles に注記を正規表現で読むコードは見つからなかった (実測)

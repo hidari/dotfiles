@@ -9,6 +9,7 @@ status: open
 2026-10-31に受け箱から仕分けた報告で起票した。別のリポジトリのセッションの報告で、報告の事象は dotfiles では再現していない。
 
 - 日本語のコミット本文を Write ツールではなくシェルの `printf` でファイルに書く違反を、規約を把握したまま繰り返した。前のセッションに続いて2回目である (実測)
+- 別のリポジトリからも同じ違反が1件届いた。日本語のコミット本文を Bash の `printf` で組み、`-F` で渡す規約を一度破った (実測)
 - 報告者の提案: 散文の規範だけでは止まらないので、git / gh に渡す本文ファイルを Bash の `printf` / `echo` / heredoc で作ることを、PreToolUse の hook で検出できないか検討する (推測)
 
 規範の canonical は skill commit-and-pr-message (agentic-coding-tools) にあり、hook を置くなら dotfiles の `home/.claude/hooks` になる。Bash からのファイルへの書き出しが全部 git や gh の本文とは限らないので、誤検知の面を持つ。PreToolUse のフックには、Tirith のフックを撤去して誤検知率を測らずに再導入しないと決めた前例がある (ISSUE-115)。

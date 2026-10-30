@@ -6,7 +6,7 @@ status: open
 
 ## 背景
 
-起票した時点 (2026-10-10) では、開発機のコンテナランタイムは OrbStack で、`/usr/local/bin/docker` は OrbStack.app 内の docker への symlink になっていた。apple/container も pkg インストーラで入っていたが、版は1.0.0のまま止まっていた。どちらも Brewfile の外にあった。その後 container は brew 版へ寄せて Brewfile に載せた (「進め方の方針」節)。2026-10-31に仕分けた72件 (届いたのは2026-10-22〜2026-10-30) から足した分は、各節の末尾と、新しく立てた節に置いた。
+起票した時点 (2026-10-10) では、開発機のコンテナランタイムは OrbStack で、`/usr/local/bin/docker` は OrbStack.app 内の docker への symlink になっていた。apple/container も pkg インストーラで入っていたが、版は1.0.0のまま止まっていた。どちらも Brewfile の外にあった。その後 container は brew 版へ寄せて Brewfile に載せた (「進め方の方針」節)。
 
 以前 apple/container へ寄せようとしたときは `docker compose` に相当するものが無く、compose 互換のツールを別リポジトリで自作して試した。その後の状況を2026-10-10時点で調べ直した結果が下の節にある。そのあと Docker.app と OrbStack は外す方針に決めたが、外すのは試して動いてからで、移行の可否はまだ確かめている途中である。
 
