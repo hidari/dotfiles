@@ -1,8 +1,8 @@
 #!/usr/bin/env bats
 # =============================================================================
-# ast-grep のルールが「どのファイルを見るか」を検証する
+# ast-grep scan が隠しディレクトリ配下のファイルを見るかを検証する
 #
-# ast-grep test は仮想のスニペットに対して走るため files と ignores を通らない。
+# ast-grep test は仮想のスニペットに対して走るため、走査の側を通らない。
 # 隠しディレクトリの扱いを確かめられるのはこのファイルだけである。
 #
 # 注意: @test 名は ASCII に限る (rules/bats-test-name-ascii-only.yml)
@@ -10,52 +10,39 @@
 
 load test_helper
 
-# 対象のパスを絞らないルール。隠しディレクトリ配下へ置いた fixture を見るかどうかが、
-# ルールの glob ではなく走査の側だけで決まる
-RULE="$REPO_ROOT/rules/bats-test-name-ascii-only.yml"
-
 setup() {
     require_command_or_skip ast-grep || return 1
 
-    # 実ルールをコピーするので、ルールの二重管理にならない。languageGlobs は sgconfig.yml と
-    # 同じく .bats を bash として読ませる
-    FIXTURE="$(mktemp -d)"
+    # 本番のルールは使わない。本番のルールがパスを絞ると、走査の挙動とは無関係に結果が
+    # 変わるためで、fixture の中に対象のパスを絞らないルールを置く
+    FIXTURE="$BATS_TEST_TMPDIR/fixture"
     mkdir -p "$FIXTURE/rules" "$FIXTURE/home/.config/example"
-    cp "$RULE" "$FIXTURE/rules/"
-    printf 'ruleDirs:\n  - rules\nlanguageGlobs:\n  bash:\n    - "*.bats"\n' > "$FIXTURE/sgconfig.yml"
-    # マルチバイトの @test 名はこのファイル自身をルールに当てないよう、8 進のエスケープで作る
-    printf '@test "\343\201\202" {\n    true\n}\n' > "$FIXTURE/home/.config/example/hidden.bats"
+    printf 'ruleDirs:\n  - rules\n' > "$FIXTURE/sgconfig.yml"
+    printf 'id: hidden-probe\nlanguage: bash\nseverity: error\nrule:\n  pattern: hidden_probe_marker\n' \
+        > "$FIXTURE/rules/hidden-probe.yml"
+    printf 'hidden_probe_marker\n' > "$FIXTURE/home/.config/example/hidden.sh"
 }
 
-teardown() {
-    if [ -n "${FIXTURE:-}" ]; then
-        rm -rf "$FIXTURE"
-    fi
-}
-
-@test "with no-ignore hidden the scan reports a violation under a hidden directory" {
-    run bash -c "cd '$FIXTURE' && ast-grep scan --no-ignore hidden 2>&1"
-    assert_contains "$output" "bats-test-name-ascii-only"
-    assert_contains "$output" "hidden.bats"
-
-    run bash -c "cd '$FIXTURE' && ast-grep scan --no-ignore hidden >/dev/null 2>&1"
+@test "with no-ignore hidden the scan visits and reports a file under a hidden directory" {
+    run_in_dir "$FIXTURE" ast-grep scan --no-ignore hidden --inspect summary
     [ "$status" -eq 1 ] || return 1
+    assert_contains "$output" "scannedFileCount=1"
+    assert_contains "$output" "hidden.sh"
 }
 
-@test "without no-ignore hidden the scan silently sees nothing" {
-    # なぜ --no-ignore hidden が要るのかを実行可能な事実として残す。
+@test "without no-ignore hidden the scan silently visits nothing" {
+    # なぜ --no-ignore hidden が要るのかを実行可能な事実として残す。違反が出ないことだけでは
+    # 「見ていない」と「見たが一致しない」を区別できないので、走査した件数で見る。
     # ast-grep が既定で隠しディレクトリを飛ばさなくなったら、このテストが赤くなって教えてくれる
-    run bash -c "cd '$FIXTURE' && ast-grep scan 2>&1"
-    refute_contains "$output" "bats-test-name-ascii-only"
-
-    run bash -c "cd '$FIXTURE' && ast-grep scan >/dev/null 2>&1"
+    run_in_dir "$FIXTURE" ast-grep scan --inspect summary
     [ "$status" -eq 0 ] || return 1
+    assert_contains "$output" "scannedFileCount=0"
 }
 
 @test "every ast-grep scan invocation searches hidden directories" {
-    # --no-ignore hidden が無いと、隠しディレクトリ配下にルールの対象を足したとき 1 件も
-    # 検査しないまま緑になる。走査の挙動は上のテストが守るが、呼び出し側の配線を守るのは
-    # ここだけである。
+    # --no-ignore hidden が無いと、隠しディレクトリ配下 (home/.claude や home/.config) の
+    # ファイルを 1 件も検査しないまま緑になる。走査の挙動は上のテストが守るが、呼び出し側の
+    # 配線を守るのはここだけである。
     #
     # 配線は YAML を safe_load して構造として読む (規範は home/.claude/rules/testing-practices.md)。
     require_command_or_skip uv || return 1

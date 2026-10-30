@@ -256,8 +256,7 @@ repos:
       #
       # 拡張子だけで選ぶと、拡張子を持てないファイルが「エラー」ではなく無検査として黙って
       # 外れる。scripts/apm-guard/apm は PATH 横取りのため apm という名前でなければならず、
-      # 拡張子を付けられない。他にも追跡下の拡張子無しスクリプトが残っているが、それらは
-      # 今回の変更で触っていないため別 Issue で扱う。
+      # 拡張子を付けられない。他にも追跡下の拡張子無しスクリプトが、この対象集合の外に残っている。
       # -x は source 先を追う指定で、-P SCRIPTDIR がその探索起点をスクリプトの位置にする
       # (既定は cwd なので、shim が隣の lib.sh を source する形が解決できない)。
       - id: shellcheck
@@ -280,12 +279,8 @@ repos:
   # 標準 hook。CLAUDE.md の「末尾は改行1つ」「行末空白なし/ノイズ0」を prose でなくツールで担保する。
   # この2 hook は cosmetic (機能に無影響) ゆえ pre-commit-only とし CI ミラーは張らない (--no-verify で main に
   # 載っても実害なく次に当該ファイルを pre-commit 経由で編集した時に是正)。実バグ検出値のある shellcheck のみ CI backstop を持つ。
-  # exclude: svg は text/XML ゆえ types:[text] に該当し正規化対象になるので除外が要る。
-  # png/af は identify が binary 判定し既に除外されるが、拡張子未登録の af は内容判定依存のため明示で破損を防ぐ。
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: cef0300fd0fc4d2a87a85fa2093c6b283ea36f4b  # frozen: v5.0.0
     hooks:
       - id: end-of-file-fixer
-        exclude: &asset_exclude '\.(png|af|svg)$'
       - id: trailing-whitespace
-        exclude: *asset_exclude

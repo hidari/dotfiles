@@ -53,9 +53,9 @@ status: closed
 ## 結果 (2026-10-30)
 
 - PR 1 (PR #289) で旧 herdr を撤去し、herdr-app の keys.json と mod を配り始めた。置き換えた config-guard の検査は、旧検査が持っていた前後の向きの整合も引き継いでいる
-- PR 2 で nvim を撤去した。ast-grep の `--no-ignore hidden` は、隠しディレクトリ配下の対象が今は無いが残した。外すと、隠しディレクトリへルールの対象を足したときに 1 件も見ないまま緑になるため (`scripts/tests/ast-grep.bats` が残るルールで pin する)
-- bootstrap の `prune_stale_symlinks` は、nvim の対応を外すと `~/.config` 直下を見なくなった (走査先が「今の対応の行き先の親」だけで、`~/.config` 直下を行き先にしていたのが nvim の 1 本だった)。ユーザー裁定で、親に加えて祖先を `$HOME` まで見る形にした
-- ホスト側 (2026-10-30、ユーザーの裁定どおり): `~/.config/nvim` の symlink を外し、Homebrew の neovim とその依存、tree-sitter と tree-sitter-cli を uninstall した。luajit (wrk が使う) と lua (wireshark が使う) は残る。`~/.local/share/nvim` / `~/.local/state/nvim` / `~/.cache/nvim` を消した
+- PR 2 で nvim を撤去した。ast-grep の `--no-ignore hidden` は残した。nvim の Lua が消えても、隠しディレクトリ配下の 2 ファイル (`home/.claude/statusline-command.sh` と `home/.config/raycast/scripts/toggle-reference-mode.sh`) は対象のパスを絞らないルールの走査に入っている (今のルールで違反になりうるものは無い)。外すとこれらを 1 件も見ないまま緑になる。フラグが要ることは `scripts/tests/ast-grep.bats` が走査した件数で pin する
+- bootstrap の `prune_stale_symlinks` は、nvim の対応を外すと `~/.config` 直下を見なくなった (走査先が「今の対応の行き先の親」だけで、`~/.config` 直下を行き先にしていたのが nvim の 1 本だった)。ユーザー裁定で、親に加えて祖先を `$HOME` まで見る形にした。これで拾えるのは祖先へ直接張った残骸だけで、旧 herdr のようにツールのディレクトリの中に張った残骸は拾えない (Issue 33 に追記した)
+- ホスト側 (2026-10-30、ユーザーの裁定どおり): `~/.config/nvim` の symlink を外し、Homebrew の neovim とその依存、tree-sitter と tree-sitter-cli を uninstall した。luajit と lua は他の formula の依存として残る。`~/.local/share/nvim` / `~/.local/state/nvim` / `~/.cache/nvim` を消した
 - 旧 herdr 本体 (Homebrew の herdr と `~/.config/herdr/`) の停止と削除はユーザーが行う
 
 ## 関連

@@ -62,7 +62,7 @@ ISSUE-53 は、配布先の母数の定義から始まる。この Issue が見�
 
 ### 2026-10-30 の変化
 
-ISSUE-139 で nvim を撤去し、`.github/actions/setup-neovim` も消えた。curl で取得して版と sha256 を固定している composite は、ast-grep、mise、bats、gitleaks の4つになる。
+ISSUE-139 で nvim を撤去し、`.github/actions/setup-neovim` も消えた。curl で取得して版をシェル変数で固定している composite は、ast-grep、mise、bats、gitleaks の4つになる。背景の一覧は5つとも sha256 で固定しているように書いているが、bats は commit SHA で固定していて sha256 の検証を持たない (2026-10-30 に setup-bats/action.yml を読んで確かめた)。
 
 ## 決めること
 
