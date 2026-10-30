@@ -1,6 +1,6 @@
 """herdr_app_keys の仕様テスト。
 
-keys.json の静的な検査 (JSON の構文とキーの重複) と、herdr-app の一覧に照らす検査
+keys.json の静的な検査 (JSON の構文、キーの重複、前後の向き) と、herdr-app の一覧に照らす検査
 (アクションの解決と mod.open の宛先)、一覧の取得 (副作用) を検証する。
 """
 
@@ -20,20 +20,19 @@ from config_guard.herdr_app_keys import (
     check_herdr_app_keys,
     read_app_inventory,
 )
-from tests.conftest import write_fake_binary
+from tests.conftest import write_fake_binary, write_file
 
 # 組み込みコマンドの一覧の一部。実物は `herdr-app commands` が返す
 COMMANDS = frozenset({"tab.next", "pane.go", "mod.open", "layout.toggle", "terminal.copy"})
 
 
-def _write_keys(repo: Path, text: str) -> None:
-    path = repo / KEYS_PATH
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
-
-
 def _write_bindings(repo: Path, bindings: dict[str, dict[str, str]]) -> None:
-    _write_keys(repo, json.dumps(bindings))
+    write_file(repo, KEYS_PATH, json.dumps(bindings))
+
+
+def _no_app() -> AppInventory | None:
+    """herdr-app が無い環境 (CI) の一覧。照合は skip され、静的な検査だけが走る。"""
+    return None
 
 
 def _track_mod(repo: Path, name: str) -> None:
@@ -71,33 +70,37 @@ def test_check_passes_on_valid_keys(tmp_path: Path) -> None:
 
 
 def test_check_reports_unparsable_json(tmp_path: Path) -> None:
-    _write_keys(tmp_path, '{"global": {"cmd-u": "tab.next",}}')
+    write_file(tmp_path, KEYS_PATH, '{"global": {"cmd-u": "tab.next",}}')
 
-    findings = check_herdr_app_keys(str(tmp_path))
+    findings = check_herdr_app_keys(str(tmp_path), _no_app)
 
     assert [(f.source, f.detail) for f in findings] == [(KEYS_PATH, "JSON")]
 
 
 def test_check_reports_duplicate_key_within_a_section(tmp_path: Path) -> None:
     # JSON の重複キーは読み手が黙って後勝ちにするので、前の割り当てが消えたことに気づけない
-    _write_keys(tmp_path, '{"global": {"cmd-u": "tab.next", "cmd-u": "pane.go:left"}}')
+    write_file(tmp_path, KEYS_PATH, '{"global": {"cmd-u": "tab.next", "cmd-u": "pane.go:left"}}')
 
-    findings = check_herdr_app_keys(str(tmp_path))
+    findings = check_herdr_app_keys(str(tmp_path), _no_app)
 
     assert [f.detail for f in findings] == ["global.cmd-u"]
 
 
 def test_check_allows_same_key_in_different_sections(tmp_path: Path) -> None:
     # セクションが違えば別の割り当て (より具体的なセクションが勝つ) なので重複ではない
-    _write_keys(tmp_path, '{"global": {"cmd-u": "tab.next"}, "terminal": {"cmd-u": "tab.next"}}')
+    write_file(
+        tmp_path, KEYS_PATH, '{"global": {"cmd-u": "tab.next"}, "terminal": {"cmd-u": "tab.next"}}'
+    )
 
-    assert check_herdr_app_keys(str(tmp_path)) == []
+    assert check_herdr_app_keys(str(tmp_path), _no_app) == []
 
 
 def test_check_reports_duplicate_section(tmp_path: Path) -> None:
-    _write_keys(tmp_path, '{"global": {"cmd-u": "tab.next"}, "global": {"cmd-d": "tab.next"}}')
+    write_file(
+        tmp_path, KEYS_PATH, '{"global": {"cmd-u": "tab.next"}, "global": {"cmd-d": "tab.next"}}'
+    )
 
-    assert [f.detail for f in check_herdr_app_keys(str(tmp_path))] == ["global"]
+    assert [f.detail for f in check_herdr_app_keys(str(tmp_path), _no_app)] == ["global"]
 
 
 @pytest.mark.parametrize(
@@ -105,12 +108,62 @@ def test_check_reports_duplicate_section(tmp_path: Path) -> None:
 )
 def test_check_reports_unexpected_shape(tmp_path: Path, text: str) -> None:
     # 最上位はセクションのオブジェクト、各セクションはキーから文字列への対応でなければならない
-    _write_keys(tmp_path, text)
+    write_file(tmp_path, KEYS_PATH, text)
 
-    findings = check_herdr_app_keys(str(tmp_path))
+    findings = check_herdr_app_keys(str(tmp_path), _no_app)
 
     assert len(findings) == 1
     assert findings[0].source == KEYS_PATH
+
+
+def test_check_passes_consistent_directions(tmp_path: Path) -> None:
+    _write_bindings(
+        tmp_path,
+        {
+            "global": {
+                "cmd-shift-]": "tab.next",
+                "cmd-alt-[": "space.prev",
+                "cmd-ctrl-]": "mod.open:pane-next",
+                "cmd-ctrl-[": "mod.open:pane-prev",
+                # 向きを持たないキーは判定しない
+                "ctrl-tab": "tab.next",
+                # 向きを持たないアクションは判定しない (pane.go の向きは値が持つ)
+                "cmd-alt-left": "pane.go:left",
+            }
+        },
+    )
+
+    assert check_herdr_app_keys(str(tmp_path), _no_app) == []
+
+
+def test_check_reports_reversed_directions(tmp_path: Path) -> None:
+    # 実際に踏んだ取り違え: 次へのアクションに [ が、前へのアクションに ] が割り当たっている
+    _write_bindings(
+        tmp_path,
+        {
+            "global": {
+                "cmd-shift-[": "tab.next",
+                "cmd-ctrl-]": "mod.open:pane-prev",
+                "cmd-alt-left": "agent.next",
+            }
+        },
+    )
+
+    details = {f.detail for f in check_herdr_app_keys(str(tmp_path), _no_app)}
+
+    assert details == {
+        "global.cmd-shift-[ = tab.next",
+        "global.cmd-ctrl-] = mod.open:pane-prev",
+        "global.cmd-alt-left = agent.next",
+    }
+
+
+def test_check_judges_a_sequence_by_its_last_keystroke(tmp_path: Path) -> None:
+    _write_bindings(tmp_path, {"global": {"cmd-k ]": "space.prev", "cmd-[ ]": "space.next"}})
+
+    details = [f.detail for f in check_herdr_app_keys(str(tmp_path), _no_app)]
+
+    assert details == ["global.cmd-k ] = space.prev"]
 
 
 # ---------------------------------------------------------------------------
@@ -118,16 +171,10 @@ def test_check_reports_unexpected_shape(tmp_path: Path, text: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_check_skips_app_checks_without_reader(tmp_path: Path) -> None:
-    _write_bindings(tmp_path, {"global": {"cmd-u": "no.such.command"}})
-
-    assert check_herdr_app_keys(str(tmp_path)) == []
-
-
 def test_check_skips_app_checks_when_app_is_absent(tmp_path: Path) -> None:
     _write_bindings(tmp_path, {"global": {"cmd-u": "no.such.command"}})
 
-    assert check_herdr_app_keys(str(tmp_path), lambda: None) == []
+    assert check_herdr_app_keys(str(tmp_path), _no_app) == []
 
 
 def test_check_reports_unknown_action(tmp_path: Path) -> None:
@@ -181,9 +228,13 @@ def test_check_accepts_mod_open_to_tracked_mod(tmp_path: Path) -> None:
 
 
 def test_check_reports_mod_open_without_name(tmp_path: Path) -> None:
+    # 値の無い mod.open は宛先が空の名前になり、宛先の検査が報告する
     _write_bindings(tmp_path, {"global": {"cmd-u": "mod.open"}})
 
-    assert len(check_herdr_app_keys(str(tmp_path), lambda: _inventory())) == 1
+    findings = check_herdr_app_keys(str(tmp_path), lambda: _inventory())
+
+    assert [f.detail for f in findings] == ["global.cmd-u = mod.open"]
+    assert "mod ''" in findings[0].message
 
 
 def test_check_reports_inventory_error(tmp_path: Path) -> None:
@@ -200,7 +251,7 @@ def test_check_reports_inventory_error(tmp_path: Path) -> None:
 
 
 def test_check_runs_static_checks_alongside_app_checks(tmp_path: Path) -> None:
-    _write_keys(tmp_path, '{"global": {"cmd-u": "tab.nxet", "cmd-u": "tab.next"}}')
+    write_file(tmp_path, KEYS_PATH, '{"global": {"cmd-u": "tab.nxet", "cmd-u": "tab.next"}}')
 
     details = {f.detail for f in check_herdr_app_keys(str(tmp_path), lambda: _inventory())}
 
@@ -221,7 +272,6 @@ def _fake_app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str) -> Pat
     monkeypatch.setenv("PATH", str(bin_dir))
     home = tmp_path / "app-home"
     (home / "mods" / "picker").mkdir(parents=True)
-    (home / "mods" / "stray-file").parent.mkdir(exist_ok=True)
     (home / "mods" / "stray-file").write_text("", encoding="utf-8")
     monkeypatch.setenv("HERDR_APP_HOME", str(home))
     return home

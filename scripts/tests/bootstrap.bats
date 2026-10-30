@@ -808,7 +808,7 @@ uncovered_symlink_targets() {
 
     # home/ 配下だが意図的に symlink しないファイルの allowlist (canonical)。各行に理由を書く。
     local -a unmanaged=(
-        "home/.gitignore"                              # home/ サブツリーの gitignore (apm 生成物を ignore)
+        "home/.gitignore"                              # home/ サブツリーの gitignore (生成物を ignore)
         "home/.gitconfig.private.example"              # private gitconfig のテンプレ (copy_if_not_exists で配置, symlink 対象外)
         "home/apm.yml"                                 # apm install が bootstrap で読む manifest
         "home/apm.lock.yaml"                           # apm lockfile (deployed_files の真実源)

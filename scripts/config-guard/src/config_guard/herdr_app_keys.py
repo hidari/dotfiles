@@ -10,8 +10,11 @@ herdr-app は keys.json の不正な chord と未知のセクションを keys.e
 在るかまで見る。組み込みコマンドの一覧と shipped の mod は herdr-app が持つので、この 2 つは
 herdr-app がある環境でだけ検査する (CI には無いので skip される)。
 
-JSON の構文とキーの重複はファイルだけで判定できるので、どこでも検査する。同じセクションに
-同じキーを 2 度書くと読み手は黙って後勝ちにするので、前の割り当てが消えたことに気づけない。
+JSON の構文とキーの重複と前後の向きはファイルだけで判定できるので、どこでも検査する。同じ
+セクションに同じキーを 2 度書くと読み手は黙って後勝ちにするので、前の割り当てが消えたことに
+気づけない。前後の向きは、次へ (`.next` / `-next`) と前へ (`.prev` / `-prev`) のアクションに
+付けたキーの最終キーが向き (`]` と `[` など) と合っているかを見る。逆向きでも herdr-app は
+何も言わず、押して初めて気づく (旧 herdr の設定で実際に取り違えた)。
 """
 
 from __future__ import annotations
@@ -23,6 +26,7 @@ from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from config_guard.models import Finding
 
@@ -35,6 +39,13 @@ _SEND_PREFIX = "send:"
 _TERMINAL_ACTION = "terminal"
 _MOD_OPEN = "mod.open"
 _INVENTORY_LABEL = "herdr-app commands"
+
+# chord の最終キーが表す向き。修飾キーは向きを持たないので見ない。tab や数字のように向きを
+# 持たないキーは判定対象外にして、false positive を出さない
+_BACKWARD_KEYS = frozenset({"[", "left", "up", "h", "k"})
+_FORWARD_KEYS = frozenset({"]", "right", "down", "j", "l"})
+_BACKWARD = "prev"
+_FORWARD = "next"
 
 # `herdr-app commands` の待ち時間。実物は窓が無くても即座に返すが、テストが chmod +x した
 # ばかりの fake を起動すると macOS の初回検査で待たされうるので、テスト側から緩められるよう
@@ -85,10 +96,13 @@ def _parse_commands(stdout: str) -> frozenset[str]:
         raise AppInventoryError(f"JSON として読めません: {error}") from error
     if not isinstance(entries, list) or not entries:
         raise AppInventoryError("コマンドの配列ではありません")
-    names = [entry.get("name") if isinstance(entry, dict) else None for entry in entries]
-    if not all(isinstance(name, str) for name in names):
-        raise AppInventoryError("name を持たない要素があります")
-    return frozenset(name for name in names if isinstance(name, str))
+    names: set[str] = set()
+    for entry in entries:
+        name = entry.get("name") if isinstance(entry, dict) else None
+        if not isinstance(name, str):
+            raise AppInventoryError("name を持たない要素があります")
+        names.add(name)
+    return frozenset(names)
 
 
 def read_app_inventory() -> AppInventory | None:
@@ -150,30 +164,61 @@ def _parse_keys(text: str) -> tuple[dict[str, dict[str, str]], list[Finding]]:
             )
             continue
         findings.extend(_duplicates(body, f"{section}."))
-        sections[section] = {key: str(value) for key, value in body}
+        sections[section] = cast(dict[str, str], dict(body))
     return sections, findings
 
 
-def _action_problem(
-    action: str, inventory: AppInventory, tracked_mods: frozenset[str]
-) -> str | None:
+def _action_direction(action: str) -> str | None:
+    """アクションが表す向き。`tab.next` は名前が、`mod.open:pane-next` は値が持つ。"""
+    name, _, value = action.partition(":")
+    for direction in (_BACKWARD, _FORWARD):
+        if name.endswith(f".{direction}") or value.endswith(f"-{direction}"):
+            return direction
+    return None
+
+
+def _key_direction(chord: str) -> str | None:
+    """chord の最終キーが表す向き。シーケンスは最後の 1 打で見る。"""
+    key = chord.split(" ")[-1].rsplit("-", 1)[-1]
+    if key in _BACKWARD_KEYS:
+        return _BACKWARD
+    if key in _FORWARD_KEYS:
+        return _FORWARD
+    return None
+
+
+def _check_directions(sections: dict[str, dict[str, str]]) -> list[Finding]:
+    findings: list[Finding] = []
+    for section, bindings in sections.items():
+        for key, action in bindings.items():
+            expected, actual = _action_direction(action), _key_direction(key)
+            if expected is not None and actual is not None and expected != actual:
+                findings.append(
+                    Finding(
+                        KEYS_PATH,
+                        f"{section}.{key} = {action}",
+                        f"{expected} 方向のアクションに {actual} 方向のキーが割り当てられています",
+                    )
+                )
+    return findings
+
+
+def _action_problem(action: str, inventory: AppInventory, known_mods: frozenset[str]) -> str | None:
     """アクションが解決しない理由。解決するなら None。"""
     if action == _TERMINAL_ACTION or action.startswith(_SEND_PREFIX):
         return None
     name, _, value = action.partition(":")
     if name not in inventory.commands:
         return f"{name} は herdr-app の組み込みコマンドではありません"
-    if name == _MOD_OPEN and value not in tracked_mods | inventory.mods:
-        return f"mod {value!r} が追跡下の {MODS_DIR} にも live の mods/ にもありません"
+    if name == _MOD_OPEN and value not in known_mods:
+        return f"mod {value!r} がリポジトリの {MODS_DIR} にも live の mods/ にもありません"
     return None
 
 
-def check_herdr_app_keys(
-    repo_root: str, inventory_reader: InventoryReader | None = None
-) -> list[Finding]:
+def check_herdr_app_keys(repo_root: str, inventory_reader: InventoryReader) -> list[Finding]:
     """keys.json を検査する。keys.json が無い場合は検査対象なしで空を返す。
 
-    inventory_reader が渡され、一覧が取れた場合だけアクションの解決を検査する。
+    アクションの解決は、inventory_reader が一覧を返したときだけ検査する。
     """
     root = Path(repo_root)
     keys = root / KEYS_PATH
@@ -181,8 +226,7 @@ def check_herdr_app_keys(
         return []
 
     sections, findings = _parse_keys(keys.read_text(encoding="utf-8"))
-    if inventory_reader is None:
-        return findings
+    findings += _check_directions(sections)
     try:
         inventory = inventory_reader()
     except AppInventoryError as error:
@@ -190,10 +234,10 @@ def check_herdr_app_keys(
     if inventory is None:
         return findings
 
-    tracked_mods = _mod_names(root / MODS_DIR)
+    known_mods = _mod_names(root / MODS_DIR) | inventory.mods
     for section, bindings in sections.items():
         for key, action in bindings.items():
-            problem = _action_problem(action, inventory, tracked_mods)
+            problem = _action_problem(action, inventory, known_mods)
             if problem is not None:
                 findings.append(Finding(KEYS_PATH, f"{section}.{key} = {action}", problem))
     return findings

@@ -8,7 +8,7 @@
 - `home/apm.lock.yaml` の deployed_files が gitignore されているか（追記漏れ）
 - `home/.config/mise/config.toml` の global ツール pin が exact か
 - `home/apm.yml` の依存 pin が commit SHA で固定され、同一リポジトリを指す行どうしと `home/apm.lock.yaml` が記録する実配置で揃っているか
-- `home/.config/herdr-app/keys.json` の keybinding（JSON の構文とキーの重複、アクションが herdr-app の組み込みコマンドと mod に解決するか）
+- `home/.config/herdr-app/keys.json` の keybinding（JSON の構文とキーの重複、`next` / `prev` のアクションとキーの向きの整合、アクションが herdr-app の組み込みコマンドと mod に解決するか）
 - 追跡下の Markdown（`git ls-files '*.md'`）の相対リンクが実在するか（Issue を `closed/` へ移すと両端のリンクが切れる）
 - 常時ロードされる指示ファイル（`home/.claude/CLAUDE.md` と `paths` を持たない `home/.claude/rules/*.md`）の総バイト数が予算内か
 
@@ -20,4 +20,4 @@ uv run config-guard /path/to/repo-root
 
 リンク検査は散文中のリンク記法を実リンクとして解決する。記法を例として書きたいときはインラインコードかバッククォートのコードフェンスで囲むこと（コード領域は検査対象外）。
 
-keys.json のアクションの解決は herdr-app が持つ一覧（`herdr-app commands` と live の mod）に照らすので、herdr-app が入っていない環境（CI）では自動的に skip される。JSON の構文とキーの重複はどこでも走る。
+keys.json のアクションの解決は herdr-app が持つ一覧（`herdr-app commands` と live の mod）に照らすので、herdr-app が入っていない環境（CI）では自動的に skip される。JSON の構文・キーの重複・向きの整合はどこでも走る。

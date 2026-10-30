@@ -14,7 +14,7 @@ hook_git を通して子プロセスを起動するので純関数ではない�
 
 shim の解決そのものは guard_resolve.py (leaf) が持つ。あちらは PreToolUse (強制層) が
 ホットパスで import するため軽量に保つ必要があり、こちらは SessionStart (セッションに 1 回)
-からしか呼ばれないので subprocess / dataclasses を import してよい。
+からしか呼ばれないので、subprocess を起動する hook_git や dataclasses を import してよい。
 
 フックからは sys.path[0] (スクリプトのディレクトリ) 経由で解決される。
 """
