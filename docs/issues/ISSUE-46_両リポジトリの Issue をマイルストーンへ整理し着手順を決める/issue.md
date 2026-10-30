@@ -89,14 +89,14 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | # | マイルストーン | 指す Issue |
 | --- | --- | --- |
 | M1 | Issue 維持コストの原因を消す | Issue 43、ISSUE-52、ISSUE-74 |
-| M2 | 検査を配布先で走る状態にする | ISSUE-53、ISSUE-72、ISSUE-97、ISSUE-101、ISSUE-121、ISSUE-138、agentic-coding-tools の ISSUE-32 |
+| M2 | 検査を配布先で走る状態にする | ISSUE-53、ISSUE-72、ISSUE-97、ISSUE-101、ISSUE-121、ISSUE-138、ISSUE-141、agentic-coding-tools の ISSUE-32 |
 | M3 | skill バンドルの二重登録を止める | Issue 40、ISSUE-128 |
 | M4 | PUBLIC 露出の scrub | Issue 21、ISSUE-87 |
 | M5 | 静的検査の基盤を寄せ射程の穴を塞ぐ | Issue 39、Issue 30、ISSUE-57、ISSUE-60、Issue 41、ISSUE-47、Issue 17、Issue 18、ISSUE-75、ISSUE-90、ISSUE-94、ISSUE-98、ISSUE-110、ISSUE-112、ISSUE-122、ISSUE-113 |
 | M6 | winvm の実装品質 | 上流の winvm 系 Issue |
 | M7 | 環境とテスト網の個別 | 下の細分表 |
 | M8 | CI の必須チェックを実効化する | ISSUE-50 |
-| M9 | フックの共通基盤とガードの穴 | Issue 26、ISSUE-58、ISSUE-67、ISSUE-71、ISSUE-66、ISSUE-83、ISSUE-84、ISSUE-119、ISSUE-124、ISSUE-130 |
+| M9 | フックの共通基盤とガードの穴 | Issue 26、ISSUE-58、ISSUE-67、ISSUE-71、ISSUE-66、ISSUE-83、ISSUE-84、ISSUE-119、ISSUE-124、ISSUE-130、ISSUE-142 |
 | M10 | 規範層の構造を直す | ISSUE-48、ISSUE-61、ISSUE-88、ISSUE-100、ISSUE-108 |
 | M11 | セッションの取り違えを検出する | ISSUE-78、ISSUE-82、ISSUE-91 |
 | M12 | 受け箱の知見を行き先へ渡す | ISSUE-132、ISSUE-133、ISSUE-134 |
@@ -114,7 +114,7 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | Raycast | Issue 22、Issue 23 |
 | PowerShell | Issue 27、Issue 28 |
 | コンテナ | ISSUE-118、ISSUE-127 |
-| 単独 | Issue 31、Issue 33、ISSUE-51、ISSUE-95、ISSUE-109、ISSUE-114、ISSUE-116、ISSUE-123、ISSUE-125、ISSUE-136 |
+| 単独 | Issue 31、Issue 33、ISSUE-51、ISSUE-95、ISSUE-109、ISSUE-114、ISSUE-116、ISSUE-123、ISSUE-125、ISSUE-136、ISSUE-140 |
 
 ### 数え方
 
@@ -152,6 +152,12 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
   `git show <ref>:<path>` で読む。数えた SHA は「件数の推移」節に残す。並行するセッションが上流の
   作業ツリーを feature ブランチへ切り替えていると、その枝でだけ status が動いた Issue の分がずれる
   (2026-09-17 に実例がある)
+
+### 割り当ての検算 (2026-10-31、ISSUE-140、ISSUE-141、ISSUE-142 の起票の後)
+
+dotfiles の active な Issue は76件 (open が74件、in_progress が2件) で、その全件がいずれかのマイルストーンへ入ることを、この変更の tree で数えて確かめた。M2 は7件 (dotfiles 側のみ)、M9 は11件、M7 は22件になり、ほかのマイルストーンの件数は下の検算から動いていない。この Issue 自身の1件と合わせて76件になる。表の腐りは0件、未割り当てはこの Issue 自身の1件だけだった。
+
+下の検算からの動きは、受け箱の仕分けで起票した ISSUE-140 を M7 の単独へ、ISSUE-141 を M2 へ、ISSUE-142 を M9 へ入れたこと。所属はユーザーが決めた。ISSUE-141 は同じ M2 の ISSUE-72 と同じく取り付け対象の一覧を扱い、ISSUE-142 は同じ M9 の ISSUE-124 と同じく PreToolUse の Bash に載る hook を扱う。
 
 ### 割り当ての検算 (2026-10-23、ISSUE-137 のクローズの後)
 
