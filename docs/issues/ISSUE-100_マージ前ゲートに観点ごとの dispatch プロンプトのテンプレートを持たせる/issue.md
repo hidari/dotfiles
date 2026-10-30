@@ -120,7 +120,7 @@ status: open
 
 ## 関連
 
-- ISSUE-99: 同じ委譲元からの依頼 (plan のコード片)
+- ISSUE-99 (closed): 同じ委譲元からの依頼 (plan のコード片)
 - agentic-coding-tools の ISSUE-47: gate の起動数の写し。テンプレート化で置き場が動く
 - agentic-coding-tools の ISSUE-33: gate の出力フォーマット節が空虚な合格を許す件。受け欄の形に関わる
 - agentic-coding-tools の ISSUE-59: E2E の skip の根拠が集約出力へ流れない件。skip の根拠を受ける形を決めるタスクを持ち、受け欄の形に関わる

@@ -42,6 +42,6 @@ ISSUE-126 で入れた送る側の hook (`home/.claude/hooks/feedbacks-outbox.py
 
 ## 関連
 
-- ISSUE-126: feedbacks-outbox を入れた Issue。保留の判断はその最終レビューで行った
-- ISSUE-129: in-repo-issue のクローズの理由の節の規約。この Issue を直さずに閉じるときの書き方もそちらで決まる
+- ISSUE-126 (closed): feedbacks-outbox を入れた Issue。保留の判断はその最終レビューで行った
+- ISSUE-129 (closed): in-repo-issue のクローズの理由の節の規約。この Issue を直さずに閉じるときの書き方もそちらで決まった
 - ISSUE-141: リポジトリと作業ディレクトリの改名の手順。セッションの外で動かす理由をこの Issue から引く

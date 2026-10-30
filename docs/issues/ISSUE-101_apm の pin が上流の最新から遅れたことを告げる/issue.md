@@ -75,19 +75,19 @@ ISSUE-139 で nvim を撤去し、`.github/actions/setup-neovim` も消えた。
 
 ## 決めること
 
-- **対象の範囲。**manifest は agentic-coding-tools のほかに、第三者の上流 (mizchi/skills と
+- 対象の範囲。manifest は agentic-coding-tools のほかに、第三者の上流 (mizchi/skills と
   yusukebe/ax) も SHA で pin している。mizchi/skills は別製品の接頭辞付き tag しか持たないので、
   tag の差では距離を表せない。GitHub Actions の pin は、dotfiles では Dependabot で扱うと決めた。ISSUE-97 で開発環境のベースを配る先のリポジトリも Dependabot に揃えるか、CI の費用に合わせて別の経路にするかは未決
-- **基準点。**上流 main か、最新の release か。spec の報告項目は main との距離で、release を
+- 基準点。上流 main か、最新の release か。spec の報告項目は main との距離で、release を
   切った直後以外は両者が分かれる。決めた方へ、ISSUE-53 の記述も揃える
-- **鳴る条件と黙る条件。**agentic-coding-tools の release は 0.x で、毎回 minor が上がる。前例の
+- 鳴る条件と黙る条件。agentic-coding-tools の release は 0.x で、毎回 minor が上がる。前例の
   互換範囲の規則をそのまま写すと、v0.7.0 から v0.8.0 は単独では黙る。release ごとに鳴らすと、
   pin を上げるまで通知が開く。前例も更新を取り込めば閉じるので、常時開くのは pin を意図して
   上げない場合に限る。黙らせる軸は、前例と同じく閉じる条件が成り立つかで選ぶ
-- **pin の版の読み方。**pin の行末の tag 注記は手書きで、上流 ISSUE-36 は同じ形の注記が実体と
+- pin の版の読み方。pin の行末の tag 注記は手書きで、上流の agentic-coding-tools の ISSUE-36 は同じ形の注記が実体と
   食い違っていた記録を持つ。版は SHA から導出し、注記を判定に使わない形にするか。注記を
   残すなら、SHA との食い違いの検出もこの Issue が持つ
-- **告げる経路と、上流との分担。**
+- 告げる経路と、上流との分担。
   - 上流の release 手順に役割を持たせるか、dotfiles 側の pull だけで持つか。pull だけで持つなら、
     上流 ISSUE-32 の層 0 のこの行を引き取ったことを上流へ伝えるかも決める
   - pull の候補は、週次の CI、LaunchAgent、SessionStart のプローブ
@@ -95,7 +95,7 @@ ISSUE-139 で nvim を撤去し、`.github/actions/setup-neovim` も消えた。
   - SessionStart なら、ISSUE-83 と ISSUE-71 が先に効く。上流への問い合わせが要るので、待ち時間の
     上限と、オフラインを「見ていない」として出す形も決める
   - ここで決めた経路を、ISSUE-97 の写しの告知も使えるか
-- **添える中身。**中身を添えない警報は、中身を見ないまま更新を促す装置になる。上流の release
+- 添える中身。中身を添えない警報は、中身を見ないまま更新を促す装置になる。上流の release
   手順は、release note に配布物の変更一覧と前回 tag からの commit range を必ず入れると定めている
   ので、pin の tag から最新 tag までの release note を引ける。自前で commit range と touched paths
   の要約を作るなら、ISSUE-53 の「由来 SHA が古い」の報告と共有し、先に作った側の形をもう一方が使う
@@ -120,4 +120,4 @@ ISSUE-139 で nvim を撤去し、`.github/actions/setup-neovim` も消えた。
 - ISSUE-83 と ISSUE-71: SessionStart で告げる形を採るときの前提
 - agentic-coding-tools の ISSUE-32: 層 0 と層 3 の両方に pin の鮮度を置いている
 - agentic-coding-tools の ISSUE-36: 型 6 (配布層自体) の 1 回目の実例を持つ
-- ISSUE-139: nvim を撤去した。setup-neovim の composite はそこで消えた
+- ISSUE-139 (closed): nvim を撤去した。setup-neovim の composite はそこで消えた

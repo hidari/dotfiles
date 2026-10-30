@@ -45,6 +45,6 @@ Hidari は、k16shikano の gist にある `japanese-tech-writing` skill (https:
 
 ## 関連
 
-ISSUE-106: F08 と文中の改行の扱いをここへ切り出した
+ISSUE-106 (closed): F08 と文中の改行の扱いをここへ切り出した
 
 ISSUE-110: references と常時層の重なりの検査。文の切り出しが文中の改行の扱いに関係する
