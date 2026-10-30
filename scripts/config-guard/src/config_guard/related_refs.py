@@ -112,7 +112,6 @@ _LINK_BASELINE_ENTRIES: dict[str, int] = {
     "33_設定から外した Claude 設定ディレクトリの symlink が撤去されない/issue.md": 2,
     "34_cppath 関数のテストを追加する/issue.md": 1,
     "39_config-guard の Markdown フェンス走査を 1 実装へ寄せる/issue.md": 2,
-    "40_skill バンドルの command と agent の二重登録を止める/issue.md": 2,
     "41_語の検査の近似を減らし免除の粒度を上げる/issue.md": 1,
     "closed/10_タスクリスト ID を作業ディレクトリから自動導出する/issue.md": 1,
     "closed/13_保留にしたタスクリスト統合 3 本を適用する/issue.md": 1,

@@ -96,6 +96,14 @@ Docker.app と OrbStack は外す (2026-10-10にユーザーが決定)。OrbStac
 
 報告者の提案は、ネイティブのランタイムを検討するときは先に `content_path` の有無を grep すること。
 
+## 受け箱から届いた OrbStack の不具合 (2026-10-31の仕分け)
+
+別のリポジトリのセッションの報告で、dotfiles では確かめていない。移行を決めるときの OrbStack 側の材料にあたる。
+
+- macOS の OrbStack で、長いブラウザ E2E の途中からホスト側の経路 (netstat の OrbStack のサブネット) と `*.orb.local` のリゾルバ (`scutil --dns`) が消え、ホストのプロセスがコンテナへ届かなくなった。`orbctl stop` → `orbctl start` で戻るが、compose のコンテナは自動では起きないので、依存する DB の healthy を待って compose を上げ直す必要があった。ホストで動くアプリは再起動せずに接続が戻った (実測)
+- 切り分けでは、`/usr/bin/curl` (Apple 署名) が rc=6 (名前解決不可) で、経路表に OrbStack の経路が無ければ OrbStack 側の連携の消失と読める。macOS のローカルネットワーク許可の問題 (errno=65、Apple 署名のバイナリは通る) とはこれで区別できた (実測)
+- `orb restart` は Linux マシンの再起動用で、OrbStack 本体の再起動にはならない。引数なしだとヘルプを出して rc=0 で終わるので、効いたように見える。本体の再起動は `orbctl stop` / `orbctl start` (実測)
+
 ## タスク
 
 - [x] container の入手経路を決める (pkg のままか brew へ寄せるか)。brew へ寄せるなら Brewfile に載せる (ISSUE-95 の射程の議論と合わせる)

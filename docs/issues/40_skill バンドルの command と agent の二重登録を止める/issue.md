@@ -18,15 +18,14 @@ apm 0.28.0 にこれを抑止するノブは無い。この主張は commands / 
 時点のものである。skills 面と 0.30.0 での挙動は「skills 面の抑止ノブが apm 0.30.0 で
 効かなくなった」節が持つ。
 
-実測と選択肢の比較は
-[ISSUE-36](../closed/36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md) の
+実測と選択肢の比較は Issue 36 の
 「command と agent の二重登録の出所を確定し方針を決めた」節が canonical。同節で S5 を採ることを
 決めた。上流の 2 bundle から sub-skills を撤去して bundle を command と agent だけにし、dotfiles
 側は apm install 後に flat 側の deploy 先を消す。登録は prefix 名の 1 経路になる。
 
 残す側を prefix 経路にしたのは、そちらが plugin の契約を満たしているため。`schemas/` が届くのも
 `${CLAUDE_PLUGIN_ROOT}` が解決するのも verbatim コピー経由の側だけで、flat 側にはその経路が無い。
-削減幅は ISSUE-36 の「シナリオごとの常時ロード bytes」表の S5 行が canonical。
+削減幅は Issue 36 の「シナリオごとの常時ロード bytes」表の S5 行が canonical。
 
 作業の主体は PUBLIC リポジトリ [hidari/agentic-coding-tools](https://github.com/hidari/agentic-coding-tools)
 側にあり、dotfiles 側は flat 側の後始末と apm の pin を揃える部分を持つ。
@@ -35,7 +34,7 @@ apm 0.28.0 にこれを抑止するノブは無い。この主張は commands / 
 
 `security-red-team` と `security-blue-team` の sub-skill は、長い日本語の description で
 自然言語からの自動起動を担っている。撤去するとその起動経路が失われる。root SKILL.md か
-command の description へ移すか、落とすかを決める必要がある。この trade-off は ISSUE-36 の
+command の description へ移すか、落とすかを決める必要がある。この trade-off は Issue 36 の
 該当節に書かれていない。
 
 ## 調査結果 (2026-08-25)
@@ -109,7 +108,7 @@ root は案内しか持たないので、移すと「案内を読んでから co
 
 ### 実測で確定した前提
 
-**`${CLAUDE_PLUGIN_ROOT}` は plugin の command と agent でも展開される。** 公式ドキュメントは
+`${CLAUDE_PLUGIN_ROOT}` は plugin の command と agent でも展開される。 公式ドキュメントは
 「plugin skills の中でのみ置換される」としか書いておらず、command と agent については記載が
 無い。記載が無いことを「展開されない」と読むと移設そのものが成立しないので、Claude Code
 2.1.245 のバイナリを解析して確定させた。plugin skill と plugin command は同一のローダーが
@@ -124,7 +123,7 @@ root SKILL.md で展開されないのは、apm の verbatim コピーが plugin
 description のバイト数は on-disk で 11050 → 5928 (-46.4%)。内訳は sub-skills -6155 /
 commands +1148 (起動語彙の移設) / plugin.json -138 / root +20 / agents +3。
 
-**ただし実際にロードされる量はこの数字どおりにはならない。** 上流側で実測したところ、
+ただし実際にロードされる量はこの数字どおりにはならない。 上流側で実測したところ、
 command と agent の description は bare 名と prefix 名で listing に 2 回出る一方、撤去した
 sub-skill 4 個のうち 2 個 (`security-vulnerability-assessment` / `monkey-qa`) は同名 command に
 shadow されて元々一度もロードされていなかった。実効の削減幅は flat 側を消したあとに測り直す
@@ -160,13 +159,13 @@ issue-scoped-artifacts / pre-merge-quality-gate / retrospective-codify) で、�
 macos-vm-verification である。後者は独立した skill なので二重登録ではない。
 
 背景節の「apm 0.28.0 にこれを抑止するノブは無い」は commands / agents 面に限った主張で、
-skills 面には当てはまらない。ISSUE-36 の「抑止ノブは無い」節が 4 ケースの対照で
+skills 面には当てはまらない。Issue 36 の「抑止ノブは無い」節が 4 ケースの対照で
 `"skills": ["./skills"]` は nested skills の flat 分解を止めると実測しており、そちらが
 canonical である。
 
 dev-workflow の `plugin.json` は v0.5.0 と v0.7.0 で完全に同一で、どちらも
 `"skills": ["./skills"]` を宣言している。宣言があるのに flat 分解された以上、これは上流の
-構造変化ではなく、ISSUE-36 が効くと実測したノブが apm 0.30.0 で効かなくなった回帰にあたる。
+構造変化ではなく、Issue 36 が効くと実測したノブが apm 0.30.0 で効かなくなった回帰にあたる。
 前回の install 時点は 0.28.0 だった。dev-workflow 配下の差分も
 `skills/pre-merge-quality-gate/SKILL.md` 1 本だけで、上流側は動いていない。
 
@@ -209,6 +208,13 @@ flat 側を消す前に、bare 名の `Skill(skill="commit-and-pr-message")` が
 
 「flat の deploy 先が空であること」の不変条件から `.claude/skills/synced/` を外すこと。apm の deploy 先の中にあるが、claude.ai のアカウントから同期された skill の置き場で、apm とは別に状態ファイルが更新される (apm install の前後で `.last-complete-round` の2つだけが、install より前の時刻で変わっていた)。
 
+## 受け箱から届いた報告 (2026-10-31の仕分け)
+
+別のリポジトリのセッションの報告で、dotfiles では確かめていない。
+
+- apm の展開先の bundle の commands と、`~/.claude/commands/` に置かれた同名の素の command (security-redteam など4本) の中身が食い違っていた。どちらが canonical かを使う側から判断できない (実測)。報告者の提案: どちらかに寄せて片方を消す。二重登録の害が、description の重複だけでなく中身の食い違いにも及ぶ形
+- security-blue-red-team の bundle の置き場が `~/.claude/plugins/` から `~/.claude/skills/` に変わり、それを前提にした利用側の validator が「schema が見つからない」で落ちていた。make の rc を `| tail` で読んでいたので、最初は緑に見えた (実測)
+
 ## タスク
 
 - [x] sub-skill の description が担っていた自然言語からの自動起動の移し先を決める
@@ -234,16 +240,16 @@ flat 側を消す前に、bare 名の `Skill(skill="commit-and-pr-message")` が
       `apm install` で供給を繋ぐ。v0.7.0 へ 10 行まとめて揃えた。結果と、その過程で分かった
       射程の広がりは「pin を v0.7.0 へ揃えた」節が持つ
 - [ ] 新セッションで登録が prefix 名の 1 経路になったことを実測し、削減後のバイト数を
-      ISSUE-36 へ記録する
+      Issue 36 へ記録する
 - [ ] `"skills": ["./skills"]` が apm 0.30.0 で nested skills の flat 分解を止めなくなったことを
-      合成パッケージの対照付きで確定させ、microsoft/apm へ回帰として報告する。ISSUE-36 の
+      合成パッケージの対照付きで確定させ、microsoft/apm へ回帰として報告する。Issue 36 の
       「抑止ノブは無い」節が持つ 4 ケース対照がそのまま再利用できる
 
 ## 関連
 
-- [ISSUE-36: CLAUDE.md を rules と skill へ分割し常時ロード量を減らす](../closed/36_CLAUDE.md%20を%20rules%20と%20skill%20へ分割し常時ロード量を減らす/issue.md)。
-  本 Issue の実測と方針決定はすべて ISSUE-36 側にある。派生
-- [ISSUE-25: skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する](../closed/25_skill%20と%20plugin%20を新規%20PUBLIC%20リポジトリへ集約し%20apm%20配布へ移行する/issue.md)。
+- Issue 36 (closed): CLAUDE.md を rules と skill へ分割し常時ロード量を減らす。
+  本 Issue の実測と方針決定はすべて Issue 36 側にある。派生
+- Issue 25 (closed): skill と plugin を新規 PUBLIC リポジトリへ集約し apm 配布へ移行する。
   供給を apm 1 経路へ寄せた Issue。本 Issue はその経路の中で起きている二重配置を扱う
 - commands / agents 面に flat 分解を抑止するノブが無いこと自体は上流の設計判断なので、必要なら
   [microsoft/apm](https://github.com/microsoft/apm) へ報告する余地がある。ノブが入れば dotfiles

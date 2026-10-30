@@ -19,6 +19,13 @@ status: open
 
 棚卸しでは、版の食い違いを告げるプローブを足す案も出たが、コードと drift する面が増えるので採らない。公式の source へ寄せれば、両方の設定ディレクトリが同じ更新の流れに乗り、宣言と許可リストの項目がそれぞれ2つ減る。
 
+### 受け箱から届いた使い方の報告 (2026-10-31の仕分け)
+
+別のリポジトリのセッションの報告で、dotfiles では確かめていない。導入元を移しても変わらない使い方の面にあたる。
+
+- modern-web-guidance は、npx の代わりに `pnpm dlx modern-web-guidance@latest search|retrieve` で動いた。retrieve の出力はファイルへ出して grep すると要る行だけ読める。ブラウザ対応の欄に食い違って見える記述があるので、対応の判断は複数のガイドを突き合わせてから行う (実測)
+- chrome-devtools MCP の `take_screenshot` は、`filePath` にセッションの scratchpad を渡すと workspace roots の外として拒まれた。保存せずに受け取るか、リポジトリの中の置き場を渡す (実測)
+
 ## タスク
 
 - [ ] 公式 marketplace の更新の流れ (自動更新の有無と、sha の pin がいつ動くか) を確かめる。自動で上がるなら、MCP サーバーの版が黙って変わることを受け入れるかを決める (Hidari の判断)

@@ -29,6 +29,10 @@ ISSUE-126 で入れた送る側の hook (`home/.claude/hooks/feedbacks-outbox.py
 - 届け先へ link したあとで元のまとめの unlink に失敗すると、次の機会にもう一度届く。頻度が低く、受け取る側の重複検索で吸収される
 - まとめの大きさを検査してから読むまでの間にファイルが育ちうる。書くのはセッション自身なので実害が小さい
 
+### 作業ディレクトリを動かすと届け先が消える
+
+2026-10-31の仕分けで届いた。別のリポジトリからの報告である。作業ディレクトリの改名はセッションの中ではできない。メモリとセッション記録のディレクトリが絶対パスから決まるうえ、セッション終了時の hook が outbox を作業ディレクトリの `.cache` から届けるので、セッション中に動かすと届け先が消える (推測。報告者はディレクトリの構造と hook の告知から判断し、実際には動かしていない)。改名の手順は ISSUE-141 が扱う。
+
 ## タスク
 
 - [ ] 本体の位置のずれを直すか決める。直すなら `main_checkout_root` の `None` を、common dir を持つ repo の本体の作業ツリーへ解決する方法 (`core.worktree` や `git rev-parse --show-superproject-working-tree` 等) を測ってから選ぶ。同じ関数を使う `feedbacks-box.py` と `guard_probes.py` への影響も見る
@@ -38,5 +42,6 @@ ISSUE-126 で入れた送る側の hook (`home/.claude/hooks/feedbacks-outbox.py
 
 ## 関連
 
-- ISSUE-126: feedbacks-outbox を入れた Issue。保留の判断はその最終レビューで行った
-- ISSUE-129: in-repo-issue のクローズの理由の節の規約。この Issue を直さずに閉じるときの書き方もそちらで決まる
+- ISSUE-126 (closed): feedbacks-outbox を入れた Issue。保留の判断はその最終レビューで行った
+- ISSUE-129 (closed): in-repo-issue のクローズの理由の節の規約。この Issue を直さずに閉じるときの書き方もそちらで決まった
+- ISSUE-141: リポジトリと作業ディレクトリの改名の手順。セッションの外で動かす理由をこの Issue から引く

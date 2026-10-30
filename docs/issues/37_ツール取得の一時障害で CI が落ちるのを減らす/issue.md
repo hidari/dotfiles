@@ -50,6 +50,13 @@ mise は exact pin で運用している。uv だけが action の pin だけで
 (2026-09-17 時点で 6 job)。この 1 つの取得が失敗すると、それらがまとめて落ちうる。
 週次の `mise-update-check.yml` も同じ composite action を呼ぶので、失敗するとその週の更新通知が止まる。
 
+## 受け箱から届いた実例 (2026-10-31の仕分け)
+
+別のリポジトリの CI で、just の導入に使う setup-just が恒常的に落ちた報告。
+
+- setup-just (中身は setup-crate) の「no release for just matching version specifier」を一過性と読んで再実行するのは効かなかった。org へ移した後から起きはじめ (移管前の25回の run では0件、移管後はほぼすべての run のどこかの job)、release も asset も存在していた。setup-crate は API の例外を握らず、一覧の応答から target 名を含む asset のある release を絞るだけなので、一覧の応答が違ったときにも同じエラーになる。原因の特定はしていない (実測)
+- 導入を、固定の URL で落として sha256 を照合する自前のスクリプトへ置き換えると、setup-just の失敗が消え、取得物の差し替えも検出できるようになった。sha256 は API の asset の digest、落とした実物、release の SHA256SUMS の3つで突き合わせ、macOS のランナーは `sha256sum` を持たないことがあるので `shasum -a 256 --check --strict` を使った。置き換えた後の最初の run で Linux と macOS の全 job が通った (実測)
+
 ## タスク
 
 - [ ] 3 件の失敗経路を切り分け、どこが自分で制御できるかを確かめる (自前の
