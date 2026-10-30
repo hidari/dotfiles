@@ -2,7 +2,7 @@
 id: bats-no-bare-skip
 valid:
   - 'require_command_or_skip gitleaks || return 1'
-  - '[ -f "$src" ] || skip_outside_ci "neo-tree のソースが見つからない" || return 1'
+  - '[ -f "$src" ] || skip_outside_ci "fixture のソースが見つからない" || return 1'
   - 'echo skip'
   - 'local skip=1'
 invalid:

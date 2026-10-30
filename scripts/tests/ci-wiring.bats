@@ -22,7 +22,7 @@ load test_helper
     WORKFLOW_FILE="$BATS_TEST_TMPDIR/workflow.yml"
     printf '%s\n' \
         '      # run: scripts/ci/run-bats.sh scripts/tests/' \
-        '        run: scripts/ci/run-bats.sh scripts/tests/nvim-markdown.bats' > "$WORKFLOW_FILE"
+        '        run: scripts/ci/run-bats.sh scripts/tests/ci-wiring.bats' > "$WORKFLOW_FILE"
     run assert_workflow_contains 'run: scripts/ci/run-bats.sh scripts/tests/'
     [ "$status" -ne 0 ]
 

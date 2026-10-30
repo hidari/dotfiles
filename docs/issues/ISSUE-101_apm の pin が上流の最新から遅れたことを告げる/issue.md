@@ -60,6 +60,10 @@ ISSUE-53 は、配布先の母数の定義から始まる。この Issue が見�
   apm の manifest でも同じことが起きうる
 - `scripts/node-security-notifier` は、LaunchAgent で日次に起動するローカルの定期経路である。ISSUE-131 で macOS への通知をやめ、日次の取得結果を状態ファイルへ書いて SessionStart のプローブ (guard_probes) が pin と比べて告げる形にした。この Issue と同じ「告げる経路はあるが誰も見ない」への手当てなので、apm の pin でも同じ形が採れる
 
+### 2026-10-30 の変化
+
+ISSUE-139 で nvim を撤去し、`.github/actions/setup-neovim` も消えた。curl で取得して版と sha256 を固定している composite は、ast-grep、mise、bats、gitleaks の4つになる。
+
 ## 決めること
 
 - **対象の範囲。**manifest は agentic-coding-tools のほかに、第三者の上流 (mizchi/skills と
@@ -106,3 +110,4 @@ ISSUE-53 は、配布先の母数の定義から始まる。この Issue が見�
 - ISSUE-83 と ISSUE-71: SessionStart で告げる形を採るときの前提
 - agentic-coding-tools の ISSUE-32: 層 0 と層 3 の両方に pin の鮮度を置いている
 - agentic-coding-tools の ISSUE-36: 型 6 (配布層自体) の 1 回目の実例を持つ
+- ISSUE-139: nvim を撤去した。setup-neovim の composite はそこで消えた

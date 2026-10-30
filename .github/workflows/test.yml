@@ -26,9 +26,6 @@ jobs:
       - name: Setup Bats
         uses: ./.github/actions/setup-bats
 
-      - name: Setup Neovim
-        uses: ./.github/actions/setup-neovim
-
       - name: Setup ast-grep
         uses: ./.github/actions/setup-ast-grep
 
@@ -53,24 +50,7 @@ jobs:
           sudo apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends zsh
 
-      # neo-tree のハイライト群名の検査はプラグインのソースを 1 ファイルだけ読む。
-      # nvim --clean は lazy.nvim を起動しないので、プラグインを入れずにそのファイルだけを取る。
-      # commit は lazy-lock.json の pin を読むので、プラグインを更新しても直す箇所が増えない。
-      # sha256 を重ねないのは commit SHA 自体が内容のアドレスだから。その前提が崩れないよう、
-      # 40 桁の commit SHA でない値 (ブランチ名のような動く参照) は弾く。
-      - name: Fetch neo-tree highlights
-        run: |
-          commit=$(jq -er '."neo-tree.nvim".commit' home/.config/nvim/lazy-lock.json)
-          if ! printf '%s' "$commit" | grep -Eqx '[0-9a-f]{40}'; then
-            echo "lazy-lock.json の neo-tree.nvim が commit SHA を持たない: $commit" >&2
-            exit 1
-          fi
-          curl --proto '=https' --tlsv1.2 -fsSL -o "$RUNNER_TEMP/neo-tree-highlights.lua" \
-            "https://raw.githubusercontent.com/nvim-neo-tree/neo-tree.nvim/${commit}/lua/neo-tree/ui/highlights.lua"
-
       - name: Run Bats tests
-        env:
-          NEOTREE_HIGHLIGHTS: ${{ runner.temp }}/neo-tree-highlights.lua
         run: scripts/ci/run-bats.sh scripts/tests/
 
   ast-grep:
@@ -90,7 +70,8 @@ jobs:
       # (severity: warning は指摘があっても exit 0 なので CI では守られない)
       #
       # --no-ignore hidden が要る。ast-grep は既定で隠しディレクトリを走査しないため、
-      # これが無いと home/.config 配下の nvim の Lua を 1 件も検査せず exit 0 で素通りする
+      # これが無いと home/.config のような隠しディレクトリ配下のファイルを 1 件も検査せず
+      # exit 0 で素通りする (なぜ要るかは scripts/tests/ast-grep.bats が実行可能な事実として持つ)
       - name: Scan repository
         run: ast-grep scan --no-ignore hidden
 

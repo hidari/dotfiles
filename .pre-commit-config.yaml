@@ -226,7 +226,7 @@ repos:
         language: system
         entry: ast-grep scan --no-ignore hidden
         pass_filenames: false
-        files: ^(.*\.bats|.*\.lua|sgconfig\.yml|rules/.*)$
+        files: ^(.*\.bats|sgconfig\.yml|rules/.*)$
 
       - id: ast-grep-test
         name: ast-grep test (rule 分類テスト)

@@ -3,26 +3,28 @@
 # ast-grep のルールが「どのファイルを見るか」を検証する
 #
 # ast-grep test は仮想のスニペットに対して走るため files と ignores を通らない。
-# glob と隠しディレクトリの扱いを確かめられるのはこのファイルだけである。
+# 隠しディレクトリの扱いを確かめられるのはこのファイルだけである。
 #
 # 注意: @test 名は ASCII に限る (rules/bats-test-name-ascii-only.yml)
 # =============================================================================
 
 load test_helper
 
-RULE="$REPO_ROOT/rules/nvim-lua-no-hex-literal.yml"
+# 対象のパスを絞らないルール。隠しディレクトリ配下へ置いた fixture を見るかどうかが、
+# ルールの glob ではなく走査の側だけで決まる
+RULE="$REPO_ROOT/rules/bats-test-name-ascii-only.yml"
 
 setup() {
     require_command_or_skip ast-grep || return 1
 
-    # 本番と同じ相対パスを持つ fixture を作る。
-    # 実ルールをコピーするので、ルールの二重管理にならない
+    # 実ルールをコピーするので、ルールの二重管理にならない。languageGlobs は sgconfig.yml と
+    # 同じく .bats を bash として読ませる
     FIXTURE="$(mktemp -d)"
-    mkdir -p "$FIXTURE/rules" \
-        "$FIXTURE/home/.config/nvim/lua/config" \
-        "$FIXTURE/home/.config/nvim/lua/plugins"
+    mkdir -p "$FIXTURE/rules" "$FIXTURE/home/.config/example"
     cp "$RULE" "$FIXTURE/rules/"
-    printf 'ruleDirs:\n  - rules\n' > "$FIXTURE/sgconfig.yml"
+    printf 'ruleDirs:\n  - rules\nlanguageGlobs:\n  bash:\n    - "*.bats"\n' > "$FIXTURE/sgconfig.yml"
+    # マルチバイトの @test 名はこのファイル自身をルールに当てないよう、8 進のエスケープで作る
+    printf '@test "\343\201\202" {\n    true\n}\n' > "$FIXTURE/home/.config/example/hidden.bats"
 }
 
 teardown() {
@@ -31,75 +33,29 @@ teardown() {
     fi
 }
 
-scan() {
-    (cd "$FIXTURE" && ast-grep scan --no-ignore hidden 2>&1)
-}
+@test "with no-ignore hidden the scan reports a violation under a hidden directory" {
+    run bash -c "cd '$FIXTURE' && ast-grep scan --no-ignore hidden 2>&1"
+    assert_contains "$output" "bats-test-name-ascii-only"
+    assert_contains "$output" "hidden.bats"
 
-scan_exit() {
-    (cd "$FIXTURE" && ast-grep scan --no-ignore hidden >/dev/null 2>&1)
-}
-
-@test "the rule catches a hex literal under the hidden nvim config path" {
-    printf 'return { X = { fg = "#123456" } }\n' > "$FIXTURE/home/.config/nvim/lua/config/markdown.lua"
-
-    run scan
-    assert_contains "$output" "nvim-lua-no-hex-literal"
-    assert_contains "$output" "markdown.lua"
-
-    run scan_exit
+    run bash -c "cd '$FIXTURE' && ast-grep scan --no-ignore hidden >/dev/null 2>&1"
     [ "$status" -eq 1 ] || return 1
-}
-
-@test "the rule catches a hex literal under the nvim plugins path" {
-    # 写像ファイルは config/ だけでなく plugins/ 配下にもある (lualine.lua は
-    # palette.surfaces を参照する hex 禁止対象)。glob を lua/config/ へ狭めると
-    # plugins/ 全体が黙って検査対象から外れるため、その広さをここで固定する
-    printf 'return { X = { fg = "#654321" } }\n' > "$FIXTURE/home/.config/nvim/lua/plugins/lualine.lua"
-
-    run scan
-    assert_contains "$output" "nvim-lua-no-hex-literal"
-    assert_contains "$output" "lualine.lua"
-
-    run scan_exit
-    [ "$status" -eq 1 ] || return 1
-}
-
-@test "the rule exempts palette lua" {
-    printf 'return { X = { fg = "#123456" } }\n' > "$FIXTURE/home/.config/nvim/lua/config/palette.lua"
-
-    run scan
-    refute_contains "$output" "nvim-lua-no-hex-literal"
-
-    run scan_exit
-    [ "$status" -eq 0 ] || return 1
-}
-
-@test "a comment holding a hex value is not a violation" {
-    printf -- '-- コメントの中の hex #123abc は検出しない\nreturn { X = { fg = hex.muted } }\n' \
-        > "$FIXTURE/home/.config/nvim/lua/config/markdown.lua"
-
-    run scan
-    refute_contains "$output" "nvim-lua-no-hex-literal"
-
-    run scan_exit
-    [ "$status" -eq 0 ] || return 1
 }
 
 @test "without no-ignore hidden the scan silently sees nothing" {
     # なぜ --no-ignore hidden が要るのかを実行可能な事実として残す。
     # ast-grep が既定で隠しディレクトリを飛ばさなくなったら、このテストが赤くなって教えてくれる
-    printf 'return { X = { fg = "#123456" } }\n' > "$FIXTURE/home/.config/nvim/lua/config/markdown.lua"
-
     run bash -c "cd '$FIXTURE' && ast-grep scan 2>&1"
-    refute_contains "$output" "nvim-lua-no-hex-literal"
+    refute_contains "$output" "bats-test-name-ascii-only"
 
     run bash -c "cd '$FIXTURE' && ast-grep scan >/dev/null 2>&1"
     [ "$status" -eq 0 ] || return 1
 }
 
 @test "every ast-grep scan invocation searches hidden directories" {
-    # --no-ignore hidden が無いと nvim の Lua を 1 件も検査しないまま緑になる。
-    # ルールの検出力は上のテストが守るが、呼び出し側の配線を守るのはここだけである。
+    # --no-ignore hidden が無いと、隠しディレクトリ配下にルールの対象を足したとき 1 件も
+    # 検査しないまま緑になる。走査の挙動は上のテストが守るが、呼び出し側の配線を守るのは
+    # ここだけである。
     #
     # 配線は YAML を safe_load して構造として読む (規範は home/.claude/rules/testing-practices.md)。
     require_command_or_skip uv || return 1

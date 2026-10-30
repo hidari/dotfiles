@@ -96,6 +96,12 @@ Brewfile を読んだことに由来する。**正規化の問題ではない。
 - Caskroom の `google-cloud-sdk` は `gcloud-cli` への改名 alias の symlink で、Brewfile に `google-cloud-sdk` の行は無い。そうなら外すものは無い
 - 件数は formula の漏れ26、cask の漏れ6のうち1件は alias の見かけで実際は5、宣言済みで leaf に出ないもの1
 
+## 2026-10-30 の変化
+
+ISSUE-139 で herdr (ターミナル版) と neovim を撤去した。裁定にある「設定を配る4件」のうち残るのは ghostty と raycast で、新しく herdr-app (GUI 版) の keys.json と自作の mod を配るようになった。
+
+herdr-app は `/Applications/Herdr.app` で、Homebrew の cask に無い (`brew info --cask herdr` は unavailable を返した)。「設定を配るなら本体も宣言に入れる」という裁定を、Brewfile で入れられない本体にどう当てはめるかは決まっていない。ISSUE-139 から移した未決事項で、着手時に決めること。
+
 ## 関連
 
 - ISSUE-94: Brewfile を検査する層が無い件。あちらが「書かれている内容が壊れていないか」を見るのに
@@ -104,3 +110,4 @@ Brewfile を読んだことに由来する。**正規化の問題ではない。
   設定を配る側の一覧を持つ。解決済みの経緯として参照する
 - ISSUE-69: apm ガードの到達が起動元シェルの鮮度に依存する。fresh マシンでの再現性という点で
   問題意識が重なる
+- ISSUE-139: herdr と neovim を撤去し、herdr-app の設定を配り始めた。herdr-app の本体の扱いはそこからこの Issue へ移した
