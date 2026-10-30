@@ -57,6 +57,10 @@ config-guard はこの文字列を読んでいる (`settings_invariants.py` が 
 - inline shell: `bash -n` に掛けると、8 本の hook command すべてが rc=0、
   クォートを 1 つ落とした変異版だけ rc=2 になる
 
+## 2026-10-30 の変化
+
+ISSUE-139 で旧 herdr の integration hook (`herdr-agent-state.sh`) を撤去した。対象 1 はファイルごと無くなり、残る対象は 2 (`settings.json` の SessionStart inline shell) だけになる。最後のタスクにある「herdr の更新で埋め込み言語が変わりうる」という条件も、上書きする外部ツールが無くなったので成り立たない。
+
 ## タスク
 
 - [ ] 検査対象の集合を決める。`.sh` 内のヒアドキュメント本体と `settings.json` の
@@ -81,3 +85,4 @@ config-guard はこの文字列を読んでいる (`settings_invariants.py` が 
 - Issue 26 が Claude Code フックの共通基盤を扱う。`herdr-agent-state.sh` は
   `scripts/claude-hooks/` の対象に入っておらず (Python フック 4 本のみ)、
   取り込むかどうかは同 Issue の範囲と重なる
+- ISSUE-139: 旧 herdr を撤去した。対象 1 の `herdr-agent-state.sh` はそこで消えた

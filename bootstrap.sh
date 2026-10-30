@@ -26,11 +26,13 @@ SYMLINK_PAIRS=(
     "home/.gitconfig|.gitconfig"
     "home/.config/git/.gitignore_global|.config/git/.gitignore_global"
     "home/.config/mise/config.toml|.config/mise/config.toml"
-    "home/.config/herdr/config.toml|.config/herdr/config.toml"
-    "home/.config/herdr/scripts/herdr-unread|.config/herdr/scripts/herdr-unread"
-    "home/.config/herdr/resources/herdr-cheatsheet.af|.config/herdr/resources/herdr-cheatsheet.af"
-    "home/.config/herdr/resources/herdr-cheatsheet.png|.config/herdr/resources/herdr-cheatsheet.png"
-    "home/.config/herdr/plugins/config/herdr-file-viewer/config.toml|.config/herdr/plugins/config/herdr-file-viewer/config.toml"
+    # herdr-app の mod はフォルダ単位で張る。ファイル単位の symlink だと、mod の import が
+    # application directory の外へ解決されて拒否される。settings.json はアプリが書くたびに
+    # 置き換える (symlink が実ファイルに化ける) ので配らない
+    "home/.config/herdr-app/keys.json|.config/herdr-app/keys.json"
+    "home/.config/herdr-app/mods/unread|.config/herdr-app/mods/unread"
+    "home/.config/herdr-app/mods/pane-next|.config/herdr-app/mods/pane-next"
+    "home/.config/herdr-app/mods/pane-prev|.config/herdr-app/mods/pane-prev"
     "home/.config/nvim|.config/nvim"
     "home/.config/ghostty/config|.config/ghostty/config"
     "home/.config/raycast/scripts|.config/raycast/scripts"

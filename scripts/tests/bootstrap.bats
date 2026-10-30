@@ -791,7 +791,7 @@ uncovered_symlink_targets() {
     # dir pair の配下 (transitive) → covered
     symlink_target_covered "home/.config/nvim/lua/init.lua" "${srcs[@]}"
     # どの source にも属さない → uncovered (false negative を防ぐ negative case)
-    run symlink_target_covered "home/.config/herdr/resources/left-arrow.svg" "${srcs[@]}"
+    run symlink_target_covered "home/.config/unmanaged/settings.toml" "${srcs[@]}"
     [ "$status" -ne 0 ]
     # prefix 誤爆を防ぐ: config-backup は ghostty/config の配下ではない (末尾 / 境界)
     run symlink_target_covered "home/.config/ghostty/config-backup" "${srcs[@]}"
@@ -808,12 +808,10 @@ uncovered_symlink_targets() {
 
     # home/ 配下だが意図的に symlink しないファイルの allowlist (canonical)。各行に理由を書く。
     local -a unmanaged=(
-        "home/.gitignore"                              # home/ サブツリーの gitignore (apm 生成物を ignore)
+        "home/.gitignore"                              # home/ サブツリーの gitignore (生成物を ignore)
         "home/.gitconfig.private.example"              # private gitconfig のテンプレ (copy_if_not_exists で配置, symlink 対象外)
         "home/apm.yml"                                 # apm install が bootstrap で読む manifest
         "home/apm.lock.yaml"                           # apm lockfile (deployed_files の真実源)
-        "home/.config/herdr/resources/left-arrow.svg"  # cheatsheet .af のデザイン素材 (symlink 不要)
-        "home/.config/herdr/resources/right-arrow.svg" # cheatsheet .af のデザイン素材 (symlink 不要)
     )
 
     local uncovered expected

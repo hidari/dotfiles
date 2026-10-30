@@ -53,6 +53,10 @@ drift した (新規 shim が両方から漏れた)。
 
 案 1 と案 3 は同じところへ着地する可能性がある。
 
+## 2026-10-30 の変化
+
+ISSUE-139 で `home/.config/herdr/scripts/herdr-unread` を撤去した。実測の表にある未対応の 2 件のうち、残るのは `scripts/backup-tool/backup` だけになる。タスク 2 の SC1010 の引用も対象ごと消えた。
+
 ## タスク
 
 - [ ] 3 案を、将来のファイルが自動で入るか / pre-commit の制約に載るか / 取り付けを pin
@@ -75,3 +79,4 @@ drift した (新規 shim が両方から漏れた)。
 - Issue 30: Markdown 内のシェルスニペットを構文検査する。同じ族の 3 つ目
 - ISSUE-53: 配布先の加入状況と写しの drift を見る層が無い。「取り付けが外れていることを
   見る層」という点で同型
+- ISSUE-139: 旧 herdr を撤去した。`herdr-unread` はそこで消えた
