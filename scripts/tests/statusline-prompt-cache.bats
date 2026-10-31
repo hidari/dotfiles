@@ -8,7 +8,7 @@
 #   - prompt_cache が無いあいだは行ごと出さない (空行も出さない)
 #   - warm は緑、残り600秒以下は黄色、cold は赤
 #   - warm は残りの割合のゲージ、切れるまでの分数、切れる時刻 (Asia/Tokyo) を出す
-#   - ラベルは pc (prompt cache)。5h / 7d と同じ幅にして、ゲージと数字の列をそろえる
+#   - ラベルは pc (prompt cache)。7d と同じ幅にして、ゲージと数字の列をそろえる
 #   - warm が true でも expires_at が null か現在時刻以下なら cold として出す
 #   - 手元の版に無いフィールドや null のフィールドは、その部分だけ飛ばす
 #
@@ -56,21 +56,21 @@ run_cache_line() {
     # $lines は末尾の空行を落とすので、空行を出していても要素数では見えない。改行数で見る
     statusline_raw "$TEST_HOME/out.txt"
 
-    [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 2 ]
+    [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 1 ]
     refute_contains "$(cat "$TEST_HOME/out.txt")" "pc  "
 }
 
 @test "prompt_cache: emits no cache line when the field is null" {
     statusline_raw "$TEST_HOME/out.txt" "" "null"
 
-    [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 2 ]
+    [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 1 ]
     refute_contains "$(cat "$TEST_HOME/out.txt")" "pc  "
 }
 
 @test "prompt_cache: appends the cache line last outside a repository" {
     statusline_raw "$TEST_HOME/out.txt" "" "$(prompt_cache_json)"
 
-    [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 3 ]
+    [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 2 ]
     assert_contains "$(tail -n 1 "$TEST_HOME/out.txt")" "pc  "
 }
 
@@ -83,12 +83,12 @@ run_cache_line() {
     run cat "$TEST_HOME/out.txt"
 
     [ "$status" -eq 0 ]
-    [ "${#lines[@]}" -eq 5 ]
-    assert_contains "${lines[2]}" "7d"
-    assert_contains "${lines[3]}" "pc  "
-    assert_contains "${lines[4]}" "myrepo"
-    # 5行 + 末尾改行なし = 改行4個
-    [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 4 ]
+    [ "${#lines[@]}" -eq 4 ]
+    assert_contains "${lines[1]}" "7d  "
+    assert_contains "${lines[2]}" "pc  "
+    assert_contains "${lines[3]}" "myrepo"
+    # 4行 + 末尾改行なし = 改行3個
+    [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 3 ]
 }
 
 # =============================================================================
@@ -267,24 +267,24 @@ run_cache_line() {
     [ "$CACHE_LINE" = "${RED}pc  [cold]  next message re-caches 83k tokens${RESET}" ]
 }
 
-@test "prompt_cache: aligns the gauge and the minutes with the rate limit lines" {
-    # 5h / 7d と同じ列にゲージ・数字の末尾・時刻の書き出しが来ること。
+@test "prompt_cache: aligns the gauge and the minutes with the rate limit line" {
+    # 7d と同じ列にゲージ・数字の末尾・時刻の書き出しが来ること。
     # ゲージは多バイト文字なので、位置ではなく「時刻の手前までの長さ」を比べる。
     # 両方の行がゲージ10マスと同じ数の ASCII を持つので、ロケールが文字とバイトの
     # どちらで数えても等しくなる
-    run_statusline_in "" "$(rate_limits_json 42 13)" "$(prompt_cache_json)"
+    run_statusline_in "" "$(rate_limits_json 42)" "$(prompt_cache_json)"
     [ "$status" -eq 0 ]
 
     local strip=$'s/\x1b\\[[0-9;]*m//g'
-    local five cache
-    five="$(printf '%s' "${lines[1]}" | sed "$strip")"
-    cache="$(printf '%s' "${lines[3]}" | sed "$strip")"
-    local five_head="${five%%  Resets at*}"
+    local seven cache
+    seven="$(printf '%s' "${lines[1]}" | sed "$strip")"
+    cache="$(printf '%s' "${lines[2]}" | sed "$strip")"
+    local seven_head="${seven%%  Resets at*}"
     local cache_head="${cache%%  Expires at*}"
 
-    [ "${five_head:0:4}" = "5h  " ]
+    [ "${seven_head:0:4}" = "7d  " ]
     [ "${cache_head:0:4}" = "pc  " ]
-    [ "${five_head: -6}" = "   42%" ]
+    [ "${seven_head: -6}" = "   42%" ]
     [ "${cache_head: -6}" = "   38m" ]
-    [ "${#five_head}" -eq "${#cache_head}" ]
+    [ "${#seven_head}" -eq "${#cache_head}" ]
 }
