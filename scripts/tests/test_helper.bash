@@ -431,8 +431,8 @@ FAKE
 }
 
 # statusline-command.sh へ渡す stdin JSON を組み立てる。
-# 第 1 引数は cwd。省くと git 探索経路へ入らないため、アカウント分離の観測に絞れる。
-# 第 2 引数に rate_limits オブジェクトを与えると、Claude Code 本体が渡す形を再現する。
+# 第1引数は cwd。省くと git 探索経路へ入らないため、アカウント分離の観測に絞れる。
+# 第2引数に rate_limits オブジェクトを与えると、Claude Code 本体が渡す形を再現する。
 # 第3引数は prompt_cache オブジェクト (null も可)。
 # 第4引数はコンテキストの used_percentage (省くと 10)。
 # 引数が空のときはキーごと出さない。本体が渡してこない実状況を再現するため、
@@ -449,13 +449,11 @@ statusline_input_json() {
 # bats 側は load で同一シェルへ source するため export は要らない (REPO_ROOT 等と同じ)。
 STATUSLINE_FUTURE_RESET=4102444800  # 2100-01-01
 
-# 有効な窓 1 組を持つ rate_limits オブジェクトを組み立てる。
+# 有効な 7d の窓を持つ rate_limits オブジェクトを組み立てる。
 rate_limits_json() {
-    local five_pct="${1:-42}"
-    local seven_pct="${2:-13}"
-    local reset="${3:-$STATUSLINE_FUTURE_RESET}"
-    printf '{"five_hour":{"used_percentage":%s,"resets_at":%s},"seven_day":{"used_percentage":%s,"resets_at":%s}}' \
-        "$five_pct" "$reset" "$seven_pct" "$reset"
+    local seven_pct="${1:-13}"
+    local reset="${2:-$STATUSLINE_FUTURE_RESET}"
+    printf '{"seven_day":{"used_percentage":%s,"resets_at":%s}}' "$seven_pct" "$reset"
 }
 
 # statusline-command.sh をリポジトリ外の状況で実行する。

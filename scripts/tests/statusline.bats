@@ -176,18 +176,31 @@ expected_tag_for() {
 @test "statusline: treats used_percentage as a 0-100 value" {
     # used_percentage は 0-100。0.0-1.0 と取り違えると 42% が 4200% になる。
     # スケールの取り違えは例外を出さずに成立するので、値そのものを exact に見る
-    run_statusline "$(rate_limits_json 42 13)"
+    run_statusline "$(rate_limits_json 42)"
 
     [ "$status" -eq 0 ]
-    assert_contains "${lines[1]}" "42%"
-    assert_contains "${lines[2]}" "13%"
+    assert_contains "${lines[1]}" " 42%"
+    refute_contains "${lines[1]}" "4200%"
+}
+
+@test "statusline: does not show the five hour window even when the body sends it" {
+    # Max プランから5時間の制限が外れ、本体は five_hour を渡さなくなった。
+    # 渡してくるアカウントが残っていても表示しない (フックの通知は窓名を問わず続く)
+    run_statusline "$(jq -c --argjson r "$STATUSLINE_FUTURE_RESET" \
+        '. + {five_hour: {used_percentage: 88, resets_at: $r}}' <<< "$(rate_limits_json 13)")"
+
+    [ "$status" -eq 0 ]
+    [ "${#lines[@]}" -eq 2 ]
+    assert_contains "${lines[1]}" "7d  "
+    refute_contains "$output" "5h"
+    refute_contains "$output" "88%"
 }
 
 @test "statusline: does not show an expired window" {
     # 本体は失効窓を落として渡すが、キャッシュから読み直す経路では過ぎた窓が残る。
     # 残すとリセットで圧が下がった直後に前の窓の使用率を出し続ける
     local expired=1000000000  # 2001-09-09
-    run_statusline "$(rate_limits_json 99 99 "$expired")"
+    run_statusline "$(rate_limits_json 99 "$expired")"
 
     [ "$status" -eq 0 ]
     assert_contains "${lines[1]}" "--%"
@@ -197,7 +210,7 @@ expected_tag_for() {
 @test "statusline: keeps the cached value when the body sends nothing" {
     # セッション開始直後・headless・非サブスクでは本体が渡さない。消すと窓が
     # まだ有効なあいだの既知値まで失う
-    run_statusline "$(rate_limits_json 77 33)"
+    run_statusline "$(rate_limits_json 77)"
     [ "$status" -eq 0 ]
 
     run_statusline
@@ -260,7 +273,7 @@ expected_tag_for() {
 # 導出は既定アカウントとそれ以外で枝が分かれるので、両方を通す。片方だけだと、通した枝しか
 # pin されない (既定枝を壊しても全テストが緑のままになることを変異注入で確認済み)。
 assert_statusline_feeds_hook() {
-    run_statusline "$(rate_limits_json 96 13)"
+    run_statusline "$(rate_limits_json 96)"
     [ "$status" -eq 0 ]
 
     local transcript="$TEST_HOME/t.jsonl"
@@ -321,27 +334,27 @@ assert_statusline_feeds_hook() {
 # 行構成
 # =============================================================================
 #
-# 1〜3 行目は Claude が持つ状態、最終行はリポジトリが持つ状態。
+# 最終行はリポジトリが持つ状態、それより上は Claude が持つ状態。
 # 情報の所有者で行を分けることが仕様なので、混ざっていないことまで検証する。
 # ここの入力は prompt_cache を持たない。キャッシュの行 (7d とリポジトリの行のあいだ) は
 # statusline-prompt-cache.bats が見る。
 
-@test "statusline: collapses to three lines outside a repository" {
-    # リポジトリ外で 4 行目を空のまま出すと、画面に無意味な空行が残る。
+@test "statusline: collapses to two lines outside a repository" {
+    # リポジトリ外で 3 行目を空のまま出すと、画面に無意味な空行が残る。
     # bats の $output は末尾改行を落とし $lines の要素数では区別が付かないため、
-    # 生の出力の改行数で見る (3 行 + 末尾改行なし = 改行 2 個)。
+    # 生の出力の改行数で見る (2 行 + 末尾改行なし = 改行 1 個)。
     statusline_raw "$TEST_HOME/out.txt"
 
-    [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 2 ]
+    [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 1 ]
 }
 
-@test "statusline: emits four lines inside a repository without a trailing newline" {
-    # 4 行 + 末尾改行なし = 改行 3 個。3 行目の改行落ちも余分な末尾改行も検出する
+@test "statusline: emits three lines inside a repository without a trailing newline" {
+    # 3 行 + 末尾改行なし = 改行 2 個。2 行目の改行落ちも余分な末尾改行も検出する
     setup_test_repo "$TEST_HOME/myrepo"
 
     statusline_raw "$TEST_HOME/out.txt" "$TEST_HOME/myrepo"
 
-    [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 3 ]
+    [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 2 ]
 }
 
 @test "statusline: puts the repository line last" {
@@ -350,30 +363,30 @@ assert_statusline_feeds_hook() {
     run_statusline_in "$TEST_HOME/myrepo"
 
     [ "$status" -eq 0 ]
-    [ "${#lines[@]}" -eq 4 ]
-    assert_contains "${lines[3]}" "myrepo"
+    [ "${#lines[@]}" -eq 3 ]
+    assert_contains "${lines[2]}" "myrepo"
 }
 
 # `git rev-parse --is-inside-work-tree` は答えを stdout の文字列で返すコマンドで、
 # .git ディレクトリの中や bare リポジトリでは "false" を出力しながら exit 0 を返す。
 # exit code だけで作業ツリーの内外を判定すると、この 2 経路で分岐へ入ってしまう。
 # 分岐の中では --show-toplevel が exit 128 で落ちてプロジェクト名が空になる一方、
-# branch --show-current は成功するため、4 行目が畳まれず「プロジェクト名だけが
-# 空の行」が残る。作業ツリーの外という点ではリポジトリ外と同じなので 3 行に畳む。
-@test "statusline: collapses to three lines inside a .git directory" {
+# branch --show-current は成功するため、3 行目が畳まれず「プロジェクト名だけが
+# 空の行」が残る。作業ツリーの外という点ではリポジトリ外と同じなので 2 行に畳む。
+@test "statusline: collapses to two lines inside a .git directory" {
     setup_test_repo "$TEST_HOME/myrepo"
 
     statusline_raw "$TEST_HOME/out.txt" "$TEST_HOME/myrepo/.git"
 
-    [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 2 ]
+    [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 1 ]
 }
 
-@test "statusline: collapses to three lines inside a bare repository" {
+@test "statusline: collapses to two lines inside a bare repository" {
     git init -q --bare "$TEST_HOME/bare.git"
 
     statusline_raw "$TEST_HOME/out.txt" "$TEST_HOME/bare.git"
 
-    [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 2 ]
+    [ "$(count_newlines "$TEST_HOME/out.txt")" -eq 1 ]
 }
 
 @test "statusline: keeps repository info out of the first line" {
@@ -386,15 +399,14 @@ assert_statusline_feeds_hook() {
     refute_contains "${lines[0]}" "myrepo"
 }
 
-@test "statusline: keeps the rate limit bars on the middle lines" {
-    # リポジトリ行があっても 5h / 7d が 2・3 行目に留まること
+@test "statusline: keeps the rate limit bar on the second line" {
+    # リポジトリ行があっても 7d が 2 行目に留まること
     setup_test_repo "$TEST_HOME/myrepo"
 
     run_statusline_in "$TEST_HOME/myrepo"
 
     [ "$status" -eq 0 ]
-    assert_contains "${lines[1]}" "5h"
-    assert_contains "${lines[2]}" "7d"
+    assert_contains "${lines[1]}" "7d  "
 }
 
 # =============================================================================

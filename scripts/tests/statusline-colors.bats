@@ -6,7 +6,7 @@
 # 使用率の色は、handoff-sentinel フックが通知を出すしきい値に揃える。
 #   - コンテキスト: フックの通知のしきい値から黄、CTX_RED_PCT から赤
 #     (しきい値が CTX_RED_PCT 以上なら、赤の境界もしきい値まで上げる)
-#   - 5h / 7d: フックの warn から黄、urgent から赤
+#   - 7d: フックの warn から黄、urgent から赤
 #   - しきい値はフックの thresholds アクションから読む。値も環境変数の解釈もフックが持ち、
 #     statusline は書き写さない
 #   - 比べるのは丸める前の値 (フックと同じ)。表示だけを丸める
@@ -51,12 +51,11 @@ assert_context_color() {
     assert_contains "${lines[0]}" "${color}$(ctx_gauge "$shown") ${shown}%"
 }
 
-# 5h と 7d の行が、指定の色で始まること
+# 7d の行が、指定の色で始まること
 assert_ratelimit_color() {
     local pct="$1" color="$2"
-    run_with_usage 10 "$(rate_limits_json "$pct" "$pct")"
-    assert_contains "${lines[1]}" "${color}5h  "
-    assert_contains "${lines[2]}" "${color}7d  "
+    run_with_usage 10 "$(rate_limits_json "$pct")"
+    assert_contains "${lines[1]}" "${color}7d  "
 }
 
 # =============================================================================
@@ -103,7 +102,7 @@ assert_ratelimit_color() {
 }
 
 # =============================================================================
-# 5h / 7d
+# 7d
 # =============================================================================
 
 @test "rate limit color: turns yellow at warn and red at urgent by default" {
@@ -150,10 +149,9 @@ use_isolated_statusline() {
 }
 
 assert_all_gray() {
-    run_with_usage 70 "$(rate_limits_json 70 70)"
+    run_with_usage 70 "$(rate_limits_json 70)"
     assert_contains "${lines[0]}" "${GRAY}$(ctx_gauge 70) 70%"
-    assert_contains "${lines[1]}" "${GRAY}5h  "
-    assert_contains "${lines[2]}" "${GRAY}7d  "
+    assert_contains "${lines[1]}" "${GRAY}7d  "
 }
 
 @test "thresholds unavailable: shows gray when the hook is missing" {
@@ -184,7 +182,7 @@ assert_all_gray() {
 @test "thresholds available: the isolated copy reads a well-formed hook" {
     # 上の GRAY が「写した場所では何をしても GRAY になる」せいではないことの対照
     use_isolated_statusline 'print("{\"context_pct\": 40, \"ratelimit_warn_pct\": 30, \"ratelimit_urgent_pct\": 60}")'
-    run_with_usage 70 "$(rate_limits_json 70 70)"
+    run_with_usage 70 "$(rate_limits_json 70)"
     assert_contains "${lines[0]}" "${YELLOW}$(ctx_gauge 70) 70%"
-    assert_contains "${lines[1]}" "${RED}5h  "
+    assert_contains "${lines[1]}" "${RED}7d  "
 }

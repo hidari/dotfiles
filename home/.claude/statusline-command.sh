@@ -1,13 +1,13 @@
 #!/bin/bash
 # Claude Code statusline script
-# Line 1: account | Model | ◔◑◕● Context% | cost · duration
-# Line 2: 5h rate limit progress bar
-# Line 3: 7d rate limit progress bar
-# Line 4: prompt cache の残りゲージ・分数・期限の時刻 (warm) か、cold で次に払う再キャッシュ量
-# Line 5: project [branch] | ± +added/-removed
+# 上から次の順に並べる。
+#   session:    account | Model | ◔◑◕● Context% | cost · duration
+#   rate limit: 7d rate limit progress bar
+#   cache:      prompt cache の残りゲージ・分数・期限の時刻 (warm) か、cold で次に払う再キャッシュ量
+#   repository: project [branch] | ± +added/-removed
 #
-# 1〜4行目は Claude が持つ状態 (アカウント・モデル・消費・キャッシュ)、最終行はリポジトリが持つ状態。
-# 4 行目と 5 行目は出すものが無ければ行ごと省く (空行を出さない)。
+# repository 以外は Claude が持つ状態 (アカウント・モデル・消費・キャッシュ)、最終行はリポジトリが持つ状態。
+# cache と repository は出すものが無ければ行ごと省く (空行を出さない)。
 #
 # アカウント (CLAUDE_CONFIG_DIR) ごとにキャッシュを分ける。
 # 分けないと片方のアカウントのレート制限がもう片方の statusLine に表示され、
@@ -191,10 +191,7 @@ load_rate_limits() {
   local data="$1"
   eval "$(printf '%s' "$data" | jq -r '
     def live(w): if (w.resets_at // 0) > now then w else {} end;
-    live(.five_hour // {}) as $f |
     live(.seven_day // {}) as $s |
-    "FIVE_HOUR_PCT=" + (($f.used_percentage // "") | tostring | @sh),
-    "FIVE_HOUR_RESET=" + (($f.resets_at // "") | tostring | @sh),
     "SEVEN_DAY_PCT=" + (($s.used_percentage // "") | tostring | @sh),
     "SEVEN_DAY_RESET=" + (($s.resets_at // "") | tostring | @sh)
   ' 2>/dev/null)"
@@ -255,7 +252,7 @@ prompt_cache_line() {
 
   local color="$GREEN"
   [ "$pc_remaining" -le 600 ] && color="$YELLOW"
-  # ラベルと数字の幅を 5h / 7d の行にそろえ、ゲージ・数字・時刻を同じ列に並べる。
+  # ラベルと数字の幅を 7d の行にそろえ、ゲージ・数字・時刻を同じ列に並べる。
   line="${color}pc  "
   [ -n "$pc_ttl" ] && line+="$(progress_bar $((pc_remaining * 100 / pc_ttl)))  "
   # 分数は切り上げる。切り捨てると最後の1分未満を0分と出す。
@@ -276,7 +273,7 @@ input=$(cat)
 # jq 出力を eval で一括代入するため shellcheck は代入を追えない。
 # ここで先に宣言して SC2154 (referenced but not assigned) の誤検出を防ぐ。
 model_name="" used_pct="" cwd="" lines_added="" lines_removed="" cost_usd="" duration_ms="" rate_limits="" prompt_cache=""
-FIVE_HOUR_PCT="" FIVE_HOUR_RESET="" SEVEN_DAY_PCT="" SEVEN_DAY_RESET=""
+SEVEN_DAY_PCT="" SEVEN_DAY_RESET=""
 eval "$(echo "$input" | jq -r '
   "model_name=" + (.model.display_name // "Unknown" | @sh),
   "used_pct=" + (.context_window.used_percentage // 0 | tostring),
@@ -354,17 +351,7 @@ fi
 # カナリアになり、書き込みが失敗したときに --% として目に見える。手元の値を表示すると
 # 「画面は 96% なのにフックは何も読めていない」が成立し、それを知らせる面がどこにも無い。
 if [ -f "$RATE_LIMITS_CACHE" ]; then
-  load_rate_limits "$(cat "$RATE_LIMITS_CACHE")"
-fi
-
-five_reset_display=""
-if [ -n "$FIVE_HOUR_RESET" ]; then
-  five_reset_display="Resets at $(format_epoch_time "$FIVE_HOUR_RESET" "+%H:%M") (${DISPLAY_TZ})"
-fi
-
-seven_reset_display=""
-if [ -n "$SEVEN_DAY_RESET" ]; then
-  seven_reset_display="Resets at $(format_epoch_time "$SEVEN_DAY_RESET" "+%Y-%m-%d %H:%M") (${DISPLAY_TZ})"
+  load_rate_limits "$(<"$RATE_LIMITS_CACHE")"
 fi
 
 # ---------- Format context used% ----------
@@ -382,56 +369,44 @@ if [ -n "$HOOK_CTX_PCT" ]; then
   ctx_red=$((HOOK_CTX_PCT > CTX_RED_PCT ? HOOK_CTX_PCT : CTX_RED_PCT))
 fi
 
-# ---------- Line 1 ----------
+# ---------- Session ----------
 SEP="${GRAY} │ ${RESET}"
 ctx_color=$(color_for_pct "${used_pct:-0}" "$HOOK_CTX_PCT" "$ctx_red")
 ctx_icon=$(ctx_gauge "$ctx_pct_int")
 
-line1=""
+session_line=""
 if [ -n "$account_display" ]; then
-  line1="${ACCOUNT_COLOR}${account_display}${RESET}${SEP}"
+  session_line="${ACCOUNT_COLOR}${account_display}${RESET}${SEP}"
 fi
-line1+="${TEXT}${model_name}${RESET}${SEP}${ctx_color}${ctx_icon} ${ctx_pct_int}%${RESET}"
+session_line+="${TEXT}${model_name}${RESET}${SEP}${ctx_color}${ctx_icon} ${ctx_pct_int}%${RESET}"
 
 # Session cost + wall duration（cost が 0 のうちは表示しない: 起動直後のノイズ抑制）
 if [ -n "$cost_usd" ] && awk -v c="$cost_usd" 'BEGIN{exit !(c > 0)}'; then
   cost_fmt=$(printf '$%.2f' "$cost_usd")
   dur_fmt=$(fmt_duration "$duration_ms")
-  line1+="${SEP}${SUB}${cost_fmt} · ${dur_fmt}${RESET}"
+  session_line+="${SEP}${SUB}${cost_fmt} · ${dur_fmt}${RESET}"
 fi
 
-# ---------- Line 2 (5h) ----------
-line2=""
-if [ -n "$FIVE_HOUR_PCT" ]; then
-  c5=$(color_for_pct "$FIVE_HOUR_PCT" "$HOOK_RL_WARN_PCT" "$HOOK_RL_URGENT_PCT")
-  bar5=$(progress_bar "$FIVE_HOUR_PCT")
-  pct5=$(printf "%3.0f%%" "$FIVE_HOUR_PCT")
-  line2="${c5}5h  ${bar5}  ${pct5}${RESET}"
-  [ -n "$five_reset_display" ] && line2+="  ${SUB}${five_reset_display}${RESET}"
-else
-  line2="${GRAY}5h  ▱▱▱▱▱▱▱▱▱▱   --%${RESET}"
-fi
-
-# ---------- Line 3 (7d) ----------
-line3=""
+# ---------- Rate limit (7d) ----------
 if [ -n "$SEVEN_DAY_PCT" ]; then
   c7=$(color_for_pct "$SEVEN_DAY_PCT" "$HOOK_RL_WARN_PCT" "$HOOK_RL_URGENT_PCT")
   bar7=$(progress_bar "$SEVEN_DAY_PCT")
   pct7=$(printf "%3.0f%%" "$SEVEN_DAY_PCT")
-  line3="${c7}7d  ${bar7}  ${pct7}${RESET}"
-  [ -n "$seven_reset_display" ] && line3+="  ${SUB}${seven_reset_display}${RESET}"
+  ratelimit_line="${c7}7d  ${bar7}  ${pct7}${RESET}"
+  [ -n "$SEVEN_DAY_RESET" ] &&
+    ratelimit_line+="  ${SUB}Resets at $(format_epoch_time "$SEVEN_DAY_RESET" "+%Y-%m-%d %H:%M") (${DISPLAY_TZ})${RESET}"
 else
-  line3="${GRAY}7d  ▱▱▱▱▱▱▱▱▱▱   --%${RESET}"
+  ratelimit_line="${GRAY}7d  ▱▱▱▱▱▱▱▱▱▱   --%${RESET}"
 fi
 
-# ---------- Line 4 (prompt cache) ----------
+# ---------- Prompt cache ----------
 # 本体は最初の API 応答のあとから prompt_cache を渡す。それまでは行ごと出さない。
 cache_line=""
 if [ -n "$prompt_cache" ] && [ "$prompt_cache" != "{}" ]; then
   cache_line=$(prompt_cache_line "$prompt_cache")
 fi
 
-# ---------- Line 5 (repository) ----------
+# ---------- Repository ----------
 # git リポジトリの外では空のまま。空文字なら行ごと出さない
 # (空行を出すと画面に無意味な隙間が残る)。
 repo_line=""
@@ -448,7 +423,7 @@ fi
 
 # ---------- Output ----------
 # 空の行は省き、行のあいだにだけ改行を置く (最終行に改行を付けない)。
-out=("$line1" "$line2" "$line3")
+out=("$session_line" "$ratelimit_line")
 [ -n "$cache_line" ] && out+=("$cache_line")
 [ -n "$repo_line" ] && out+=("$repo_line")
 IFS=$'\n'
