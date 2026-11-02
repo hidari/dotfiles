@@ -152,7 +152,9 @@ status: open
 - 本番でブラウザ自動化の smoke を回すとき、route でバックエンドの表への書き込みを abort して止めた件数をログに出し、前後で読み取り専用のスナップショット (件数と digest) を比べると、画面を開くだけで書き込む経路があっても書き込みが残らないことを機構と数で言えた (実測。止めた件数は0。他のリポジトリでの効果は推測)
 - 報告者の提案: 本番の smoke の手順書の標準にする
 - dev サーバ (vite の dev モード) に向けた E2E を全件・並列で流すと、毎回違うテストが1〜2本落ち、単独では緑だった。ログの時刻の突き合わせは、複数の実行が1本の backend ログに混ざって収束しなかった。失敗した回だけ trace を残す設定で流すのが筋 (実測)。その設定で原因まで辿れたかは報告に無い
-- React Router v7 (7.18.2) のフレームワークモードで、lazy route discovery (既定) の窓に遷移の打ち消しがあった。未発見のルートへの遷移が navigation を loading にしてから manifest を待ち、その間に別の fetcher の action が終わると、revalidation が遷移を abort して古い matches のまま URL だけ遷移先で確定させる (中身は元のページか catch-all の404)。`routeDiscovery: { mode: 'initial' }` にすると消えた。ルート数が数十なら、最初に配る量の増加は数KB (gzip で約4.7KB) (実測)。1/3回だけ落ちる E2E を、失敗した回の trace (操作・コンソール・ネットワークを、コンソールの ISO 時刻で壁時計へ揃えて1本の時系列に並べたもの) とライブラリのソースの読解で機序まで追った (実測)。再現テストの前提の pin は ISSUE-88 の INS-79
+- React Router v7 (7.18.2) のフレームワークモードで、lazy route discovery (既定) の窓に遷移の打ち消しがあった。未発見のルートへの遷移が navigation を loading にしてから manifest を待ち、その間に別の fetcher の action が終わると、revalidation が遷移を abort して古い matches のまま URL だけ遷移先で確定させる (中身は元のページか catch-all の404)。`routeDiscovery: { mode: 'initial' }` にすると消えた。ルート数が数十なら、最初に配る量の増加は数KB (gzip で約4.7KB) (実測)
+  - 機序は、1/3回だけ落ちる E2E の失敗した回の trace (操作・コンソール・ネットワークを、コンソールの ISO 時刻で壁時計へ揃えて1本の時系列に並べたもの) と、ライブラリのソースの読解で追った (実測)
+  - 再現テストの前提の pin は ISSUE-88 の INS-79
 - 遅らせる `page.route` の応答をテストの中で待たないと、テストが早く終わったときに後片付けの後で要求が届き、次のテストの最初の SSR が30〜67秒止まった。遅延を入れる route は、応答をテストの終わりまでに必ず待つ (実測)
 - 外部 CDN の script を読む経路のテストは、`addInitScript` でグローバルを先置きして読み込みを短絡させるのではなく、CDN への要求を `page.route` で受けて同じ stub を定義する JS 本文で fulfill すると、script の注入から load、グローバルの判定までの実経路を残したまま外部依存だけを外せた。stub の関数を `fn.toString()` と `JSON.stringify(token)` で即時実行の本文にすれば、`addInitScript` 版と中身を1か所に保てる (実測)
 
