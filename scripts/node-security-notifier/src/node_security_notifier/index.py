@@ -39,11 +39,11 @@ def parse_index(raw: bytes) -> list[str]:
         security = entry.get("security")
         if not isinstance(security, bool):
             raise IndexFormatError(f"{i} 番目の要素の security が bool ではない")
-        prerelease = match.group(2) is not None
-        if security and prerelease:
-            # 状態ファイルの読み手は正式版の形しか受け取らないので、書き出せない印は落とす
-            raise IndexFormatError(f"{i} 番目の要素がプレリリースなのに security が true")
         if security:
+            if match.group(2) is not None:
+                # 状態ファイルの読み手は正式版の形しか受け取らない。書き出せない印を
+                # 黙って捨てると告知が黙るのでエラーにする
+                raise IndexFormatError(f"{i} 番目の要素がプレリリースなのに security が true")
             versions.append(match.group(1))
 
     # 空のリストもここで落ちる
