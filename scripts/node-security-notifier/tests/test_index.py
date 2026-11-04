@@ -34,6 +34,15 @@ class TestParseIndex:
             pytest.param(b"[]", id="empty-list"),
             pytest.param(json.dumps([_entry(version="24.22.1")]).encode(), id="version-without-v"),
             pytest.param(json.dumps([_entry(version="v24.22")]).encode(), id="version-two-parts"),
+            # 後段の検査で落ちないよう security: false にして正常な要素を並べる
+            pytest.param(
+                json.dumps([_entry(version="v27.0.0-", security=False), _entry()]).encode(),
+                id="prerelease-empty-tag",
+            ),
+            pytest.param(
+                json.dumps([_entry(version="v27.0.0-al pha", security=False), _entry()]).encode(),
+                id="prerelease-space",
+            ),
             pytest.param(json.dumps([_entry(version=24)]).encode(), id="version-not-str"),
             pytest.param(
                 json.dumps([{k: v for k, v in _entry().items() if k != "version"}]).encode(),
@@ -55,6 +64,17 @@ class TestParseIndex:
         ],
     )
     def test_malformed_input_is_an_error_not_an_empty_result(self, raw: bytes) -> None:
+        with pytest.raises(IndexFormatError):
+            parse_index(raw)
+
+    def test_prerelease_is_skipped(self) -> None:
+        # pin と比べられるのは正式版だけで、プローブも正式版の形しか受け取らない
+        raw = json.dumps([_entry(version="v27.0.0-alpha.0.0.0", security=False), _entry()]).encode()
+        assert parse_index(raw) == ["24.22.1"]
+
+    def test_security_prerelease_is_an_error_not_dropped(self) -> None:
+        # 書き出せない security の印を黙って捨てると告知が黙る
+        raw = json.dumps([_entry(version="v27.0.0-rc.1", security=True), _entry()]).encode()
         with pytest.raises(IndexFormatError):
             parse_index(raw)
 

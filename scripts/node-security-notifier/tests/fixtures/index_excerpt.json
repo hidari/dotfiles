@@ -1,5 +1,11 @@
 [
   {
+    "version": "v27.0.0-alpha.0.0.0",
+    "date": "2026-10-29",
+    "lts": false,
+    "security": false
+  },
+  {
     "version": "v26.12.1",
     "date": "2026-10-21",
     "lts": false,

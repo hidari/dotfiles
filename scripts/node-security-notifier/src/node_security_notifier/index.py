@@ -9,7 +9,8 @@ from __future__ import annotations
 import json
 import re
 
-_VERSION = re.compile(r"v(\d+\.\d+\.\d+)")
+# プレリリースは semver の pre-release (v27.0.0-alpha.0.0.0 など) の形で一覧に載る
+_VERSION = re.compile(r"v(\d+\.\d+\.\d+)(-[0-9A-Za-z.-]+)?")
 
 
 class IndexFormatError(ValueError):
@@ -17,7 +18,7 @@ class IndexFormatError(ValueError):
 
 
 def parse_index(raw: bytes) -> list[str]:
-    """security: true の版を、先頭の v を外した形で出現順に返す。"""
+    """security: true の正式版を、先頭の v を外した形で出現順に返す。"""
     try:
         data = json.loads(raw)
     except ValueError as exc:
@@ -32,11 +33,17 @@ def parse_index(raw: bytes) -> list[str]:
         version = entry.get("version")
         match = _VERSION.fullmatch(version) if isinstance(version, str) else None
         if match is None:
-            raise IndexFormatError(f"{i} 番目の要素の version が v<数>.<数>.<数> ではない")
+            raise IndexFormatError(
+                f"{i} 番目の要素の version が v<数>.<数>.<数>[-<プレリリース>] ではない"
+            )
         security = entry.get("security")
         if not isinstance(security, bool):
             raise IndexFormatError(f"{i} 番目の要素の security が bool ではない")
         if security:
+            if match.group(2) is not None:
+                # 状態ファイルの読み手は正式版の形しか受け取らない。書き出せない印を
+                # 黙って捨てると告知が黙るのでエラーにする
+                raise IndexFormatError(f"{i} 番目の要素がプレリリースなのに security が true")
             versions.append(match.group(1))
 
     # 空のリストもここで落ちる
