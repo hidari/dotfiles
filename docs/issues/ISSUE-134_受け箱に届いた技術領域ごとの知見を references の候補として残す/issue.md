@@ -8,7 +8,7 @@ status: open
 
 2026-10-21 に受け箱へ届いたまとめのうち、特定の技術領域に閉じた知見をここへ残す (ユーザー決定 2026-10-22: 技術領域に閉じた知見も捨てずに1本にまとめる)。どの領域にも閉じない知見は ISSUE-133 へ分けた。
 
-どれも他のセッションの報告で、根拠は報告者の申告 (実測 / 推測 / ドキュメントのみ) をそのまま書く。dotfiles で確かめたものは項目の中で分けて書く。版や仕様は届いた時点のもので、古びる。2026-10-22に届いた7件から足した分は、各節の末尾と、新しく立てた節に置いた。2026-10-23に仕分けた5件から足した分も、各節の末尾と、新しく立てた GitHub の節に置いた。2026-10-31に仕分けた72件 (届いたのは2026-10-22〜2026-10-30) から足した分は、各節の末尾と、新しく立てた節に置いた。2026-11-01に仕分けた2件 (届いたのは2026-10-30) から足した分は、各節の末尾と、既存の項目の子に置いた。2026-11-02に仕分けた1件 (届いたのは2026-11-02) から足した分は、各節の末尾に置いた。
+どれも他のセッションの報告で、根拠は報告者の申告 (実測 / 推測 / ドキュメントのみ) をそのまま書く。dotfiles で確かめたものは項目の中で分けて書く。版や仕様は届いた時点のもので、古びる。2026-10-22に届いた7件から足した分は、各節の末尾と、新しく立てた節に置いた。2026-10-23に仕分けた5件から足した分も、各節の末尾と、新しく立てた GitHub の節に置いた。2026-10-31に仕分けた72件 (届いたのは2026-10-22〜2026-10-30) から足した分は、各節の末尾と、新しく立てた節に置いた。2026-11-01に仕分けた2件 (届いたのは2026-10-30) から足した分は、各節の末尾と、既存の項目の子に置いた。2026-11-02に仕分けた1件 (届いたのは2026-11-02) から足した分は、各節の末尾に置いた。2026-11-04に仕分けた5件 (届いたのは2026-11-02) から足した分は、各節の末尾と、新しく立てた CodeSandbox の節に置いた。
 
 ### Cloudflare Access の後ろの環境へ繋ぐ
 
@@ -157,6 +157,10 @@ status: open
   - 再現テストの前提の pin は ISSUE-88 の INS-79
 - 遅らせる `page.route` の応答をテストの中で待たないと、テストが早く終わったときに後片付けの後で要求が届き、次のテストの最初の SSR が30〜67秒止まった。遅延を入れる route は、応答をテストの終わりまでに必ず待つ (実測)
 - 外部 CDN の script を読む経路のテストは、`addInitScript` でグローバルを先置きして読み込みを短絡させるのではなく、CDN への要求を `page.route` で受けて同じ stub を定義する JS 本文で fulfill すると、script の注入から load、グローバルの判定までの実経路を残したまま外部依存だけを外せた。stub の関数を `fn.toString()` と `JSON.stringify(token)` で即時実行の本文にすれば、`addInitScript` 版と中身を1か所に保てる (実測)
+- 実ブラウザの閲覧者で「接続が開いてから閉じるまで」を測るため、ページに入る前の初期化スクリプトで WebSocket を包み、ページ自身の Date.now() で open と close を記録した。アプリのタイマー判定と同じ時計・同じイベントで測れる (実測)
+- 境界の閾値 (N 秒続いたら成功と数える) を実測の切断時刻と比べると、切断がちょうど閾値の上に乗っていて両側に落ちていた。数回に1回だけ壊れる形で、閾値を切断の時刻から十分に離すのが直し方だった。閾値を決めるときは、経路が切る時刻を観測系の時計で測ってから置く (実測)。同じ報告の、再開の処理を pin する前提は ISSUE-88 の INS-81
+- Playwright の routeWebSocket で、サーバへ繋がずにハンドラの中ですぐ close すると、code を渡してもページが受ける close code は1006になった (chromium と webkit で実測)。close code で分岐する実装を、code を指定した close で試すテストは、指定が届いていない前提で読み直す。推測で「既定の close は1000」と書いた前提が誤っていた (実測)
+- 「取得中なら何もせず返る」ガードを持つ関数を、呼ぶ側が「取ってもらえた」前提で印を消しながら呼ぶと、要求が黙って消える。ガードに弾かれたときは「終わった後にもう1回」の印を立て、関数の finally で消費する形で塞いだ。取得を遅らせる route で並びを作る E2E で、修正の前は赤、後は緑を確かめた (実測)
 
 ### Playwright でスタイルと配置を測る
 
@@ -179,6 +183,8 @@ status: open
 - document.elementFromPoint で「上に何があるか」を判定する E2E は、対象が画面の外にあると null を返し、「隠れている」と同じ失敗に見える。判定の前に scrollIntoViewIfNeeded で対象を画面へ出し、画面に入るかは別のテストに任せた (実測)
 - 報告者の提案: helper は null (画面の外) と「別の要素が上にある」を別の値で返し、切り分けを一度で済ませる
 - ブラウザで見せた見本が Web フォントを読まずシステムのフォントで描かれ、本番より太く見えた。見本の段階から本番と同じフォントを読ませないと、見た目の合意がずれる (実測)
+- 画面を操作する道具が無いセッションで、デスクトップアプリの UI 部品の見た目を確かめるため、開発用の vite dev server が配る ignore 済みのディレクトリにハーネスの HTML と TSX を置き、Playwright MCP の Chromium で開いて撮った。dev server 経由なら本物の CSS (グローバルのトークンと CSS Modules) で部品を描けて、getComputedStyle と elementFromPoint でフェードの色・pointer-events・クリックの当たり先まで実測できた (実測)。同じ部品を jsdom 上の fake の ResizeObserver で検証した側の pin の作り方は ISSUE-88 の INS-80
+- scrollHeight と clientHeight は整数に丸められるので、1px の差を許容しないと「ちょうど収まる」文が誤判定されうる (推測。許容の有無は変異注入で pin 済み)
 
 ### SVG と CSP の検査
 
@@ -222,6 +228,9 @@ status: open
 - セッションの途中で作った .mcp.json のサーバーは /mcp に出てこなかった (実測)。プロジェクトの MCP サーバーは起動時にしか読まれない様子で、Playwright Test Agents を使うにはセッションの再起動が要る (推測)。MCP の要らない配線を先に WIP コミットしてから再起動すると、待ちが無駄にならない。報告者の提案は、`references/testing.md` の「E2E の生成」に再起動の要否を足すこと
 - `init-agents --loop=claude` が書き出す .mcp.json は `npx playwright run-test-mcp-server` で起動し、seed と specs/ もリポジトリのルートに置かれた (実測)。報告者の提案は、npx を禁じている環境では pnpm exec に直す手順を足すこと。specs/ の扱いは上の planner の計画ファイルの項と同じ
 - 生成された Healer の定義に「直せなければ test.fixme() にして skip する」とある。失敗を緑に見せる経路なので、brief で禁止し、実行されたテストの ID の集合で skip が無いことを確かめる必要がある (ドキュメントのみ。生成された定義を読んだだけ)
+- Playwright MCP はカレントのリポジトリ直下に `.playwright-mcp/` (snapshot の yml と console のログ) を作り、多くのリポジトリの .gitignore には載っていない。放置すると誤コミットの種になるので、使い終わったら消すか ignore に足す (実測)。報告者の提案は、グローバルの gitignore に `.playwright-mcp/` を足すこと。仕分けたセッションの解釈: 上の planner の `specs/` と同じ型の混入
+  - dotfiles で確かめたこと (2026-11-04): グローバルの gitignore (`home/.config/git/.gitignore_global`、15行) に `playwright` と `mcp` を含む行は0件だった
+- claude-in-chrome は CodeSandbox の Preview の確認に使えた。初回は「proceed to preview」の確認画面が出るのでクリックが要る。コンソールの記録は呼んだ時点から始まるので、読む前に一度再読み込みしないと「0件」が「見ていない」と区別できない (実測)
 
 ### GitHub Actions と Node の版
 
@@ -386,6 +395,7 @@ status: open
 - HEAD の全 migration で状態を作るベンチは、後から入る migration のたびに状態の検査や fixture が壊れ、気づかれないまま止まっていた (無関係な FK の追加で止まっていた)。比べる版に固定すると壊れない (実測)
 - 既存の migration を最終状態の DB へ流し直す冪等性のゲートを持つリポジトリで列を drop すると、その列を名指しする過去の migration (列の単位の grant など) の再適用が止まる。過去の文を「今ある列だけに与える」動的な形へ書き換えると順に流した結果を変えずに通せるが、適用済みの本文を変える判断は人に聞く (実測)
 - seed が migration の後に表の権限を付け直す構成では、ローカルの DB で「拒否されない」は証拠にならない。migration の grant だけを当て直して測り、事後に relacl を事前と一致させる (実測)
+- 書き手を問わず列を null にする BEFORE INSERT のトリガを足すと、テストの fixture でも「その列に値を持つ既存の行」を作れなくなり、既存の行を書き換える関数のテストが常に0件を返す。既存の行の書き換えは migration の述語つき UPDATE にして、テストはトリガの挙動だけを pin する形にした (推測。計画段階で advisor が指摘)
 
 ### Rust と依存の脆弱性
 
@@ -413,6 +423,11 @@ status: open
 - libsql の1本の Connection を RwLock の読みロックで共有して複数のスレッドから読むと、文の形によって毎回 SIGSEGV になった。下層が serialized を保証していても、ラッパの層で同じ接続を並行に使うのは安全ではない (実測。Mutex で直列にすると9/9緑、読みロックに戻す変異で3/3 SIGSEGV。正確な機序は未特定)
 - 報告者の提案: 接続を直列にするか、分ける規約にする
 - Windows ARM の検証 VM でしか見ていなかった非決定的なクラッシュが、Mac のストレステスト (32タスク×300回、1〜2秒) で決定的に再現した。再現テストは、そのまま回帰テストとして残せる (実測)
+- 静的にリンクして配るアプリで、標準ライブラリが内部で取り込む crate を、rust-src の `library/` を同梱の `library/vendor/` へ向けた `cargo metadata --offline --locked --filter-platform <triple>` で列挙した。`library/` の Cargo.toml は nightly の cargo-features を宣言するので、stable の cargo では `RUSTC_BOOTSTRAP=1` が要る (実測)
+- 標準ライブラリの依存の解決だけでは一覧が合わない。配布物は `backtrace` の feature 付きで組まれており、feature を付けないと addr2line・gimli・object・miniz_oxide などが解決から消える。逆に、ワークスペースの feature の統合で、rlib の無い crate (例: hashbrown の既定の hasher) が解決に出る。rustup が配った `lib/rustlib/<triple>/lib/*.rlib` の実物を正とし、解決と両側から突き合わせると決まる。rlib の側に在って解決にも既知の「リンクされない rlib」(test、getopts、proc_macro など) にも無いものが出たら止める (実測。feature を外す変異で、6 crate を名指しして止まった)
+- ライセンスの一覧の照合 (`--check`) を、rust-src の無い CI でも回る形に保てた。標準ライブラリの一覧は toolchain の版の関数なので、生成物に版を pin し、版の一致を見るだけで済ませる (実測)
+- cargo の古いライセンスの綴り `MIT/Apache-2.0` (斜線) は、SPDX の `OR` だけを読む選び方では扱えない式に化け、生成が止まる。標準ライブラリが取り込む crate の中に、今もこの綴りがある (実測)
+- 報告者の提案: 静的にリンクする成果物のライセンス表示を生成するリポジトリでは、cargo の依存に加えて、標準ライブラリの vendor の crate を、配られた rlib との突き合わせで数える手順を共通の手当てにする。生成物の中身を守るテストの穴は ISSUE-88 の INS-82
 
 ### Supabase CLI と外部サービスの CLI
 
@@ -429,6 +444,7 @@ status: open
 - ある認証サービスで、ユーザーを Backend API で削除したあと端末の資格情報でフロントの API を叩くと、client の取得は401ではなく200でセッションが空になり、所属の一覧は401になった。端末からは普通のサインアウトと区別できないので、「アカウントが消された」は secret を持つ backend で確かめる (実測。dev のインスタンスで1回ずつ)
 - Resend の送信の一覧の API は full_access の鍵が要り、送信専用の鍵では401 restricted_api_key になる。読み取りだけの権限が無いので、人の目視に倒した (ドキュメントのみ)
 - 報告者の提案: 道具を作る前に、API が要る鍵の権限をドキュメントで見る
+- `supabase db push` は未適用の migration を全部流すので、1つの PR の中で「フロントを出してから revoke」のように配信の段を分けられない (実測)。計画の並列レビューで前提を疑う観点だけが出した穴で、レビューの形は ISSUE-133 の「Claude Code の hook と委譲」節に置いた
 
 ### LLM を組み込む機能
 
@@ -473,6 +489,25 @@ status: open
 - CJK の Markdown で閉じない太字を探すとき、正規表現ではなくリポジトリが使う CommonMark の実装で描画し、残った太字の記号を旧版と新版で数え比べた。壊れるのは、太字の内側の端が約物で外側に文字が続く形だけだった (実測。正規表現は誤検出だらけで、描画なら対照付きで判定できた)
 - 報告者の提案: CJK の文書を扱うリポジトリ向けの検査の候補にする
 - 有界の探索で状態の上限に達したときに precondition で process ごと落とすと、同じ実行の他のテストの結果と要約の行が消える。印を立てて探索を止め、Issue.record でそのテストだけを落とす (実測)
+- macOS の Parallels VM のアプリを人手なしに動かすには、ホストの `prlctl send-key-event` (PC のスキャンコード) が使えた。ホストの仮想キーボードとして届くのでゲストの TCC (アクセシビリティ) の許可は要らない。ゲスト内の osascript / System Events はこの許可が要る (実測)
+- `prlctl send-key-event` にマウスのイベントは無い。WKWebView の Tab はテキスト欄と select にしか止まらず、Alt (0x38) を押しながらの Tab でもボタンへ移らなかった。ボタンを押す操作は人手が要った (実測。Option が届いていないのか WKWebView が見ないのかは未切り分け)
+- 仕分けたセッションの解釈: 上の2件は agentic-coding-tools の macos-vm-verification の skill に関わる。報告者は skill への提案をしていない
+
+### CodeSandbox で上流への再現を作る
+
+2026-11-04に仕分けた分で届いた。上流の OSS への Issue の Bug Report テンプレートが求める「動かせる最小再現へのリンク」を、CodeSandbox に API で作った報告。旧系統の define API と、SDK API の `POST https://api.codesandbox.io/sandbox` の両方を試している。
+
+- SDK API の `POST /sandbox` に `{title, privacy, template, files: {path: {code}}}` を送ると、API トークンが紐付くチームのワークスペースにサンドボックスができる。define API で作ったものは匿名になり、チームの一覧に出なかった (実測)
+- ブラウザで動かすだけの再現は `template: "static"` と import map で esm.sh の版を固定するのが確実だった。bundler に依存しないので、Preview を開いた瞬間に結果が出る。作る前に手元で `python -m http.server` で配信して、実ブラウザで同じ結果になるのを確かめてから1回で作った (実測)
+- 再現の台本はバグの実行と、原因の手順だけを外した対照の実行の2本を並べて出す形にした。メンテナが一目で原因の手順を特定できる (実測)
+- `POST /sandbox` で `template: "vanilla"` を渡すと500 (Internal Server Error) になった。Vanilla テンプレートの内部名は `parcel` (実測)
+- API で作るときは `sandbox.config.json` の template が無視され、本文の `template` だけで決まる。未指定だと package.json の scripts から nodebox と推定され、台本が実行されない (実測)
+- `parcel` テンプレートは CodeSandbox 側の babel-transpiler の worker が NetworkError で読めず、Preview が止まった。CodeSandbox 側の問題か閲覧側の問題かは切り分けていない (実測。原因は推測)
+- define API で `"template": "node"` を指定しても Browser Sandbox になり、ターミナルが無い。Browser Sandbox から VM Sandbox へ変換する節は公式ドキュメントでコメントアウトされていた (実測 / ドキュメントのみ)
+- CodeSandbox の API にはサンドボックスを消す手段が無く、試作のたびにダッシュボードで手で消す手間が出る (ドキュメントのみ。OpenAPI に DELETE が無い)
+- codesandbox.io の UI と公開 API は WebFetch や curl だと Cloudflare の403になる。ドキュメントは GitHub の `codesandbox/docs` のソース、API の仕様は `codesandbox/codesandbox-sdk` の `openapi.json` から読める (実測)
+- 報告者の提案: 上流への Issue の再現を作る手順 (チームに作る API、static + import map、手元で確かめてから1回で作る、バグと対照を並べる) を、OSS へのバグ報告を支援する skill の候補として検討する (実測)。skill を作るなら置き場は agentic-coding-tools になる (仕分けたセッションの解釈)
+- Preview の確認に claude-in-chrome を使った報告は「Playwright Test Agents とブラウザの MCP」節に置いた
 
 ## タスク
 
@@ -480,11 +515,12 @@ status: open
 - [ ] 入れるものは references のどのファイルに置くかを決め、版や仕様に依存する記述には届いた日付を残す
 - [ ] 技術領域ごとの references を dotfiles に持つか、各リポジトリの CLAUDE.md や skill に持たせるかを決める (ISSUE-97 の配る対象の棚卸しと重なる)
 - [ ] private のリポジトリの Pages と gh-pages の残りを確かめる手順を、どこかの棚卸しに入れるかを決める
+- [ ] グローバルの gitignore に `.playwright-mcp/` を足すかを決める
 
 ## 関連
 
 - ISSUE-133: 同じ受け箱から届いた、技術領域に閉じない知見
 - ISSUE-97: 集めた知見を磨いて配る工程
-- ISSUE-88: 検査と変異注入の知見。このファイルの項目のうち pin の作り方にあたる部分は ISSUE-88 の INS-19〜21 / INS-23 / INS-27 / INS-57 / INS-77 / INS-79 にあり、各項目の末尾から番号で参照している
+- ISSUE-88: 検査と変異注入の知見。このファイルの項目のうち pin の作り方にあたる部分は ISSUE-88 の INS-19〜21 / INS-23 / INS-27 / INS-57 / INS-77 / INS-79〜82 にあり、各項目の末尾から番号で参照している
 - ISSUE-118: コンテナランタイムの移行。Supabase CLI のネイティブのランタイムの報告を置いた
 - ISSUE-136: global の mise に `.node-version` を読ませるか

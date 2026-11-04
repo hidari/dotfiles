@@ -68,6 +68,7 @@ dotfiles で確かめたこと (2026-10-23): 同じ日に、別のリポジト�
 - push の直後で新しい run が pending のとき、`gh pr checks --watch` は待たずに「no checks reported」で rc=1 で終わった。前の head の run が in_progress でも同じだった (実測)。報告者の提案: CI を待つ手順を、headSha で run を特定して `gh run watch` で待つ形へ置き換えるか、rc=1 と「no checks reported」の組を「まだ始まっていない」と扱う注記を足す。同じ報告で、新しい run を `gh run list --branch <branch> --json databaseId,headSha` で引き、push した commit と一致する run の ID を `gh run watch --exit-status` に渡すと、pending の間も待ち続けて rc 0で終わった (実測)。/goal の条件文に `gh pr checks --watch` を入れた件は ISSUE-133 の「Claude Code の /goal」節にある
 - 長いゲート (20〜30分) の前に並列レビューを先に回し、修正を入れてから最終のゲートを1回だけ回す順序にした (実測)
 - 前のゲートで simplify の Efficiency 観点が出した最適化を効果を数えずに採ったら、直前の処理が既に同じ表を全部読んでいて、省けるのは課金の枠のおよそ0.4%だった。次のゲートの Altitude 観点が「判断の分岐が shell 層に増えた」「adapter の doc と逆を言う」と指摘し、取り下げた (実測)。報告者の提案: Efficiency の提案を採る前に、隣の処理が既に払っている同じコストと課金や上限の枠に並べて効果を数えることを Phase 2 の判断の軸に足し、効果が枠の数%に満たなければ採らないのを既定にする (実測)
+- 2026-11-04の仕分けで、別のリポジトリから、merge の後に品質ゲートを事後に回し、merge 前に出せなかった記録を取り返した報告が届いた。見出しを merge 前の結果と分け、merge の可否の宣言は書かない形にした (実測)。事後のゲートの検証役が見つけた照合の射程のずれは ISSUE-88 の INS-82 に置いた
 
 ### superpowers の subagent-driven-development (外部の plugin)
 
@@ -159,6 +160,7 @@ dotfiles で確かめたこと (2026-10-31): `home/apm.yml` は ast-grep-practic
 - [ ] in-repo-issue の「後から取り付ける経路」節の残り2項目 (採番の形式の変更を配るときの告知、配る `issue-id.py` が764行で全文を読むのが重い) を agentic-coding-tools へ渡すか決める。2026-10-31の依頼では範囲を3点に絞って書いたので外れた
 - [x] pre-merge-quality-gate の「ゲートの順序、増分、CI の待ち方」節を agentic-coding-tools へ渡す。Efficiency の判断の軸は、simplify を読み取り専用の reviewer で回す件と一緒に決める
   - 2026-10-31に、節の最初の3項目を渡した。agentic-coding-tools の ISSUE-99 として起票された。4項目めは上の simplify のタスクが持つ
+- [ ] 「ゲートの順序、増分、CI の待ち方」節の5項目め (merge の後に回す事後のゲート) を agentic-coding-tools へ渡すか決める
 - [ ] ast-grep-practice の2件を、第三者の上流 (mizchi/skills) へ報告するか、使う側の書き方で受けるかを決める
 - [ ] security-blue-red-team の6件を agentic-coding-tools へ渡す。ISSUE-114 で寄せる範囲を決めてから、契約に足すか自作の層で持つかを決めてもらう
 - [x] windows-vm-verification の3節を agentic-coding-tools へ渡す。CLI (winvm) にネットワークを切る区間の入口を足すかも決めてもらう
