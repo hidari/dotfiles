@@ -37,6 +37,7 @@ in-repo-issue skill に同梱の `issue-id.py` (canonical は agentic-coding-too
   - 違反は stderr に出る。stdout だけを読む呼び出し側では 0 件に化ける
   - `--check-diff --base <ref>` はコミット済みの差分しか見ない。コミット前に回すときは `--base` を付けずに index を見る
   - `--check-text` は PATH を1本しか受けず、複数を渡すと argparse が rc=2 で止まる。commit-and-pr-message の検査の入口は複数のファイルを受けるので呼び方が揃わない (実測)。報告者の提案: 複数を受けるか、SKILL.md に1本ずつ渡すと書く
+  - 記法の検査 (識別子の数字記法の混入) は未追跡のファイルを見ず、新しい issue.md に違反があっても「違反なし」を返した。`git add -N` の後で同じ検査が違反を2件出した。報告者の手当ては、新しいファイルを足したら追跡下に入れてから検査すること。2026-11-10の仕分けで、別のリポジトリから届いた (実測)。dotfiles の `rules/testing-practices.md` は、検査の発火条件が追跡状態に依存しうることを変異注入の項で既に書いている
 - [ ] agentic-coding-tools で実装して apm の pin を上げ、報告元のリポジトリへ「ラッパーを消せる」と知らせる (接頭辞と除外の両方がそろって初めて消せる)
 
 ## 関連

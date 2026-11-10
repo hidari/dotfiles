@@ -69,6 +69,7 @@ dotfiles で確かめたこと (2026-10-23): 同じ日に、別のリポジト�
 - 長いゲート (20〜30分) の前に並列レビューを先に回し、修正を入れてから最終のゲートを1回だけ回す順序にした (実測)
 - 前のゲートで simplify の Efficiency 観点が出した最適化を効果を数えずに採ったら、直前の処理が既に同じ表を全部読んでいて、省けるのは課金の枠のおよそ0.4%だった。次のゲートの Altitude 観点が「判断の分岐が shell 層に増えた」「adapter の doc と逆を言う」と指摘し、取り下げた (実測)。報告者の提案: Efficiency の提案を採る前に、隣の処理が既に払っている同じコストと課金や上限の枠に並べて効果を数えることを Phase 2 の判断の軸に足し、効果が枠の数%に満たなければ採らないのを既定にする (実測)
 - 2026-11-04の仕分けで、別のリポジトリから、merge の後に品質ゲートを事後に回し、merge 前に出せなかった記録を取り返した報告が届いた。見出しを merge 前の結果と分け、merge の可否の宣言は書かない形にした (実測)。事後のゲートの検証役が見つけた照合の射程のずれは ISSUE-88 の INS-82 に置いた
+- 2026-11-10の仕分けで、別のリポジトリから、`gh pr merge --delete-branch` はそのブランチが別の git worktree でチェックアウトされていると、ローカルのブランチの削除を飛ばして警告だけ出す (merge とリモートの削除は済む) という報告が届いた。後で worktree remove と branch -D を手で打つ必要がある (実測)。報告者の提案: merge の手順を持つ skill に、「worktree で作業したブランチは --delete-branch がローカルを消さないので、merge の後に worktree remove と branch -D を打つ」の1行を足す (実測)。報告者は skill を名指ししていないので、渡すときに宛先の skill を確かめる
 
 ### superpowers の subagent-driven-development (外部の plugin)
 
@@ -83,6 +84,14 @@ dotfiles も agentic-coding-tools も canonical を持たない。直せるの�
 - 報告 (実測): 件数の下限と上限 (下限 + 余裕) の両側で縛るテストのガードがあると、「件数の更新は最後のタスクでまとめてよい」という plan の指示は成り立たない。余裕を超えるテストを足したタスクは、自分のゲートで赤になった
 - 報告 (実測): subagent-driven-development の pre-flight scan で、各タスクが作る型と使う型を実際のツリーで grep して突き合わせると、散文のレビューを複数通した計画に順序の食い違い (後のタスクが定める型を前のタスクが使う) が残っていた。実装の前に spec を実コードと突き合わせる項は ISSUE-133 の「Claude Code の hook と委譲」節にある
 - 報告 (実測): subagent-driven-development の fix-loop の「Minor はループに入れず最終レビューへ回す」が、グローバル CLAUDE.md の警告0とボーイスカウトとぶつかった。規定どおりだと、タスクが新しく作った警告やテストの空回りが最後まで残る。CLAUDE.md を優先して修正のラウンドに入れた。報告者の提案は、「Minor が警告の新規発生や dead pin に当たるときはループに入れる」を規範か `references/delegation.md` に1行足すこと (足せば毎回の上書きが要らなくなる、は推測)。規範に足す候補としては ISSUE-133 の「Claude Code の hook と委譲」節にある
+- 報告 (実測): 同梱の `task-brief` は見出しの形を決め打ちしている。英語の「Task」の見出し (`### Task N:`) しか拾わず、日本語の「手順 N」の plan では rc=3 で止まる (エラーの文面には、見出しの候補として手順の見出しが列挙される)。別のリポジトリでは、見出しが「Task A1」のような英字つきの ID だと「not found」で中身の空のファイルを作った (数字の ID を前提にしている)。2026-11-10の仕分けで、2つのリポジトリから届いた。どちらも awk で見出しの範囲を切り出して代えた。前者は、awk で「### 手順 N:」の節と plan の共通の節 (決定表・前提・同じコミットで変える組) を抜き出して brief を作ると、merge 済みの plan を書き換えずに済み、各 brief の行数で抜き出しの漏れを確かめた (実測)。同じ報告者の使用感では、superpowers の7.0.2の workspace・ledger・review-package のスクリプトは言語を問わず動き、task-brief だけが見出しを英語に縛っている (実測)
+- 上の task-brief の件の報告者の提案は2つある。日本語で plan を書く規約 (writing-plans や in-repo-issue の Plan 結合) を持つリポジトリでは、plan の見出しを「### Task N: 手順の名前」の形にする規約を足すか、task-brief が使えないときの代わりの手順を skill の側に置く (推測)。計画の Task の ID に英字の接頭辞 (PR ごとの A1、B1 など) を使う運用なら、task-brief の代わりの切り出しを手順に用意するか、計画の見出しを数字だけにする (実測)。superpowers は外部なので、受けるなら brief の雛形 (ISSUE-100) か使う側の規約になる
+
+### superpowers の brainstorming の visual companion (外部の plugin)
+
+2026-11-10に仕分けた分で届いた。別のリポジトリのセッションの報告。
+
+- 報告 (実測): 見た目の案 (アイコン、表記、OG 画像のレイアウト) を並べて選んでもらうのに効いた。カードの幅が狭いので、1200×630のような大きいモックは1列にして zoom で縮めないと切れる。描いたものは自分でスクリーンショットを撮って崩れを確かめてから見せた
 
 ### ast-grep-practice (第三者の上流): 規則の例と許す側の対照
 
@@ -138,6 +147,7 @@ dotfiles で確かめたこと (2026-10-31): `home/apm.yml` は ast-grep-practic
 2026-10-31に仕分けた分で届いた。justfile skill は apm 経由の第三者の上流なので、直せるのは使う側の書き方と上流への報告まで。
 
 - justfile の `*args` を `{{ args }}` で展開すると、空白を含む引数が分割される。`just --dry-run` で `-t "a b"` が `-t a b` に割れ、`set positional-arguments` と `"$@"` で保たれた (実測)。justfile skill の例も `{{args}}` の形なので同じ罠を踏む。報告者の提案: 例を直す
+  - 2026-11-10の仕分けで、別のリポジトリから同じ手当ての別の理由が届いた。`just` のレシピに引数を素通しするとき、`{{args}}` を本文に書くとレシピ本文を静的に読むテストの補助関数が式の展開を扱えず壊れることがある。`[positional-arguments]` と `"$@"` にすると本文に `{{...}}` が残らず、クォートも安全になる (実測)
 
 ### workflow-authoring (組み込みの skill): 反証役へ既定値を指示する参照例
 
@@ -155,12 +165,14 @@ dotfiles で確かめたこと (2026-10-31): `home/apm.yml` は ast-grep-practic
 - [ ] superpowers の2件は、brief の雛形 (ISSUE-100) に「型検査の recipe」と「同梱スクリプトはリポジトリの中から絶対パスで呼ぶ」を入れるかを決める
   - 2026-10-31に足した5件 (計画の冒頭の前提、目録の文書を Files に含める、件数の行はコントローラが持つ、最初に BASE へ ff-only、件数の両側のガード) も、同じく雛形に入れるかを決める
   - pre-flight scan の件と fix-loop の Minor の扱いの件は、ISSUE-133 の委譲の規範の候補と一緒に決める
+  - 2026-11-10に足した task-brief の見出しの形の件 (日本語の見出しと英字つきの ID) も、雛形か使う側の規約で受けるかを同じく決める
 - [x] in-repo-issue の2節 (後から取り付ける経路、Issue の外にある写しと参照) を agentic-coding-tools へ渡す。`always_run` のコメントは版を添えて測り直してもらい、`issue-id.py` の CLI にかかる分は ISSUE-121 と一緒に渡す
   - 2026-10-31に渡した。後から取り付ける経路は agentic-coding-tools の ISSUE-32 へ追記され (`always_run` は版と files / types の絞り込みの有無をそろえて測り直すタスクになった)、写しと参照は agentic-coding-tools の ISSUE-97 として起票された。`--check-diff` の罠を SKILL.md に書くかは ISSUE-121 のタスクが持ったまま
 - [ ] in-repo-issue の「後から取り付ける経路」節の残り2項目 (採番の形式の変更を配るときの告知、配る `issue-id.py` が764行で全文を読むのが重い) を agentic-coding-tools へ渡すか決める。2026-10-31の依頼では範囲を3点に絞って書いたので外れた
 - [x] pre-merge-quality-gate の「ゲートの順序、増分、CI の待ち方」節を agentic-coding-tools へ渡す。Efficiency の判断の軸は、simplify を読み取り専用の reviewer で回す件と一緒に決める
   - 2026-10-31に、節の最初の3項目を渡した。agentic-coding-tools の ISSUE-99 として起票された。4項目めは上の simplify のタスクが持つ
 - [ ] 「ゲートの順序、増分、CI の待ち方」節の5項目め (merge の後に回す事後のゲート) を agentic-coding-tools へ渡すか決める
+- [ ] 「ゲートの順序、増分、CI の待ち方」節の6項目め (worktree のブランチと `--delete-branch`) を、merge の手順を持つ skill へ渡すか決める
 - [ ] ast-grep-practice の2件を、第三者の上流 (mizchi/skills) へ報告するか、使う側の書き方で受けるかを決める
 - [ ] security-blue-red-team の6件を agentic-coding-tools へ渡す。ISSUE-114 で寄せる範囲を決めてから、契約に足すか自作の層で持つかを決めてもらう
 - [x] windows-vm-verification の3節を agentic-coding-tools へ渡す。CLI (winvm) にネットワークを切る区間の入口を足すかも決めてもらう
