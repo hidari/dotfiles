@@ -19,7 +19,7 @@ ISSUE-97 のタスクと実例を切り出し、ISSUE-53 を待たずに進め�
 
 mizchi/skills は pin した d7999453 のあと、`testing/` `tooling/` `meta/` などの分類ディレクトリを畳んで skill を直下へ並べた。HEAD (2026-10-18の ab4eb2f7) では `testing/` が404を返す。`home/apm.yml` が pin しているパス (`mizchi/skills/tooling/justfile` など) は HEAD に存在しない。
 
-この形は版の差ではなく、pin したパスが上流の最新に無いという遅れ方になる。`apm outdated` / `apm update` がこれを報告できるかは、タスクの1つ目で確かめる。pin を上げるときは、パスを新しい配置へ書き換えてから SHA を揃える。
+この形は版の差ではなく、pin したパスが上流の最新に無いという遅れ方になる。2026-11-10に4本 (empirical-prompt-tuning / ast-grep-practice / apm-usage / justfile) のパスを直下の配置へ書き換え、ab4eb2f7 へ揃えた (PR #300)。この実例の遅れは解消したが、気づいたのは仕分けの途中で人が上流を見たからで、タスクの1つ目の問い (apm outdated / apm update が報告できるか) は残る。`apm outdated` / `apm update` がこれを報告できるかは、タスクの1つ目で確かめる。pin を上げるときは、パスを新しい配置へ書き換えてから SHA を揃える。
 
 GitHub の compare API で距離を測るときは、`files` が300件で切られる。切られた一覧を「変わったファイルが無い」と読まないこと。
 

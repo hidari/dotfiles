@@ -217,7 +217,7 @@
     "**/home/.claude/CLAUDE.md"
   ],
   "editorMode": "normal",
-  "autoCompactEnabled": true,
+  "autoCompactEnabled": false,
   "switchModelsOnFlag": false,
   "remoteControlAtStartup": true,
   "crossSessionInbound": "accept",

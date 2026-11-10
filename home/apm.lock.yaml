@@ -1,5 +1,5 @@
 lockfile_version: '1'
-generated_at: '2026-10-22T16:43:57.367936+00:00'
+generated_at: '2026-11-10T09:28:03.731842+00:00'
 apm_version: 0.34.0
 dependencies:
 - repo_url: cloudflare/security-audit-skill
@@ -361,31 +361,12 @@ dependencies:
     .claude/skills/markdown-to-pdf/scripts/style.css: sha256:be7ecf56c0a6368d66e748d3c765e313149e6a172bbc8bd37aff9d7c567cf72f
   content_hash: sha256:c97eb7f1880e2fefef8c9ef647d2c5f028ffab12af8c98c5919be355e5e920ac
 - repo_url: mizchi/skills
-  name: empirical-prompt-tuning
-  host: github.com
-  resolved_commit: d7999453cdb4e0e09df1c7f82fd23752539c546c
-  resolved_ref: d7999453cdb4e0e09df1c7f82fd23752539c546c
-  version: unknown
-  virtual_path: meta/empirical-prompt-tuning
-  is_virtual: true
-  package_type: claude_skill
-  deployed_files:
-  - .claude/skills/empirical-prompt-tuning
-  - .claude/skills/empirical-prompt-tuning/README.md
-  - .claude/skills/empirical-prompt-tuning/SKILL-ja.md
-  - .claude/skills/empirical-prompt-tuning/SKILL.md
-  deployed_file_hashes:
-    .claude/skills/empirical-prompt-tuning/README.md: sha256:c7db7d27122bcffe416e5607700a7cd1778cad260d3e104c5bb6da7b7f976b3d
-    .claude/skills/empirical-prompt-tuning/SKILL-ja.md: sha256:0a38d830802c2e08a7faca13928fedf6911e00b896946b4b03910d662de6dea5
-    .claude/skills/empirical-prompt-tuning/SKILL.md: sha256:252418e7ef022981d2dda2e3ec57fa1c786d30af68c50b7e062edf1d7361b0cb
-  content_hash: sha256:20e7fba93c7267ba6e3a7b27787ca49191b762dffcfb804b01da9183b1b0c891
-- repo_url: mizchi/skills
   name: apm-usage
   host: github.com
-  resolved_commit: d7999453cdb4e0e09df1c7f82fd23752539c546c
-  resolved_ref: d7999453cdb4e0e09df1c7f82fd23752539c546c
+  resolved_commit: ab4eb2f7a92a13fb37c225ab427f2f492143ace1
+  resolved_ref: ab4eb2f7a92a13fb37c225ab427f2f492143ace1
   version: unknown
-  virtual_path: tooling/apm-usage
+  virtual_path: apm-usage
   is_virtual: true
   package_type: claude_skill
   deployed_files:
@@ -396,19 +377,19 @@ dependencies:
   - .claude/skills/apm-usage/references/manifest-schema.md
   - .claude/skills/apm-usage/references/publishing.md
   deployed_file_hashes:
-    .claude/skills/apm-usage/README.md: sha256:600c52fe2390d9064433123aabbe3f8b9d702e7702fd6437718a82bc0ff5c580
+    .claude/skills/apm-usage/README.md: sha256:fe777429843c8077a45021f0dca6841c454c926435f927516f55481be136014c
     .claude/skills/apm-usage/SKILL-ja.md: sha256:095dff73f08d8c23fff1b8106729b1e57e34088ffae23e25d7461e17a88b9743
     .claude/skills/apm-usage/SKILL.md: sha256:dc975426518a7e264f56ad3a8219bca5a75170fa38f83f59f1f7a7be86f0822b
     .claude/skills/apm-usage/references/manifest-schema.md: sha256:f49955b8be35046fc963bffbf134af101055c3164ae55f86d6bc8bc001304b13
     .claude/skills/apm-usage/references/publishing.md: sha256:392878fba913c9cc2eac9ecf028fce1671138bf59c03e66d2e44225757552034
-  content_hash: sha256:519bcaa185327320805cfbc89d655499c68485029e995676bdd490665b688a70
+  content_hash: sha256:42fcdeec87e6274f9e0f8dd52eab01d5b138757307a52f3599c3988a043d985f
 - repo_url: mizchi/skills
   name: ast-grep-practice
   host: github.com
-  resolved_commit: d7999453cdb4e0e09df1c7f82fd23752539c546c
-  resolved_ref: d7999453cdb4e0e09df1c7f82fd23752539c546c
+  resolved_commit: ab4eb2f7a92a13fb37c225ab427f2f492143ace1
+  resolved_ref: ab4eb2f7a92a13fb37c225ab427f2f492143ace1
   version: unknown
-  virtual_path: tooling/ast-grep-practice
+  virtual_path: ast-grep-practice
   is_virtual: true
   package_type: claude_skill
   deployed_files:
@@ -421,37 +402,58 @@ dependencies:
   - .claude/skills/ast-grep-practice/references/rule-yaml.md
   - .claude/skills/ast-grep-practice/references/testing.md
   deployed_file_hashes:
-    .claude/skills/ast-grep-practice/README.md: sha256:117059807d964371b7006bcc5ec24512bb992ecd643c128281be3ba760cf9a47
-    .claude/skills/ast-grep-practice/SKILL-ja.md: sha256:dbe683eb03d6c32f5bb1c254adf77a20c20625de0bb4b40f43a890d617709e60
-    .claude/skills/ast-grep-practice/SKILL.md: sha256:9183634a2e375f826fede62515b8d1414200cdc3643d93393ed1c3b36e45beeb
+    .claude/skills/ast-grep-practice/README.md: sha256:ac16fc64a6c240a3868275437d30832f8ef6f5e67252c7c3ae10dc8bcf352c11
+    .claude/skills/ast-grep-practice/SKILL-ja.md: sha256:be2fe0f3543aa71bbc97bec4d9c3c7a8392bcb979e0d7ec92edf03e1de8563a1
+    .claude/skills/ast-grep-practice/SKILL.md: sha256:1609695594f0563ae3a7b14759610a06dab5128a56042785c5dc77c171c938e0
     .claude/skills/ast-grep-practice/references/cli.md: sha256:20f47f7693019f6e392cf59a2bb0f938c3763ff177f7eb5f6ed1360bc9b78938
     .claude/skills/ast-grep-practice/references/kind-catalog.md: sha256:0a616ac78efa38aeeee5b8afc939bee0489c5d1d92b82475480e429d03a14ec4
     .claude/skills/ast-grep-practice/references/rule-yaml.md: sha256:1b801dd897252f442384980235eaf06354bb6dc0ac8378f196e4e20746e1c7c0
     .claude/skills/ast-grep-practice/references/testing.md: sha256:d7e2282b5b6ef954891af059adbe9b8ae23edcc385ba00f6a9e80e42ac6607d7
-  content_hash: sha256:2c39f6e925845efc15cff26d3aecf5dd5f1acc8f62dd06524bf98b7ac0bde7a6
+  content_hash: sha256:ef690fbea22521869f110d8094a9afa2b54cda5c3fd6fb61e194880cb03f6286
 - repo_url: mizchi/skills
-  name: justfile
+  name: empirical-prompt-tuning
   host: github.com
-  resolved_commit: d7999453cdb4e0e09df1c7f82fd23752539c546c
-  resolved_ref: d7999453cdb4e0e09df1c7f82fd23752539c546c
-  version: d799945
-  virtual_path: tooling/justfile
+  resolved_commit: ab4eb2f7a92a13fb37c225ab427f2f492143ace1
+  resolved_ref: ab4eb2f7a92a13fb37c225ab427f2f492143ace1
+  version: unknown
+  virtual_path: empirical-prompt-tuning
   is_virtual: true
-  package_type: marketplace_plugin
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/empirical-prompt-tuning
+  - .claude/skills/empirical-prompt-tuning/README.md
+  - .claude/skills/empirical-prompt-tuning/SKILL-ja.md
+  - .claude/skills/empirical-prompt-tuning/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/empirical-prompt-tuning/README.md: sha256:5fc8e7774a7290497c941e46baeb2712731dd92a7ea2ddff75fecc9173ccc347
+    .claude/skills/empirical-prompt-tuning/SKILL-ja.md: sha256:0a38d830802c2e08a7faca13928fedf6911e00b896946b4b03910d662de6dea5
+    .claude/skills/empirical-prompt-tuning/SKILL.md: sha256:252418e7ef022981d2dda2e3ec57fa1c786d30af68c50b7e062edf1d7361b0cb
+  content_hash: sha256:26042612e2d8b6ee1deebcdfc556da494640488e03471aaae74da587ae84fa2b
+- repo_url: mizchi/skills
+  name: 92ad4e0b212cfaf7
+  host: github.com
+  resolved_commit: ab4eb2f7a92a13fb37c225ab427f2f492143ace1
+  resolved_ref: ab4eb2f7a92a13fb37c225ab427f2f492143ace1
+  version: ab4eb2f
+  virtual_path: justfile
+  is_virtual: true
+  package_type: hybrid
   deployed_files:
   - .claude/skills/justfile
   - .claude/skills/justfile/.claude-plugin/manifest.json
   - .claude/skills/justfile/README.md
   - .claude/skills/justfile/SKILL.md
+  - .claude/skills/justfile/apm.yml
   - .claude/skills/justfile/assets/gh_action_example.yaml
   - .claude/skills/justfile/assets/justfile
   deployed_file_hashes:
     .claude/skills/justfile/.claude-plugin/manifest.json: sha256:0905f1d62b295d40dae89ecf77eda3c05666941bee692b8220ab95ab0336bf5d
-    .claude/skills/justfile/README.md: sha256:de18db9c0fa6c24e2de883a14a79b26f32f953b4f137c6e5325ffcd38025d960
-    .claude/skills/justfile/SKILL.md: sha256:32bf798b16c88d9d6c79127834503e5e7aa6d50249ce3dae63fa7db4895a90e0
-    .claude/skills/justfile/assets/gh_action_example.yaml: sha256:3ce1e44cb9570948b055c84f36e8affab20a080000b21d76b07e89864c08f9a2
+    .claude/skills/justfile/README.md: sha256:b3cfc07c4d34a2f36a88b43d3d8a3f1efe0155631cc08f060b9cca4bd60b6bde
+    .claude/skills/justfile/SKILL.md: sha256:a1b16da4ac0b22de559669a1a1f59154f8095b4d17072ddb16e1f0d175e3d5ce
+    .claude/skills/justfile/apm.yml: sha256:3e3c4e005e64babea70b12bf393ba4cdb3b0bc0f9e15e973b83fda0208e2bd30
+    .claude/skills/justfile/assets/gh_action_example.yaml: sha256:7d1049527e7db708f0629d21d4a81ecb9a2e66c280f2d9edd5a85aefdaaa3869
     .claude/skills/justfile/assets/justfile: sha256:c7a70af405eaa460f73bd49f011b1f1e0dd09f6ecc866a3c3640b8cae7a5c208
-  content_hash: sha256:c4ed663fa57b3a96c90e5710aeea594ea92500178e7411fa1bd161c32fa8f26c
+  content_hash: sha256:bf070ea838c9d1a1cd3c69c9563b398a0f1118b07ca807c5ecbce935d0ebc87a
 - repo_url: yusukebe/ax
   name: ax
   host: github.com
@@ -546,8 +548,8 @@ deployments:
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/tooling/apm-usage
-  active_owner: mizchi/skills/tooling/apm-usage
+  - mizchi/skills/apm-usage
+  active_owner: mizchi/skills/apm-usage
   content_hash: null
 - kind: project-relative
   target: claude
@@ -555,17 +557,17 @@ deployments:
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/tooling/apm-usage
-  active_owner: mizchi/skills/tooling/apm-usage
-  content_hash: sha256:600c52fe2390d9064433123aabbe3f8b9d702e7702fd6437718a82bc0ff5c580
+  - mizchi/skills/apm-usage
+  active_owner: mizchi/skills/apm-usage
+  content_hash: sha256:fe777429843c8077a45021f0dca6841c454c926435f927516f55481be136014c
 - kind: project-relative
   target: claude
   value: .claude/skills/apm-usage/SKILL-ja.md
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/tooling/apm-usage
-  active_owner: mizchi/skills/tooling/apm-usage
+  - mizchi/skills/apm-usage
+  active_owner: mizchi/skills/apm-usage
   content_hash: sha256:095dff73f08d8c23fff1b8106729b1e57e34088ffae23e25d7461e17a88b9743
 - kind: project-relative
   target: claude
@@ -573,8 +575,8 @@ deployments:
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/tooling/apm-usage
-  active_owner: mizchi/skills/tooling/apm-usage
+  - mizchi/skills/apm-usage
+  active_owner: mizchi/skills/apm-usage
   content_hash: sha256:dc975426518a7e264f56ad3a8219bca5a75170fa38f83f59f1f7a7be86f0822b
 - kind: project-relative
   target: claude
@@ -582,8 +584,8 @@ deployments:
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/tooling/apm-usage
-  active_owner: mizchi/skills/tooling/apm-usage
+  - mizchi/skills/apm-usage
+  active_owner: mizchi/skills/apm-usage
   content_hash: sha256:f49955b8be35046fc963bffbf134af101055c3164ae55f86d6bc8bc001304b13
 - kind: project-relative
   target: claude
@@ -591,8 +593,8 @@ deployments:
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/tooling/apm-usage
-  active_owner: mizchi/skills/tooling/apm-usage
+  - mizchi/skills/apm-usage
+  active_owner: mizchi/skills/apm-usage
   content_hash: sha256:392878fba913c9cc2eac9ecf028fce1671138bf59c03e66d2e44225757552034
 - kind: project-relative
   target: claude
@@ -600,8 +602,8 @@ deployments:
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/tooling/ast-grep-practice
-  active_owner: mizchi/skills/tooling/ast-grep-practice
+  - mizchi/skills/ast-grep-practice
+  active_owner: mizchi/skills/ast-grep-practice
   content_hash: null
 - kind: project-relative
   target: claude
@@ -609,35 +611,35 @@ deployments:
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/tooling/ast-grep-practice
-  active_owner: mizchi/skills/tooling/ast-grep-practice
-  content_hash: sha256:117059807d964371b7006bcc5ec24512bb992ecd643c128281be3ba760cf9a47
+  - mizchi/skills/ast-grep-practice
+  active_owner: mizchi/skills/ast-grep-practice
+  content_hash: sha256:ac16fc64a6c240a3868275437d30832f8ef6f5e67252c7c3ae10dc8bcf352c11
 - kind: project-relative
   target: claude
   value: .claude/skills/ast-grep-practice/SKILL-ja.md
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/tooling/ast-grep-practice
-  active_owner: mizchi/skills/tooling/ast-grep-practice
-  content_hash: sha256:dbe683eb03d6c32f5bb1c254adf77a20c20625de0bb4b40f43a890d617709e60
+  - mizchi/skills/ast-grep-practice
+  active_owner: mizchi/skills/ast-grep-practice
+  content_hash: sha256:be2fe0f3543aa71bbc97bec4d9c3c7a8392bcb979e0d7ec92edf03e1de8563a1
 - kind: project-relative
   target: claude
   value: .claude/skills/ast-grep-practice/SKILL.md
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/tooling/ast-grep-practice
-  active_owner: mizchi/skills/tooling/ast-grep-practice
-  content_hash: sha256:9183634a2e375f826fede62515b8d1414200cdc3643d93393ed1c3b36e45beeb
+  - mizchi/skills/ast-grep-practice
+  active_owner: mizchi/skills/ast-grep-practice
+  content_hash: sha256:1609695594f0563ae3a7b14759610a06dab5128a56042785c5dc77c171c938e0
 - kind: project-relative
   target: claude
   value: .claude/skills/ast-grep-practice/references/cli.md
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/tooling/ast-grep-practice
-  active_owner: mizchi/skills/tooling/ast-grep-practice
+  - mizchi/skills/ast-grep-practice
+  active_owner: mizchi/skills/ast-grep-practice
   content_hash: sha256:20f47f7693019f6e392cf59a2bb0f938c3763ff177f7eb5f6ed1360bc9b78938
 - kind: project-relative
   target: claude
@@ -645,8 +647,8 @@ deployments:
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/tooling/ast-grep-practice
-  active_owner: mizchi/skills/tooling/ast-grep-practice
+  - mizchi/skills/ast-grep-practice
+  active_owner: mizchi/skills/ast-grep-practice
   content_hash: sha256:0a616ac78efa38aeeee5b8afc939bee0489c5d1d92b82475480e429d03a14ec4
 - kind: project-relative
   target: claude
@@ -654,8 +656,8 @@ deployments:
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/tooling/ast-grep-practice
-  active_owner: mizchi/skills/tooling/ast-grep-practice
+  - mizchi/skills/ast-grep-practice
+  active_owner: mizchi/skills/ast-grep-practice
   content_hash: sha256:1b801dd897252f442384980235eaf06354bb6dc0ac8378f196e4e20746e1c7c0
 - kind: project-relative
   target: claude
@@ -663,8 +665,8 @@ deployments:
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/tooling/ast-grep-practice
-  active_owner: mizchi/skills/tooling/ast-grep-practice
+  - mizchi/skills/ast-grep-practice
+  active_owner: mizchi/skills/ast-grep-practice
   content_hash: sha256:d7e2282b5b6ef954891af059adbe9b8ae23edcc385ba00f6a9e80e42ac6607d7
 - kind: project-relative
   target: claude
@@ -951,8 +953,8 @@ deployments:
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/meta/empirical-prompt-tuning
-  active_owner: mizchi/skills/meta/empirical-prompt-tuning
+  - mizchi/skills/empirical-prompt-tuning
+  active_owner: mizchi/skills/empirical-prompt-tuning
   content_hash: null
 - kind: project-relative
   target: claude
@@ -960,17 +962,17 @@ deployments:
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/meta/empirical-prompt-tuning
-  active_owner: mizchi/skills/meta/empirical-prompt-tuning
-  content_hash: sha256:c7db7d27122bcffe416e5607700a7cd1778cad260d3e104c5bb6da7b7f976b3d
+  - mizchi/skills/empirical-prompt-tuning
+  active_owner: mizchi/skills/empirical-prompt-tuning
+  content_hash: sha256:5fc8e7774a7290497c941e46baeb2712731dd92a7ea2ddff75fecc9173ccc347
 - kind: project-relative
   target: claude
   value: .claude/skills/empirical-prompt-tuning/SKILL-ja.md
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/meta/empirical-prompt-tuning
-  active_owner: mizchi/skills/meta/empirical-prompt-tuning
+  - mizchi/skills/empirical-prompt-tuning
+  active_owner: mizchi/skills/empirical-prompt-tuning
   content_hash: sha256:0a38d830802c2e08a7faca13928fedf6911e00b896946b4b03910d662de6dea5
 - kind: project-relative
   target: claude
@@ -978,8 +980,8 @@ deployments:
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/meta/empirical-prompt-tuning
-  active_owner: mizchi/skills/meta/empirical-prompt-tuning
+  - mizchi/skills/empirical-prompt-tuning
+  active_owner: mizchi/skills/empirical-prompt-tuning
   content_hash: sha256:252418e7ef022981d2dda2e3ec57fa1c786d30af68c50b7e062edf1d7361b0cb
 - kind: project-relative
   target: claude
@@ -1131,8 +1133,8 @@ deployments:
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/tooling/justfile
-  active_owner: mizchi/skills/tooling/justfile
+  - mizchi/skills/justfile
+  active_owner: mizchi/skills/justfile
   content_hash: null
 - kind: project-relative
   target: claude
@@ -1140,8 +1142,8 @@ deployments:
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/tooling/justfile
-  active_owner: mizchi/skills/tooling/justfile
+  - mizchi/skills/justfile
+  active_owner: mizchi/skills/justfile
   content_hash: sha256:0905f1d62b295d40dae89ecf77eda3c05666941bee692b8220ab95ab0336bf5d
 - kind: project-relative
   target: claude
@@ -1149,35 +1151,44 @@ deployments:
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/tooling/justfile
-  active_owner: mizchi/skills/tooling/justfile
-  content_hash: sha256:de18db9c0fa6c24e2de883a14a79b26f32f953b4f137c6e5325ffcd38025d960
+  - mizchi/skills/justfile
+  active_owner: mizchi/skills/justfile
+  content_hash: sha256:b3cfc07c4d34a2f36a88b43d3d8a3f1efe0155631cc08f060b9cca4bd60b6bde
 - kind: project-relative
   target: claude
   value: .claude/skills/justfile/SKILL.md
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/tooling/justfile
-  active_owner: mizchi/skills/tooling/justfile
-  content_hash: sha256:32bf798b16c88d9d6c79127834503e5e7aa6d50249ce3dae63fa7db4895a90e0
+  - mizchi/skills/justfile
+  active_owner: mizchi/skills/justfile
+  content_hash: sha256:a1b16da4ac0b22de559669a1a1f59154f8095b4d17072ddb16e1f0d175e3d5ce
+- kind: project-relative
+  target: claude
+  value: .claude/skills/justfile/apm.yml
+  runtime: null
+  scope: project
+  owners:
+  - mizchi/skills/justfile
+  active_owner: mizchi/skills/justfile
+  content_hash: sha256:3e3c4e005e64babea70b12bf393ba4cdb3b0bc0f9e15e973b83fda0208e2bd30
 - kind: project-relative
   target: claude
   value: .claude/skills/justfile/assets/gh_action_example.yaml
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/tooling/justfile
-  active_owner: mizchi/skills/tooling/justfile
-  content_hash: sha256:3ce1e44cb9570948b055c84f36e8affab20a080000b21d76b07e89864c08f9a2
+  - mizchi/skills/justfile
+  active_owner: mizchi/skills/justfile
+  content_hash: sha256:7d1049527e7db708f0629d21d4a81ecb9a2e66c280f2d9edd5a85aefdaaa3869
 - kind: project-relative
   target: claude
   value: .claude/skills/justfile/assets/justfile
   runtime: null
   scope: project
   owners:
-  - mizchi/skills/tooling/justfile
-  active_owner: mizchi/skills/tooling/justfile
+  - mizchi/skills/justfile
+  active_owner: mizchi/skills/justfile
   content_hash: sha256:c7a70af405eaa460f73bd49f011b1f1e0dd09f6ecc866a3c3640b8cae7a5c208
 - kind: project-relative
   target: claude
