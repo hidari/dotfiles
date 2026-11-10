@@ -57,6 +57,14 @@ mise は exact pin で運用している。uv だけが action の pin だけで
 - setup-just (中身は setup-crate) の「no release for just matching version specifier」を一過性と読んで再実行するのは効かなかった。org へ移した後から起きはじめ (移管前の25回の run では0件、移管後はほぼすべての run のどこかの job)、release も asset も存在していた。setup-crate は API の例外を握らず、一覧の応答から target 名を含む asset のある release を絞るだけなので、一覧の応答が違ったときにも同じエラーになる。原因の特定はしていない (実測)
 - 導入を、固定の URL で落として sha256 を照合する自前のスクリプトへ置き換えると、setup-just の失敗が消え、取得物の差し替えも検出できるようになった。sha256 は API の asset の digest、落とした実物、release の SHA256SUMS の3つで突き合わせ、macOS のランナーは `sha256sum` を持たないことがあるので `shasum -a 256 --check --strict` を使った。置き換えた後の最初の run で Linux と macOS の全 job が通った (実測)
 
+## 受け箱から届いた実例 (2026-11-10の仕分け)
+
+2つのリポジトリから、GitHub の Release の配布物の取得が504を返し続けた報告が届いた。どちらも別のリポジトリのセッションの報告で、dotfiles では確かめていない。
+
+- CI で道具の本体を GitHub releases から毎回 `curl --retry 3` で取得する形は、配信側の504が約100分続いた日に7つのジョブを検査が走らないまま落とした。既定の再試行の間隔 (1・2・4秒) では越えられない。回し直しが「pass」になっても、ログに道具が走った印 (checksum の OK、scanned の行) があるかまで見て判定した (実測)
+- GitHub は混んでいると、匿名の `github.com/.../releases/download` に504を返し続けることがある (status ページは「匿名ユーザーの急増によるタイムアウト」)。トークンを付けると通る。curl の引数に載せず `-K -` で標準入力から header を渡せば ps に出ない。curl 7.58以降はリダイレクト先の別ホストへ Authorization を送らない (実測)
+- 1つ目の報告者の提案: CI の道具の本体は、版と sha256 をキーにして actions/cache に持つ。PR のキャッシュはその PR の ref からしか読めないので、既定ブランチの push のジョブで保存する。sha256 の照合はキャッシュから戻したときも通す (推測)。タスクの「キャッシュで取得回数そのものを減らせるか検討する」に当たる
+
 ## タスク
 
 - [ ] 3 件の失敗経路を切り分け、どこが自分で制御できるかを確かめる (自前の
