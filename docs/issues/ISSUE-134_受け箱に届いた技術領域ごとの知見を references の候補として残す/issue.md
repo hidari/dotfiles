@@ -37,8 +37,6 @@ status: open
 - 報告者の提案: 利用者のデータを残さない方針では、「何を書くか」に加えて「どの要求で行を作るか」を決める
 - workers-rs の Worker で fetch が Err を返すと crate がエラーのログにして500を返し、panic! は「runtime canceled ... hung」と、ファイルと行番号つきの Rust の panic の行と、関数名つきの wasm の stack trace として写る。Durable Object の alarm と hibernation の WebSocket ハンドラの Err は type=exception で trigger つきで写る (実測。呼び出しログが無効の構成は確かめている途中)
 - workers.dev が 404 と error code 1042 を返すことを「本番の Worker の workers.dev が閉じている」の確認に使っていたが、同じサブドメインで存在しない Worker の名前を叩いても同じ 404 / 1042 が返った。届かないことの証拠にはなるが、Worker が在ることや新しい版が載ったことの証拠にはならないので、版は deploy のログの Upload と Version ID で別に確かめる (実測)
-- `wrangler deploy` は cron の trigger を `PUT /schedules` で toml の一覧に置き換えるが、`wrangler rollback` は version を切り替えるだけで trigger を戻さない。rollback の後は code が古く trigger が新しい組になる (wrangler 4.127.1の dist を読んで確認、実走はしていない) (ドキュメントのみ)。報告者の提案は、Cloudflare Workers の cron を持つリポジトリの rollback の手順書に「`wrangler rollback` は trigger を戻さない。trigger まで戻すなら旧 checkout から `wrangler triggers deploy`」を書くこと。根拠は報告者が効かなかったことの2件目に挙げたもの (ドキュメントのみ)
-- ダッシュボードの Workers の cron trigger の編集ダイアログは、「スケジュール」のタブで表せる式 (毎時N分・毎日N時) を開いて「Cron 式」のタブに切り替えると、実際の式ではなく既定値の `*/30 * * * *` を表示した。一覧の説明と次の発火時刻、API の GET .../schedules は正しい式を返した。確認に編集ダイアログを使わない (「更新」を押すと書き換わる) (実測)
 
 ### Cloudflare Logpush と DuckDB
 
@@ -72,6 +70,7 @@ status: open
 - ネイティブで測った RSS は wasm の linear memory と一致しない。同じ表でネイティブの RSS が105MB、wasm の linear memory が79.5MiB だった。Workers の isolate の128MB と比べるなら、wasm 側で測った値を使う。同じデータを埋めた wasm を Node で読み、memory.buffer.byteLength を比べた (実測)。報告者の提案は、大きな地理データや静的データを Worker に埋める判断の前に、wasm の linear memory を Node で測る手順を、Workers を使うリポジトリ向けの参照に置くこと (実測)
 - Durable Object の duration を「起きている時間 × 128MB」で見積もった。Hibernation API の接続しか持たない DO は、休眠の条件を満たして idle のあいだ課金されず、休眠に入る前の窓も課金されない (pricing の FAQ の明文)。この見積もりは hibernation が壊れたときの値で、攻撃の最悪値として出すと費用を桁で過大に見せる (ドキュメントのみ。検証環境の月の duration が小さいことと矛盾しないことは実測)
 - ダッシュボードの Data Studio のクエリのエディタは、前に開いたインスタンスで打った文を残す。新しく打った文とつながって両方が実行された。消す文に `WHERE id = ...` を付けていたので、別のインスタンスでは0行で済んだ。回避は、毎回エディタを空にすることと、消す文に必ず主キーの条件を付けること (実測)。報告者の提案は、ダッシュボードの SQL エディタで本番のデータを消す手順を書くときは、この2つを手順の行として持たせること (実測)
+- ダッシュボードの Workers の cron trigger の編集ダイアログは、「スケジュール」のタブで表せる式 (毎時N分・毎日N時) を開いて「Cron 式」のタブに切り替えると、実際の式ではなく既定値の `*/30 * * * *` を表示した。一覧の説明と次の発火時刻、API の GET .../schedules は正しい式を返した。確認に編集ダイアログを使わない (「更新」を押すと書き換わる) (実測)
 
 ### wrangler と Vite と Vitest
 
@@ -95,6 +94,7 @@ status: open
 - vitest の include の外 (無視されるキャッシュのディレクトリなど) に置いた使い捨てのテストは、何も走らず出力が空になる。空を「通った」と読まない。製品のテストの中で緑と変異の赤の両方を見て確かめ直した (実測)。上の `.cache/` の複製まで収集する項とは逆向きの事例
 - rolldown (vite 8) の codeSplitting の group は、一致したモジュールを既定で1つの chunk にまとめるので、パッケージが自分で動的 import に分けたファイル (locale ごとのデータなど) まで1つに戻してしまう。group に `entriesAware: true` を付けると、読み込む側の組み合わせで分かれ、遅延ロードが戻った。付けるのはその性質のパッケージの group だけにする (実測)
 - 自前の設定の型を、上流の型 (rolldown の CodeSplittingGroup) との交差型にすると、オプション名の綴りの誤りが excess property check で落ちる。自前の型にオプションを手で写す形では、型と値に同じ綴りの誤りを書くと黙って無視された (実測)
+- `wrangler deploy` は cron の trigger を `PUT /schedules` で toml の一覧に置き換えるが、`wrangler rollback` は version を切り替えるだけで trigger を戻さない。rollback の後は code が古く trigger が新しい組になる (wrangler 4.127.1の dist を読んで確認、実走はしていない) (ドキュメントのみ)。報告者の提案は、Cloudflare Workers の cron を持つリポジトリの rollback の手順書に「`wrangler rollback` は trigger を戻さない。trigger まで戻すなら旧 checkout から `wrangler triggers deploy`」を書くこと。根拠は報告者が効かなかったことの2件目に挙げたもの (ドキュメントのみ)
 
 ### Node と Web の API
 
@@ -369,7 +369,6 @@ status: open
   - lockfile の強制 (Require lockfile) の policy は、REST の Actions policies の文書に rule の型が載っていない。UI (Settings > Actions > Policies) で作ったものを `GET repos/<owner>/<repo>/actions/policies/<id>` で読むと rule は `{"type":"require_lockfile"}`、対象は `workflow_path.include: ["~ALL"]` だった。一覧の GET は rules を返さないので詳細を引く (実測)。別の報告は、この policy は REST の作成と更新で弾かれるという報告があるので、画面でしか有効にできない前提で計画するとしている (ドキュメントのみ)
   - lockfile が古い PR では、workflow が `startup_failure` になって PR の check の一覧に出ないと報告されている。CI の結論は check の一覧ではなく run の一覧で見る必要がある (ドキュメントのみ。第三者の検証記事)
   - 報告者の提案は2つ。1つは、全 action を SHA で固定済みのリポジトリへ lockfile を入れるときの手順 (`--no-fix` で差分の形を見る、lockfile の commit が元の SHA と同じかを確かめる、SHA 固定の強制はそのまま有効にできる、Require lockfile は main に入ってから有効にする) を横断の手順として持っておくこと (実測とドキュメント)。もう1つは、Actions を使う全リポジトリで採用を検討すること。composite の action が内部で使う action まで commit を固定でき、SHA の固定だけでは届かなかった推移的な依存を塞げる。sha_pinning_required は API で入れられる安い下敷きとして併用する (ドキュメントのみ)。仕分けたセッションの解釈: dotfiles 自身も Actions を SHA で固定しているので採否の対象になる
-- 報告者の提案: Dependabot には既定で3日の cooldown があるが (ドキュメントのみ)、既定は変わりうるので明示する運用をそろえる。pnpm の lockfile も ecosystem は npm で扱われ、pnpm 11まで対応している (ドキュメントのみ)。github-actions の ecosystem で cooldown が使えない件は ISSUE-101 にある
 
 ### CI のコンテナと digest 固定
 
@@ -427,6 +426,7 @@ status: open
 - ruleset の id と bypass_actors、Environment の保護とブランチの制限、secret と variable の名前は移管の前後で変わらず、rules/branches の ruleset_source は新しい owner の名前に変わるだけで、ruleset_source_type は Repository のままだった (実測)
 - org へ移すと allow_forking が true から false に変わった (org の private の fork の方針が効く)。security_and_analysis は null から6項目とも disabled を明示する形に変わり (実効は同じ)、custom_properties が空で増えたので、「設定は何も変わらない」と仮定しない (実測)
 - Dependabot の件数は manifest と lockfile (`pyproject.toml` と `uv.lock`、`package.json` と `pnpm-lock.yaml`) に同じ advisory を2回立てるので、(ディレクトリ, GHSA, パッケージ) で重複を除いてから仕分ける。311件が229件になった (実測)
+- Dependabot には既定で3日の cooldown があり (ドキュメントのみ)、pnpm の lockfile も ecosystem は npm で扱われ、pnpm 11まで対応している (ドキュメントのみ)。報告者の提案は、既定は変わりうるので cooldown を明示する運用をそろえること。github-actions の ecosystem で cooldown が使えない件は ISSUE-101 にある
 - `gh run rerun <run> --failed` の後は、再実行していない成功の job も API 上で新しい job id が振られて見える。`started_at` が元の時刻のままなら再実行されていない。ログは新しい id で取り直さないと前回の失敗のログを読む (実測)
 - `GET repos/{owner}/{repo}/rules/branches/{branch}` が `[]` なら、リポジトリと組織のどちらの ruleset もそのブランチに効いていない。「PR 必須のつもり」の private リポジトリで実際には何も強制されていなかったのを、この API で見つけた (実測)
 - `gh pr merge --match-head-commit` は短縮の SHA を受け付けず、GraphQL の `Could not coerce value ... to GitObjectID` で落ちるので、40桁で渡す (実測)。別の報告では、Dependabot の PR を続けてマージすると、lockfile がぶつかる PR は Dependabot が rebase して head が変わり、`--match-head-commit` に前の sha を渡した実行は「Head branch was modified」で止まった。マージのコマンドは毎回 head を引き直してから組む (実測)
