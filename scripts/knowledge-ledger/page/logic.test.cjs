@@ -121,6 +121,11 @@ test("promoted: added を持たない件は一覧の表示と同じく BASE_DATE
   assert.equal(L.promoted(item(), [clause(pred("added", "gte", "2026-11-05", true))]), true);
 });
 
+test("addedOf: 一覧の絞り込みが読む載った日は、added が無ければ BASE_DATE", () => {
+  assert.equal(L.addedOf(item()), L.BASE_DATE);
+  assert.equal(L.addedOf(item({ added: "2026-11-09" })), "2026-11-09");
+});
+
 test("promoted: negate で札を外す", () => {
   const c = [clause(pred("label", "has", "実測"), pred("label", "has", "推測", true))];
   assert.equal(L.promoted(item({ labels: ["実測"] }), c), true);

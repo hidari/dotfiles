@@ -16,7 +16,7 @@ const DECISIONS = {
 // 各件の届いた報告の数 (fixtures/items.json の report_count)
 const REPORTS: Record<string, number> = { "T-01": 2, "T-02": 2, "T-03": 3, "T-04": 2 };
 
-type OpenOpts = { delayDecisions?: boolean; delaySettings?: boolean; throwSettings?: boolean; failSettings?: string; settings?: Record<string, unknown> };
+type OpenOpts = { delayDecisions?: boolean; delaySettings?: boolean; throwSettings?: boolean; failSettings?: string; cacheSettings?: boolean; settings?: Record<string, unknown> };
 
 async function open(page: Page, { settings, ...opts }: OpenOpts = {}) {
   const docs = settings ? { decisions: DECISIONS, settings } : { decisions: DECISIONS };
@@ -221,6 +221,26 @@ test.describe("昇格の条件とまとめての判断", () => {
     for (const el of [kind, value, page.locator("#cond-add")]) await expect(el).toBeEnabled();
     // 保存済みの条件で絞る (T-03 と、見直し対象の T-01)
     await expect(page.locator("#count")).toHaveText("2 件 (全 10 件)");
+    expect(await writes(page)).toHaveLength(0);
+  });
+
+  test("条件がキャッシュから先に届いても、新しい届きまでは条件を編集も保存もできない", async ({ page }) => {
+    const promotion = { clauses: [{ preds: [{ field: "report_count", op: "gte", value: 3, negate: false }] }], updatedAt: "2026-11-09T00:00:00.000Z" };
+    await open(page, { cacheSettings: true, delaySettings: true, settings: { promotion } });
+    await expect(page.locator("#status")).toHaveText("判断は保存先に自動で記録されます。");
+    await expect.poll(() => page.evaluate(() => (window as any).__cacheDelivered === true)).toBe(true);
+    // キャッシュの空の届きは保存済みの条件が無いことの証拠にならない。開くと保存で保存済みの条件を上書きする
+    await expect(page.locator("#select-page")).toBeEnabled();
+    await expect(page.locator("#cond-add")).toBeDisabled();
+    await expect(page.locator("#cond-save")).toBeDisabled();
+    await expect(page.locator("#cond-msg")).toContainText("この表示では条件を編集できません。");
+    expect(await writes(page)).toHaveLength(0);
+
+    await page.evaluate(() => (window as any).__releaseSettings());
+    const kind = page.getByLabel("節1の述語1 の種類"), value = page.getByLabel("節1の述語1 の値");
+    await expect(kind).toHaveValue("report_count:gte");
+    await expect(value).toHaveValue("3");
+    for (const el of [kind, value, page.locator("#cond-add")]) await expect(el).toBeEnabled();
     expect(await writes(page)).toHaveLength(0);
   });
 

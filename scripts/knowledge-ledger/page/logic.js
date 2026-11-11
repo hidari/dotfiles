@@ -4,6 +4,8 @@ var LedgerLogic = (() => {
   // added を持たない件 (最初に載せた578件) が台帳に載った日
   const BASE_DATE = "2026-11-04";
   const DATE = /^\d{4}-\d{2}-\d{2}$/;
+  // 載った日。added を持たない件は BASE_DATE に載ったものとする (一覧の絞り込みと条件の added:gte が同じ値を読む)
+  const addedOf = item => item.added || BASE_DATE;
   const nonEmpty = v => typeof v === "string" && v !== "";
   const isDate = v => typeof v === "string" && DATE.test(v);
   // 使える述語は field と op の組でこの7つだけ。ok は op に合う値の形で、合わない述語は知らない述語と同じに扱う。
@@ -55,7 +57,7 @@ var LedgerLogic = (() => {
     switch (p.field + ":" + p.op) {
       case "issue:eq": return item.issue === p.value;
       case "section:eq": return item.section === p.value;
-      case "added:gte": return (item.added || BASE_DATE) >= p.value;
+      case "added:gte": return addedOf(item) >= p.value;
       case "appended:exists": return !!item.appended;
       case "appended:gte": return !!item.appended && item.appended >= p.value;
       case "label:has": return (item.labels || []).includes(p.value);
@@ -135,7 +137,7 @@ var LedgerLogic = (() => {
   const conditionCounts = (items, clauses) =>
     clauses.map(c => items.reduce((n, it) => n + (clauseMatches(it, c) ? 1 : 0), 0));
 
-  return { BASE_DATE, PRED_KINDS, reportsOf, parseConditions, promoted, localDate, needsReview, inDefaultList, bulkTargets, undoTargets, cardGroups, conditionCounts };
+  return { BASE_DATE, PRED_KINDS, addedOf, reportsOf, parseConditions, promoted, localDate, needsReview, inDefaultList, bulkTargets, undoTargets, cardGroups, conditionCounts };
 })();
 
 if (typeof module !== "undefined") module.exports = LedgerLogic;

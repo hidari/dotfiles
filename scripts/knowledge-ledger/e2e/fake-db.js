@@ -1,7 +1,7 @@
 // claude.ai が差し込む window.claude の偽物。メモリ上の保存先を持つ。
 // 設定は addInitScript が window.__fakeSeed で渡す:
 //   { docs: { <collection>: { <id>: <fields> } }, delayDecisions: boolean, delaySettings: boolean,
-//     throwSettings: boolean, failSettings: <code> }
+//     throwSettings: boolean, failSettings: <code>, cacheSettings: boolean }
 // 書き込みは window.__writes に { op, path, fields } で積む。
 // 別の端末からの書き込みは window.__remoteUpdate で入れ (__writes には積まない)、購読の切断は window.__failSnapshot で起こす
 (() => {
@@ -52,6 +52,8 @@
       if (onError) { if (!errorCbs.has(name)) errorCbs.set(name, []); errorCbs.get(name).push(onError); }
       // 最初の届きの前に購読が失敗する保存先を真似る (第2引数を非同期に呼ぶ)
       if (name === "settings" && seed.failSettings) { queueMicrotask(() => onError && onError({ code: seed.failSettings })); return () => {}; }
+      // 端末のキャッシュから空の届きを先に返す保存先を真似る (届いたら window.__cacheDelivered を立てる)
+      if (name === "settings" && seed.cacheSettings) queueMicrotask(() => { cb({ metadata: { fromCache: true }, docs: [] }); window.__cacheDelivered = true; });
       const first = () => cb(snapshot(name));
       const held = holds[name] && holds[name].held;
       if (held) held.then(first); else queueMicrotask(first);

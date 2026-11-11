@@ -14,14 +14,17 @@
   // 前回の同期の後に打たれた (input があった) メモ欄。打っていない欄はフォーカスを外しても書かない
   const noteDirty = new WeakSet();
   const sticky = new Set();
-  let db = null, canWrite = true, live = false, page = 0, shownStage = 0;
-  // 判断の新しいスナップショットが一度でも届いたか。届いた後は切断しても戻さない (押した判断を控えて送り直すため)
-  let seenOnce = false;
-  // 条件の保存先から一度でも届いたか (文書が無い届きも含む)。届く前に保存すると、まだ見ていない保存済みの条件を丸ごと上書きする
-  let condSeen = false;
-  // 条件の保存先を購読できなかったら、条件の編集は読むだけにする
-  let condOk = true;
-  const L = LedgerLogic, BASE_DATE = L.BASE_DATE;
+  let db = null, canWrite = true, page = 0, shownStage = 0;
+  // 購読ごとの状態。seen はキャッシュでない届きが一度でもあったか (文書が無い届きも含み、戻さない)、
+  // live は今つながっているか、err は購読そのものが失敗したか (条件の側だけが立て、戻さない)。
+  // 判断の側の切断は live を落とすだけにする。押した判断は控えて送り直すので、カードは切断後も押せる
+  const src = { decisions: { seen: false, live: false, err: false }, settings: { seen: false, live: false, err: false } };
+  // 書いてよい: 保存先の値を一度は見た。届く前に書くと、まだ見ていない保存済みの値を上書きする
+  const canAuthor = s => canWrite && s.seen && !s.err;
+  // 今送ってよい: さらにつながっている。切断後は確定済みの値が古いかもしれない
+  const canSend = s => canAuthor(s) && s.live;
+  const canEditCond = () => canSend(src.decisions) && canAuthor(src.settings);
+  const L = LedgerLogic, BASE_DATE = L.BASE_DATE, addedOf = L.addedOf;
   // 保存先から読んだ昇格の条件 (一覧の絞りに効く) と、編集中の写し
   const COND_DOC = ["settings", "promotion"];
   const stored = { clauses: [], warnings: [], updatedAt: "" };
@@ -43,7 +46,6 @@
 
   const text = (el, t) => { el.textContent = t; return el; };
   const mk = (tag, cls, t) => { const e = document.createElement(tag); if (cls) e.className = cls; if (t != null) e.textContent = t; return e; };
-  const addedOf = i => i.added || BASE_DATE;
 
   // 絞り込みの選択肢は台帳のデータから作る
   const uniq = f => [...new Set(ITEMS.map(f))];
@@ -89,7 +91,7 @@
       if (q && !(i.summary + "\n" + i.text + "\n" + (i.placement_detail || "") + "\n" + i.id).toLowerCase().includes(q)) return false;
       return true;
     });
-    if ($("f-sort").value === "rep") r = r.slice().sort((a, b) => (b.report_count || 1) - (a.report_count || 1) || a.order - b.order);
+    if ($("f-sort").value === "rep") r = r.slice().sort((a, b) => L.reportsOf(b) - L.reportsOf(a) || a.order - b.order);
     return r;
   }
 
@@ -102,35 +104,32 @@
     const u = pending.size;
     text($("unsaved"), u ? "保存先へ届いていない判断 " + u + " 件 (このブラウザに控えてあります)" : "");
     $("unsaved").className = u && failed.size ? "warn" : "";
-    $("retry").hidden = !(failed.size && db && canWrite);
+    $("retry").hidden = !(failed.size && canWrite);
     paintChrome();
   }
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const RETRYABLE = new Set(["unavailable", "resource_exhausted"]);
+  // 書く欄はこの4つと updatedAt だけ。前の版の控えや文書が持つ欄 (seenAppended など) は送らない。
+  // decidedAt は判断を変えたときと「このままでよい」のときだけ patch に載る
+  const WRITTEN = ["decision", "note", "decidedAt", "seenReports"];
+  const written = o => Object.fromEntries(WRITTEN.filter(k => o && o[k] !== undefined).map(k => [k, o[k]]));
   async function writeOnce(id, patch) {
     const ref = db.collection("decisions").doc(id);
-    const body = { decision: patch.decision !== undefined ? patch.decision : (confirmed.get(id)?.decision ?? null), note: patch.note !== undefined ? patch.note : (confirmed.get(id)?.note ?? ""), updatedAt: patch.updatedAt };
-    // decidedAt は判断を変えたときと「このままでよい」のときだけ patch に載る
-    const decidedAt = patch.decidedAt !== undefined ? patch.decidedAt : confirmed.get(id)?.decidedAt;
-    if (decidedAt !== undefined) body.decidedAt = decidedAt;
-    const seenReports = patch.seenReports !== undefined ? patch.seenReports : confirmed.get(id)?.seenReports;
-    if (seenReports !== undefined) body.seenReports = seenReports;
+    const fields = { ...written(patch), updatedAt: patch.updatedAt };
     if (confirmed.has(id)) {
       // 既存の文書は変えた欄だけを merge する。古い手元の値で他の欄を上書きしない
-      const fields = { updatedAt: patch.updatedAt };
-      if (patch.decision !== undefined) fields.decision = patch.decision;
-      if (patch.note !== undefined) fields.note = patch.note;
-      if (patch.decidedAt !== undefined) fields.decidedAt = patch.decidedAt;
-      if (patch.seenReports !== undefined) fields.seenReports = patch.seenReports;
       try { await ref.update(fields); return { ...confirmed.get(id), ...fields }; }
       catch (e) { if (!(e && e.code === "invalid_argument")) throw e; }
     }
+    // 判断とメモは null の値も既定へ寄せる (?? と同じ)
+    const body = { ...written(confirmed.get(id)), ...fields };
+    body.decision ??= null; body.note ??= "";
     await ref.set(body);
     return body;
   }
   async function flush(id) {
-    if (!db || !canWrite || !live) return;
+    if (!canSend(src.decisions)) return;
     if (busy.has(id)) { dirty.add(id); return; }
     busy.add(id); paint(id);
     try {
@@ -146,7 +145,7 @@
         }
         if (err) {
           failed.add(id);
-          if (err.code === "invalid_argument" || err.code === "not_granted" || err.code === "revoked") { canWrite = false; status("この表示では判断を書き込めません。控えはこのブラウザに残しています。", true); }
+          if (err.code === "invalid_argument" || err.code === "not_granted" || err.code === "revoked") { canWrite = false; status("この表示では判断を書き込めません。控えはこのブラウザに残しています。", true); paintCond(); }
           break;
         }
         const cur = confirmed.get(id);
@@ -160,7 +159,9 @@
   }
   const flushAll = () => { for (const id of [...pending.keys()]) flush(id); };
 
+  // 書き込みの入口。判断が一度も届いていなければ何もしない (false を返す)
   function change(id, patch) {
+    if (!src.decisions.seen) return false;
     const now = new Date().toISOString();
     // 判断を変えたときだけ decidedAt が進む。メモだけの保存では進めない。
     // 「このままでよい」は呼び出し側が decidedAt だけを渡す
@@ -172,7 +173,11 @@
     persistPending();
     paint(id); tallies();
     flush(id);
+    return true;
   }
+  // 押した件は絞り込みから外れても組み直すまで一覧に残す
+  const commit = (id, patch) => { if (change(id, patch)) sticky.add(id); };
+  const typing = () => !!document.activeElement && document.activeElement.tagName === "TEXTAREA";
 
   const KEY_LABEL = { issue: "Issue", section: "分野", added: "載った日", appended: "追記の日", label: "札", quote: "既存の規範の引用", summary: "要約", recommendation: "見立て", reason: "理由", placement: "置き場の案", placement_detail: "置き場の詳細", covered_status: "既存の規範", report_count: "届いた報告", version_dependent: "版への依存" };
   const COV_LABEL = { covered: "既にある", partial: "一部ある", none: "無い" };
@@ -192,8 +197,8 @@
     const v = view(id), d = v.decision || null, i = byId.get(id);
     c.el.dataset.d = d || "";
     text(c.dl, d ? "判断: " + d : "判断: まだ");
-    // 判断が一度も届いていない間は「まだ」が未確認なので押させない。writable() と違い切断後も押せる (控えて送り直す)
-    const usable = canWrite && seenOnce;
+    // 判断が一度も届いていない間は「まだ」が未確認なので押させない。一括と違い切断後も押せる (控えて送り直す)
+    const usable = canAuthor(src.decisions);
     for (const b of c.btns) { b.setAttribute("aria-pressed", String(b.dataset.v === d)); b.disabled = !usable; }
     c.undo.disabled = !usable || !d;
     c.ta.disabled = !usable;
@@ -202,7 +207,7 @@
     text(c.saved, t); c.saved.className = "saved" + (warn ? " warn" : "");
     const review = L.needsReview(i, v);
     c.after.hidden = !review;
-    c.ack.hidden = !review; c.ack.disabled = !writable();
+    c.ack.hidden = !review; c.ack.disabled = !canSend(src.decisions);
     // 昇格の条件に当てはまらない未判断の件は保管中。「採らない」と読める表示にしない
     c.stored.hidden = !(!d && !review && stored.clauses.length > 0 && !L.promoted(i, stored.clauses));
     c.sel.checked = selected.has(id);
@@ -223,7 +228,7 @@
     const after = mk("span", "chip after", "判断の後に報告が追記された"); after.hidden = true; chips.append(after);
     const ack = mk("button", "ack", "このままでよい"); ack.type = "button"; ack.hidden = true;
     // 判断が届く前は confirmed に件が無く、書くと set で既存の判断を null で上書きしうるので、確定済みの判断がある件だけ通す
-    ack.addEventListener("click", () => { if (writable() && confirmed.get(i.id)?.decision && L.needsReview(i, view(i.id))) { sticky.add(i.id); change(i.id, { decidedAt: new Date().toISOString() }); } });
+    ack.addEventListener("click", () => { if (canSend(src.decisions) && confirmed.get(i.id)?.decision && L.needsReview(i, view(i.id))) commit(i.id, { decidedAt: new Date().toISOString() }); });
     chips.append(ack);
     c.append(chips);
     const groups = L.cardGroups(i);
@@ -250,11 +255,11 @@
     for (const v of ["採る", "保留", "採らない"]) {
       const bt = mk("button", null, v); bt.type = "button"; bt.dataset.v = v;
       // 押し直しで外れる作りだと二度押しで判断が消えるので、選び直すだけにする
-      bt.addEventListener("click", () => { if (seenOnce && decisionOf(i.id) !== v) { sticky.add(i.id); change(i.id, { decision: v }); } });
+      bt.addEventListener("click", () => { if (decisionOf(i.id) !== v) commit(i.id, { decision: v }); });
       btns.push(bt); btnBox.append(bt);
     }
     const undo = mk("button", "undo", "取り消す"); undo.type = "button";
-    undo.addEventListener("click", () => { if (seenOnce && decisionOf(i.id)) { sticky.add(i.id); change(i.id, { decision: null }); } });
+    undo.addEventListener("click", () => { if (decisionOf(i.id)) commit(i.id, { decision: null }); });
     btnBox.append(undo);
     const ta = mk("textarea"); ta.id = "note-" + i.id; ta.placeholder = "メモ (理由、置き場の指定など)";
     ta.setAttribute("aria-label", i.id + " のメモ");
@@ -272,7 +277,6 @@
     dec.append(btnBox, ta, saved);
     c.append(dec);
     cards.set(i.id, { el: c, dl, btns, undo, ta, saved, after, ack, stored: storedChip, sel });
-    paint(i.id);
     return c;
   }
 
@@ -310,24 +314,24 @@
   const kindOf = p => L.PRED_KINDS.find(k => k.kind === p.field + ":" + p.op);
   const newPred = () => ({ field: "issue", op: "eq", value: "", negate: false });
   const clone = v => JSON.parse(JSON.stringify(v));
-  // 判断が届いて (live) 初めて書ける。届く前や切断後は confirmed が欠けていて、判断済みの件を未判断と読み、既存の判断を上書きしうる
-  const writable = () => canWrite && !!db && live;
-  const condWritable = () => writable() && condSeen && condOk;
   const datalist = (id, values) => { const d = mk("datalist"); d.id = id; for (const v of values) d.append(new Option(v, v)); return d; };
-  const draftPromoted = () => ITEMS.reduce((n, it) => n + (L.promoted(it, L.parseConditions({ clauses: draft }).clauses) ? 1 : 0), 0);
 
+  // 入力 (編集中の写し・保存済みの条件・購読の状態・書ける権限・condBusy) が変わったときだけ呼ぶ
   function paintCond() {
-    const w = condWritable() && !condBusy;
+    const editable = canEditCond(), w = editable && !condBusy;
     const ed = $("cond-editor");
-    for (const el of ed.querySelectorAll("select, input, button")) el.disabled = !condWritable();
+    for (const el of ed.querySelectorAll("select, input, button")) el.disabled = !editable;
     const issues = draftIssues();
     $("cond-add").disabled = !w; $("cond-save").disabled = !w || !draftDirty || issues.length > 0;
-    const counts = L.conditionCounts(ITEMS, L.parseConditions({ clauses: draft }).clauses);
+    // 編集中の写しは1回の塗りで1度だけ読む
+    const clauses = L.parseConditions({ clauses: draft }).clauses;
+    const counts = L.conditionCounts(ITEMS, clauses);
     ed.querySelectorAll("[data-count]").forEach((el, n) => text(el, "該当 " + (counts[n] ?? 0) + " 件"));
     // 保存済みの空の節は stored.warnings と draftIssues の両方に同じ文言で出るので重ねない
     const warn = [...new Set([...stored.warnings, ...issues])];
     text($("cond-warn"), warn.length ? warn.join(" / ") : "");
-    if (!$("cond-msg").dataset.keep) text($("cond-msg"), (condWritable() ? "" : "この表示では条件を編集できません。") + (draftDirty ? "未保存の変更があります。" : "") + (clauseTotalText()));
+    const total = draft.length ? "いずれかの節に当てはまる件: " + ITEMS.filter(it => L.promoted(it, clauses)).length + " 件" : "";
+    if (!$("cond-msg").dataset.keep) text($("cond-msg"), (editable ? "" : "この表示では条件を編集できません。") + (draftDirty ? "未保存の変更があります。" : "") + total);
   }
   // 値がまだ入っていない述語と、使えない述語を分けて言う。どちらも保存は止める
   function draftIssues() {
@@ -343,7 +347,6 @@
     });
     return out;
   }
-  const clauseTotalText = () => draft.length ? "いずれかの節に当てはまる件: " + draftPromoted() + " 件" : "";
 
   function renderCond() {
     const ed = $("cond-editor"); ed.replaceChildren();
@@ -393,12 +396,13 @@
     const r = L.parseConditions(raw);
     const changed = JSON.stringify(r.clauses) !== JSON.stringify(stored.clauses);
     stored.clauses = r.clauses; stored.warnings = r.warnings; stored.updatedAt = (raw && raw.updatedAt) || "";
-    if (!draftDirty) { draft = clone(stored.clauses); renderCond(); }
+    // 編集中なら写しは残し、保存済みの側の警告だけ塗り直す
+    if (!draftDirty) { draft = clone(stored.clauses); renderCond(); } else paintCond();
     return changed;
   }
   $("cond-add").addEventListener("click", () => { draft.push({ preds: [newPred()] }); condEdited(true); });
   $("cond-save").addEventListener("click", async () => {
-    if (!condWritable() || condBusy) return;
+    if (!canEditCond() || condBusy) return;
     const { clauses, warnings } = L.parseConditions({ clauses: draft });
     if (warnings.length || draftIssues().length) { paintCond(); return; }
     condBusy = true; paintCond();
@@ -416,22 +420,21 @@
 
   // まとめての判断。押した瞬間の選択に bulkTargets を掛け、判断済みの件は触らない
   function paintChrome() {
-    const n = selected.size, w = writable();
+    const n = selected.size, w = canSend(src.decisions);
     text($("bulk-count"), n);
     for (const id of ["bulk-adopt", "bulk-hold", "bulk-reject"]) $(id).disabled = !w || n === 0;
     $("select-page").disabled = !w;
     $("bulk-clear").disabled = n === 0;
     $("bulk-undo").disabled = !w || !lastBulk;
-    paintCond();
   }
   const syncSelection = () => { for (const [id, c] of cards) c.sel.checked = selected.has(id); paintChrome(); };
   for (const b of ["bulk-adopt", "bulk-hold", "bulk-reject"]) {
     $(b).addEventListener("click", () => {
-      if (!writable()) return;
+      if (!canSend(src.decisions)) return;
       const v = $(b).dataset.v;
       const { apply, skipped } = L.bulkTargets([...selected], decisionOf);
       const marks = new Map();
-      for (const id of apply) { sticky.add(id); change(id, { decision: v }); marks.set(id, view(id).decidedAt); }
+      for (const id of apply) { commit(id, { decision: v }); marks.set(id, view(id).decidedAt); }
       // 付ける件が無かったときは直前のまとめての判断の取り消しを残す
       if (apply.length) lastBulk = { apply, value: v, marks };
       selected.clear();
@@ -443,16 +446,18 @@
   $("select-page").addEventListener("click", () => { for (const id of cards.keys()) selected.add(id); syncSelection(); });
   $("bulk-clear").addEventListener("click", () => { selected.clear(); syncSelection(); });
   $("bulk-undo").addEventListener("click", () => {
-    if (!writable() || !lastBulk) return;
+    if (!canSend(src.decisions) || !lastBulk) return;
     // 一括の後に個別に判断し直した件は、一括が付けた値と判断の時刻が違うので戻さない
     const ids = L.undoTargets(lastBulk), keep = ids.filter(id => decisionOf(id) === lastBulk.value && view(id).decidedAt === lastBulk.marks.get(id));
-    for (const id of keep) { sticky.add(id); change(id, { decision: null }); }
+    for (const id of keep) commit(id, { decision: null });
     text($("bulk-skipped"), "");
     text($("bulk-msg"), keep.length + " 件を未判断へ戻した" + (ids.length > keep.length ? " (" + (ids.length - keep.length) + " 件はその後に判断を変えたため戻していない)" : ""));
     lastBulk = null; paintChrome();
   });
 
   function status(t, warn) { const s = $("status"); text(s, t); s.className = warn ? "warn" : ""; }
+  // 購読の状態を変えたら、それを読む条件の編集を塗り直す
+  const setSrc = (s, patch) => { Object.assign(s, patch); paintCond(); };
 
   renderCond();
   render();
@@ -464,7 +469,7 @@
     const user = await api.use("user");
     try { const w = user ? await user.can("data.write") : null; if (w === false) canWrite = false; } catch (_) {}
     // 判断が一度も届いていなければ、カードの判断は押せないので控えるとは言わない
-    const keepText = () => seenOnce ? "押した判断はこのブラウザに控え、開き直したときに送り直します。" : "判断が届くまで判断とメモは押せません。";
+    const keepText = () => src.decisions.seen ? "押した判断はこのブラウザに控え、開き直したときに送り直します。" : "判断が届くまで判断とメモは押せません。";
     const timer = setTimeout(() => status("保存先からの応答がまだありません。表示中の判断は古いかもしれません。" + keepText(), true), 10000);
     db.collection("decisions").onSnapshot(snap => {
       const fresh = !snap.metadata.fromCache;
@@ -482,25 +487,26 @@
       if (fresh) {
         clearTimeout(timer);
         if (canWrite) status("判断は保存先に自動で記録されます。", false); else status("この表示では閲覧だけできます。", false);
-        if (!live) { live = true; seenOnce = true; flushAll(); }
+        if (!src.decisions.live) { setSrc(src.decisions, { seen: true, live: true }); flushAll(); }
       }
       persistPending();
       // 判断が届く前の一覧は絞り込みが効いていないので、最初の届きと最初の確定で組み直す。
       // それ以降は入力中のメモを壊さないよう、表示中のカードを塗り直すだけにする
       const stage = fresh ? 2 : 1;
-      if (stage > shownStage && !(document.activeElement && document.activeElement.tagName === "TEXTAREA")) { shownStage = stage; render(); }
+      if (stage > shownStage && !typing()) { shownStage = stage; render(); }
       else repaintAll();
-    }, e => { clearTimeout(timer); live = false; status("保存先との接続が切れました (" + (e && e.code) + ")。" + keepText(), true); repaintAll(); });
+    }, e => { clearTimeout(timer); setSrc(src.decisions, { live: false }); status("保存先との接続が切れました (" + (e && e.code) + ")。" + keepText(), true); repaintAll(); });
     // 条件の購読は判断の購読の後に付ける。条件の側が同期で投げても判断は届く
-    const condError = e => { condOk = false; text($("cond-msg"), "条件の保存先を読めませんでした (" + (e && e.code) + ")。"); $("cond-msg").dataset.keep = "1"; paintCond(); };
+    const condError = e => { text($("cond-msg"), "条件の保存先を読めませんでした (" + (e && e.code) + ")。"); $("cond-msg").dataset.keep = "1"; setSrc(src.settings, { live: false, err: true }); };
     try {
       db.collection(COND_DOC[0]).onSnapshot(snap => {
-        condSeen = true;
+        // キャッシュの届きは見せるだけにし、届いたとは数えない。空や古いキャッシュで編集を開くと、保存で保存済みの条件を上書きする
+        if (!snap.metadata.fromCache && !src.settings.live) setSrc(src.settings, { seen: true, live: true });
         const d = snap.docs.find(x => x.id === COND_DOC[1]);
-        if (!d) { paintCond(); return; }
+        if (!d) return;
         const v = d.data();
         // 新しい方を残す。自分の保存の直後に古い版が届いても巻き戻さない
-        if ((v.updatedAt || "") >= stored.updatedAt && applyStored(v) && !(document.activeElement && document.activeElement.tagName === "TEXTAREA")) render();
+        if ((v.updatedAt || "") >= stored.updatedAt && applyStored(v) && !typing()) render();
       }, condError);
     } catch (e) { condError(e); }
   })();
