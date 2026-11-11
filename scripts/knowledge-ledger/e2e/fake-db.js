@@ -2,7 +2,7 @@
 // 設定は addInitScript が window.__fakeSeed で渡す:
 //   { docs: { <collection>: { <id>: <fields> } }, delayDecisions: boolean, throwSettings: boolean }
 // 書き込みは window.__writes に { op, path, fields } で積む。
-// 別の端末からの書き込みは window.__remoteUpdate で入れる (__writes には積まない)
+// 別の端末からの書き込みは window.__remoteUpdate で入れ (__writes には積まない)、購読の切断は window.__failSnapshot で起こす
 (() => {
   const seed = window.__fakeSeed || {};
   const store = new Map();
@@ -26,6 +26,9 @@
 
   const notify = name => { for (const cb of listeners.get(name) || []) cb(snapshot(name)); };
   window.__remoteUpdate = (name, id, fields) => { bucket(name).set(id, { ...(bucket(name).get(id) || {}), ...structuredClone(fields) }); notify(name); };
+  // 購読が切れたことを伝える (onSnapshot の第2引数を呼ぶ)
+  const errorCbs = new Map();
+  window.__failSnapshot = (name, code) => { for (const cb of errorCbs.get(name) || []) cb({ code }); };
 
   const collection = name => ({
     doc: id => ({
@@ -39,11 +42,12 @@
         bucket(name).set(id, { ...(bucket(name).get(id) || {}), ...structuredClone(fields) }); notify(name);
       },
     }),
-    onSnapshot(cb) {
+    onSnapshot(cb, onError) {
       // 購読の呼び出しそのものが同期で投げる保存先を真似る
       if (name === "settings" && seed.throwSettings) throw Object.assign(new Error("settings"), { code: "internal" });
       if (!listeners.has(name)) listeners.set(name, []);
       listeners.get(name).push(cb);
+      if (onError) { if (!errorCbs.has(name)) errorCbs.set(name, []); errorCbs.get(name).push(onError); }
       const first = () => cb(snapshot(name));
       if (name === "decisions" && held) held.then(first); else queueMicrotask(first);
       return () => {};

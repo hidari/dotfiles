@@ -160,6 +160,26 @@ test.describe("昇格の条件とまとめての判断", () => {
     await expect(page.locator("button.ack:visible")).toHaveCount(0);
   });
 
+  test("判断が一度届いた後に切断しても、カードの判断とメモは押せ、このブラウザに控える", async ({ page }) => {
+    await open(page);
+    await expect(page.locator("#status")).toHaveText("判断は保存先に自動で記録されます。");
+    await page.evaluate(() => (window as any).__failSnapshot("decisions", "unavailable"));
+    await expect(page.locator("#status")).toContainText("保存先との接続が切れました");
+    // 一括は切断後に書けない (確定済みの判断が古いかもしれない)
+    await page.locator("input[data-select='T-04']").check();
+    await expect(page.locator("#bulk-adopt")).toBeDisabled();
+
+    const adopt = page.getByRole("group", { name: "T-03 の判断" }).getByRole("button", { name: "採る" });
+    await expect(adopt).toBeEnabled();
+    await expect(page.getByLabel("T-03 のメモ")).toBeEnabled();
+    await adopt.click();
+    await expect(page.getByRole("group", { name: "T-03 の判断" }).getByRole("button", { name: "採る" })).toHaveAttribute("aria-pressed", "true");
+    const kept = await page.evaluate(() => JSON.parse(localStorage.getItem("ledger.pending.v1") || "{}"));
+    expect(kept["T-03"].decision).toBe("採る");
+    expect(kept["T-03"].seenReports).toBe(REPORTS["T-03"]);
+    expect(await writes(page)).toHaveLength(0);
+  });
+
   test("条件の購読が同期で投げても判断は届き、条件の編集は読むだけになる", async ({ page }) => {
     await open(page, { throwSettings: true });
     await expect(page.locator("#status")).toHaveText("判断は保存先に自動で記録されます。");
