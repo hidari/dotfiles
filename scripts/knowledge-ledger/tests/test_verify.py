@@ -1,8 +1,11 @@
 """確かめ済みの印 (札の実在と引用の逐語一致) の判定規則を固定する。"""
 
+from pathlib import Path
 from typing import Any
 
-from knowledge_ledger.verify import verify_item
+import pytest
+
+from knowledge_ledger.verify import make_file_reader, verify_item
 
 
 def _item(**kw: Any) -> dict[str, Any]:
@@ -61,3 +64,33 @@ def test_no_quote_means_quote_ok_false() -> None:
     assert verify_item(_item(), _reader(files))["quote_ok"] is False
     assert verify_item(_item(covered=_covered("x.md", "")), _reader(files))["quote_ok"] is False
     assert verify_item(_item(covered=_covered(None, "q")), _reader(files))["quote_ok"] is False
+
+
+def test_reader_expands_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    home = tmp_path / "home"
+    (home / ".claude").mkdir(parents=True)
+    (home / ".claude" / "a.md").write_text("ホーム側", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(home))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    assert make_file_reader(repo)("~/.claude/a.md") == "ホーム側"
+
+
+def test_reader_resolves_relative_from_repo(tmp_path: Path) -> None:
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "b.md").write_text("リポ側", encoding="utf-8")
+    assert make_file_reader(tmp_path)("docs/b.md") == "リポ側"
+
+
+def test_reader_missing_file_is_none(tmp_path: Path) -> None:
+    assert make_file_reader(tmp_path)("nope.md") is None
+
+
+def test_reader_directory_is_none(tmp_path: Path) -> None:
+    (tmp_path / "d").mkdir()
+    assert make_file_reader(tmp_path)("d") is None
+
+
+def test_reader_undecodable_is_none(tmp_path: Path) -> None:
+    (tmp_path / "bin.md").write_bytes(b"\xff\xfe\x00\x80")
+    assert make_file_reader(tmp_path)("bin.md") is None

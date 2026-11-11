@@ -17,17 +17,16 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from knowledge_ledger.verify import make_file_reader
+
 
 def _dump(item: dict[str, Any]) -> str:
     return json.dumps(item, ensure_ascii=False, sort_keys=True)
 
 
 def _quote_in_file(repo: str, path: str, quote: str) -> bool:
-    target = Path(path).expanduser() if path.startswith("~/") else Path(repo) / path
-    try:
-        return quote in target.read_text(encoding="utf-8")
-    except OSError:
-        return False
+    body = make_file_reader(repo)(path)
+    return body is not None and quote in body
 
 
 def merge(

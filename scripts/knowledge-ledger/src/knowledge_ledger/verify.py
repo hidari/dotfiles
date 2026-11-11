@@ -20,7 +20,7 @@ def make_file_reader(repo: str | Path = DEFAULT_REPO) -> Callable[[str], str | N
         target = Path(path).expanduser() if path.startswith("~/") else Path(repo) / path
         try:
             return target.read_text(encoding="utf-8")
-        except OSError:
+        except (OSError, UnicodeDecodeError):
             return None
 
     return read
