@@ -26,15 +26,18 @@ def make_file_reader(repo: str | Path = DEFAULT_REPO) -> Callable[[str], str | N
     return read
 
 
+def quote_in_file(read_ref: Callable[[str], str | None], path: str, quote: str) -> bool:
+    """引用が参照先のファイルに逐語で在るか。読めない参照先は在るとしない"""
+    body = read_ref(path)
+    return body is not None and quote in body
+
+
 def verify_item(item: dict[str, Any], read_ref: Callable[[str], str | None]) -> dict[str, Any]:
     source = (item.get("text") or "") + "\n" + (item.get("basis") or "")
     labels = item.get("labels") or []
     covered = item.get("covered") or {}
     path, quote = covered.get("path"), covered.get("quote")
-    quote_ok = False
-    if path and quote:
-        body = read_ref(path)
-        quote_ok = body is not None and quote in body
+    quote_ok = bool(path and quote and quote_in_file(read_ref, path, quote))
     return {
         "labels_ok": [lb for lb in labels if lb in source],
         "labels_ng": [lb for lb in labels if lb not in source],

@@ -97,6 +97,16 @@ def test_quote_missing_from_referenced_file_falls_back_to_none(tmp_path: Path) -
     assert quote_fail == ["K1-005"]
 
 
+def test_quote_with_unreadable_referenced_file_falls_back_to_none(tmp_path: Path) -> None:
+    delta = {"new": [new_item("K1-004")], "appended": [], "unmatched": []}
+    prep = [
+        prep_for("K1-004", covered_status="partial", covered_path="nope.md", covered_quote="一文")
+    ]
+    out, quote_fail = merge(base_items(), delta, prep, str(tmp_path), TODAY)
+    assert out[-1]["covered"]["status"] == "none"
+    assert quote_fail == ["K1-004"]
+
+
 def test_main_takes_today_and_writes_out(tmp_path: Path) -> None:
     files = {
         "base.json": base_items(),

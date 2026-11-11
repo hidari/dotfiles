@@ -17,16 +17,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from knowledge_ledger.verify import make_file_reader
+from knowledge_ledger.verify import make_file_reader, quote_in_file
 
 
 def _dump(item: dict[str, Any]) -> str:
     return json.dumps(item, ensure_ascii=False, sort_keys=True)
-
-
-def _quote_in_file(repo: str, path: str, quote: str) -> bool:
-    body = make_file_reader(repo)(path)
-    return body is not None and quote in body
 
 
 def merge(
@@ -55,6 +50,7 @@ def merge(
         raise ValueError(f"下ごしらえが無い件: {missing}")
 
     quote_fail: list[str] = []
+    read_ref = make_file_reader(repo)
     order = max(i["order"] for i in base)
     out = list(base)
     for n in delta["new"]:
@@ -64,7 +60,7 @@ def merge(
             p["covered_path"] or None,
             p["covered_quote"] or None,
         )
-        if status != "none" and not (path and quote and _quote_in_file(repo, path, quote)):
+        if status != "none" and not (path and quote and quote_in_file(read_ref, path, quote)):
             quote_fail.append(n["id"])
             status, path, quote = "none", None, None
         order += 1
