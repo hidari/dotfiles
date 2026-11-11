@@ -25,7 +25,9 @@ def test_build_page_structure() -> None:
     assert tags == ['<script id="data" type="application/json">', "<script>", "<script>"]
     data = re.search(r'<script id="data" type="application/json">(.*?)</script>', out, re.S)
     assert data is not None
-    assert json.loads(data.group(1)) == ITEMS
+    assert [
+        {k: v for k, v in i.items() if k != "verified"} for i in json.loads(data.group(1))
+    ] == ITEMS
     assert out.index("const a = 1;") < out.index("const b = 2;")
     assert out.index('id="data"') < out.index("const a = 1;")
 
@@ -46,3 +48,16 @@ def test_build_page_rejects_duplicate_ids() -> None:
 def test_build_page_rejects_script_close_in_template() -> None:
     with pytest.raises(ValueError, match="script"):
         build_page(ITEMS, HEAD, ['const s = "</script>";\n'])
+
+
+def test_build_page_embeds_verified_without_mutating_input() -> None:
+    items = [{"id": "K1-001", "text": "alpha", "basis": "", "labels": ["alpha"]}]
+    out = build_page(items, HEAD, ["x\n"], read_ref=lambda p: None)
+    data = re.search(r'<script id="data" type="application/json">(.*?)</script>', out, re.S)
+    assert data is not None
+    assert json.loads(data.group(1))[0]["verified"] == {
+        "labels_ok": ["alpha"],
+        "labels_ng": [],
+        "quote_ok": False,
+    }
+    assert "verified" not in items[0]

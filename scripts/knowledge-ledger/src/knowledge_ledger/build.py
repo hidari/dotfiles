@@ -7,19 +7,30 @@
 
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+
+from knowledge_ledger.verify import make_file_reader, verify_item
 
 # 雛形はパッケージの外 (scripts/knowledge-ledger/page/) に置く
 PAGE_DIR = Path(__file__).resolve().parents[2] / "page"
 
 
-def build_page(items: list[dict[str, Any]], head: str, scripts: list[str]) -> str:
+def build_page(
+    items: list[dict[str, Any]],
+    head: str,
+    scripts: list[str],
+    read_ref: Callable[[str], str | None] | None = None,
+) -> str:
+    """各件へ verified を付けて埋め込む。入力の items は書き換えない"""
+    read = read_ref or make_file_reader()
     ids = [i["id"] for i in items]
     if len(ids) != len(set(ids)):
         raise ValueError("ID が重複している")
     if any("</script" in s for s in scripts):
         raise ValueError("雛形の script に </script が含まれている")
+    items = [{**i, "verified": verify_item(i, read)} for i in items]
     data = json.dumps(items, ensure_ascii=False, separators=(",", ":")).replace("<", "\\u003c")
     out = head + '<script id="data" type="application/json">' + data + "</script>\n"
     for s in scripts:
