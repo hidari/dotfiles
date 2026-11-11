@@ -21,7 +21,7 @@ HEAD = "<title>t</title>\n"
 
 def test_build_page_structure() -> None:
     out = build_page(ITEMS, HEAD, ["const a = 1;\n", "const b = 2;\n"])
-    assert out.startswith(HEAD)
+    assert out.startswith("<!DOCTYPE html>\n" + HEAD)
     tags = re.findall(r"<script[^>]*>", out)
     assert tags == ['<script id="data" type="application/json">', "<script>", "<script>"]
     data = re.search(r'<script id="data" type="application/json">(.*?)</script>', out, re.S)
@@ -70,5 +70,7 @@ def test_main_embeds_logic_before_script(tmp_path: Path) -> None:
     items_path.write_text(json.dumps(ITEMS), encoding="utf-8")
     assert main([str(items_path), str(out_path)]) == 0
     out = out_path.read_text(encoding="utf-8")
+    # 文書型の宣言を先頭に置き、文字コードの宣言をその直後に置く (head.html の先頭が meta charset)
+    assert out.startswith('<!DOCTYPE html>\n<meta charset="utf-8">\n')
     assert out.index('id="data"') < out.index("LedgerLogic") < out.index("const ITEMS")
     assert len(re.findall(r"<script[^>]*>", out)) == 3

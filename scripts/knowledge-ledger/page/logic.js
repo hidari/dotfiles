@@ -1,24 +1,24 @@
 // ページの判定。DOM にも保存先にも触れない純粋関数だけを置く。
 // ブラウザではグローバル LedgerLogic、node では module.exports で使う
 var LedgerLogic = (() => {
-  // 使える述語は field と op の組でこの7つだけ
-  const KNOWN = new Set([
-    "issue:eq", "section:eq", "added:gte", "appended:exists", "appended:gte", "label:has", "report_count:gte",
-  ]);
+  // added を持たない件 (最初に載せた578件) が台帳に載った日
+  const BASE_DATE = "2026-11-04";
   const DATE = /^\d{4}-\d{2}-\d{2}$/;
   const nonEmpty = v => typeof v === "string" && v !== "";
-  // op に合う値の形。合わない述語は知らない述語と同じに扱う
-  const VALUE_OK = {
-    "issue:eq": nonEmpty,
-    "section:eq": nonEmpty,
-    "added:gte": v => typeof v === "string" && DATE.test(v),
-    "appended:exists": () => true,
-    "appended:gte": v => typeof v === "string" && DATE.test(v),
-    "label:has": nonEmpty,
-    "report_count:gte": v => (typeof v === "number" || nonEmpty(v)) && Number.isFinite(Number(v)),
-  };
-  const isKnown = p => KNOWN.has(p.field + ":" + p.op);
-  const isValid = p => isKnown(p) && VALUE_OK[p.field + ":" + p.op](p.value) && typeof p.negate === "boolean";
+  const isDate = v => typeof v === "string" && DATE.test(v);
+  // 使える述語は field と op の組でこの7つだけ。ok は op に合う値の形で、合わない述語は知らない述語と同じに扱う。
+  // label と input は条件の編集画面の選択肢と値の欄の型 (input が null なら値を取らない)
+  const PRED_KINDS = [
+    { kind: "issue:eq", label: "Issue が", input: "text", ok: nonEmpty },
+    { kind: "section:eq", label: "分野が", input: "text", ok: nonEmpty },
+    { kind: "added:gte", label: "載った日が次の日以降", input: "date", ok: isDate },
+    { kind: "appended:exists", label: "追記がある", input: null, ok: () => true },
+    { kind: "appended:gte", label: "追記の日が次の日以降", input: "date", ok: isDate },
+    { kind: "label:has", label: "札に次を含む", input: "text", ok: nonEmpty },
+    { kind: "report_count:gte", label: "届いた報告が次の件数以上", input: "number", ok: v => (typeof v === "number" || nonEmpty(v)) && Number.isFinite(Number(v)) },
+  ];
+  const BY_KIND = new Map(PRED_KINDS.map(k => [k.kind, k]));
+  const isValid = p => { const k = BY_KIND.get(p.field + ":" + p.op); return !!k && k.ok(p.value) && typeof p.negate === "boolean"; };
   const isObj = v => v !== null && typeof v === "object" && !Array.isArray(v);
 
   function parseConditions(raw) {
@@ -42,6 +42,7 @@ var LedgerLogic = (() => {
         const q = isObj(p) ? p : {};
         return { field: q.field, op: q.op, value: q.value === undefined ? null : q.value, negate: q.negate === undefined ? false : q.negate };
       });
+      if (!preds.length) warnings.push("節 " + (i + 1) + " に述語が無い");
       for (const p of preds) {
         if (!isValid(p)) warnings.push("節 " + (i + 1) + " に使えない述語 " + p.field + ":" + p.op + " がある");
       }
@@ -54,7 +55,7 @@ var LedgerLogic = (() => {
     switch (p.field + ":" + p.op) {
       case "issue:eq": return item.issue === p.value;
       case "section:eq": return item.section === p.value;
-      case "added:gte": return !!item.added && item.added >= p.value;
+      case "added:gte": return (item.added || BASE_DATE) >= p.value;
       case "appended:exists": return !!item.appended;
       case "appended:gte": return !!item.appended && item.appended >= p.value;
       case "label:has": return (item.labels || []).includes(p.value);
@@ -78,11 +79,14 @@ var LedgerLogic = (() => {
 
   const decided = doc => !!(doc && doc.decision);
 
-  // 判断か「このままでよい」の時点で見た追記 (seenAppended) が今の追記と同じなら見直しは要らない。
-  // seenAppended を持たない判断は日付で比べ、同じ日は前後を決められないので見直しへ倒す (>=)
+  // 届いた報告の数。merge.py と同じく無ければ1と数える
+  const reportsOf = item => item.report_count || 1;
+
+  // 判断か「このままでよい」の時点で見た報告の数 (seenReports) を今の数と比べる。merge.py は追記のたびに数を増やすので、
+  // 同じ日に2度目の追記があっても見分けられる。seenReports を持たない判断は日付で比べ、同じ日は前後を決められないので見直しへ倒す (>=)
   function needsReview(item, doc) {
     if (!decided(doc) || !item.appended) return false;
-    if (doc.seenAppended === item.appended) return false;
+    if (typeof doc.seenReports === "number") return doc.seenReports !== reportsOf(item);
     const day = localDate(doc.decidedAt ?? doc.updatedAt);
     return day !== "" && item.appended >= day;
   }
@@ -130,7 +134,7 @@ var LedgerLogic = (() => {
   const conditionCounts = (items, clauses) =>
     clauses.map(c => items.reduce((n, it) => n + (clauseMatches(it, c) ? 1 : 0), 0));
 
-  return { parseConditions, promoted, localDate, needsReview, inDefaultList, bulkTargets, undoTargets, cardGroups, conditionCounts };
+  return { BASE_DATE, PRED_KINDS, reportsOf, parseConditions, promoted, localDate, needsReview, inDefaultList, bulkTargets, undoTargets, cardGroups, conditionCounts };
 })();
 
 if (typeof module !== "undefined") module.exports = LedgerLogic;

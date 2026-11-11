@@ -32,7 +32,9 @@ def build_page(
         raise ValueError("雛形の script に </script が含まれている")
     items = [{**i, "verified": verify_item(i, read)} for i in items]
     data = json.dumps(items, ensure_ascii=False, separators=(",", ":")).replace("<", "\\u003c")
-    out = head + '<script id="data" type="application/json">' + data + "</script>\n"
+    # 文書型の宣言が無いと互換モードで描かれる。head.html は meta charset から始まり、その直後に続く
+    out = "<!DOCTYPE html>\n" + head
+    out += '<script id="data" type="application/json">' + data + "</script>\n"
     for s in scripts:
         out += "<script>\n" + s + "</script>\n"
     return out

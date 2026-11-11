@@ -1,5 +1,4 @@
-// 組んだページを配信するだけの静的サーバ。
-// ページに meta charset が無く、claude.ai の iframe は UTF-8 で読むので、ここでも charset を明示する
+// 組んだページを配信するだけの静的サーバ。claude.ai の iframe と同じく UTF-8 として返す
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 

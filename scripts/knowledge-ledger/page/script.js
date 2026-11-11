@@ -1,7 +1,6 @@
 (() => {
   const ITEMS = JSON.parse(document.getElementById("data").textContent);
   const byId = new Map(ITEMS.map(i => [i.id, i]));
-  const BASE_DATE = "2026-11-04";
   const PER = 25;
   const LS_UI = "ledger.ui.v1", LS_PENDING = "ledger.pending.v1";
   const $ = s => document.getElementById(s);
@@ -12,9 +11,15 @@
   const pending = new Map();
   const failed = new Set();
   const busy = new Set(), dirty = new Set();
+  // 前回の同期の後に打たれた (input があった) メモ欄。打っていない欄はフォーカスを外しても書かない
+  const noteDirty = new WeakSet();
   const sticky = new Set();
   let db = null, canWrite = true, live = false, page = 0, shownStage = 0;
-  const L = LedgerLogic;
+  // 判断の新しいスナップショットが一度でも届いたか。届いた後は切断しても戻さない (押した判断を控えて送り直すため)
+  let seenOnce = false;
+  // 条件の保存先を購読できなかったら、条件の編集は読むだけにする
+  let condOk = true;
+  const L = LedgerLogic, BASE_DATE = L.BASE_DATE;
   // 保存先から読んだ昇格の条件 (一覧の絞りに効く) と、編集中の写し
   const COND_DOC = ["settings", "promotion"];
   const stored = { clauses: [], warnings: [], updatedAt: "" };
@@ -107,15 +112,15 @@
     // decidedAt は判断を変えたときと「このままでよい」のときだけ patch に載る
     const decidedAt = patch.decidedAt !== undefined ? patch.decidedAt : confirmed.get(id)?.decidedAt;
     if (decidedAt !== undefined) body.decidedAt = decidedAt;
-    const seenAppended = patch.seenAppended !== undefined ? patch.seenAppended : confirmed.get(id)?.seenAppended;
-    if (seenAppended !== undefined) body.seenAppended = seenAppended;
+    const seenReports = patch.seenReports !== undefined ? patch.seenReports : confirmed.get(id)?.seenReports;
+    if (seenReports !== undefined) body.seenReports = seenReports;
     if (confirmed.has(id)) {
       // 既存の文書は変えた欄だけを merge する。古い手元の値で他の欄を上書きしない
       const fields = { updatedAt: patch.updatedAt };
       if (patch.decision !== undefined) fields.decision = patch.decision;
       if (patch.note !== undefined) fields.note = patch.note;
       if (patch.decidedAt !== undefined) fields.decidedAt = patch.decidedAt;
-      if (patch.seenAppended !== undefined) fields.seenAppended = patch.seenAppended;
+      if (patch.seenReports !== undefined) fields.seenReports = patch.seenReports;
       try { await ref.update(fields); return { ...confirmed.get(id), ...fields }; }
       catch (e) { if (!(e && e.code === "invalid_argument")) throw e; }
     }
@@ -157,17 +162,17 @@
     const now = new Date().toISOString();
     // 判断を変えたときだけ decidedAt が進む。メモだけの保存では進めない。
     // 「このままでよい」は呼び出し側が decidedAt だけを渡す
-    // 同じときに、見た時点の追記 (seenAppended) も記録する。追記が無い件は null
+    // 同じときに、見た時点の届いた報告の数 (seenReports) も記録する
     const stamp = patch.decision !== undefined || patch.decidedAt !== undefined;
     const decidedAt = patch.decision !== undefined ? { decidedAt: now } : {};
-    const seen = stamp ? { seenAppended: byId.get(id).appended || null } : {};
+    const seen = stamp ? { seenReports: L.reportsOf(byId.get(id)) } : {};
     pending.set(id, { ...(pending.get(id) || {}), ...patch, ...decidedAt, ...seen, updatedAt: now });
     persistPending();
     paint(id); tallies();
     flush(id);
   }
 
-  const KEY_LABEL = { issue: "Issue", section: "節", added: "載った日", appended: "追記の日", label: "札", quote: "既存の規範の引用", summary: "要約", recommendation: "見立て", reason: "理由", placement: "置き場の案", placement_detail: "置き場の詳細", covered_status: "既存の規範", report_count: "届いた報告", version_dependent: "版への依存" };
+  const KEY_LABEL = { issue: "Issue", section: "分野", added: "載った日", appended: "追記の日", label: "札", quote: "既存の規範の引用", summary: "要約", recommendation: "見立て", reason: "理由", placement: "置き場の案", placement_detail: "置き場の詳細", covered_status: "既存の規範", report_count: "届いた報告", version_dependent: "版への依存" };
   const COV_LABEL = { covered: "既にある", partial: "一部ある", none: "無い" };
   const cards = new Map();
   function savedText(id) {
@@ -185,10 +190,12 @@
     const v = view(id), d = v.decision || null, i = byId.get(id);
     c.el.dataset.d = d || "";
     text(c.dl, d ? "判断: " + d : "判断: まだ");
-    for (const b of c.btns) { b.setAttribute("aria-pressed", String(b.dataset.v === d)); b.disabled = !canWrite; }
-    c.undo.disabled = !canWrite || !d;
-    c.ta.disabled = !canWrite;
-    if (document.activeElement !== c.ta && !(pending.get(id)?.note !== undefined && busy.has(id))) c.ta.value = v.note || "";
+    // 判断が一度も届いていない間は「まだ」が未確認なので押させない。writable() と違い切断後も押せる (控えて送り直す)
+    const usable = canWrite && seenOnce;
+    for (const b of c.btns) { b.setAttribute("aria-pressed", String(b.dataset.v === d)); b.disabled = !usable; }
+    c.undo.disabled = !usable || !d;
+    c.ta.disabled = !usable;
+    if (document.activeElement !== c.ta && !(pending.get(id)?.note !== undefined && busy.has(id))) { c.ta.value = v.note || ""; noteDirty.delete(c.ta); }
     const [t, warn] = savedText(id);
     text(c.saved, t); c.saved.className = "saved" + (warn ? " warn" : "");
     const review = L.needsReview(i, v);
@@ -241,17 +248,23 @@
     for (const v of ["採る", "保留", "採らない"]) {
       const bt = mk("button", null, v); bt.type = "button"; bt.dataset.v = v;
       // 押し直しで外れる作りだと二度押しで判断が消えるので、選び直すだけにする
-      bt.addEventListener("click", () => { if (decisionOf(i.id) !== v) { sticky.add(i.id); change(i.id, { decision: v }); } });
+      bt.addEventListener("click", () => { if (seenOnce && decisionOf(i.id) !== v) { sticky.add(i.id); change(i.id, { decision: v }); } });
       btns.push(bt); btnBox.append(bt);
     }
     const undo = mk("button", "undo", "取り消す"); undo.type = "button";
-    undo.addEventListener("click", () => { if (decisionOf(i.id)) { sticky.add(i.id); change(i.id, { decision: null }); } });
+    undo.addEventListener("click", () => { if (seenOnce && decisionOf(i.id)) { sticky.add(i.id); change(i.id, { decision: null }); } });
     btnBox.append(undo);
     const ta = mk("textarea"); ta.id = "note-" + i.id; ta.placeholder = "メモ (理由、置き場の指定など)";
     ta.setAttribute("aria-label", i.id + " のメモ");
     let tm = null;
-    const commitNote = () => { clearTimeout(tm); if ((view(i.id).note || "") !== ta.value) change(i.id, { note: ta.value }); };
-    ta.addEventListener("input", () => { clearTimeout(tm); tm = setTimeout(commitNote, 900); });
+    // 打った (input があった) ときだけ書く。打たずに外したときは、フォーカス中に届いたメモを上書きせず保存先の値へ戻す
+    const commitNote = () => {
+      clearTimeout(tm);
+      if (!noteDirty.has(ta)) { ta.value = view(i.id).note || ""; return; }
+      noteDirty.delete(ta);
+      if ((view(i.id).note || "") !== ta.value) change(i.id, { note: ta.value });
+    };
+    ta.addEventListener("input", () => { noteDirty.add(ta); clearTimeout(tm); tm = setTimeout(commitNote, 900); });
     ta.addEventListener("blur", commitNote);
     const saved = mk("div", "saved");
     dec.append(btnBox, ta, saved);
@@ -291,41 +304,41 @@
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") persistPending(); });
 
 
-  // 昇格の条件の編集。述語の組は logic.js の KNOWN と同じ7つ
-  const PRED_KINDS = [
-    ["issue:eq", "Issue が", "text", "dl-issue"], ["section:eq", "節が", "text", "dl-section"],
-    ["added:gte", "載った日が次の日以降", "date"], ["appended:exists", "追記がある", null],
-    ["appended:gte", "追記の日が次の日以降", "date"], ["label:has", "札に次を含む", "text", "dl-label"],
-    ["report_count:gte", "届いた報告が次の件数以上", "number"],
-  ];
-  const kindOf = p => PRED_KINDS.find(k => k[0] === p.field + ":" + p.op);
+  // 昇格の条件の編集。述語の組と選択肢の文言は logic.js の PRED_KINDS が持つ
+  const kindOf = p => L.PRED_KINDS.find(k => k.kind === p.field + ":" + p.op);
   const newPred = () => ({ field: "issue", op: "eq", value: "", negate: false });
   const clone = v => JSON.parse(JSON.stringify(v));
   // 判断が届いて (live) 初めて書ける。届く前や切断後は confirmed が欠けていて、判断済みの件を未判断と読み、既存の判断を上書きしうる
   const writable = () => canWrite && !!db && live;
+  const condWritable = () => writable() && condOk;
   const datalist = (id, values) => { const d = mk("datalist"); d.id = id; for (const v of values) d.append(new Option(v, v)); return d; };
   const draftPromoted = () => ITEMS.reduce((n, it) => n + (L.promoted(it, L.parseConditions({ clauses: draft }).clauses) ? 1 : 0), 0);
 
   function paintCond() {
-    const w = writable() && !condBusy;
+    const w = condWritable() && !condBusy;
     const ed = $("cond-editor");
-    for (const el of ed.querySelectorAll("select, input, button")) el.disabled = !writable();
+    for (const el of ed.querySelectorAll("select, input, button")) el.disabled = !condWritable();
     const issues = draftIssues();
     $("cond-add").disabled = !w; $("cond-save").disabled = !w || !draftDirty || issues.length > 0;
     const counts = L.conditionCounts(ITEMS, L.parseConditions({ clauses: draft }).clauses);
     ed.querySelectorAll("[data-count]").forEach((el, n) => text(el, "該当 " + (counts[n] ?? 0) + " 件"));
-    const warn = [...stored.warnings, ...issues];
+    // 保存済みの空の節は stored.warnings と draftIssues の両方に同じ文言で出るので重ねない
+    const warn = [...new Set([...stored.warnings, ...issues])];
     text($("cond-warn"), warn.length ? warn.join(" / ") : "");
-    if (!$("cond-msg").dataset.keep) text($("cond-msg"), (writable() ? "" : "この表示では条件を編集できません。") + (draftDirty ? "未保存の変更があります。" : "") + (clauseTotalText()));
+    if (!$("cond-msg").dataset.keep) text($("cond-msg"), (condWritable() ? "" : "この表示では条件を編集できません。") + (draftDirty ? "未保存の変更があります。" : "") + (clauseTotalText()));
   }
   // 値がまだ入っていない述語と、使えない述語を分けて言う。どちらも保存は止める
   function draftIssues() {
     const out = [];
-    draft.forEach((cl, ci) => cl.preds.forEach((p, pi) => {
-      const k = kindOf(p), at = "節 " + (ci + 1) + " の述語 " + (pi + 1);
-      if (k && k[2] && (p.value === "" || p.value === null || p.value === undefined)) out.push(at + " は値がまだ入っていない");
-      else if (L.parseConditions({ clauses: [{ preds: [p] }] }).warnings.length) out.push(at + " は使えない述語");
-    }));
+    draft.forEach((cl, ci) => {
+      // 述語の無い節は何も昇格させないので保存させない (文言は parseConditions の警告と同じ)
+      if (!cl.preds.length) out.push("節 " + (ci + 1) + " に述語が無い");
+      cl.preds.forEach((p, pi) => {
+        const k = kindOf(p), at = "節 " + (ci + 1) + " の述語 " + (pi + 1);
+        if (k && k.input && (p.value === "" || p.value === null || p.value === undefined)) out.push(at + " は値がまだ入っていない");
+        else if (L.parseConditions({ clauses: [{ preds: [p] }] }).warnings.length) out.push(at + " は使えない述語");
+      });
+    });
     return out;
   }
   const clauseTotalText = () => draft.length ? "いずれかの節に当てはまる件: " + draftPromoted() + " 件" : "";
@@ -344,18 +357,19 @@
         const row = mk("div", "pred");
         const tag = "節" + (ci + 1) + "の述語" + (pi + 1);
         const kind = mk("select"); kind.setAttribute("aria-label", tag + " の種類");
-        for (const k of PRED_KINDS) kind.append(new Option(k[1], k[0]));
-        kind.value = (kindOf(p) || PRED_KINDS[0])[0];
+        for (const k of L.PRED_KINDS) kind.append(new Option(k.label, k.kind));
+        kind.value = (kindOf(p) || L.PRED_KINDS[0]).kind;
         kind.addEventListener("change", () => { const [f, o] = kind.value.split(":"); p.field = f; p.op = o; p.value = o === "exists" ? null : ""; condEdited(true); });
         const neg = mk("label", "neg"); const cb = mk("input"); cb.type = "checkbox"; cb.checked = !!p.negate; cb.setAttribute("aria-label", tag + " の否定");
         cb.addEventListener("change", () => { p.negate = cb.checked; condEdited(false); });
         neg.append(cb, document.createTextNode("否定"));
         row.append(kind, neg);
         const k = kindOf(p);
-        if (k && k[2]) {
-          const inp = mk("input"); inp.type = k[2]; inp.value = p.value ?? ""; inp.setAttribute("aria-label", tag + " の値");
-          if (k[3]) inp.setAttribute("list", k[3]); if (k[2] === "number") inp.min = "1";
-          inp.addEventListener("input", () => { p.value = k[2] === "number" && inp.value !== "" && Number.isFinite(Number(inp.value)) ? Number(inp.value) : inp.value; condEdited(false); });
+        if (k && k.input) {
+          const inp = mk("input"); inp.type = k.input; inp.value = p.value ?? ""; inp.setAttribute("aria-label", tag + " の値");
+          // 文字の欄は datalist "dl-<field>" で台帳にある値を候補に出す
+          if (k.input === "text") inp.setAttribute("list", "dl-" + p.field); if (k.input === "number") inp.min = "1";
+          inp.addEventListener("input", () => { p.value = k.input === "number" && inp.value !== "" && Number.isFinite(Number(inp.value)) ? Number(inp.value) : inp.value; condEdited(false); });
           row.append(inp);
         }
         const del = mk("button", null, "述語を削除"); del.type = "button";
@@ -382,7 +396,7 @@
   }
   $("cond-add").addEventListener("click", () => { draft.push({ preds: [newPred()] }); condEdited(true); });
   $("cond-save").addEventListener("click", async () => {
-    if (!writable() || condBusy) return;
+    if (!condWritable() || condBusy) return;
     const { clauses, warnings } = L.parseConditions({ clauses: draft });
     if (warnings.length || draftIssues().length) { paintCond(); return; }
     condBusy = true; paintCond();
@@ -416,7 +430,8 @@
       const { apply, skipped } = L.bulkTargets([...selected], decisionOf);
       const marks = new Map();
       for (const id of apply) { sticky.add(id); change(id, { decision: v }); marks.set(id, view(id).decidedAt); }
-      lastBulk = apply.length ? { apply, value: v, marks } : null;
+      // 付ける件が無かったときは直前のまとめての判断の取り消しを残す
+      if (apply.length) lastBulk = { apply, value: v, marks };
       selected.clear();
       text($("bulk-skipped"), skipped.length ? skipped.length + " 件は判断済みのため飛ばした" : "");
       text($("bulk-msg"), apply.length ? apply.length + " 件に「" + v + "」を付けた" : "付ける件がなかった");
@@ -447,13 +462,6 @@
     const user = await api.use("user");
     try { const w = user ? await user.can("data.write") : null; if (w === false) canWrite = false; } catch (_) {}
     const timer = setTimeout(() => status("保存先からの応答がまだありません。表示中の判断は古いかもしれません。押した判断はこのブラウザに控えます。", true), 10000);
-    db.collection(COND_DOC[0]).onSnapshot(snap => {
-      const d = snap.docs.find(x => x.id === COND_DOC[1]);
-      if (!d) return;
-      const v = d.data();
-      // 新しい方を残す。自分の保存の直後に古い版が届いても巻き戻さない
-      if ((v.updatedAt || "") >= stored.updatedAt && applyStored(v) && !(document.activeElement && document.activeElement.tagName === "TEXTAREA")) render();
-    }, e => { text($("cond-msg"), "条件の保存先を読めませんでした (" + (e && e.code) + ")。"); $("cond-msg").dataset.keep = "1"; });
     db.collection("decisions").onSnapshot(snap => {
       const fresh = !snap.metadata.fromCache;
       const seen = new Set();
@@ -470,7 +478,7 @@
       if (fresh) {
         clearTimeout(timer);
         if (canWrite) status("判断は保存先に自動で記録されます。", false); else status("この表示では閲覧だけできます。", false);
-        if (!live) { live = true; flushAll(); }
+        if (!live) { live = true; seenOnce = true; flushAll(); }
       }
       persistPending();
       // 判断が届く前の一覧は絞り込みが効いていないので、最初の届きと最初の確定で組み直す。
@@ -479,5 +487,16 @@
       if (stage > shownStage && !(document.activeElement && document.activeElement.tagName === "TEXTAREA")) { shownStage = stage; render(); }
       else repaintAll();
     }, e => { clearTimeout(timer); live = false; status("保存先との接続が切れました (" + (e && e.code) + ")。押した判断はこのブラウザに控え、開き直したときに送り直します。", true); repaintAll(); });
+    // 条件の購読は判断の購読の後に付ける。条件の側が同期で投げても判断は届く
+    const condError = e => { text($("cond-msg"), "条件の保存先を読めませんでした (" + (e && e.code) + ")。"); $("cond-msg").dataset.keep = "1"; };
+    try {
+      db.collection(COND_DOC[0]).onSnapshot(snap => {
+        const d = snap.docs.find(x => x.id === COND_DOC[1]);
+        if (!d) return;
+        const v = d.data();
+        // 新しい方を残す。自分の保存の直後に古い版が届いても巻き戻さない
+        if ((v.updatedAt || "") >= stored.updatedAt && applyStored(v) && !(document.activeElement && document.activeElement.tagName === "TEXTAREA")) render();
+      }, condError);
+    } catch (e) { condOk = false; condError(e); paintCond(); }
   })();
 })();

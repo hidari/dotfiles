@@ -1,7 +1,8 @@
 // claude.ai が差し込む window.claude の偽物。メモリ上の保存先を持つ。
 // 設定は addInitScript が window.__fakeSeed で渡す:
-//   { docs: { <collection>: { <id>: <fields> } }, delayDecisions: boolean }
-// 書き込みは window.__writes に { op, path, fields } で積む
+//   { docs: { <collection>: { <id>: <fields> } }, delayDecisions: boolean, throwSettings: boolean }
+// 書き込みは window.__writes に { op, path, fields } で積む。
+// 別の端末からの書き込みは window.__remoteUpdate で入れる (__writes には積まない)
 (() => {
   const seed = window.__fakeSeed || {};
   const store = new Map();
@@ -24,6 +25,7 @@
   window.__releaseDecisions = () => release && release();
 
   const notify = name => { for (const cb of listeners.get(name) || []) cb(snapshot(name)); };
+  window.__remoteUpdate = (name, id, fields) => { bucket(name).set(id, { ...(bucket(name).get(id) || {}), ...structuredClone(fields) }); notify(name); };
 
   const collection = name => ({
     doc: id => ({
@@ -38,6 +40,8 @@
       },
     }),
     onSnapshot(cb) {
+      // 購読の呼び出しそのものが同期で投げる保存先を真似る
+      if (name === "settings" && seed.throwSettings) throw Object.assign(new Error("settings"), { code: "internal" });
       if (!listeners.has(name)) listeners.set(name, []);
       listeners.get(name).push(cb);
       const first = () => cb(snapshot(name));

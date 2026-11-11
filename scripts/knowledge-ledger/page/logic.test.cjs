@@ -70,6 +70,24 @@ test("parseConditions: 7つの組はすべて警告なし", () => {
     pred("label", "has", "実測"), pred("report_count", "gte", 2),
   ];
   assert.deepEqual(L.parseConditions({ clauses: [clause(...preds)] }).warnings, []);
+  // 編集の画面が出す選択肢も同じ7つ
+  assert.deepEqual(L.PRED_KINDS.map(k => k.kind), preds.map(p => p.field + ":" + p.op));
+});
+
+test("PRED_KINDS: 値を入れる述語だけが input を持ち、分野は「分野」と呼ぶ", () => {
+  const byKind = Object.fromEntries(L.PRED_KINDS.map(k => [k.kind, k]));
+  assert.equal(byKind["appended:exists"].input, null);
+  for (const k of L.PRED_KINDS) if (k.kind !== "appended:exists") assert.ok(["text", "date", "number"].includes(k.input), k.kind);
+  assert.equal(byKind["section:eq"].label, "分野が");
+  for (const k of L.PRED_KINDS) assert.ok(!k.label.includes("節"), k.kind);
+});
+
+test("parseConditions: 述語が0個の節は警告に載り、昇格させない", () => {
+  const r = L.parseConditions({ clauses: [clause(pred("issue", "eq", "ISSUE-1")), clause()] });
+  assert.deepEqual(r.warnings, ["節 2 に述語が無い"]);
+  assert.equal(r.clauses.length, 2);
+  assert.equal(L.promoted(item({ issue: "ISSUE-2" }), r.clauses), false);
+  assert.equal(L.promoted(item(), r.clauses), true);
 });
 
 test("promoted: 節の中は積、節どうしは和", () => {
@@ -93,6 +111,14 @@ test("promoted: 各述語の境界", () => {
   assert.equal(L.promoted(item({ report_count: 2 }), [clause(pred("report_count", "gte", 3))]), false);
   assert.equal(L.promoted(item({ labels: ["実測"] }), [clause(pred("label", "has", "実測"))]), true);
   assert.equal(L.promoted(item({ labels: ["実測値"] }), [clause(pred("label", "has", "実測"))]), false);
+});
+
+test("promoted: added を持たない件は一覧の表示と同じく BASE_DATE に載ったものとして比べる", () => {
+  assert.equal(L.BASE_DATE, "2026-11-04");
+  assert.equal(L.promoted(item(), [clause(pred("added", "gte", L.BASE_DATE))]), true);
+  assert.equal(L.promoted(item(), [clause(pred("added", "gte", "2026-11-03"))]), true);
+  assert.equal(L.promoted(item(), [clause(pred("added", "gte", "2026-11-05"))]), false);
+  assert.equal(L.promoted(item(), [clause(pred("added", "gte", "2026-11-05", true))]), true);
 });
 
 test("promoted: negate で札を外す", () => {
@@ -150,13 +176,34 @@ test("needsReview: decidedAt が updatedAt より優先され、両方無けれ�
   assert.equal(L.needsReview(it, { decision: "採る", updatedAt: "壊れた" }), false);
 });
 
-test("needsReview: seenAppended が今の追記と同じなら同じ日でも false、追記が新しければ true、無ければ従来どおり", () => {
+test("needsReview: seenReports が今の届いた報告の数と同じなら同じ日でも false、数が違えば日付によらず true", () => {
   const base = { decision: "採る", decidedAt: "2026-11-10T03:00:00Z" };
   const day = L.localDate(base.decidedAt);
-  assert.equal(L.needsReview(item({ appended: day }), { ...base, seenAppended: day }), false);
-  assert.equal(L.needsReview(item({ appended: "2026-12-01" }), { ...base, seenAppended: day }), true);
+  assert.equal(L.needsReview(item({ appended: day, report_count: 2 }), { ...base, seenReports: 2 }), false);
+  // 見た後の同じ日にもう一度追記された (数だけが増える)
+  assert.equal(L.needsReview(item({ appended: day, report_count: 3 }), { ...base, seenReports: 2 }), true);
+  // 数が違えば、追記の日が判断の日より前に見えても見直す (日付ではなく数で決める)
+  assert.equal(L.needsReview(item({ appended: "2000-01-01", report_count: 3 }), { ...base, seenReports: 2 }), true);
+  assert.equal(L.needsReview(item({ appended: "2999-01-01", report_count: 2 }), { ...base, seenReports: 2 }), false);
+  // report_count を持たない件は1件として数える (merge.py と同じ既定)
+  assert.equal(L.needsReview(item({ appended: day, report_count: undefined }), { ...base, seenReports: 1 }), false);
+  // 追記の無い件は seenReports によらず false
+  assert.equal(L.needsReview(item({ report_count: 3 }), { ...base, seenReports: 2 }), false);
+});
+
+test("needsReview: seenReports を持たない判断は日付で比べ、同じ日は見直しへ倒す", () => {
+  const base = { decision: "採る", decidedAt: "2026-11-10T03:00:00Z" };
+  const day = L.localDate(base.decidedAt);
   assert.equal(L.needsReview(item({ appended: day }), base), true);
-  assert.equal(L.needsReview(item({ appended: day }), { ...base, seenAppended: null }), true);
+  assert.equal(L.needsReview(item({ appended: day }), { ...base, seenReports: null }), true);
+  assert.equal(L.needsReview(item({ appended: day }), { ...base, seenReports: "2" }), true);
+  assert.equal(L.needsReview(item({ appended: "2000-01-01" }), { ...base, seenReports: null }), false);
+});
+
+test("reportsOf: 届いた報告の数。無ければ1", () => {
+  assert.equal(L.reportsOf(item({ report_count: 3 })), 3);
+  assert.equal(L.reportsOf(item({ report_count: undefined })), 1);
+  assert.equal(L.reportsOf(item({ report_count: 0 })), 1);
 });
 
 test("needsReview: 判断が無い・追記が無ければ false", () => {
