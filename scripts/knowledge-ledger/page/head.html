@@ -79,6 +79,27 @@ textarea { min-height: 34px; resize: vertical; }
 .pager button { font: inherit; padding: 4px 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 4px; cursor: pointer; }
 .pager button:disabled { opacity: .4; cursor: default; }
 .empty { text-align: center; color: var(--muted); padding: 32px 0; }
+.chk { display: flex !important; grid-template-columns: none; align-items: center; gap: 8px; }
+.chk input { width: auto }
+.conds, .bulk { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px; display: grid; gap: 8px; }
+.conds h2 { font-size: 1rem; margin: 0; font-family: var(--display); }
+.clause { border: 1px solid var(--line); border-radius: 6px; padding: 8px; display: grid; gap: 6px; }
+.clause-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-size: .85rem; }
+.pred { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pred select, .pred input[type=text], .pred input[type=date], .pred input[type=number] { width: auto; max-width: 100%; }
+.pred label.neg { display: flex; flex-direction: row; align-items: center; gap: 4px; }
+.conds button, .bulk button, .ack { font: inherit; font-size: .82rem; padding: 4px 10px; border-radius: 4px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+.conds button:disabled, .bulk button:disabled, .ack:disabled { opacity: .5; cursor: not-allowed }
+.cond-actions, .bulk { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.notice { font-size: .85rem; color: var(--hold); margin: 0; }
+.grp { border-top: 1px dashed var(--line); padding-top: 6px; display: grid; gap: 2px; }
+.grp h3 { font-size: .76rem; margin: 0; color: var(--muted); letter-spacing: .04em; font-weight: 500; }
+.grp.verified h3 { color: var(--adopt) }
+.row { font-size: .86rem; } .row .k { color: var(--muted); font-size: .76rem; margin-right: 8px; }
+.row.summary-row .v { font-size: 1.02rem; font-weight: 500; }
+.chip.stored { border-style: dashed; color: var(--muted); }
+.pick { display: flex; align-items: center; gap: 6px; font-size: .78rem; color: var(--muted); }
+.pick input { width: auto }
 @media (max-width: 560px) { .decide { grid-template-columns: 1fr } h1 { font-size: 1.5rem } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important } }
 </style>
@@ -100,16 +121,34 @@ textarea { min-height: 34px; resize: vertical; }
   <div class="bar" aria-hidden="true"><i class="a" id="b-a"></i><i class="h" id="b-h"></i><i class="r" id="b-r"></i></div>
 
   <section class="filters" aria-label="絞り込み">
-    <label for="f-state">判断<select id="f-state"><option value="">すべて</option><option value="todo" selected>まだ</option><option value="採る">採る</option><option value="保留">保留</option><option value="採らない">採らない</option></select></label>
+    <label for="f-state">判断<select id="f-state"><option value="">すべて</option><option value="todo" selected>既定の一覧</option><option value="採る">採る</option><option value="保留">保留</option><option value="採らない">採らない</option></select></label>
     <label for="f-issue">Issue<select id="f-issue"><option value="">すべて</option></select></label>
     <label for="f-section">分野<select id="f-section"><option value="">すべて</option></select></label>
     <label for="f-rec">見立て<select id="f-rec"><option value="">すべて</option><option>採る</option><option>保留</option><option>採らない</option></select></label>
     <label for="f-cov">既存の規範<select id="f-cov"><option value="">すべて</option><option value="none">無い</option><option value="partial">一部ある</option><option value="covered">ある</option></select></label>
     <label for="f-added">台帳に載った日<select id="f-added"><option value="">すべて</option></select></label>
     <label for="f-sort">並び<select id="f-sort"><option value="rep">届いた件数の多い順</option><option value="id">Issue の順</option></select></label>
+    <label class="chk" for="show-stored" style="grid-column:1/-1"><input type="checkbox" id="show-stored"> 保管中 (昇格していない) の件も含める</label>
     <label for="f-q" style="grid-column:1/-1">キーワード<input type="search" id="f-q" placeholder="要約・原文・置き場から探す"></label>
   </section>
 
+  <section class="conds" aria-label="昇格の条件">
+    <h2>昇格の条件</h2>
+    <p class="hint">節のどれか1つに当てはまる件が既定の一覧に昇格します。1つの節の中の述語は全部に当てはまる必要があります。述語に「否定」を付けると、その述語を満たさない件に当てはまります。</p>
+    <div id="cond-editor"></div>
+    <div class="cond-actions"><button type="button" id="cond-add">節を追加</button><button type="button" id="cond-save">この条件を保存</button><span id="cond-msg" class="hint" role="status"></span></div>
+    <div id="cond-warn" class="hint"></div>
+  </section>
+
+  <section class="bulk" id="bulk-bar" aria-label="まとめての判断">
+    <span>選んだ <b id="bulk-count">0</b> 件に</span>
+    <button type="button" id="bulk-adopt" data-v="採る">採る</button><button type="button" id="bulk-hold" data-v="保留">保留</button><button type="button" id="bulk-reject" data-v="採らない">採らない</button>
+    <span>を付ける</span>
+    <button type="button" id="select-page">このページの全件を選ぶ</button><button type="button" id="bulk-clear">選択を外す</button><button type="button" id="bulk-undo">直前のまとめての判断を取り消す</button>
+    <span id="bulk-skipped" class="hint" role="status"></span><span id="bulk-msg" class="hint" role="status"></span>
+  </section>
+
+  <p id="cond-none" class="notice" hidden>昇格の条件がまだありません。判断がまだの全件を出しています。</p>
   <div class="listhead"><span id="count"></span><span>1ページ 25件</span></div>
   <p class="hint">判断を押した件は、ページを送るか絞り込みを変えるまで一覧に残ります。絞り込みと開いていたページはこのブラウザが覚えます。保存先へ届く前の判断もこのブラウザに控え、次に開いたとき送り直します。</p>
   <div class="list" id="list"></div>
