@@ -224,6 +224,18 @@ test.describe("昇格の条件とまとめての判断", () => {
     expect(await writes(page)).toHaveLength(0);
   });
 
+  test("条件が届いた後に条件の購読が切れたら、条件の編集はその場で読むだけになる", async ({ page }) => {
+    await open(page);
+    await page.locator("#cond-add").click();
+    const kind = page.getByLabel("節1の述語1 の種類");
+    await expect(kind).toBeEnabled();
+    await page.evaluate(() => (window as any).__failSnapshot("settings", "unavailable"));
+    await expect(page.locator("#cond-msg")).toContainText("条件の保存先を読めませんでした (unavailable)");
+    for (const el of [kind, page.locator("#cond-add"), page.locator("#cond-save")]) await expect(el).toBeDisabled();
+    // 判断の方は書ける
+    await expect(page.locator("#select-page")).toBeEnabled();
+  });
+
   for (const [title, opts] of [
     ["同期で投げても", { throwSettings: true }],
     ["最初の届きの前に失敗しても", { failSettings: "unavailable" }],
