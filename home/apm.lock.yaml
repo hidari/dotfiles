@@ -1,5 +1,5 @@
 lockfile_version: '1'
-generated_at: '2026-11-10T09:28:03.731842+00:00'
+generated_at: '2026-11-11T07:05:36.972540+00:00'
 apm_version: 0.34.0
 dependencies:
 - repo_url: cloudflare/security-audit-skill
@@ -58,8 +58,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: dev-workflow
   host: github.com
-  resolved_commit: 2673c03c0ef620488ad3e285b1ec235d46796fa4
-  resolved_ref: 2673c03c0ef620488ad3e285b1ec235d46796fa4
+  resolved_commit: c54ced27c563f183f83f47943ecb2c0f34973f19
+  resolved_ref: c54ced27c563f183f83f47943ecb2c0f34973f19
   version: 0.2.0
   virtual_path: plugins/dev-workflow
   is_virtual: true
@@ -114,28 +114,28 @@ dependencies:
     .claude/skills/dev-workflow/skills/commit-and-pr-message/scripts/check-outgoing-text.py: sha256:eb79b0df4782fe80a3d68a5e4ddab7d440fefe6ae1f0cbee577467bcf7162911
     .claude/skills/dev-workflow/skills/commit-and-pr-message/scripts/leak-guard-default.gitleaks.toml: sha256:f67e347e99f4755ab8c1c61f6572b9a4f3371f2c83e2533928da03c43f5bd402
     .claude/skills/dev-workflow/skills/commit-and-pr-message/scripts/leak-guard.gitleaks.toml: sha256:90abb45a3c9f764065de5a4c66eaac166a216b9e7e90839d37870ff2d34a8120
-    .claude/skills/dev-workflow/skills/e2e-scenario-impact-check/SKILL.md: sha256:df41b01e05f1a448e9381b58f31b3dd75dad613e4afd92246d109e90a6913d48
+    .claude/skills/dev-workflow/skills/e2e-scenario-impact-check/SKILL.md: sha256:68422ff68cce6a9c45bc797add91c3d9a12798899b606b10ae8583a63e17e7d1
     .claude/skills/dev-workflow/skills/git-branch-switcher/SKILL.md: sha256:fe8743320fbefa8b20b1c1cb1f5f274903ce588959fba2370dabfde6752950c1
-    .claude/skills/dev-workflow/skills/in-repo-issue/SKILL.md: sha256:a2151840f4adfb13e70aba323e76b99686976644624ba82106511638b1ddd781
-    .claude/skills/dev-workflow/skills/in-repo-issue/scripts/issue-id.py: sha256:a3a62f14ae0a308211fe8c5033e61224294fdc1a782d9c3ce0f1c2b1a804fdda
+    .claude/skills/dev-workflow/skills/in-repo-issue/SKILL.md: sha256:6b9000f335dbcdc31f0b608fa6b765ba587d85e19c5b7224c17edade9ca8983d
+    .claude/skills/dev-workflow/skills/in-repo-issue/scripts/issue-id.py: sha256:476c4f7fa69a81215ac6aba88bfea8ef75da5b1693e1cf802240fe2bb4945026
     .claude/skills/dev-workflow/skills/in-repo-issue/templates/issue.md: sha256:00e88d65690b43fbf34a735a12aa581da9f000cb8030452368bae8e9dbbde948
     .claude/skills/dev-workflow/skills/issue-scoped-artifacts/SKILL.md: sha256:184e893d0ee2bb169dff27ae2dcfb964afdd3c4c7126dc3969e10cd91a9b66d1
-    .claude/skills/dev-workflow/skills/pre-merge-quality-gate/SKILL.md: sha256:365ee90aa8c709ca8da7f61bf23f9bec10b12095d64a4cf508f85482f03db813
+    .claude/skills/dev-workflow/skills/pre-merge-quality-gate/SKILL.md: sha256:3f55ec1b73415a38e5a9aef84ca991ee8397effdce5f565053a26a1de33fe1e1
     .claude/skills/dev-workflow/skills/retrospective-codify/SKILL.md: sha256:a2b8bd19e88a2fa69466dff6e3f6eae741c6d3b0b6c060fd46b0382c31318481
-    .claude/skills/e2e-scenario-impact-check/SKILL.md: sha256:df41b01e05f1a448e9381b58f31b3dd75dad613e4afd92246d109e90a6913d48
+    .claude/skills/e2e-scenario-impact-check/SKILL.md: sha256:68422ff68cce6a9c45bc797add91c3d9a12798899b606b10ae8583a63e17e7d1
     .claude/skills/git-branch-switcher/SKILL.md: sha256:fe8743320fbefa8b20b1c1cb1f5f274903ce588959fba2370dabfde6752950c1
-    .claude/skills/in-repo-issue/SKILL.md: sha256:a2151840f4adfb13e70aba323e76b99686976644624ba82106511638b1ddd781
-    .claude/skills/in-repo-issue/scripts/issue-id.py: sha256:a3a62f14ae0a308211fe8c5033e61224294fdc1a782d9c3ce0f1c2b1a804fdda
+    .claude/skills/in-repo-issue/SKILL.md: sha256:6b9000f335dbcdc31f0b608fa6b765ba587d85e19c5b7224c17edade9ca8983d
+    .claude/skills/in-repo-issue/scripts/issue-id.py: sha256:476c4f7fa69a81215ac6aba88bfea8ef75da5b1693e1cf802240fe2bb4945026
     .claude/skills/in-repo-issue/templates/issue.md: sha256:00e88d65690b43fbf34a735a12aa581da9f000cb8030452368bae8e9dbbde948
     .claude/skills/issue-scoped-artifacts/SKILL.md: sha256:184e893d0ee2bb169dff27ae2dcfb964afdd3c4c7126dc3969e10cd91a9b66d1
-    .claude/skills/pre-merge-quality-gate/SKILL.md: sha256:365ee90aa8c709ca8da7f61bf23f9bec10b12095d64a4cf508f85482f03db813
+    .claude/skills/pre-merge-quality-gate/SKILL.md: sha256:3f55ec1b73415a38e5a9aef84ca991ee8397effdce5f565053a26a1de33fe1e1
     .claude/skills/retrospective-codify/SKILL.md: sha256:a2b8bd19e88a2fa69466dff6e3f6eae741c6d3b0b6c060fd46b0382c31318481
-  content_hash: sha256:727195001840e8b29fe1aed4cde4b014488416e0d202ef16a5216ed4706df057
+  content_hash: sha256:04cf1404290d3f8f9188a290254d97a9202d3bf8abeda92585fb18ad9439d04c
 - repo_url: hidari/agentic-coding-tools
   name: security-blue-red-team
   host: github.com
-  resolved_commit: 2673c03c0ef620488ad3e285b1ec235d46796fa4
-  resolved_ref: 2673c03c0ef620488ad3e285b1ec235d46796fa4
+  resolved_commit: c54ced27c563f183f83f47943ecb2c0f34973f19
+  resolved_ref: c54ced27c563f183f83f47943ecb2c0f34973f19
   version: 0.5.0
   virtual_path: plugins/security-blue-red-team
   is_virtual: true
@@ -185,8 +185,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: web-monkey-qa
   host: github.com
-  resolved_commit: 2673c03c0ef620488ad3e285b1ec235d46796fa4
-  resolved_ref: 2673c03c0ef620488ad3e285b1ec235d46796fa4
+  resolved_commit: c54ced27c563f183f83f47943ecb2c0f34973f19
+  resolved_ref: c54ced27c563f183f83f47943ecb2c0f34973f19
   version: 0.2.0
   virtual_path: plugins/web-monkey-qa
   is_virtual: true
@@ -218,8 +218,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: macos-vm-verification
   host: github.com
-  resolved_commit: 2673c03c0ef620488ad3e285b1ec235d46796fa4
-  resolved_ref: 2673c03c0ef620488ad3e285b1ec235d46796fa4
+  resolved_commit: c54ced27c563f183f83f47943ecb2c0f34973f19
+  resolved_ref: c54ced27c563f183f83f47943ecb2c0f34973f19
   version: unknown
   virtual_path: skills/devops/macos-vm-verification
   is_virtual: true
@@ -241,8 +241,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: windows-vm-verification
   host: github.com
-  resolved_commit: 2673c03c0ef620488ad3e285b1ec235d46796fa4
-  resolved_ref: 2673c03c0ef620488ad3e285b1ec235d46796fa4
+  resolved_commit: c54ced27c563f183f83f47943ecb2c0f34973f19
+  resolved_ref: c54ced27c563f183f83f47943ecb2c0f34973f19
   version: unknown
   virtual_path: skills/devops/windows-vm-verification
   is_virtual: true
@@ -268,8 +268,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: context-loading-mechanics
   host: github.com
-  resolved_commit: 2673c03c0ef620488ad3e285b1ec235d46796fa4
-  resolved_ref: 2673c03c0ef620488ad3e285b1ec235d46796fa4
+  resolved_commit: c54ced27c563f183f83f47943ecb2c0f34973f19
+  resolved_ref: c54ced27c563f183f83f47943ecb2c0f34973f19
   version: unknown
   virtual_path: skills/meta/context-loading-mechanics
   is_virtual: true
@@ -283,8 +283,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: cross-repo-learnings
   host: github.com
-  resolved_commit: 2673c03c0ef620488ad3e285b1ec235d46796fa4
-  resolved_ref: 2673c03c0ef620488ad3e285b1ec235d46796fa4
+  resolved_commit: c54ced27c563f183f83f47943ecb2c0f34973f19
+  resolved_ref: c54ced27c563f183f83f47943ecb2c0f34973f19
   version: unknown
   virtual_path: skills/meta/cross-repo-learnings
   is_virtual: true
@@ -300,8 +300,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: session-handoff
   host: github.com
-  resolved_commit: 2673c03c0ef620488ad3e285b1ec235d46796fa4
-  resolved_ref: 2673c03c0ef620488ad3e285b1ec235d46796fa4
+  resolved_commit: c54ced27c563f183f83f47943ecb2c0f34973f19
+  resolved_ref: c54ced27c563f183f83f47943ecb2c0f34973f19
   version: unknown
   virtual_path: skills/meta/session-handoff
   is_virtual: true
@@ -317,8 +317,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: jev-lint-curated
   host: github.com
-  resolved_commit: 2673c03c0ef620488ad3e285b1ec235d46796fa4
-  resolved_ref: 2673c03c0ef620488ad3e285b1ec235d46796fa4
+  resolved_commit: c54ced27c563f183f83f47943ecb2c0f34973f19
+  resolved_ref: c54ced27c563f183f83f47943ecb2c0f34973f19
   version: unknown
   virtual_path: skills/tooling/jev-lint-curated
   is_virtual: true
@@ -344,8 +344,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: markdown-to-pdf
   host: github.com
-  resolved_commit: 2673c03c0ef620488ad3e285b1ec235d46796fa4
-  resolved_ref: 2673c03c0ef620488ad3e285b1ec235d46796fa4
+  resolved_commit: c54ced27c563f183f83f47943ecb2c0f34973f19
+  resolved_ref: c54ced27c563f183f83f47943ecb2c0f34973f19
   version: unknown
   virtual_path: skills/tooling/markdown-to-pdf
   is_virtual: true
@@ -865,7 +865,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/dev-workflow
   active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
-  content_hash: sha256:df41b01e05f1a448e9381b58f31b3dd75dad613e4afd92246d109e90a6913d48
+  content_hash: sha256:68422ff68cce6a9c45bc797add91c3d9a12798899b606b10ae8583a63e17e7d1
 - kind: project-relative
   target: claude
   value: .claude/skills/dev-workflow/skills/git-branch-switcher/SKILL.md
@@ -883,7 +883,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/dev-workflow
   active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
-  content_hash: sha256:a2151840f4adfb13e70aba323e76b99686976644624ba82106511638b1ddd781
+  content_hash: sha256:6b9000f335dbcdc31f0b608fa6b765ba587d85e19c5b7224c17edade9ca8983d
 - kind: project-relative
   target: claude
   value: .claude/skills/dev-workflow/skills/in-repo-issue/scripts/issue-id.py
@@ -892,7 +892,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/dev-workflow
   active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
-  content_hash: sha256:a3a62f14ae0a308211fe8c5033e61224294fdc1a782d9c3ce0f1c2b1a804fdda
+  content_hash: sha256:476c4f7fa69a81215ac6aba88bfea8ef75da5b1693e1cf802240fe2bb4945026
 - kind: project-relative
   target: claude
   value: .claude/skills/dev-workflow/skills/in-repo-issue/templates/issue.md
@@ -919,7 +919,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/dev-workflow
   active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
-  content_hash: sha256:365ee90aa8c709ca8da7f61bf23f9bec10b12095d64a4cf508f85482f03db813
+  content_hash: sha256:3f55ec1b73415a38e5a9aef84ca991ee8397effdce5f565053a26a1de33fe1e1
 - kind: project-relative
   target: claude
   value: .claude/skills/dev-workflow/skills/retrospective-codify/SKILL.md
@@ -946,7 +946,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/dev-workflow
   active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
-  content_hash: sha256:df41b01e05f1a448e9381b58f31b3dd75dad613e4afd92246d109e90a6913d48
+  content_hash: sha256:68422ff68cce6a9c45bc797add91c3d9a12798899b606b10ae8583a63e17e7d1
 - kind: project-relative
   target: claude
   value: .claude/skills/empirical-prompt-tuning
@@ -1018,7 +1018,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/dev-workflow
   active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
-  content_hash: sha256:a2151840f4adfb13e70aba323e76b99686976644624ba82106511638b1ddd781
+  content_hash: sha256:6b9000f335dbcdc31f0b608fa6b765ba587d85e19c5b7224c17edade9ca8983d
 - kind: project-relative
   target: claude
   value: .claude/skills/in-repo-issue/scripts/issue-id.py
@@ -1027,7 +1027,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/dev-workflow
   active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
-  content_hash: sha256:a3a62f14ae0a308211fe8c5033e61224294fdc1a782d9c3ce0f1c2b1a804fdda
+  content_hash: sha256:476c4f7fa69a81215ac6aba88bfea8ef75da5b1693e1cf802240fe2bb4945026
 - kind: project-relative
   target: claude
   value: .claude/skills/in-repo-issue/templates/issue.md
@@ -1297,7 +1297,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/dev-workflow
   active_owner: hidari/agentic-coding-tools/plugins/dev-workflow
-  content_hash: sha256:365ee90aa8c709ca8da7f61bf23f9bec10b12095d64a4cf508f85482f03db813
+  content_hash: sha256:3f55ec1b73415a38e5a9aef84ca991ee8397effdce5f565053a26a1de33fe1e1
 - kind: project-relative
   target: claude
   value: .claude/skills/retrospective-codify
