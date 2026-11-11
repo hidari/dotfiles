@@ -16,8 +16,11 @@ const DECISIONS = {
 // 各件の届いた報告の数 (fixtures/items.json の report_count)
 const REPORTS: Record<string, number> = { "T-01": 2, "T-02": 2, "T-03": 3, "T-04": 2 };
 
-async function open(page: Page, opts: { delayDecisions?: boolean; throwSettings?: boolean } = {}) {
-  await page.addInitScript((seed) => { (window as any).__fakeSeed = seed; }, { docs: { decisions: DECISIONS }, ...opts });
+type OpenOpts = { delayDecisions?: boolean; delaySettings?: boolean; throwSettings?: boolean; failSettings?: string; settings?: Record<string, unknown> };
+
+async function open(page: Page, { settings, ...opts }: OpenOpts = {}) {
+  const docs = settings ? { decisions: DECISIONS, settings } : { decisions: DECISIONS };
+  await page.addInitScript((seed) => { (window as any).__fakeSeed = seed; }, { docs, ...opts });
   await page.addInitScript({ path: FAKE_DB });
   await page.goto("/index.html");
 }
@@ -165,6 +168,7 @@ test.describe("昇格の条件とまとめての判断", () => {
     await expect(page.locator("#status")).toHaveText("判断は保存先に自動で記録されます。");
     await page.evaluate(() => (window as any).__failSnapshot("decisions", "unavailable"));
     await expect(page.locator("#status")).toContainText("保存先との接続が切れました");
+    await expect(page.locator("#status")).toContainText("押した判断はこのブラウザに控え");
     // 一括は切断後に書けない (確定済みの判断が古いかもしれない)
     await page.locator("input[data-select='T-04']").check();
     await expect(page.locator("#bulk-adopt")).toBeDisabled();
@@ -180,14 +184,59 @@ test.describe("昇格の条件とまとめての判断", () => {
     expect(await writes(page)).toHaveLength(0);
   });
 
-  test("条件の購読が同期で投げても判断は届き、条件の編集は読むだけになる", async ({ page }) => {
-    await open(page, { throwSettings: true });
+  test("判断が届く前に切断したら、押せないことを言い、控えるとは言わない", async ({ page }) => {
+    await open(page, { delayDecisions: true });
+    await expect(page.locator("input[data-select]").first()).toBeVisible();
+    await page.evaluate(() => (window as any).__failSnapshot("decisions", "unavailable"));
+    await expect(page.locator("#status")).toContainText("保存先との接続が切れました");
+    await expect(page.locator("#status")).toContainText("判断が届くまで判断とメモは押せません");
+    await expect(page.locator("#status")).not.toContainText("控え");
+    await expect(page.getByRole("group", { name: "T-03 の判断" }).getByRole("button", { name: "採る" })).toBeDisabled();
+  });
+
+  test("判断の応答が遅いときの案内は、押せないことを言い、控えるとは言わない", async ({ page }) => {
+    await page.clock.install();
+    await open(page, { delayDecisions: true });
+    await expect(page.locator("input[data-select]").first()).toBeVisible();
+    await page.clock.runFor(10_500);
+    await expect(page.locator("#status")).toContainText("保存先からの応答がまだありません");
+    await expect(page.locator("#status")).toContainText("判断が届くまで判断とメモは押せません");
+    await expect(page.locator("#status")).not.toContainText("控え");
+  });
+
+  test("条件が届く前は条件を編集も保存もできず、届くと保存済みの条件を見せて編集できる", async ({ page }) => {
+    const promotion = { clauses: [{ preds: [{ field: "report_count", op: "gte", value: 3, negate: false }] }], updatedAt: "2026-11-09T00:00:00.000Z" };
+    await open(page, { delaySettings: true, settings: { promotion } });
+    // 判断は届いているが、条件はまだ
     await expect(page.locator("#status")).toHaveText("判断は保存先に自動で記録されます。");
-    await expect(page.locator("#cond-msg")).toContainText("条件の保存先を読めませんでした");
+    await expect(page.locator("#select-page")).toBeEnabled();
     await expect(page.locator("#cond-add")).toBeDisabled();
     await expect(page.locator("#cond-save")).toBeDisabled();
-    // 判断の方は書ける
-    await expect(page.locator("#select-page")).toBeEnabled();
-    await expect(page.getByRole("group", { name: "T-03 の判断" }).getByRole("button", { name: "採る" })).toBeEnabled();
+    await expect(page.locator("#cond-msg")).toContainText("この表示では条件を編集できません。");
+
+    await page.evaluate(() => (window as any).__releaseSettings());
+    const kind = page.getByLabel("節1の述語1 の種類"), value = page.getByLabel("節1の述語1 の値");
+    await expect(kind).toHaveValue("report_count:gte");
+    await expect(value).toHaveValue("3");
+    for (const el of [kind, value, page.locator("#cond-add")]) await expect(el).toBeEnabled();
+    // 保存済みの条件で絞る (T-03 と、見直し対象の T-01)
+    await expect(page.locator("#count")).toHaveText("2 件 (全 10 件)");
+    expect(await writes(page)).toHaveLength(0);
   });
+
+  for (const [title, opts] of [
+    ["同期で投げても", { throwSettings: true }],
+    ["最初の届きの前に失敗しても", { failSettings: "unavailable" }],
+  ] as const) {
+    test(`条件の購読が${title}判断は届き、条件の編集は読むだけになる`, async ({ page }) => {
+      await open(page, opts);
+      await expect(page.locator("#status")).toHaveText("判断は保存先に自動で記録されます。");
+      await expect(page.locator("#cond-msg")).toContainText("条件の保存先を読めませんでした");
+      await expect(page.locator("#cond-add")).toBeDisabled();
+      await expect(page.locator("#cond-save")).toBeDisabled();
+      // 判断の方は書ける
+      await expect(page.locator("#select-page")).toBeEnabled();
+      await expect(page.getByRole("group", { name: "T-03 の判断" }).getByRole("button", { name: "採る" })).toBeEnabled();
+    });
+  }
 });

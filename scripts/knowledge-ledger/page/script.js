@@ -17,6 +17,8 @@
   let db = null, canWrite = true, live = false, page = 0, shownStage = 0;
   // 判断の新しいスナップショットが一度でも届いたか。届いた後は切断しても戻さない (押した判断を控えて送り直すため)
   let seenOnce = false;
+  // 条件の保存先から一度でも届いたか (文書が無い届きも含む)。届く前に保存すると、まだ見ていない保存済みの条件を丸ごと上書きする
+  let condSeen = false;
   // 条件の保存先を購読できなかったら、条件の編集は読むだけにする
   let condOk = true;
   const L = LedgerLogic, BASE_DATE = L.BASE_DATE;
@@ -310,7 +312,7 @@
   const clone = v => JSON.parse(JSON.stringify(v));
   // 判断が届いて (live) 初めて書ける。届く前や切断後は confirmed が欠けていて、判断済みの件を未判断と読み、既存の判断を上書きしうる
   const writable = () => canWrite && !!db && live;
-  const condWritable = () => writable() && condOk;
+  const condWritable = () => writable() && condSeen && condOk;
   const datalist = (id, values) => { const d = mk("datalist"); d.id = id; for (const v of values) d.append(new Option(v, v)); return d; };
   const draftPromoted = () => ITEMS.reduce((n, it) => n + (L.promoted(it, L.parseConditions({ clauses: draft }).clauses) ? 1 : 0), 0);
 
@@ -461,7 +463,9 @@
     if (!db) { canWrite = false; status("判断の保存先に接続できないため、閲覧だけできます。claude.ai でこのページを開くと判断を記録できます。", true); repaintAll(); return; }
     const user = await api.use("user");
     try { const w = user ? await user.can("data.write") : null; if (w === false) canWrite = false; } catch (_) {}
-    const timer = setTimeout(() => status("保存先からの応答がまだありません。表示中の判断は古いかもしれません。押した判断はこのブラウザに控えます。", true), 10000);
+    // 判断が一度も届いていなければ、カードの判断は押せないので控えるとは言わない
+    const keepText = () => seenOnce ? "押した判断はこのブラウザに控え、開き直したときに送り直します。" : "判断が届くまで判断とメモは押せません。";
+    const timer = setTimeout(() => status("保存先からの応答がまだありません。表示中の判断は古いかもしれません。" + keepText(), true), 10000);
     db.collection("decisions").onSnapshot(snap => {
       const fresh = !snap.metadata.fromCache;
       const seen = new Set();
@@ -486,17 +490,18 @@
       const stage = fresh ? 2 : 1;
       if (stage > shownStage && !(document.activeElement && document.activeElement.tagName === "TEXTAREA")) { shownStage = stage; render(); }
       else repaintAll();
-    }, e => { clearTimeout(timer); live = false; status("保存先との接続が切れました (" + (e && e.code) + ")。押した判断はこのブラウザに控え、開き直したときに送り直します。", true); repaintAll(); });
+    }, e => { clearTimeout(timer); live = false; status("保存先との接続が切れました (" + (e && e.code) + ")。" + keepText(), true); repaintAll(); });
     // 条件の購読は判断の購読の後に付ける。条件の側が同期で投げても判断は届く
-    const condError = e => { text($("cond-msg"), "条件の保存先を読めませんでした (" + (e && e.code) + ")。"); $("cond-msg").dataset.keep = "1"; };
+    const condError = e => { condOk = false; text($("cond-msg"), "条件の保存先を読めませんでした (" + (e && e.code) + ")。"); $("cond-msg").dataset.keep = "1"; paintCond(); };
     try {
       db.collection(COND_DOC[0]).onSnapshot(snap => {
+        condSeen = true;
         const d = snap.docs.find(x => x.id === COND_DOC[1]);
-        if (!d) return;
+        if (!d) { paintCond(); return; }
         const v = d.data();
         // 新しい方を残す。自分の保存の直後に古い版が届いても巻き戻さない
         if ((v.updatedAt || "") >= stored.updatedAt && applyStored(v) && !(document.activeElement && document.activeElement.tagName === "TEXTAREA")) render();
       }, condError);
-    } catch (e) { condOk = false; condError(e); paintCond(); }
+    } catch (e) { condError(e); }
   })();
 })();

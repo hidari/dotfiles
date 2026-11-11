@@ -176,19 +176,25 @@ test("needsReview: decidedAt が updatedAt より優先され、両方無けれ�
   assert.equal(L.needsReview(it, { decision: "採る", updatedAt: "壊れた" }), false);
 });
 
-test("needsReview: seenReports が今の届いた報告の数と同じなら同じ日でも false、数が違えば日付によらず true", () => {
+test("needsReview: seenReports が今の届いた報告の数と同じなら同じ日でも false、今より少なければ日付によらず true", () => {
   const base = { decision: "採る", decidedAt: "2026-11-10T03:00:00Z" };
   const day = L.localDate(base.decidedAt);
   assert.equal(L.needsReview(item({ appended: day, report_count: 2 }), { ...base, seenReports: 2 }), false);
   // 見た後の同じ日にもう一度追記された (数だけが増える)
   assert.equal(L.needsReview(item({ appended: day, report_count: 3 }), { ...base, seenReports: 2 }), true);
-  // 数が違えば、追記の日が判断の日より前に見えても見直す (日付ではなく数で決める)
+  // 今より少なければ、追記の日が判断の日より前に見えても見直す (日付ではなく数で決める)
   assert.equal(L.needsReview(item({ appended: "2000-01-01", report_count: 3 }), { ...base, seenReports: 2 }), true);
   assert.equal(L.needsReview(item({ appended: "2999-01-01", report_count: 2 }), { ...base, seenReports: 2 }), false);
   // report_count を持たない件は1件として数える (merge.py と同じ既定)
   assert.equal(L.needsReview(item({ appended: day, report_count: undefined }), { ...base, seenReports: 1 }), false);
   // 追記の無い件は seenReports によらず false
   assert.equal(L.needsReview(item({ report_count: 3 }), { ...base, seenReports: 2 }), false);
+});
+
+test("needsReview: seenReports が今の数より多い (新しい版のページが書いた) 判断は見直しに出さない", () => {
+  const base = { decision: "採る", decidedAt: "2026-11-10T03:00:00Z" };
+  assert.equal(L.needsReview(item({ appended: "2026-11-10", report_count: 2 }), { ...base, seenReports: 3 }), false);
+  assert.equal(L.needsReview(item({ appended: "2999-01-01", report_count: 2 }), { ...base, seenReports: 5 }), false);
 });
 
 test("needsReview: seenReports を持たない判断は日付で比べ、同じ日は見直しへ倒す", () => {

@@ -1,6 +1,7 @@
 // claude.ai が差し込む window.claude の偽物。メモリ上の保存先を持つ。
 // 設定は addInitScript が window.__fakeSeed で渡す:
-//   { docs: { <collection>: { <id>: <fields> } }, delayDecisions: boolean, throwSettings: boolean }
+//   { docs: { <collection>: { <id>: <fields> } }, delayDecisions: boolean, delaySettings: boolean,
+//     throwSettings: boolean, failSettings: <code> }
 // 書き込みは window.__writes に { op, path, fields } で積む。
 // 別の端末からの書き込みは window.__remoteUpdate で入れ (__writes には積まない)、購読の切断は window.__failSnapshot で起こす
 (() => {
@@ -19,10 +20,11 @@
     docs: [...bucket(name)].map(([id, fields]) => ({ id, data: () => structuredClone(fields) })),
   });
 
-  // 最初の decisions の届きだけを、テストが放すまで止める
-  let release = null;
-  const held = seed.delayDecisions ? new Promise(r => { release = r; }) : null;
-  window.__releaseDecisions = () => release && release();
+  // 最初の届きだけを、テストが放すまで止める (decisions と settings を別々に)
+  const hold = on => { let release = null; const held = on ? new Promise(r => { release = r; }) : null; return { held, release: () => release && release() }; };
+  const holds = { decisions: hold(seed.delayDecisions), settings: hold(seed.delaySettings) };
+  window.__releaseDecisions = holds.decisions.release;
+  window.__releaseSettings = holds.settings.release;
 
   const notify = name => { for (const cb of listeners.get(name) || []) cb(snapshot(name)); };
   window.__remoteUpdate = (name, id, fields) => { bucket(name).set(id, { ...(bucket(name).get(id) || {}), ...structuredClone(fields) }); notify(name); };
@@ -48,8 +50,11 @@
       if (!listeners.has(name)) listeners.set(name, []);
       listeners.get(name).push(cb);
       if (onError) { if (!errorCbs.has(name)) errorCbs.set(name, []); errorCbs.get(name).push(onError); }
+      // 最初の届きの前に購読が失敗する保存先を真似る (第2引数を非同期に呼ぶ)
+      if (name === "settings" && seed.failSettings) { queueMicrotask(() => onError && onError({ code: seed.failSettings })); return () => {}; }
       const first = () => cb(snapshot(name));
-      if (name === "decisions" && held) held.then(first); else queueMicrotask(first);
+      const held = holds[name] && holds[name].held;
+      if (held) held.then(first); else queueMicrotask(first);
       return () => {};
     },
   });

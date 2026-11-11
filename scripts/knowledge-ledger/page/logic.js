@@ -86,7 +86,8 @@ var LedgerLogic = (() => {
   // 同じ日に2度目の追記があっても見分けられる。seenReports を持たない判断は日付で比べ、同じ日は前後を決められないので見直しへ倒す (>=)
   function needsReview(item, doc) {
     if (!decided(doc) || !item.appended) return false;
-    if (typeof doc.seenReports === "number") return doc.seenReports !== reportsOf(item);
+    // 今より多い数は新しい版のページが書いたもの。古い版で開いても見直しに出さない
+    if (typeof doc.seenReports === "number") return doc.seenReports < reportsOf(item);
     const day = localDate(doc.decidedAt ?? doc.updatedAt);
     return day !== "" && item.appended >= day;
   }
