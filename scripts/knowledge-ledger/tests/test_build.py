@@ -1,0 +1,48 @@
+"""build_page の組み立て規則を固定する。
+
+出力のバイト一致は移行時に一度確かめただけで、ここでは持たない。
+"""
+
+import json
+import re
+from typing import Any
+
+import pytest
+
+from knowledge_ledger.build import build_page
+
+ITEMS: list[dict[str, Any]] = [
+    {"id": "K1-001", "text": "原文 <b>強調</b>"},
+    {"id": "K1-002", "text": "二件目"},
+]
+HEAD = "<title>t</title>\n"
+
+
+def test_build_page_structure() -> None:
+    out = build_page(ITEMS, HEAD, ["const a = 1;\n", "const b = 2;\n"])
+    assert out.startswith(HEAD)
+    tags = re.findall(r"<script[^>]*>", out)
+    assert tags == ['<script id="data" type="application/json">', "<script>", "<script>"]
+    data = re.search(r'<script id="data" type="application/json">(.*?)</script>', out, re.S)
+    assert data is not None
+    assert json.loads(data.group(1)) == ITEMS
+    assert out.index("const a = 1;") < out.index("const b = 2;")
+    assert out.index('id="data"') < out.index("const a = 1;")
+
+
+def test_build_page_escapes_lt() -> None:
+    out = build_page(ITEMS, HEAD, ["x\n"])
+    data = re.search(r'<script id="data" type="application/json">(.*?)</script>', out, re.S)
+    assert data is not None
+    assert "<" not in data.group(1)
+    assert "\\u003cb>" in data.group(1)
+
+
+def test_build_page_rejects_duplicate_ids() -> None:
+    with pytest.raises(ValueError, match="重複"):
+        build_page([{"id": "A"}, {"id": "A"}], HEAD, ["x\n"])
+
+
+def test_build_page_rejects_script_close_in_template() -> None:
+    with pytest.raises(ValueError, match="script"):
+        build_page(ITEMS, HEAD, ['const s = "</script>";\n'])

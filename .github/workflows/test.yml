@@ -252,6 +252,34 @@ jobs:
       - name: Pytest
         run: uv run pytest -q
 
+  knowledge-ledger:
+    name: knowledge-ledger (python)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+        working-directory: scripts/knowledge-ledger
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
+
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      - name: Ruff check
+        run: uv run ruff check src tests
+
+      - name: Ruff format check
+        run: uv run ruff format --check src tests
+
+      - name: Mypy strict
+        run: uv run mypy src tests
+
+      - name: Pytest
+        run: uv run pytest -q
+
   node-security-notifier:
     name: node-security-notifier (python)
     runs-on: ubuntu-24.04
