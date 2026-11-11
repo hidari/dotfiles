@@ -1,0 +1,5 @@
+node_modules/
+test-results/
+playwright-report/
+# E2E 用に組んだページ (テスト起動のたびに作り直す)
+/e2e/.build/

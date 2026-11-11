@@ -1,0 +1,148 @@
+<meta charset="utf-8">
+<title>知見の採否台帳</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Old+Mincho:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* 台帳: 上に進み具合と絞り込み、下に1件1枚の記入欄。カードは帳票の行として並べる */
+:root {
+  --bg: #f6f5f1; --surface: #ffffff; --ink: #1f2430; --muted: #5d6474; --line: #d9d7cf;
+  --accent: #2c4f7c; --accent-soft: #e3eaf3;
+  --adopt: #2f7d4f; --adopt-soft: #e2f1e7; --hold: #a1660b; --hold-soft: #f7ecd9; --reject: #8b3b3b; --reject-soft: #f4e3e3;
+  --display: "Zen Old Mincho", "Hiragino Mincho ProN", serif;
+  --body: "Zen Kaku Gothic New", "Hiragino Sans", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #15181e; --surface: #1d2129; --ink: #e6e8ee; --muted: #9aa1b0; --line: #333946ff;
+  --accent: #8fb0dc; --accent-soft: #24324a;
+  --adopt: #7cc79a; --adopt-soft: #1f3a2a; --hold: #e0ac5c; --hold-soft: #3a2e1a; --reject: #e09a9a; --reject-soft: #3d2424;
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #15181e; --surface: #1d2129; --ink: #e6e8ee; --muted: #9aa1b0; --line: #333946ff;
+  --accent: #8fb0dc; --accent-soft: #24324a;
+  --adopt: #7cc79a; --adopt-soft: #1f3a2a; --hold: #e0ac5c; --hold-soft: #3a2e1a; --reject: #e09a9a; --reject-soft: #3d2424;
+  color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.7; }
+.wrap { max-width: 980px; margin: 0 auto; padding-block: 24px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 20px; }
+h1 { font-family: var(--display); font-size: 1.9rem; line-height: 1.3; margin: 0; text-wrap: balance; letter-spacing: .02em; }
+.lede { color: var(--muted); margin: 0; max-width: 62ch; }
+.status { font-size: .85rem; color: var(--muted); }
+.progress { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.tally { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; display: grid; gap: 2px; }
+.tally b { font-family: var(--mono); font-size: 1.4rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+.tally span { font-size: .78rem; color: var(--muted); letter-spacing: .04em; }
+.tally.adopt b { color: var(--adopt) } .tally.hold b { color: var(--hold) } .tally.reject b { color: var(--reject) }
+.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; display: flex; }
+.bar i { display: block; height: 100% } .bar .a { background: var(--adopt) } .bar .h { background: var(--hold) } .bar .r { background: var(--reject) }
+.filters { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px; display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.filters label { display: grid; gap: 4px; font-size: .78rem; color: var(--muted); letter-spacing: .04em; min-width: 0; }
+select, input[type=search], textarea { font: inherit; font-size: .9rem; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; width: 100%; min-width: 0; }
+select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.listhead { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; justify-content: space-between; font-size: .85rem; color: var(--muted); }
+.list { display: grid; gap: 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 6px; padding: 14px 16px; display: grid; gap: 10px; min-width: 0; }
+.card[data-d="採る"] { border-left-color: var(--adopt) } .card[data-d="保留"] { border-left-color: var(--hold) } .card[data-d="採らない"] { border-left-color: var(--reject) }
+.cid { font-family: var(--mono); font-size: .75rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: .74rem; border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; color: var(--muted); white-space: nowrap; }
+details { font-size: .86rem; }
+details summary { cursor: pointer; color: var(--accent); }
+details pre { white-space: pre-wrap; word-break: break-word; font-family: var(--body); font-size: .84rem; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 10px; margin: 6px 0 0; }
+.path { font-family: var(--mono); font-size: .76rem; color: var(--muted); }
+.decide { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; }
+.btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.btns button { font: inherit; font-size: .85rem; padding: 5px 12px; border-radius: 4px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+.btns button[aria-pressed="true"][data-v="採る"] { background: var(--adopt-soft); border-color: var(--adopt); color: var(--adopt); font-weight: 700 }
+.btns button[aria-pressed="true"][data-v="保留"] { background: var(--hold-soft); border-color: var(--hold); color: var(--hold); font-weight: 700 }
+.btns button[aria-pressed="true"][data-v="採らない"] { background: var(--reject-soft); border-color: var(--reject); color: var(--reject); font-weight: 700 }
+.btns button:disabled { opacity: .5; cursor: not-allowed }
+textarea { min-height: 34px; resize: vertical; }
+.btns button.undo { border-style: dashed; color: var(--muted); }
+.saved { font-size: .74rem; color: var(--muted); grid-column: 1 / -1; min-height: 1em; }
+.saved.warn, .status .warn { color: var(--reject); font-weight: 500; }
+.status { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.status button { font: inherit; font-size: .8rem; padding: 2px 10px; border-radius: 4px; border: 1px solid var(--reject); background: var(--reject-soft); color: var(--reject); cursor: pointer; }
+.chip.after { color: var(--reject); border-color: var(--reject); background: var(--reject-soft); }
+.hint { font-size: .78rem; color: var(--muted); }
+.pager { display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap; font-size: .85rem; }
+.pager button { font: inherit; padding: 4px 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 4px; cursor: pointer; }
+.pager button:disabled { opacity: .4; cursor: default; }
+.empty { text-align: center; color: var(--muted); padding: 32px 0; }
+.chk { display: flex !important; grid-template-columns: none; align-items: center; gap: 8px; }
+.chk input { width: auto }
+.conds, .bulk { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px; display: grid; gap: 8px; }
+.conds h2 { font-size: 1rem; margin: 0; font-family: var(--display); }
+.clause { border: 1px solid var(--line); border-radius: 6px; padding: 8px; display: grid; gap: 6px; }
+.clause-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-size: .85rem; }
+.pred { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pred select, .pred input[type=text], .pred input[type=date], .pred input[type=number] { width: auto; max-width: 100%; }
+.pred label.neg { display: flex; flex-direction: row; align-items: center; gap: 4px; }
+.conds button, .bulk button, .ack { font: inherit; font-size: .82rem; padding: 4px 10px; border-radius: 4px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+.conds button:disabled, .bulk button:disabled, .ack:disabled { opacity: .5; cursor: not-allowed }
+.cond-actions, .bulk { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.notice { font-size: .85rem; color: var(--hold); margin: 0; }
+.grp { border-top: 1px dashed var(--line); padding-top: 6px; display: grid; gap: 2px; }
+.grp h3 { font-size: .76rem; margin: 0; color: var(--muted); letter-spacing: .04em; font-weight: 500; }
+.grp.verified h3 { color: var(--adopt) }
+.row { font-size: .86rem; } .row .k { color: var(--muted); font-size: .76rem; margin-right: 8px; }
+.row.summary-row .v { font-size: 1.02rem; font-weight: 500; }
+.chip.stored { border-style: dashed; color: var(--muted); }
+.pick { display: flex; align-items: center; gap: 6px; font-size: .78rem; color: var(--muted); }
+.pick input { width: auto }
+@media (max-width: 560px) { .decide { grid-template-columns: 1fr } h1 { font-size: 1.5rem } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important } }
+</style>
+
+<main class="wrap">
+  <header style="display:grid;gap:8px">
+    <h1>知見の採否台帳</h1>
+    <p class="lede">ほかのリポジトリのセッションから受け箱に届き、ISSUE-133・134・88 ほかの Issue に仕分けた知見を1件ずつ確かめる。「台帳に載った日」で新しく足した分だけに絞れる。要約と置き場の案、見立ては下ごしらえの agent が付けた参考で、判断はここで決める。決めた結果は dotfiles のセッションが読んで Issue と規範に反映する。</p>
+    <div class="status" id="status-row" role="status" aria-live="polite"><span id="status">判断の保存先に接続しています…</span><span id="unsaved"></span><button type="button" id="retry" hidden>未保存の分をもう一度送る</button></div>
+  </header>
+
+  <section class="progress" aria-label="進み具合">
+    <div class="tally"><b id="t-done">0</b><span>決めた件数</span></div>
+    <div class="tally adopt"><b id="t-a">0</b><span>採る</span></div>
+    <div class="tally hold"><b id="t-h">0</b><span>保留</span></div>
+    <div class="tally reject"><b id="t-r">0</b><span>採らない</span></div>
+    <div class="tally"><b id="t-left">0</b><span>まだ</span></div>
+  </section>
+  <div class="bar" aria-hidden="true"><i class="a" id="b-a"></i><i class="h" id="b-h"></i><i class="r" id="b-r"></i></div>
+
+  <section class="filters" aria-label="絞り込み">
+    <label for="f-state">判断<select id="f-state"><option value="">すべて</option><option value="todo" selected>既定の一覧</option><option value="採る">採る</option><option value="保留">保留</option><option value="採らない">採らない</option></select></label>
+    <label for="f-issue">Issue<select id="f-issue"><option value="">すべて</option></select></label>
+    <label for="f-section">分野<select id="f-section"><option value="">すべて</option></select></label>
+    <label for="f-rec">見立て<select id="f-rec"><option value="">すべて</option><option>採る</option><option>保留</option><option>採らない</option></select></label>
+    <label for="f-cov">既存の規範<select id="f-cov"><option value="">すべて</option><option value="none">無い</option><option value="partial">一部ある</option><option value="covered">ある</option></select></label>
+    <label for="f-added">台帳に載った日<select id="f-added"><option value="">すべて</option></select></label>
+    <label for="f-sort">並び<select id="f-sort"><option value="rep">届いた件数の多い順</option><option value="id">Issue の順</option></select></label>
+    <label class="chk" for="show-stored" style="grid-column:1/-1"><input type="checkbox" id="show-stored"> 保管中 (昇格していない) の件も含める</label>
+    <label for="f-q" style="grid-column:1/-1">キーワード<input type="search" id="f-q" placeholder="要約・原文・置き場から探す"></label>
+  </section>
+
+  <section class="conds" aria-label="昇格の条件">
+    <h2>昇格の条件</h2>
+    <p class="hint">節のどれか1つに当てはまる件が既定の一覧に昇格します。1つの節の中の述語は全部に当てはまる必要があります。述語に「否定」を付けると、その述語を満たさない件に当てはまります。</p>
+    <div id="cond-editor"></div>
+    <div class="cond-actions"><button type="button" id="cond-add">節を追加</button><button type="button" id="cond-save">この条件を保存</button><span id="cond-msg" class="hint" role="status"></span></div>
+    <div id="cond-warn" class="hint"></div>
+  </section>
+
+  <section class="bulk" id="bulk-bar" aria-label="まとめての判断">
+    <span>選んだ <b id="bulk-count">0</b> 件に</span>
+    <button type="button" id="bulk-adopt" data-v="採る">採る</button><button type="button" id="bulk-hold" data-v="保留">保留</button><button type="button" id="bulk-reject" data-v="採らない">採らない</button>
+    <span>を付ける</span>
+    <button type="button" id="select-page">このページの全件を選ぶ</button><button type="button" id="bulk-clear">選択を外す</button><button type="button" id="bulk-undo">直前のまとめての判断を取り消す</button>
+    <span id="bulk-skipped" class="hint" role="status"></span><span id="bulk-msg" class="hint" role="status"></span>
+  </section>
+
+  <p id="cond-none" class="notice" hidden>昇格の条件がまだありません。判断がまだの全件を出しています。</p>
+  <div class="listhead"><span id="count"></span><span>1ページ 25件</span></div>
+  <p class="hint">判断を押した件は、ページを送るか絞り込みを変えるまで一覧に残ります。絞り込みと開いていたページはこのブラウザが覚えます。保存先へ届く前の判断もこのブラウザに控え、次に開いたとき送り直します。</p>
+  <div class="list" id="list"></div>
+  <nav class="pager" aria-label="ページ送り"><button id="prev" type="button">前へ</button><span id="pageinfo"></span><button id="next" type="button">次へ</button></nav>
+</main>

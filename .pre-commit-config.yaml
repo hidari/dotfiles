@@ -142,6 +142,41 @@ repos:
         pass_filenames: false
         files: ^scripts/mise-update-notifier/(src|tests)/.*\.py$
 
+      - id: knowledge-ledger-ruff-check
+        name: knowledge-ledger ruff check
+        language: system
+        entry: uv run --directory scripts/knowledge-ledger ruff check src tests
+        pass_filenames: false
+        files: ^scripts/knowledge-ledger/(src|tests)/.*\.py$
+
+      - id: knowledge-ledger-ruff-format
+        name: knowledge-ledger ruff format --check
+        language: system
+        entry: uv run --directory scripts/knowledge-ledger ruff format --check src tests
+        pass_filenames: false
+        files: ^scripts/knowledge-ledger/(src|tests)/.*\.py$
+
+      - id: knowledge-ledger-mypy
+        name: knowledge-ledger mypy
+        language: system
+        entry: uv run --directory scripts/knowledge-ledger mypy src tests
+        pass_filenames: false
+        files: ^scripts/knowledge-ledger/(src|tests)/.*\.py$
+
+      - id: knowledge-ledger-pytest
+        name: knowledge-ledger pytest
+        language: system
+        entry: uv run --directory scripts/knowledge-ledger pytest -q
+        pass_filenames: false
+        files: ^scripts/knowledge-ledger/(src|tests)/.*\.py$
+
+      - id: knowledge-ledger-node-test
+        name: knowledge-ledger node --test (page logic)
+        language: system
+        entry: node --test scripts/knowledge-ledger/page/logic.test.cjs
+        pass_filenames: false
+        files: ^scripts/knowledge-ledger/page/.*
+
       - id: node-security-notifier-ruff-check
         name: node-security-notifier ruff check
         language: system
