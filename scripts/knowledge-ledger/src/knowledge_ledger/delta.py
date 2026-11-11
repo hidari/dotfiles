@@ -51,6 +51,41 @@ def _parse(lines: list[str]) -> list[dict[str, Any]]:
     return blocks
 
 
+def _shape(
+    iid: str,
+    issue: str,
+    section: str | None,
+    text: str,
+    today: str,
+    basis: str | None = None,
+    parent_existing: bool = False,
+) -> dict[str, Any]:
+    """新しい件の形。delta.json は sort_keys なしで書くので欄の順もここで決まる"""
+    item: dict[str, Any] = {"id": iid, "issue": issue, "section": section, "text": text}
+    if basis is not None:
+        item["basis"] = basis
+    item["added"] = today
+    if parent_existing:
+        item["parent_existing"] = True
+    return item
+
+
+def _new_item(
+    maxno: dict[str, int],
+    num: str,
+    issue: str,
+    section: str | None,
+    text: str,
+    today: str,
+    parent_existing: bool = False,
+) -> dict[str, Any]:
+    """K<番号>-<続き番号> を振った新しい件。maxno は Issue ごとの最大の続き番号で、ここで進める"""
+    maxno[num] = maxno.get(num, 0) + 1
+    return _shape(
+        f"K{num}-{maxno[num]:03d}", issue, section, text, today, parent_existing=parent_existing
+    )
+
+
 def _git(wt: str, *args: str) -> str:
     return subprocess.run(["git", "-C", wt, *args], capture_output=True, check=True).stdout.decode()
 
@@ -106,14 +141,9 @@ def build_delta(wt: str, base: list[dict[str, Any]], today: str) -> dict[str, An
             m = re.match(r"\| (INS-\d+) \| (.*?) \|(.*)\|\s*$", line)
             if m and n in add:
                 new_items.append(
-                    {
-                        "id": m.group(1),
-                        "issue": issue,
-                        "section": section,
-                        "text": m.group(2),
-                        "basis": m.group(3).strip(" |"),
-                        "added": today,
-                    }
+                    _shape(
+                        m.group(1), issue, section, m.group(2), today, basis=m.group(3).strip(" |")
+                    )
                 )
         for b in _parse(lines):
             rows = b["rows"]
@@ -139,17 +169,7 @@ def build_delta(wt: str, base: list[dict[str, Any]], today: str) -> dict[str, An
                     unmatched.append({"issue": issue, "first": lines[top][:80], "hits": []})
                 continue
             if top in add:
-                maxno[num] = maxno.get(num, 0) + 1
-                iid = f"K{num}-{maxno[num]:03d}"
-                new_items.append(
-                    {
-                        "id": iid,
-                        "issue": issue,
-                        "section": b["section"],
-                        "text": text_all,
-                        "added": today,
-                    }
-                )
+                new_items.append(_new_item(maxno, num, issue, b["section"], text_all, today))
             else:
                 hits = by_first.get((issue, lines[top]), [])
                 if len(hits) == 1:
@@ -168,18 +188,12 @@ def build_delta(wt: str, base: list[dict[str, Any]], today: str) -> dict[str, An
                                 "hits": [h["id"] for h in hits],
                             }
                         )
-                    maxno[num] = maxno.get(num, 0) + 1
-                    iid = f"K{num}-{maxno[num]:03d}"
                     # 台帳に無い親へ足された子は、親の1行目と足した子を1件にする
+                    text = "\n".join([lines[top]] + [lines[r] for r in new_kids])
                     new_items.append(
-                        {
-                            "id": iid,
-                            "issue": issue,
-                            "section": b["section"],
-                            "text": "\n".join([lines[top]] + [lines[r] for r in new_kids]),
-                            "added": today,
-                            "parent_existing": True,
-                        }
+                        _new_item(
+                            maxno, num, issue, b["section"], text, today, parent_existing=True
+                        )
                     )
 
     ids = [i["id"] for i in base] + [i["id"] for i in new_items]
