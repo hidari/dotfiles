@@ -271,7 +271,8 @@
     text($("count"), r.length + " 件 (全 " + ITEMS.length + " 件)");
     text($("pageinfo"), (page + 1) + " / " + pages);
     $("prev").disabled = page === 0; $("next").disabled = page >= pages - 1;
-    $("cond-none").hidden = stored.clauses.length > 0;
+    // 「判断がまだの全件」が実際に出ているときだけ言う
+    $("cond-none").hidden = stored.clauses.length > 0 || $("f-state").value !== "todo" || $("show-stored").checked;
     tallies(); saveUi();
   }
   const repaintAll = () => { for (const id of cards.keys()) paint(id); tallies(); };
@@ -297,7 +298,8 @@
   const kindOf = p => PRED_KINDS.find(k => k[0] === p.field + ":" + p.op);
   const newPred = () => ({ field: "issue", op: "eq", value: "", negate: false });
   const clone = v => JSON.parse(JSON.stringify(v));
-  const writable = () => canWrite && !!db;
+  // 判断が届いて (live) 初めて書ける。届く前や切断後は confirmed が欠けていて、判断済みの件を未判断と読み、既存の判断を上書きしうる
+  const writable = () => canWrite && !!db && live;
   const datalist = (id, values) => { const d = mk("datalist"); d.id = id; for (const v of values) d.append(new Option(v, v)); return d; };
   const draftPromoted = () => ITEMS.reduce((n, it) => n + (L.promoted(it, L.parseConditions({ clauses: draft }).clauses) ? 1 : 0), 0);
 
@@ -305,12 +307,23 @@
     const w = writable() && !condBusy;
     const ed = $("cond-editor");
     for (const el of ed.querySelectorAll("select, input, button")) el.disabled = !writable();
-    $("cond-add").disabled = !w; $("cond-save").disabled = !w || !draftDirty || L.parseConditions({ clauses: draft }).warnings.length > 0;
+    const issues = draftIssues();
+    $("cond-add").disabled = !w; $("cond-save").disabled = !w || !draftDirty || issues.length > 0;
     const counts = L.conditionCounts(ITEMS, L.parseConditions({ clauses: draft }).clauses);
     ed.querySelectorAll("[data-count]").forEach((el, n) => text(el, "該当 " + (counts[n] ?? 0) + " 件"));
-    const warn = [...stored.warnings, ...L.parseConditions({ clauses: draft }).warnings];
+    const warn = [...stored.warnings, ...issues];
     text($("cond-warn"), warn.length ? warn.join(" / ") : "");
     if (!$("cond-msg").dataset.keep) text($("cond-msg"), (writable() ? "" : "この表示では条件を編集できません。") + (draftDirty ? "未保存の変更があります。" : "") + (clauseTotalText()));
+  }
+  // 値がまだ入っていない述語と、使えない述語を分けて言う。どちらも保存は止める
+  function draftIssues() {
+    const out = [];
+    draft.forEach((cl, ci) => cl.preds.forEach((p, pi) => {
+      const k = kindOf(p), at = "節 " + (ci + 1) + " の述語 " + (pi + 1);
+      if (k && k[2] && (p.value === "" || p.value === null || p.value === undefined)) out.push(at + " は値がまだ入っていない");
+      else if (L.parseConditions({ clauses: [{ preds: [p] }] }).warnings.length) out.push(at + " は使えない述語");
+    }));
+    return out;
   }
   const clauseTotalText = () => draft.length ? "いずれかの節に当てはまる件: " + draftPromoted() + " 件" : "";
 
@@ -368,7 +381,7 @@
   $("cond-save").addEventListener("click", async () => {
     if (!writable() || condBusy) return;
     const { clauses, warnings } = L.parseConditions({ clauses: draft });
-    if (warnings.length) { paintCond(); return; }
+    if (warnings.length || draftIssues().length) { paintCond(); return; }
     condBusy = true; paintCond();
     const doc = { clauses, updatedAt: new Date().toISOString() };
     const msg = $("cond-msg");
@@ -387,6 +400,7 @@
     const n = selected.size, w = writable();
     text($("bulk-count"), n);
     for (const id of ["bulk-adopt", "bulk-hold", "bulk-reject"]) $(id).disabled = !w || n === 0;
+    $("select-page").disabled = !w;
     $("bulk-clear").disabled = n === 0;
     $("bulk-undo").disabled = !w || !lastBulk;
     paintCond();
