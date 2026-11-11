@@ -253,7 +253,7 @@ jobs:
         run: uv run pytest -q
 
   knowledge-ledger:
-    name: knowledge-ledger (python)
+    name: knowledge-ledger (python + node)
     runs-on: ubuntu-24.04
     defaults:
       run:

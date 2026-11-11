@@ -5,7 +5,20 @@ var LedgerLogic = (() => {
   const KNOWN = new Set([
     "issue:eq", "section:eq", "added:gte", "appended:exists", "appended:gte", "label:has", "report_count:gte",
   ]);
+  const DATE = /^\d{4}-\d{2}-\d{2}$/;
+  const nonEmpty = v => typeof v === "string" && v !== "";
+  // op に合う値の形。合わない述語は知らない述語と同じに扱う
+  const VALUE_OK = {
+    "issue:eq": nonEmpty,
+    "section:eq": nonEmpty,
+    "added:gte": v => typeof v === "string" && DATE.test(v),
+    "appended:exists": () => true,
+    "appended:gte": v => typeof v === "string" && DATE.test(v),
+    "label:has": nonEmpty,
+    "report_count:gte": v => (typeof v === "number" || nonEmpty(v)) && Number.isFinite(Number(v)),
+  };
   const isKnown = p => KNOWN.has(p.field + ":" + p.op);
+  const isValid = p => isKnown(p) && VALUE_OK[p.field + ":" + p.op](p.value) && typeof p.negate === "boolean";
   const isObj = v => v !== null && typeof v === "object" && !Array.isArray(v);
 
   function parseConditions(raw) {
@@ -27,10 +40,10 @@ var LedgerLogic = (() => {
       }
       const preds = c.preds.map(p => {
         const q = isObj(p) ? p : {};
-        return { field: q.field, op: q.op, value: q.value === undefined ? null : q.value, negate: q.negate === true };
+        return { field: q.field, op: q.op, value: q.value === undefined ? null : q.value, negate: q.negate === undefined ? false : q.negate };
       });
       for (const p of preds) {
-        if (!isKnown(p)) warnings.push("節 " + (i + 1) + " に知らない述語 " + p.field + ":" + p.op + " がある");
+        if (!isValid(p)) warnings.push("節 " + (i + 1) + " に使えない述語 " + p.field + ":" + p.op + " がある");
       }
       return { preds };
     });
@@ -50,9 +63,9 @@ var LedgerLogic = (() => {
     }
   }
 
-  // 空の節は何も絞らないので昇格させない。知らない述語を持つ節も昇格させない
+  // 空の節は何も絞らないので昇格させない。知らない述語や値の形が合わない述語を持つ節も昇格させない
   function clauseMatches(item, c) {
-    return c.preds.length > 0 && c.preds.every(p => isKnown(p) && holds(item, p) !== p.negate);
+    return c.preds.length > 0 && c.preds.every(p => isValid(p) && holds(item, p) !== p.negate);
   }
   const promoted = (item, clauses) => clauses.some(c => clauseMatches(item, c));
 

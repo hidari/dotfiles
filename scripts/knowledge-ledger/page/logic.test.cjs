@@ -43,6 +43,26 @@ test("parseConditions: 知らない field と op の組は警告に載り、そ�
   assert.equal(L.promoted(item({ summary: "x", issue: "x" }), r.clauses), false);
 });
 
+test("parseConditions: 値の形が op に合わない述語は警告に載り、その節は昇格させない (negate でも反転して通らない)", () => {
+  const bad = [
+    pred("report_count", "gte", "abc"), pred("report_count", "gte", null), pred("report_count", "gte", true),
+    pred("added", "gte", "昨日"), pred("issue", "eq", 5), pred("label", "has", ""),
+  ];
+  for (const p of bad) {
+    const r = L.parseConditions({ clauses: [clause(p)] });
+    assert.equal(r.warnings.length, 1, JSON.stringify(p));
+    assert.equal(L.promoted(item({ report_count: 0, issue: "x" }), r.clauses), false, JSON.stringify(p));
+    const neg = L.parseConditions({ clauses: [clause({ ...p, negate: true })] });
+    assert.equal(L.promoted(item({ report_count: 0, issue: "x" }), neg.clauses), false, JSON.stringify(p));
+  }
+  // negate が真偽値でない述語も使えない
+  const badNegate = L.parseConditions({ clauses: [clause(pred("report_count", "gte", 1, "yes"))] });
+  assert.equal(badNegate.warnings.length, 1);
+  assert.equal(L.promoted(item({ report_count: 0 }), badNegate.clauses), false);
+  assert.deepEqual(L.parseConditions({ clauses: [clause(pred("report_count", "gte", "3"))] }).warnings, []);
+  assert.deepEqual(L.parseConditions({ clauses: [{ preds: [{ field: "label", op: "has", value: "a" }] }] }).warnings, []);
+});
+
 test("parseConditions: 7つの組はすべて警告なし", () => {
   const preds = [
     pred("issue", "eq", "a"), pred("section", "eq", "a"), pred("added", "gte", "2026-01-01"),
@@ -106,6 +126,18 @@ test("needsReview: 追記が判断の日と同じ日かそれより後なら tru
   assert.equal(L.needsReview(item({ appended: day }), doc), true);
   assert.equal(L.needsReview(item({ appended: "2999-01-01" }), doc), true);
   assert.equal(L.needsReview(item({ appended: "2000-01-01" }), doc), false);
+});
+
+test("needsReview: 追記の日付は判断時刻の UTC の日ではなくローカルの日と比べる (TZ を変えた子プロセス)", () => {
+  const run = tz => {
+    const code = 'const L = require("./logic.js");' +
+      'process.stdout.write(String(L.needsReview({ appended: "2026-11-10" }, { decision: "採る", decidedAt: "2026-11-10T16:00:00Z" })))';
+    const r = spawnSync(process.execPath, ["-e", code], { cwd: __dirname, env: { ...process.env, TZ: tz }, encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+    return r.stdout;
+  };
+  assert.equal(run("Asia/Tokyo"), "false");
+  assert.equal(run("UTC"), "true");
 });
 
 test("needsReview: decidedAt が updatedAt より優先され、両方無ければ false", () => {
