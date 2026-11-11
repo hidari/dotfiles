@@ -269,6 +269,8 @@
     const slice = r.slice(page * PER, page * PER + PER);
     if (!slice.length) list.append(mk("p", "empty", "条件に合う知見はありません"));
     for (const i of slice) list.append(card(i));
+    // card() の中では list に繋がる前なので paint が何もしない。繋がった後に塗る
+    for (const i of slice) paint(i.id);
     text($("count"), r.length + " 件 (全 " + ITEMS.length + " 件)");
     text($("pageinfo"), (page + 1) + " / " + pages);
     $("prev").disabled = page === 0; $("next").disabled = page >= pages - 1;
