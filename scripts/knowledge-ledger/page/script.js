@@ -193,7 +193,7 @@
     text(c.saved, t); c.saved.className = "saved" + (warn ? " warn" : "");
     const review = L.needsReview(i, v);
     c.after.hidden = !review;
-    c.ack.hidden = !review; c.ack.disabled = !canWrite;
+    c.ack.hidden = !review; c.ack.disabled = !writable();
     // 昇格の条件に当てはまらない未判断の件は保管中。「採らない」と読める表示にしない
     c.stored.hidden = !(!d && !review && stored.clauses.length > 0 && !L.promoted(i, stored.clauses));
     c.sel.checked = selected.has(id);
@@ -213,7 +213,8 @@
     const storedChip = mk("span", "chip stored", "保管中 (判断していない)"); storedChip.hidden = true; chips.append(storedChip);
     const after = mk("span", "chip after", "判断の後に報告が追記された"); after.hidden = true; chips.append(after);
     const ack = mk("button", "ack", "このままでよい"); ack.type = "button"; ack.hidden = true;
-    ack.addEventListener("click", () => { if (L.needsReview(i, view(i.id))) { sticky.add(i.id); change(i.id, { decidedAt: new Date().toISOString() }); } });
+    // 判断が届く前は confirmed に件が無く、書くと set で既存の判断を null で上書きしうるので、確定済みの判断がある件だけ通す
+    ack.addEventListener("click", () => { if (writable() && confirmed.get(i.id)?.decision && L.needsReview(i, view(i.id))) { sticky.add(i.id); change(i.id, { decidedAt: new Date().toISOString() }); } });
     chips.append(ack);
     c.append(chips);
     const groups = L.cardGroups(i);
