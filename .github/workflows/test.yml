@@ -280,6 +280,11 @@ jobs:
       - name: Pytest
         run: uv run pytest -q
 
+      - name: Node test (page logic)
+        run: |
+          node --version
+          node --test page/logic.test.cjs
+
   node-security-notifier:
     name: node-security-notifier (python)
     runs-on: ubuntu-24.04

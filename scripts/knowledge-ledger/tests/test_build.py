@@ -5,11 +5,12 @@
 
 import json
 import re
+from pathlib import Path
 from typing import Any
 
 import pytest
 
-from knowledge_ledger.build import build_page
+from knowledge_ledger.build import build_page, main
 
 ITEMS: list[dict[str, Any]] = [
     {"id": "K1-001", "text": "原文 <b>強調</b>"},
@@ -61,3 +62,13 @@ def test_build_page_embeds_verified_without_mutating_input() -> None:
         "quote_ok": False,
     }
     assert "verified" not in items[0]
+
+
+def test_main_embeds_logic_before_script(tmp_path: Path) -> None:
+    items_path = tmp_path / "items.json"
+    out_path = tmp_path / "out.html"
+    items_path.write_text(json.dumps(ITEMS), encoding="utf-8")
+    assert main([str(items_path), str(out_path)]) == 0
+    out = out_path.read_text(encoding="utf-8")
+    assert out.index('id="data"') < out.index("LedgerLogic") < out.index("const ITEMS")
+    assert len(re.findall(r"<script[^>]*>", out)) == 3

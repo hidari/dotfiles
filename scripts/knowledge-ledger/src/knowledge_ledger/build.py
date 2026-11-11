@@ -42,8 +42,8 @@ def main(argv: list[str]) -> int:
     items_path, out_path = argv
     items = json.loads(Path(items_path).read_text(encoding="utf-8"))
     head = (PAGE_DIR / "head.html").read_text(encoding="utf-8")
-    script = (PAGE_DIR / "script.js").read_text(encoding="utf-8")
-    out = build_page(items, head, [script])
+    scripts = [(PAGE_DIR / name).read_text(encoding="utf-8") for name in ("logic.js", "script.js")]
+    out = build_page(items, head, scripts)
     Path(out_path).write_text(out, encoding="utf-8")
     print(len(items), "件", len(out.encode()), "bytes")
     return 0

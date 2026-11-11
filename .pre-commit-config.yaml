@@ -170,6 +170,13 @@ repos:
         pass_filenames: false
         files: ^scripts/knowledge-ledger/(src|tests)/.*\.py$
 
+      - id: knowledge-ledger-node-test
+        name: knowledge-ledger node --test (page logic)
+        language: system
+        entry: node --test scripts/knowledge-ledger/page/logic.test.cjs
+        pass_filenames: false
+        files: ^scripts/knowledge-ledger/page/.*
+
       - id: node-security-notifier-ruff-check
         name: node-security-notifier ruff check
         language: system
