@@ -107,12 +107,15 @@
     // decidedAt は判断を変えたときと「このままでよい」のときだけ patch に載る
     const decidedAt = patch.decidedAt !== undefined ? patch.decidedAt : confirmed.get(id)?.decidedAt;
     if (decidedAt !== undefined) body.decidedAt = decidedAt;
+    const seenAppended = patch.seenAppended !== undefined ? patch.seenAppended : confirmed.get(id)?.seenAppended;
+    if (seenAppended !== undefined) body.seenAppended = seenAppended;
     if (confirmed.has(id)) {
       // 既存の文書は変えた欄だけを merge する。古い手元の値で他の欄を上書きしない
       const fields = { updatedAt: patch.updatedAt };
       if (patch.decision !== undefined) fields.decision = patch.decision;
       if (patch.note !== undefined) fields.note = patch.note;
       if (patch.decidedAt !== undefined) fields.decidedAt = patch.decidedAt;
+      if (patch.seenAppended !== undefined) fields.seenAppended = patch.seenAppended;
       try { await ref.update(fields); return { ...confirmed.get(id), ...fields }; }
       catch (e) { if (!(e && e.code === "invalid_argument")) throw e; }
     }
@@ -154,14 +157,17 @@
     const now = new Date().toISOString();
     // 判断を変えたときだけ decidedAt が進む。メモだけの保存では進めない。
     // 「このままでよい」は呼び出し側が decidedAt だけを渡す
+    // 同じときに、見た時点の追記 (seenAppended) も記録する。追記が無い件は null
+    const stamp = patch.decision !== undefined || patch.decidedAt !== undefined;
     const decidedAt = patch.decision !== undefined ? { decidedAt: now } : {};
-    pending.set(id, { ...(pending.get(id) || {}), ...patch, ...decidedAt, updatedAt: now });
+    const seen = stamp ? { seenAppended: byId.get(id).appended || null } : {};
+    pending.set(id, { ...(pending.get(id) || {}), ...patch, ...decidedAt, ...seen, updatedAt: now });
     persistPending();
     paint(id); tallies();
     flush(id);
   }
 
-  const KEY_LABEL = { issue: "Issue", section: "節", added: "載った日", appended: "追記の日", label: "札", quote: "既存の規範の引用", summary: "要約", recommendation: "見立て", reason: "理由", placement: "置き場の案", placement_detail: "置き場の詳細", covered_status: "既存の規範", report_count: "届いた報告" };
+  const KEY_LABEL = { issue: "Issue", section: "節", added: "載った日", appended: "追記の日", label: "札", quote: "既存の規範の引用", summary: "要約", recommendation: "見立て", reason: "理由", placement: "置き場の案", placement_detail: "置き場の詳細", covered_status: "既存の規範", report_count: "届いた報告", version_dependent: "版への依存" };
   const COV_LABEL = { covered: "既にある", partial: "一部ある", none: "無い" };
   const cards = new Map();
   function savedText(id) {
@@ -217,7 +223,7 @@
       g.append(mk("h3", null, title));
       for (const e of entries) {
         const row = mk("div", "row" + (e.key === "summary" ? " summary-row" : ""));
-        row.append(mk("span", "k", KEY_LABEL[e.key] || e.key), mk("span", "v", e.key === "covered_status" ? COV_LABEL[e.value] || e.value : e.key === "report_count" ? e.value + " 件" : e.value));
+        row.append(mk("span", "k", KEY_LABEL[e.key] || e.key), mk("span", "v", e.key === "covered_status" ? COV_LABEL[e.value] || e.value : e.key === "report_count" ? e.value + " 件" : e.key === "version_dependent" ? "あり" : e.value));
         g.append(row);
         if (e.key === "quote" && i.covered && i.covered.path) g.append(mk("div", "path", i.covered.path));
       }

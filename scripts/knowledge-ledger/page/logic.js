@@ -78,9 +78,11 @@ var LedgerLogic = (() => {
 
   const decided = doc => !!(doc && doc.decision);
 
-  // 同じ日は前後を決められないので、見直しへ倒す (>=)
+  // 判断か「このままでよい」の時点で見た追記 (seenAppended) が今の追記と同じなら見直しは要らない。
+  // seenAppended を持たない判断は日付で比べ、同じ日は前後を決められないので見直しへ倒す (>=)
   function needsReview(item, doc) {
     if (!decided(doc) || !item.appended) return false;
+    if (doc.seenAppended === item.appended) return false;
     const day = localDate(doc.decidedAt ?? doc.updatedAt);
     return day !== "" && item.appended >= day;
   }
@@ -121,6 +123,7 @@ var LedgerLogic = (() => {
     put(model, "placement_detail", item.placement_detail);
     put(model, "covered_status", covered.status);
     put(model, "report_count", item.report_count);
+    if (item.version_dependent === true) model.push({ key: "version_dependent", value: true });
     return { verified, model };
   }
 

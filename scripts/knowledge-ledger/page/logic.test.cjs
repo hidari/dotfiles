@@ -150,6 +150,15 @@ test("needsReview: decidedAt が updatedAt より優先され、両方無けれ�
   assert.equal(L.needsReview(it, { decision: "採る", updatedAt: "壊れた" }), false);
 });
 
+test("needsReview: seenAppended が今の追記と同じなら同じ日でも false、追記が新しければ true、無ければ従来どおり", () => {
+  const base = { decision: "採る", decidedAt: "2026-11-10T03:00:00Z" };
+  const day = L.localDate(base.decidedAt);
+  assert.equal(L.needsReview(item({ appended: day }), { ...base, seenAppended: day }), false);
+  assert.equal(L.needsReview(item({ appended: "2026-12-01" }), { ...base, seenAppended: day }), true);
+  assert.equal(L.needsReview(item({ appended: day }), base), true);
+  assert.equal(L.needsReview(item({ appended: day }), { ...base, seenAppended: null }), true);
+});
+
 test("needsReview: 判断が無い・追記が無ければ false", () => {
   const it = item({ appended: "2026-11-10" });
   assert.equal(L.needsReview(it, null), false);
@@ -212,6 +221,14 @@ test("cardGroups: 確かめ済みとモデルの判断に振り分ける", () =>
     assert.ok(has(g.model, k), k);
     assert.ok(!has(g.verified, k), k);
   }
+});
+
+test("cardGroups: 版に依存する件だけ model に version_dependent が出る", () => {
+  const keys = it => L.cardGroups(it).model.map(e => e.key);
+  assert.ok(keys(item({ version_dependent: true })).includes("version_dependent"));
+  assert.ok(!keys(item({ version_dependent: false })).includes("version_dependent"));
+  assert.ok(!keys(item()).includes("version_dependent"));
+  assert.ok(!L.cardGroups(item({ version_dependent: true })).verified.some(e => e.key === "version_dependent"));
 });
 
 test("cardGroups: 引用が確かめられなければ model へ", () => {
