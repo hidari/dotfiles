@@ -1,5 +1,5 @@
 lockfile_version: '1'
-generated_at: '2026-11-12T08:41:30.960200+00:00'
+generated_at: '2026-11-12T08:47:50.506795+00:00'
 apm_version: 0.34.0
 dependencies:
 - repo_url: cloudflare/security-audit-skill
@@ -367,8 +367,8 @@ dependencies:
 - repo_url: mizchi/skills
   name: apm-usage
   host: github.com
-  resolved_commit: ab4eb2f7a92a13fb37c225ab427f2f492143ace1
-  resolved_ref: ab4eb2f7a92a13fb37c225ab427f2f492143ace1
+  resolved_commit: 195bb34cb5220c3610ec4ba49007cae2fb10373e
+  resolved_ref: 195bb34cb5220c3610ec4ba49007cae2fb10373e
   version: unknown
   virtual_path: apm-usage
   is_virtual: true
@@ -382,16 +382,16 @@ dependencies:
   - .claude/skills/apm-usage/references/publishing.md
   deployed_file_hashes:
     .claude/skills/apm-usage/README.md: sha256:fe777429843c8077a45021f0dca6841c454c926435f927516f55481be136014c
-    .claude/skills/apm-usage/SKILL-ja.md: sha256:095dff73f08d8c23fff1b8106729b1e57e34088ffae23e25d7461e17a88b9743
-    .claude/skills/apm-usage/SKILL.md: sha256:dc975426518a7e264f56ad3a8219bca5a75170fa38f83f59f1f7a7be86f0822b
+    .claude/skills/apm-usage/SKILL-ja.md: sha256:c5429db64573df40eef63dfb295e5b44192c3b19110e1f7dc8f61433dcc2e98d
+    .claude/skills/apm-usage/SKILL.md: sha256:d959312863fa36b86ccfcf7b4450e235a5bc2bc22f436467b944925ea888e7d6
     .claude/skills/apm-usage/references/manifest-schema.md: sha256:f49955b8be35046fc963bffbf134af101055c3164ae55f86d6bc8bc001304b13
     .claude/skills/apm-usage/references/publishing.md: sha256:392878fba913c9cc2eac9ecf028fce1671138bf59c03e66d2e44225757552034
-  content_hash: sha256:42fcdeec87e6274f9e0f8dd52eab01d5b138757307a52f3599c3988a043d985f
+  content_hash: sha256:3decc16ebd983eabfcd2928cd6cfb558a9addac321e38de990548a010072a89b
 - repo_url: mizchi/skills
   name: ast-grep-practice
   host: github.com
-  resolved_commit: ab4eb2f7a92a13fb37c225ab427f2f492143ace1
-  resolved_ref: ab4eb2f7a92a13fb37c225ab427f2f492143ace1
+  resolved_commit: 195bb34cb5220c3610ec4ba49007cae2fb10373e
+  resolved_ref: 195bb34cb5220c3610ec4ba49007cae2fb10373e
   version: unknown
   virtual_path: ast-grep-practice
   is_virtual: true
@@ -417,8 +417,8 @@ dependencies:
 - repo_url: mizchi/skills
   name: empirical-prompt-tuning
   host: github.com
-  resolved_commit: ab4eb2f7a92a13fb37c225ab427f2f492143ace1
-  resolved_ref: ab4eb2f7a92a13fb37c225ab427f2f492143ace1
+  resolved_commit: 195bb34cb5220c3610ec4ba49007cae2fb10373e
+  resolved_ref: 195bb34cb5220c3610ec4ba49007cae2fb10373e
   version: unknown
   virtual_path: empirical-prompt-tuning
   is_virtual: true
@@ -434,30 +434,28 @@ dependencies:
     .claude/skills/empirical-prompt-tuning/SKILL.md: sha256:252418e7ef022981d2dda2e3ec57fa1c786d30af68c50b7e062edf1d7361b0cb
   content_hash: sha256:26042612e2d8b6ee1deebcdfc556da494640488e03471aaae74da587ae84fa2b
 - repo_url: mizchi/skills
-  name: 92ad4e0b212cfaf7
+  name: justfile
   host: github.com
-  resolved_commit: ab4eb2f7a92a13fb37c225ab427f2f492143ace1
-  resolved_ref: ab4eb2f7a92a13fb37c225ab427f2f492143ace1
-  version: ab4eb2f
+  resolved_commit: 195bb34cb5220c3610ec4ba49007cae2fb10373e
+  resolved_ref: 195bb34cb5220c3610ec4ba49007cae2fb10373e
+  version: 195bb34
   virtual_path: justfile
   is_virtual: true
-  package_type: hybrid
+  package_type: marketplace_plugin
   deployed_files:
   - .claude/skills/justfile
   - .claude/skills/justfile/.claude-plugin/manifest.json
   - .claude/skills/justfile/README.md
   - .claude/skills/justfile/SKILL.md
-  - .claude/skills/justfile/apm.yml
   - .claude/skills/justfile/assets/gh_action_example.yaml
   - .claude/skills/justfile/assets/justfile
   deployed_file_hashes:
     .claude/skills/justfile/.claude-plugin/manifest.json: sha256:0905f1d62b295d40dae89ecf77eda3c05666941bee692b8220ab95ab0336bf5d
     .claude/skills/justfile/README.md: sha256:b3cfc07c4d34a2f36a88b43d3d8a3f1efe0155631cc08f060b9cca4bd60b6bde
     .claude/skills/justfile/SKILL.md: sha256:a1b16da4ac0b22de559669a1a1f59154f8095b4d17072ddb16e1f0d175e3d5ce
-    .claude/skills/justfile/apm.yml: sha256:3e3c4e005e64babea70b12bf393ba4cdb3b0bc0f9e15e973b83fda0208e2bd30
     .claude/skills/justfile/assets/gh_action_example.yaml: sha256:7d1049527e7db708f0629d21d4a81ecb9a2e66c280f2d9edd5a85aefdaaa3869
     .claude/skills/justfile/assets/justfile: sha256:c7a70af405eaa460f73bd49f011b1f1e0dd09f6ecc866a3c3640b8cae7a5c208
-  content_hash: sha256:bf070ea838c9d1a1cd3c69c9563b398a0f1118b07ca807c5ecbce935d0ebc87a
+  content_hash: sha256:87932ebc9ec266398041088ebbb8cafb4a6b354e3569649c76700d8da4024460
 - repo_url: yusukebe/ax
   name: ax
   host: github.com
@@ -572,7 +570,7 @@ deployments:
   owners:
   - mizchi/skills/apm-usage
   active_owner: mizchi/skills/apm-usage
-  content_hash: sha256:095dff73f08d8c23fff1b8106729b1e57e34088ffae23e25d7461e17a88b9743
+  content_hash: sha256:c5429db64573df40eef63dfb295e5b44192c3b19110e1f7dc8f61433dcc2e98d
 - kind: project-relative
   target: claude
   value: .claude/skills/apm-usage/SKILL.md
@@ -581,7 +579,7 @@ deployments:
   owners:
   - mizchi/skills/apm-usage
   active_owner: mizchi/skills/apm-usage
-  content_hash: sha256:dc975426518a7e264f56ad3a8219bca5a75170fa38f83f59f1f7a7be86f0822b
+  content_hash: sha256:d959312863fa36b86ccfcf7b4450e235a5bc2bc22f436467b944925ea888e7d6
 - kind: project-relative
   target: claude
   value: .claude/skills/apm-usage/references/manifest-schema.md
@@ -1176,15 +1174,6 @@ deployments:
   - mizchi/skills/justfile
   active_owner: mizchi/skills/justfile
   content_hash: sha256:a1b16da4ac0b22de559669a1a1f59154f8095b4d17072ddb16e1f0d175e3d5ce
-- kind: project-relative
-  target: claude
-  value: .claude/skills/justfile/apm.yml
-  runtime: null
-  scope: project
-  owners:
-  - mizchi/skills/justfile
-  active_owner: mizchi/skills/justfile
-  content_hash: sha256:3e3c4e005e64babea70b12bf393ba4cdb3b0bc0f9e15e973b83fda0208e2bd30
 - kind: project-relative
   target: claude
   value: .claude/skills/justfile/assets/gh_action_example.yaml
