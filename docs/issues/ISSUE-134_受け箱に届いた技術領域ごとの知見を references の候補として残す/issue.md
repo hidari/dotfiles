@@ -8,7 +8,7 @@ status: open
 
 2026-10-21 に受け箱へ届いたまとめのうち、特定の技術領域に閉じた知見をここへ残す (ユーザー決定 2026-10-22: 技術領域に閉じた知見も捨てずに1本にまとめる)。どの領域にも閉じない知見は ISSUE-133 へ分けた。
 
-どれも他のセッションの報告で、根拠は報告者の申告 (実測 / 推測 / ドキュメントのみ) をそのまま書く。dotfiles で確かめたものは項目の中で分けて書く。版や仕様は届いた時点のもので、古びる。2026-10-22に届いた7件から足した分は、各節の末尾と、新しく立てた節に置いた。2026-10-23に仕分けた5件から足した分も、各節の末尾と、新しく立てた GitHub の節に置いた。2026-10-31に仕分けた72件 (届いたのは2026-10-22〜2026-10-30) から足した分は、各節の末尾と、新しく立てた節に置いた。2026-11-01に仕分けた2件 (届いたのは2026-10-30) から足した分は、各節の末尾と、既存の項目の子に置いた。2026-11-02に仕分けた1件 (届いたのは2026-11-02) から足した分は、各節の末尾に置いた。2026-11-04に仕分けた5件 (届いたのは2026-11-02) から足した分は、各節の末尾と、新しく立てた CodeSandbox の節に置いた。2026-11-10に仕分けた受け箱の41件 (届いたのは2026-11-04〜2026-11-10) から足した分は、各節の末尾と、既存の項目の子と、新しく立てた節 (Cloudflare の2節、コンテナイメージ、GPUI、Vercel、Tauri、地理データ、Quint) に置いた。
+どれも他のセッションの報告で、根拠は報告者の申告 (実測 / 推測 / ドキュメントのみ) をそのまま書く。dotfiles で確かめたものは項目の中で分けて書く。版や仕様は届いた時点のもので、古びる。2026-10-22に届いた7件から足した分は、各節の末尾と、新しく立てた節に置いた。2026-10-23に仕分けた5件から足した分も、各節の末尾と、新しく立てた GitHub の節に置いた。2026-10-31に仕分けた72件 (届いたのは2026-10-22〜2026-10-30) から足した分は、各節の末尾と、新しく立てた節に置いた。2026-11-01に仕分けた2件 (届いたのは2026-10-30) から足した分は、各節の末尾と、既存の項目の子に置いた。2026-11-02に仕分けた1件 (届いたのは2026-11-02) から足した分は、各節の末尾に置いた。2026-11-04に仕分けた5件 (届いたのは2026-11-02) から足した分は、各節の末尾と、新しく立てた CodeSandbox の節に置いた。2026-11-10に仕分けた受け箱の41件 (届いたのは2026-11-04〜2026-11-10) から足した分は、各節の末尾と、既存の項目の子と、新しく立てた節 (Cloudflare の2節、コンテナイメージ、GPUI、Vercel、Tauri、地理データ、Quint) に置いた。2026-11-11に仕分けた受け箱の8件 (届いたのは2026-11-10〜2026-11-11) から足した分は、各節の末尾と、既存の項目の子と、新しく立てた「ブラウザでレスポンシブと文字サイズを測る」節に置いた。
 
 ### Cloudflare Access の後ろの環境へ繋ぐ
 
@@ -226,6 +226,7 @@ status: open
   - `meta` の `content` 属性を全部 URL として解決すると、viewport や description の値が同じオリジンの相対パスに化けて404になる。ベース無しで URL として読めるものだけを取る (実測)
   - 応答の CSP の扱いは「SVG と CSP の検査」節、CSS が当たっていることの番兵は「Playwright でスタイルと配置を測る」節、Test Agents の生成物の扱いは「Playwright Test Agents とブラウザの MCP」節に置いた
 - `package.json` に `"type": "module"` が無いと、Playwright のテストの TS は CommonJS として読まれ `import.meta` が SyntaxError になる (実測)
+- Playwright で、スライドで開くドロワーの中の aria-disabled の要素を `click({ force: true })` すると、"Element is outside of the viewport" で落ちた。aria-hidden がスライドの始まりで外れるので「開いた」の確認が早く通り、force は静止を待たない。`toBeInViewport({ ratio: 1 })` を先に待つと直った (実測)
 
 ### Playwright でスタイルと配置を測る
 
@@ -251,6 +252,22 @@ status: open
 - 画面を操作する道具が無いセッションで、デスクトップアプリの UI 部品の見た目を確かめるため、開発用の vite dev server が配る ignore 済みのディレクトリにハーネスの HTML と TSX を置き、Playwright MCP の Chromium で開いて撮った。dev server 経由なら本物の CSS (グローバルのトークンと CSS Modules) で部品を描けて、getComputedStyle と elementFromPoint でフェードの色・pointer-events・クリックの当たり先まで実測できた (実測)。同じ部品を jsdom 上の fake の ResizeObserver で検証した側の pin の作り方は ISSUE-88 の INS-80
 - scrollHeight と clientHeight は整数に丸められるので、1px の差を許容しないと「ちょうど収まる」文が誤判定されうる (推測。許容の有無は変異注入で pin 済み)
 - 「CSS を404にすれば崩れて赤になる」という変異は、スタイルが無くても折り返すサイトでは赤にならない。`nosniff` で捨てられた CSS は CSP の違反にも出ない。CSS が当たっていることは `:root` のカスタムプロパティが空でないことの番兵で見る必要があった (実測)。変異が赤にならない型は ISSUE-88 の INS-8 と同じ (仕分けたセッションの解釈)
+- CSS grid の列を既定の auto のままにすると、子に `word-break: keep-all` があって空白の無い日本語の長い文字列が入ったとき、その塊の min-content まで列が広がり、`overflow: hidden` の親で右端が切れる。`grid-template-columns: minmax(0, 1fr)` で止まる。空白を含む見本のデータでは再現しないので、テストの素材に空白の無い長い名前を入れておく (実測)。実機で見つけた崩れは、手元のヘッドレス WebKit を実機と同じ幅にして文言だけを差し替え、数値 (scrollWidth と要素の右端) で再現した (実測)。同じ報告で、再現の対照を「同じ長さの空白入り」にしたら、空白で折れた後の片方の塊だけで幅を超えていて、対照も同じく崩れた。対照は「この入力なら崩れない」ことを先に数値で確かめてから使う (実測)。dotfiles で確かめたこと (2026-11-11): グローバルの CLAUDE.md の観測のカテゴリは既に「対照側も同じだけ壊れる」と書いている
+
+### ブラウザでレスポンシブと文字サイズを測る
+
+2026-11-11に仕分けた分で届いた。chrome-devtools-mcp の evaluate_script で実ブラウザを測った報告で、Playwright の E2E で測る件は上の節にある。
+
+- レスポンシブの棚卸しで、同じオリジンの iframe をビューポートと同じ大きさで重ね、1回の evaluate_script で複数の URL × 文字サイズ (html の font-size 100 / 125 / 150%) を順に測る方式を使った。ページを1つずつ開くより呼び出しが大幅に減る (実測)
+- ブラウザの文字サイズ設定の再現に、html の font-size を % で上書きする方法を使った。html の font-size を指定していないサイトでは rem だけが伸び、px は伸びないので、デスクトップの文字サイズ設定と同じ挙動になる。iOS Safari の文字サイズや Android の表示サイズと同じかは未確認 (実測 / 推測)
+- 「見えているか」の判定に display / visibility を使わず Element.checkVisibility() を使う。閉じた details の中身は描画されないのに getBoundingClientRect が非0を返し、display / visibility の判定では偽陽性になった (実測)。閉じた details の中身が getByRole の既定から外れる件は「React と E2E (Playwright)」節にある
+- 文字のあふれは要素の枠の座標では見えない。button / a の scrollWidth と clientWidth を比べると拾える。150%のスクリーンショットで崩れに気づき、枠の座標は正常のままだった (実測)
+- モバイルの emulation で fixed のボトムナビが切れて見えたとき、原因は画面の反対側の横あふれだった。1か所でも幅を超えると layout viewport が広がり (innerWidth / innerHeight が増える)、bottom: 0 の要素が表示領域の外へ押し出される。fixed 要素の崩れは先に documentElement.scrollWidth と幅を比べる (実測)
+- 中のスクロール領域を持つ画面 (管理画面に多い) では window.scrollTo が効かないので、「最下部がナビに重なるか」を測る前に、overflow-y: auto でスクロールしている要素を突き止める (実測)
+- coarse pointer の baseline (`:where(a){min-height:44px}`) は display: inline の a に効かない。computed の min-height は44px と出るのに高さは18px のまま。単独で置いたリンクが tap-target の baseline から漏れる。宣言を見る静的検査 (min-* の値の lint) では原理的に見えない (実測)
+- 同じ class を button と a に付けると、baseline で44px に伸びたとき button は中身を上下中央に置き、a は置かないので文字が上に寄る (実測)
+- iframe の中ではモバイルの「横にあふれると layout viewport が広がる」挙動が起きないので、その連鎖は上の iframe 方式では再現できない。横あふれの値で代わりに判定した (実測)
+- 報告者の提案は、上の計測の手順 (checkVisibility、scrollWidth と clientWidth、中のスクロール領域の特定、横あふれと layout viewport の連鎖、iframe 方式の射程) を、ブラウザで実測する skill か参照ファイルにまとめること。次の棚卸しで同じ偽陽性を踏まない (実測)
 
 ### SVG と CSP の検査
 
@@ -260,6 +277,7 @@ status: open
 - `<!DOCTYPE[^>]*>` で DOCTYPE を読み飛ばすと、XML ではシステム識別子の引用符の中に > を書けるので、内部サブセットをコメントに見せかけられる。DOCTYPE は許可する形の許可リストで読み飛ばす (実測)
 - SVG の href と CSS の url() は拒否リストではなく許可リスト (#id と特定の data:image だけ) で検査すると、符号化は自然に落ちる。そのうえで数値文字参照、CSS のエスケープ、url( を含まない外部読み込み (image-set) は別に拒否が要った (実測。段階ごとのレビューで見つけてテストで固定した)
 - CSP が style-src 'self' のページでは、page.addStyleTag で差し込んだスタイルがインラインの style 要素として違反で弾かれる (Firefox で確認)。CSP の側は緩めず、構築可能なスタイルシートを document.adoptedStyleSheets へ足すと違反にならず、transition の停止も効いた (実測)
+  - 2026-11-11の仕分けで、別のリポジトリから同じ型の報告が届いた。CSP のあるページへ Playwright の addStyleTag で実験用のスタイルを差し込むと CSP に拒まれ、element.style (CSSOM) で当てると通った (実測)
 - Playwright の E2E で CSP の違反を検査するには、fixture の addInitScript で document の securitypolicyviolation を聞き、console.error として出し直すのが効いた。インラインスクリプトのハッシュを1文字ずらす変異で、該当のテストが赤になった (実測)
   - 2026-11-10の仕分けで、別のリポジトリから同じ型の報告が届いた。`route.fulfill` で返した応答のヘッダーの CSP を Chromium はそのまま適用し、`context.addInitScript` の `securitypolicyviolation` リスナーは script-src が厳しい CSP の下でも動く。インラインの style 属性の違反を拾えた (実測)
 - CSP の違反を console の文言で数える E2E は、ブラウザごとに文言が違う (Chromium と WebKit で共通なのは Content Security Policy の語だけ)。WebKit を足すときは、対照を当てて空振りしないことを確かめる (実測)
@@ -309,14 +327,21 @@ status: open
 - planner の計画ファイル (planner_save_plan) は既定でリポジトリ直下の specs/ に未追跡で置かれるので、コミットの前に移さないと混入する (実測)
 - planner / generator に実画面の文言を推測と区別して報告させると、UX の欠陥 (無効化された利用者に通信失敗の汎用画面が出る) を探索の段階で見つけられた。generator は Bash を持たないので、テストの実行はコントローラ側が要る (実測)
   - 2026-11-10の仕分けで、別のリポジトリから generator の報告が届いた。実物のアプリを探索して locator を選ぶので役に立つが、探索した画面の構造のまま書くので、同じ文字列が画面に2か所ある箇所で strict mode の違反になりやすく、実行前のレビューで2件見つかった。shell が無いので自分では実行できず、型エラーも実行もコントローラが確かめる必要がある (実測)
+  - 2026-11-11の仕分けで、2つのリポジトリから同じ型の報告が届いた。1つは、playwright-test-generator を Workflow の agentType として使い、バグを再現する e2e の初版を書けたが、この環境ではテストを実行する道具を持たず、赤の確認は後続の agent に回す必要があった。生成物の待ち方 (正規表現の .+) が既存の作法より緩く、統合のときに直した (実測)。もう1つは、公式 Playwright Test Agents の generator には shell が無く、書いたテストを1回も走らせずに返すので、コントローラが毎回 `playwright test` を回し、赤は healer に渡す流れにすると回った。generator は古いビルドの画面を見て書くので、ブランチの HEAD で焼いたビルドで通すまで、仕様の変更との食い違いは見えない (実測)。同じ報告で、planner や generator などの Test Agents には Write の道具も無いので、報告ファイルの書き出しを求めず、返事の本文で受け取るようにした (実測)。dotfiles で確かめたこと (2026-11-11): `references/testing.md` は Planner / Generator / Healer で作成すると書くだけで、generator がテストを実行しないことや Write を持たないことには触れていない
 - chrome-devtools の MCP は、同じプロファイルのブラウザが他で動いていると起動できない。別の MCP のブラウザへ切り替えて回避した (実測)
 - セッションの途中で作った .mcp.json のサーバーは /mcp に出てこなかった (実測)。プロジェクトの MCP サーバーは起動時にしか読まれない様子で、Playwright Test Agents を使うにはセッションの再起動が要る (推測)。MCP の要らない配線を先に WIP コミットしてから再起動すると、待ちが無駄にならない。報告者の提案は、`references/testing.md` の「E2E の生成」に再起動の要否を足すこと
+  - 2026-11-11の仕分けで、別のリポジトリから同じ症状の別の原因が届いた。プロジェクトの `.mcp.json` にある MCP サーバが ToolSearch にも `/mcp` の一覧にも出なかった原因は、リポジトリの `.claude/settings.local.json` の `disabledMcpjsonServers` に名前が入っていたことだった。設定の各スコープ (user の settings.json、`~/.claude.json` のプロジェクトの項目、リポジトリの `.claude/settings*.json`) を順に grep して見つけ、`~/.claude.json` の側の同名のリストは空だった。項目を消して `/mcp` から reconnect したら、ツールが出てきた (実測)。設定ファイルの `disabledMcpjsonServers` に入ったサーバは `/mcp` の一覧に出ないので、そこから有効にできなかった。`~/.claude.json` の側の無効化とは扱いが違う (実測)。報告者の提案は、リポジトリへ配る settings.local.json のテンプレートに `disabledMcpjsonServers` が入っていないかを確かめ、入れるなら「`/mcp` に出なくなる」ことを手順書に添えること (推測)。テンプレートから settings.local.json を配置する手順の扱いは ISSUE-140 のタスクが持つ。dotfiles で確かめたこと (2026-11-11): この項を足す前の worktree の全体で `disabledMcpjsonServers` は0件で、追跡下に settings.local.json のファイルは無かった
 - `init-agents --loop=claude` が書き出す .mcp.json は `npx playwright run-test-mcp-server` で起動し、seed と specs/ もリポジトリのルートに置かれた (実測)。報告者の提案は、npx を禁じている環境では pnpm exec に直す手順を足すこと。specs/ の扱いは上の planner の計画ファイルの項と同じ
   - 2026-11-10の仕分けで、別のリポジトリから同じ型の報告が届いた。`testDir` がある状態で回すと seed はその中に作られる。生成される `.mcp.json` は `npx` で起動し、macOS では既定で headed、生成物は末尾の改行を持たない。generator の定義は seed のパスを `tests/seed.spec.ts` と決め打ちし、healer の定義は頑固なテストに `test.fixme()` を付けろと指示する。エージェント定義と MCP サーバーはセッションの起動時にしか読まれないので、取り付けた後に再起動が要る (実測)。上の再起動の要否の項 (推測) と Healer の定義の項 (ドキュメントのみ) と同じ点について、こちらは実測の札で届いた。報告者の提案は、E2E の生成の手順に、`page.request` 系が route を迂回すること、横取りで返すときは `--host-resolver-rules` で名前解決を潰すこと、Test Agents の生成物の `npx` と headed と `test.fixme()` の扱いを書き足すこと (実測)。前の2点の中身は「React と E2E (Playwright)」節の本番のオリジンを横取りする項にある
 - 生成された Healer の定義に「直せなければ test.fixme() にして skip する」とある。失敗を緑に見せる経路なので、brief で禁止し、実行されたテストの ID の集合で skip が無いことを確かめる必要がある (ドキュメントのみ。生成された定義を読んだだけ)
 - Playwright MCP はカレントのリポジトリ直下に `.playwright-mcp/` (snapshot の yml と console のログ) を作り、多くのリポジトリの .gitignore には載っていない。放置すると誤コミットの種になるので、使い終わったら消すか ignore に足す (実測)。報告者の提案は、グローバルの gitignore に `.playwright-mcp/` を足すこと。仕分けたセッションの解釈: 上の planner の `specs/` と同じ型の混入
   - dotfiles で確かめたこと (2026-11-04): グローバルの gitignore (`home/.config/git/.gitignore_global`、15行) に `playwright` と `mcp` を含む行は0件だった
 - claude-in-chrome は CodeSandbox の Preview の確認に使えた。初回は「proceed to preview」の確認画面が出るのでクリックが要る。コンソールの記録は呼んだ時点から始まるので、読む前に一度再読み込みしないと「0件」が「見ていない」と区別できない (実測)
+- ブラウザの MCP の wait_for について2つの報告が届いた。1つは (どの MCP の wait_for かは原文に書かれていない)、Turnstile のような cross-origin の iframe の中の文字を拾えず、タイムアウトした (実測)。もう1つは chrome-devtools-mcp の wait_for で、待ちが解けるとページ全体のスナップショットを返すので、大きな一覧のある画面では出力の上限を超えた。要るところだけを evaluate_script で抜き出すほうが確実だった (実測)。自動操作のブラウザで Turnstile が検証を拒む件は「React と E2E (Playwright)」節にある
+- chrome-devtools-mcp の evaluate_script の filePath で大きな JSON をファイルへ書き出し、uv の使い捨て python で整形して読むと、会話に生の出力を流さずに済む。ファイルの中身は json の言語名つきのコードフェンス (バッククォート3つ) で包まれているので、読む側で剥がす必要がある (実測)。take_screenshot の filePath が workspace roots の外を拒む件は ISSUE-123 にある
+- chrome-devtools-mcp の emulate の networkConditions Offline では、supabase-js の要求は即座ではなく数秒後に失敗として返った。失敗の表示を確かめるときは、待ちを長めに取る (実測)
+- playwright-test の MCP の `browser_run_code_unsafe` の中の相対パスは、MCP のサーバの cwd (Playwright の package) から解決され、screenshot が想定外の場所に落ちた。絶対パスで書く (実測)
+- 公式 Playwright Test Agents の planner を CDP 越しの WebView2 で使うと、探索を歩いて計画を書く過程で、計画以外の所見も拾った。ただ `browser_run_code_unsafe` で時間制限の無い待ちを書くと30分固まるので、brief で `setDefaultTimeout` などの上限を求めるのがよい (実測)。WebView2 へ Playwright を CDP でつなぐ経路は「Tauri と WebView2」節にある
 
 ### GitHub Actions と Node の版
 
@@ -360,6 +385,8 @@ status: open
   - リポジトリの secret を消したり移したりするときは、org レベルに同じ名前の secret が無いかも名前だけで確かめる (`gh secret list --org <org>` と `gh api repos/<owner>/<repo>/actions/organization-secrets`)。実際に同じ名前の org secret が見つかった (対象リポは0件で無害だった)。後からそのリポを対象に加えるだけで、消したはずの名前が黙ってその値で解決されるので、環境ごとに名前を変える理由にもなる (実測)
   - PR でも走る job が本番の値を要るときは、計算する job (environment なし) と値を読む job (environment あり、artifact を受け取る) に分ける。job 全体に environment を付けると、PR の ref が branch policy に合わずに job ごと失敗する (ドキュメントのみ)
   - 報告者の提案は、secret を CI に渡すリポジトリの共通の規約として、「secret manager のトークンはリポジトリの secret に置かず、environment の secret に環境ごとの名前で置く」を検討すること (ドキュメントのみ)
+  - 2026-11-11の仕分けで、別のリポジトリから同じテストが広がった報告が届いた。「environment を持たない job は GITHUB_TOKEN 以外の secret を読まない」という parametrize のテストが、新しく足した job にも自動で広がって2件増えた。テスト ID の集合を前後で比べて、増えた分の由来を特定できた (実測)
+  - 2026-11-11の仕分けで、別のリポジトリから org の secret の見え方の報告が届いた。visibility が selected で対象リポが0件の org の secret は、リポ側の Settings 画面に出ない。リポ側だけを見て「消えた」と判断すると誤る。`gh api orgs/<org>/actions/secrets` で数える (実測)。上の「org レベルに同じ名前の secret が無いかも名前だけで確かめる」の子の項 (対象リポは0件で無害だった) と同じ状態を、画面の側から見た形
 - environment の保護規則で拒否される job の負のプローブで、1回目の dispatch が job0件・GitHub の Internal server error で終わり、「拒否」と「障害」の区別が付かなかった。re-run の2回目で job が作られ、step 0・runner なし・annotation に保護規則の拒否が出た。負のプローブの判定は conclusion ではなく、job の有無と annotation の本文で行う (実測)
 - 1Password の load-secrets-action は、OP_ENV_FILE のパスが読めないと何も読み込まずに成功する。前の step で `test -f` する必要がある (ドキュメントのみ。action のソースを読んだ subagent の報告)
 - GitHub Actions の workflow lockfile (`.github/workflows/actions.lock`、`gh actions-lock` 拡張 v0.4.0) へ、全 `uses:` を SHA で固定済みの workflow を移した (実測)。別の報告は、lockfile が2026-10-28に GA になったとしている (ドキュメントのみ)
@@ -369,6 +396,10 @@ status: open
   - lockfile の強制 (Require lockfile) の policy は、REST の Actions policies の文書に rule の型が載っていない。UI (Settings > Actions > Policies) で作ったものを `GET repos/<owner>/<repo>/actions/policies/<id>` で読むと rule は `{"type":"require_lockfile"}`、対象は `workflow_path.include: ["~ALL"]` だった。一覧の GET は rules を返さないので詳細を引く (実測)。別の報告は、この policy は REST の作成と更新で弾かれるという報告があるので、画面でしか有効にできない前提で計画するとしている (ドキュメントのみ)
   - lockfile が古い PR では、workflow が `startup_failure` になって PR の check の一覧に出ないと報告されている。CI の結論は check の一覧ではなく run の一覧で見る必要がある (ドキュメントのみ。第三者の検証記事)
   - 報告者の提案は2つ。1つは、全 action を SHA で固定済みのリポジトリへ lockfile を入れるときの手順 (`--no-fix` で差分の形を見る、lockfile の commit が元の SHA と同じかを確かめる、SHA 固定の強制はそのまま有効にできる、Require lockfile は main に入ってから有効にする) を横断の手順として持っておくこと (実測とドキュメント)。もう1つは、Actions を使う全リポジトリで採用を検討すること。composite の action が内部で使う action まで commit を固定でき、SHA の固定だけでは届かなかった推移的な依存を塞げる。sha_pinning_required は API で入れられる安い下敷きとして併用する (ドキュメントのみ)。仕分けたセッションの解釈: dotfiles 自身も Actions を SHA で固定しているので採否の対象になる
+- deploy の workflow で、リリースタグの作成を smoke テストの job の中の step から独立した job へ切り出し、その job だけに `contents: write` を付けて `github.token` で作り、top-level の permissions は read にした (実測。workflow の静的テストと10種の変異で確認、配信での実行はこれから)。独立した job にすると、書き込み権限をその job へ閉じられ、タグの作成の失敗が rollback の条件 (smoke の job の failure) に乗らなくなる。step のままだと、トークンの失効だけで smoke が緑でも健全な配信が巻き戻る (実測。YAML の構造で確認)。報告者の提案は、規範の「タグを作るときは contents: write」を workflow level ではなく job level で書き、top-level は read か `{}` にして、書き込みは必要な job にだけ足すこと。全 workflow の top-level に write が無いことをテストで固定する案も、規則を置く層として検討の価値がある (推測)。dotfiles で確かめたこと (2026-11-11): この項を足す前の docs/issues と CLAUDE.md・rules・references に `contents: write` は0件で、報告者の言う規範は dotfiles の規範層には無い。dotfiles の `.github/workflows/mise-update-check.yml` は top-level の permissions に `issues: write` を持ち、`test.yml` は `contents: read` だけを持つ。仕分けたセッションの解釈: 報告者の言う規範は報告元のリポジトリのもので、top-level に write を置かない形を採るなら dotfiles の mise-update-check.yml も対象になる
+- GitHub の environment を削除すると、その中の secret と deployment branch policy も一緒に消え、API は environment ごと404を返す。作り直すときに environment 名をタイポすると workflow の `environment:` と一致せず、次の実行で保護なしの空の environment が自動で作られうる。作り直したら名前の集合、secret の名前、branch policy を API で数え直す (実測)
+- GitHub の environment の名前は大文字小文字を区別しない。`Staging` で作っても `environments/staging` で引ける (実測)
+- workflow の `run:` を正規表現で探すとき、`${{ github.repository }}` の式の中に空白があるので `\S+` では一致しない (実測)
 
 ### CI のコンテナと digest 固定
 
@@ -430,7 +461,10 @@ status: open
 - `gh run rerun <run> --failed` の後は、再実行していない成功の job も API 上で新しい job id が振られて見える。`started_at` が元の時刻のままなら再実行されていない。ログは新しい id で取り直さないと前回の失敗のログを読む (実測)
 - `GET repos/{owner}/{repo}/rules/branches/{branch}` が `[]` なら、リポジトリと組織のどちらの ruleset もそのブランチに効いていない。「PR 必須のつもり」の private リポジトリで実際には何も強制されていなかったのを、この API で見つけた (実測)
 - `gh pr merge --match-head-commit` は短縮の SHA を受け付けず、GraphQL の `Could not coerce value ... to GitObjectID` で落ちるので、40桁で渡す (実測)。別の報告では、Dependabot の PR を続けてマージすると、lockfile がぶつかる PR は Dependabot が rebase して head が変わり、`--match-head-commit` に前の sha を渡した実行は「Head branch was modified」で止まった。マージのコマンドは毎回 head を引き直してから組む (実測)
+  - 2026-11-11の仕分けで、別のリポジトリから拒否の形の報告が届いた。`gh pr merge --match-head-commit` にわざと古い SHA を渡すと、rc=1で `GraphQL: Head branch was modified. Review and try the merge again. (mergePullRequest)` と出て、PR は OPEN のまま残った (実測)
 - `gh pr diff` にはパスで絞る引数が無い。パスを渡しても何も出ないので、差分をファイルに書いてから diff --git の区切りで切り出す (実測)
+- `gh` の `--jq` は jq のオプション (`-c` など) を受け付けず、`accepts 1 arg(s)` で失敗する。整形は `tojson` を式の中で使う (実測)
+- `gh pr checks --watch` の出力をファイルへ書いて tail で読むと、書き直しのたびの一覧が縦につながる。そのため「test が pending なのに集約のジョブが pass」に見える行の並びができ、集約のジョブが待たずに緑になったと誤読しかけた。順序は actions の jobs API の started_at / completed_at で確かめる (実測)。dotfiles で確かめたこと (2026-11-11): `home/.claude/references/observation.md` は既に、`gh pr checks --watch` などの成否を持つ長時間コマンドの結論は専用クエリ (`gh run view <id> --json conclusion` 等) で確かめると書いている。CI の待ち方は ISSUE-132 の「pre-merge-quality-gate: ゲートの順序、増分、CI の待ち方」節にもある
 
 ### pnpm
 
@@ -486,6 +520,7 @@ status: open
 - 別の lockfile を持つ pnpm の root (`--ignore-workspace` で動かすもの) では、pnpm-workspace.yaml の設定は読まれない。pnpm 10なら、その root の `.npmrc` の `minimum-release-age=` は読まれた (実測: 極端な値で止まり、外すと通る)
 - Homebrew の pnpm が12系だと、`packageManager` で古い版へ切り替わる前に12の CLI が引数を読む。`pnpm update --depth Infinity` は12の側で「数でない」と拒まれる。`pnpm update` は既定で深さを限らないので、`--depth` を外せば推移的な依存も名前で解き直せた (実測)
 - `packageManager` を持たない別の root (例: 仕様の道具だけを入れるサブディレクトリ) では、PATH の pnpm 12がそのまま動く。12は package.json の `pnpm.overrides` を読まないので、frozen でない install / update で lockfile から overrides が黙って消えた。frozen の install では表に出ない。node_modules が別の store の版 (v11) から入っていたことが証拠になった (実測)。報告者の提案は、「pnpm を使うリポジトリでは、別の lockfile を持つすべての root に packageManager を置く」を規約か検査に入れること (実測)
+- `pnpm install --offline --frozen-lockfile` は、同じ lockfile でも、手元の store に無いパッケージ (別のマシンや CI で解決された版) があると ERR_PNPM_NO_OFFLINE_TARBALL で落ちる。worktree の対照を作るときは、オフラインを前提にしない (実測)
 
 ### Biome
 
@@ -555,6 +590,7 @@ status: open
 - 対象を `to_regclass(名前)` で引いて pg_depend と結合する検査は、対象がもう無い (NULL) と結合が空になり、依存0件と同じ形の空を返す。存在の有無と行数を同じ回で別に採ってから0件を読む (実測)
 - 本番 DB へ Cloud SQL Proxy で入る手順で、proxy は `127.0.0.1:<port>` (IPv4) だけで待ち受け、同じポートをローカルのコンテナ (OrbStack) が `::1` (IPv6) で待ち受けていた。psql の `localhost` は IPv6 から試すので、本番ではなくローカルの DB へつながった。起動スクリプトは「ポート使用中」を警告したが、非対話モードで続行した。DB 名が違ったので落ちて気付けたが、名前が同じなら「本番を読んだつもりでローカルを読む」になる (実測)。報告者の提案は、DB へ proxy で入る起動スクリプトは、ポートの使用中を警告で続行せず止める側に倒し、接続先を `127.0.0.1` に固定すること (実測)。ポートの選び方は ISSUE-133 の「ホスト環境」節にある
 - 実装役の「Postgres で default now() の列追加は表の書き換えを伴う」という主張を、同じ版の Postgres のコンテナで pg_relation_filenode の前後を比べて反証できた。now() (STABLE) では filenode が変わらず、対照の clock_timestamp() (volatile) では変わった。既定値の列追加の重さは、版と関数の volatility で決まるので、主張を見たら対照つきで測る (実測)
+- pg_trgm の類似度を使う検索のテストで、乱数の短い16進の語を fixture にすると、語どうしの trigram の偶然の一致で閾値を越え、約10%の flaky になりうる (近似シミュレーションと実際の失敗1回。実物の PostgreSQL での頻度は未測定)。対照の行が q の一部をそのまま持つときは、q の trigram を増やして底上げの比率を下げる (推測を含む)。仕分けたセッションの解釈: fixture の値の選び方で結果が揺れる型は ISSUE-88 の INS-8 の (b) と同じ族
 
 ### Rust と依存の脆弱性
 
@@ -596,6 +632,7 @@ status: open
 - cargo llvm-cov の JSON から未到達の region を拾うとき、関数の写しごとに拾うと数十件に見える。同じ (開始行, 開始列, 終了行, 終了列) を持つ region の実行回数を全ての関数の写しで合算してから0のものを拾うと、ゲートの報告と同じ件数 (1件) になった。region の種類 (配列の8番目) が0のものだけを数える (実測)。報告者の提案は、この手順を references に置くなら「region の座標ごとに全ての写しの回数を合算してから0を拾う」を前提として書くこと (実測)
 - 依存先のリポジトリの [patch.crates-io] は依存する側に効かないので、必要な patch (zed なら async-task の fork) はルートの Cargo.toml に写し、Cargo.lock で fork の rev に解決されたことを確かめる (実測)。GPUI の取り込みは GPUI の節にある
 - Cargo の feature を `--all-features` で回す check がある構成で、新しい feature の中で `env!` を使うと、その環境変数を設定しない check が全部コンパイルで落ちる。値はソースの定数に置き、外の道具はソースから読む形にした (推測。実装前)
+- 依存の監査 (cargo audit と pnpm audit) の exit 1 が、脆弱性ではなく監査データベースへの接続の瞬断だったことがある。ログで理由を確かめ、接続が戻ったのを見てから通しで回し直した (実測)
 
 ### GPUI
 
@@ -623,6 +660,7 @@ status: open
 - 報告者の提案: 道具を作る前に、API が要る鍵の権限をドキュメントで見る
 - `supabase db push` は未適用の migration を全部流すので、1つの PR の中で「フロントを出してから revoke」のように配信の段を分けられない (実測)。計画の並列レビューで前提を疑う観点だけが出した穴で、レビューの形は ISSUE-133 の「Claude Code の hook と委譲」節に置いた
 - ローカルの Supabase Realtime は、E2E の beforeAll で psql から入れた行を、ページの購読の後に配ることがある (届く件数は実行ごとに変わる)。届いた行がクライアントの状態に入り、画面の判定 (「データあり」) が変わって、取得の失敗を見るつもりの E2E が偽の緑になった。理由は報告者の推論で、共有のレプリケーションのスロットをポーリングしているためと見ている。行が届いたこと自体は実測 (実測)。報告者の提案は、E2E を作る手順に「DB へ直接入れた fixture は Realtime で後から画面に混ざりうる」を足すこと (実測)
+- Supabase CLI (2.122.0) の supabase start は、config.toml の [studio] と [analytics] を enabled = false にすると12個のコンテナが8個になる (studio・pg_meta・analytics・vector が消える)。その状態でも supabase gen types --local は動き (CLI が一時的に別のコンテナを立てる)、Edge Function の console のログは docker logs <edge_runtime のコンテナ> で見える。supabase status は STUDIO_URL を出さなくなるので、それを案内する文書は直す。切る前後で E2E と EF のテストの ID の集合を比べて確かめた (実測)
 
 ### Vercel
 
@@ -750,3 +788,6 @@ status: open
 - ISSUE-136: global の mise に `.node-version` を読ませるか
 - ISSUE-101: apm の pin の遅れの告知。github-actions の ecosystem で Dependabot の cooldown が使えない件を参照した
 - ISSUE-124: apm-install-guard の誤検知。Python の shlex の項から参照した
+- ISSUE-123: chrome-devtools の take_screenshot の filePath。chrome-devtools-mcp の evaluate_script の項から参照した
+- ISSUE-132: CI の待ち方。`gh pr checks --watch` の項から参照した
+- ISSUE-140: settings.local.json の配置。`disabledMcpjsonServers` の項から参照した
