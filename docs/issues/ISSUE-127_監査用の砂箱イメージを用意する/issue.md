@@ -12,6 +12,7 @@ security-audit skill (ISSUE-114 で試用中) は、対象のコードを動か�
 
 - macOS の素の環境 (sandbox-exec) では、メモリとディスクの上限を強制できない (報告者が確かめた)
 - コンテナなら `--network none`、`--read-only`、`--memory` などで足りる (報告者の見立てで、イメージが無く動かしていない。報告元は OrbStack の docker を想定していた)。対象の言語の toolchain をオフラインで動かせるイメージが無かった
+  - 2026-11-13の仕分けで、別のリポジトリから同じ要件の報告が届いた。security-audit の skill は、対象のコードを動かすのに OS で隔離した sandbox (外への通信を切る、対象とツールチェーンを読み取り専用にする、書けるのは scratch だけ、空の環境から許可した変数だけを入れる、CPU・メモリ・プロセス・ディスク・時間の上限) を要求し、無ければソースを読むだけになって、見つけ物の実測が needs_validation 止まりになる。同じ場所は、CI (ubuntu) を手元の Linux で再現するのにも使える (ブラウザの revision が変わる依存の更新などを、push の前に Linux で確かめられる)。macOS の手元には apple/container 1.6.0 が入っているので候補になる。ただし上の条件のうち、外への通信を完全に切ることと読み取り専用のマウントを1.6.0のどのフラグで満たせるか、arm64 の Linux のイメージで Playwright の Chromium が動くかは確かめていない。報告者の提案は、作るなら4つの条件を満たせることを実測で確かめてからレシピにし、各リポは just のレシピから呼ぶだけにすること (推測)。dotfiles で確かめたこと (2026-11-13): この開発機の `container --version` は 1.6.0 で、`container run --help` の文面には `--read-only`、`--mount` の `readonly`、`-m, --memory`、`-c, --cpus`、`--tmpfs`、`--no-dns` があり、`--network` は名前を取る形で `none` という値は書かれていなかった。help を読んだだけで、コンテナは1つも動かしていない。ランタイムの選定は ISSUE-118 の結論に従う
 
 砂箱が無い限り、どのリポジトリで回しても確定まで進めない。
 
@@ -25,3 +26,4 @@ security-audit skill (ISSUE-114 で試用中) は、対象のコードを動か�
 ## 関連
 
 - ISSUE-114: security-audit の試用。この Issue はそこから切り出した
+- ISSUE-118: コンテナランタイムの移行。砂箱のランタイムの選定はその結論に従う

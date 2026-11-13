@@ -8,7 +8,7 @@ status: open
 
 2026-10-21 に受け箱へ届いたまとめのうち、特定の技術領域に閉じた知見をここへ残す (ユーザー決定 2026-10-22: 技術領域に閉じた知見も捨てずに1本にまとめる)。どの領域にも閉じない知見は ISSUE-133 へ分けた。
 
-どれも他のセッションの報告で、根拠は報告者の申告 (実測 / 推測 / ドキュメントのみ) をそのまま書く。dotfiles で確かめたものは項目の中で分けて書く。版や仕様は届いた時点のもので、古びる。2026-10-22に届いた7件から足した分は、各節の末尾と、新しく立てた節に置いた。2026-10-23に仕分けた5件から足した分も、各節の末尾と、新しく立てた GitHub の節に置いた。2026-10-31に仕分けた72件 (届いたのは2026-10-22〜2026-10-30) から足した分は、各節の末尾と、新しく立てた節に置いた。2026-11-01に仕分けた2件 (届いたのは2026-10-30) から足した分は、各節の末尾と、既存の項目の子に置いた。2026-11-02に仕分けた1件 (届いたのは2026-11-02) から足した分は、各節の末尾に置いた。2026-11-04に仕分けた5件 (届いたのは2026-11-02) から足した分は、各節の末尾と、新しく立てた CodeSandbox の節に置いた。2026-11-10に仕分けた受け箱の41件 (届いたのは2026-11-04〜2026-11-10) から足した分は、各節の末尾と、既存の項目の子と、新しく立てた節 (Cloudflare の2節、コンテナイメージ、GPUI、Vercel、Tauri、地理データ、Quint) に置いた。2026-11-11に仕分けた受け箱の8件 (届いたのは2026-11-10〜2026-11-11) から足した分は、各節の末尾と、既存の項目の子と、新しく立てた「ブラウザでレスポンシブと文字サイズを測る」節に置いた。
+どれも他のセッションの報告で、根拠は報告者の申告 (実測 / 推測 / ドキュメントのみ) をそのまま書く。dotfiles で確かめたものは項目の中で分けて書く。版や仕様は届いた時点のもので、古びる。2026-10-22に届いた7件から足した分は、各節の末尾と、新しく立てた節に置いた。2026-10-23に仕分けた5件から足した分も、各節の末尾と、新しく立てた GitHub の節に置いた。2026-10-31に仕分けた72件 (届いたのは2026-10-22〜2026-10-30) から足した分は、各節の末尾と、新しく立てた節に置いた。2026-11-01に仕分けた2件 (届いたのは2026-10-30) から足した分は、各節の末尾と、既存の項目の子に置いた。2026-11-02に仕分けた1件 (届いたのは2026-11-02) から足した分は、各節の末尾に置いた。2026-11-04に仕分けた5件 (届いたのは2026-11-02) から足した分は、各節の末尾と、新しく立てた CodeSandbox の節に置いた。2026-11-10に仕分けた受け箱の41件 (届いたのは2026-11-04〜2026-11-10) から足した分は、各節の末尾と、既存の項目の子と、新しく立てた節 (Cloudflare の2節、コンテナイメージ、GPUI、Vercel、Tauri、地理データ、Quint) に置いた。2026-11-11に仕分けた受け箱の8件 (届いたのは2026-11-10〜2026-11-11) から足した分は、各節の末尾と、既存の項目の子と、新しく立てた「ブラウザでレスポンシブと文字サイズを測る」節に置いた。2026-11-13に仕分けた受け箱の16件 (届いたのは2026-11-11〜2026-11-13) から足した分は、各節の末尾と、既存の項目の子と、新しく立てた「Cloudflare Turnstile の widget を測る」節に置いた。
 
 ### Cloudflare Access の後ろの環境へ繋ぐ
 
@@ -60,6 +60,7 @@ status: open
 - Web Analytics の `GET /accounts/{id}/rum/site_info/list` は、ドキュメントや推測が示す `rules[].host` を持たない。実物は「host (正規表現の文字列) と is_host_regex を持つホスト型」と「ruleset.zone_name と ruleset.enabled を持つゾーン型」の2種類で、Pages が作ったサイトはホスト型で auto_install が false だった。「Pages が管理」を示す項目は無い。API を読む前に形を決め打ちせず、実物で確かめること (実測)
 - ダッシュボードで作ったシングルリダイレクトは、API では式が `(http.request.full_uri wildcard r"...")`、行き先が `wildcard_replace(...)` の形で保存されている。バルクリダイレクトのリストの source は末尾に `/` が付く。式は解析せず、実物の文字列をそのまま写して完全一致で比べるのが確実 (実測)
 - あるべき設定を写す前に実物を照らすと、レジストラ移管の名残 (ゾーン内の古い NS レコード、ドメイン接続用の CNAME) がそのまま「あるべき設定」に固定されるのを防げた。公開されている NS は DoH (`cloudflare-dns.com/dns-query`) で引くと、サンドボックスで dig が届かない環境でも確かめられた (実測)
+- Cloudflare の Workers の静的資産で配るサイトは、HSTS を `_headers` で付けていても、ゾーンの Always Use HTTPS が OFF だと http の要求にページも API も200で答える。静的資産は Worker より先に配られるので、Worker の中の転送では塞げない。Cloudflare で配るほかのサイトも `curl -o /dev/null -w '%{http_code}' http://<ドメイン>/` で確かめるとよい (実測)
 
 ### Cloudflare Workers と Durable Objects の上限・料金・ダッシュボード
 
@@ -95,6 +96,8 @@ status: open
 - rolldown (vite 8) の codeSplitting の group は、一致したモジュールを既定で1つの chunk にまとめるので、パッケージが自分で動的 import に分けたファイル (locale ごとのデータなど) まで1つに戻してしまう。group に `entriesAware: true` を付けると、読み込む側の組み合わせで分かれ、遅延ロードが戻った。付けるのはその性質のパッケージの group だけにする (実測)
 - 自前の設定の型を、上流の型 (rolldown の CodeSplittingGroup) との交差型にすると、オプション名の綴りの誤りが excess property check で落ちる。自前の型にオプションを手で写す形では、型と値に同じ綴りの誤りを書くと黙って無視された (実測)
 - `wrangler deploy` は cron の trigger を `PUT /schedules` で toml の一覧に置き換えるが、`wrangler rollback` は version を切り替えるだけで trigger を戻さない。rollback の後は code が古く trigger が新しい組になる (wrangler 4.127.1の dist を読んで確認、実走はしていない) (ドキュメントのみ)。報告者の提案は、Cloudflare Workers の cron を持つリポジトリの rollback の手順書に「`wrangler rollback` は trigger を戻さない。trigger まで戻すなら旧 checkout から `wrangler triggers deploy`」を書くこと。根拠は報告者が効かなかったことの2件目に挙げたもの (ドキュメントのみ)
+- 2026-11-13の仕分けで、別のリポジトリから届いた。Vite の dev サーバーで CSS Modules の `composes: x from "<別ファイル>"` の元のファイルを変えても、composes する側の module は作り直されず、古い hash の class 名を指したまま残る。E2E が古い CSS を測って「直したのに赤」になる。dev サーバーを再起動するか、composes する側のファイルを touch すると直る (実測。computed style と class 名の hash を突き合わせて特定)。Vite の版は原文に無い
+- Vite は入口の JS チャンクのハッシュに、そのチャンクが import する CSS のハッシュを混ぜるので、CSS だけを変えても JS のファイル名が変わる。JS の中身はバイト単位で同じだった。出力の比較はファイル名でなく中身で行い、HTML はアセット名を正規化してから比べる (実測)。出力のハッシュでリファクタが挙動を変えないことを示した報告は ISSUE-133 の観測の節にある
 
 ### Node と Web の API
 
@@ -131,6 +134,7 @@ status: open
   - 2026-11-01の仕分けで、別のリポジトリから同じ型の報告が届いた。「ポート<数>番」を str の `\w` の境界で取りこぼし、bytes の `[0-9A-Za-z]` の境界で拾えた (実測)。同じ報告の、一括置換の前後のハッシュの突き合わせは ISSUE-133 の「作業の規範」節に置いた
   - dotfiles で確かめたこと (2026-11-01、Python 3.15): `ポート5432番` に対して、str の `\b5432\b` と `(?<!\w)5432(?!\w)` はどちらも0件、bytes の `(?<![0-9A-Za-z])5432(?![0-9A-Za-z])` は1件だった。上の項の bytes の手当ては、ここで実測になった
 - Python の shlex は既定で語の途中の `#` からコメントとして捨てる。bash と zsh は語の頭の `#` だけをコメントにするので、コマンドの解析では `commenters = ""` にする (実測)。仕分けたセッションの解釈: dotfiles の apm-install-guard もコマンドを分割して判定するので、ISSUE-124 の誤検知の調査で当てはまるかを確かめるとよい
+- uv の `uv lock --upgrade` を回す recipe は、exclude-newer の値を変えただけでも全依存を上げ先へ解決し直す。値だけを変えたいときも依存の更新が混ざるので、生成物の差分を確かめる手間が要る (実測)
 
 ### iOS
 
@@ -158,6 +162,7 @@ status: open
 - `xcodebuild -allowProvisioningUpdates` だけでは未登録の端末を登録せず、「Device isn't registered」で落ちる。`-allowProvisioningDeviceRegistration` を併せて渡すと登録とプロファイルの作成まで進んだ (実測)
 - `-only-testing` は実行を絞るだけで、スキームの全テストのターゲットはビルドされる。自動署名では UI テストの runner の分まで署名が要る (実測)
 - シミュレータ向けの `*-Simulated.xcent` は Xcode にアカウントがある手元では実際の Team ID を持ち、シミュレータで緑でも実機の署名の証拠にならない (実測)。上の実機向けの Release に当てる項と同じく、シミュレータは実機の代わりにならない
+- `xcrun devicectl device process launch` は、端末の画面がロック中だと `CoreDeviceError 10002` (理由は Locked) で起動を断る。install はロック中でも通るので「入ったのに起動しない」形になる。ロックを解除すると同じコマンドが通った (実測)。同じ節に、`devicectl device process launch` が DEVICECTL_CHILD_ の変数を写す項がある
 
 ### React と E2E (Playwright)
 
@@ -212,6 +217,7 @@ status: open
 - vite 8.0 → 8.1で、dev サーバーの hydration が load イベントより後にずれ込むようになった。Playwright の page.goto は load までしか待たないので、直後の fill が React のハンドラが付く前に届き、controlled input は DOM に値が入っても state が空のまま (送信ボタンが有効にならない)。8.0では間に合っていたので潜在していた競合が表に出た形。full goto のあとは hydration の印 (html の属性など) を待ってから操作する (実測)
 - Playwright の page.evaluate に型引数つきのジェネリックな関数を渡すと、引数が Unboxed<A> に包まれて型が合わない。値は JSON の文字列1本で渡す形にした (実測)
 - Playwright の版を上げたあと、手元のブラウザを入れ直さずに E2E を回すと、全件が「Executable doesn't exist」で落ちる。headless shell の revision が変わるため。ブラウザを入れるレシピを打ち直せば直る (実測)
+  - 2026-11-13の仕分けで、別のリポジトリから同じ症状の別の契機が届いた。別のプロジェクトで新しい版の Playwright のブラウザを入れたとき、報告元のリポジトリが使う古い版 (`.links` に登録があるのに) のブラウザが消え、E2E が `browserType.launch: Executable doesn't exist` で即座に落ちた。プロジェクトのブラウザの install を回し直すと戻る (実測)。仕分けたセッションの解釈: 親の項は自分のリポジトリで版を上げた場合で、こちらは版を上げていないリポジトリが、ブラウザの置き場を共有する別のプロジェクトの install で壊れる形。古い版が消えた仕組みは原文から読み取れない
 - 依存の自動更新の PR で jsdom を30.1.1 → 30.1.3に上げたら、ダイアログの初期フォーカスのテストが1件落ち、原因をリリースノートと react-dom のソースと実ブラウザで切り分けた (実測)。React 19の autoFocus は DOM に autofocus 属性を出さず、commit の layout の段階で focus() を呼ぶ。`<dialog>` を useEffect の中で showModal() するコンポーネントでは、focus() がまだ閉じた (display: none の) dialog の中で呼ばれて捨てられ、showModal() が dialog の最初のフォーカスできる要素 (ヘッダの閉じるボタンなど) へフォーカスを置く。直し方は showModal() の直後に印 (data 属性) の要素へ focus() する helper を1か所に置き、直呼びを構文木の配線テストで禁じる形 (実測)。報告者の提案は、React と `<dialog>` を使うリポジトリでは、ダイアログを開く処理を1つの helper に寄せ、開いた直後のフォーカスを autoFocus ではなく showModal() の後の focus() で置く規約を持つこと (実測)
   - jsdom は30.1.2から display: none の要素への focus() を拒む (リリースノートに明記)。この更新で落ちたテストは、テストの環境が実ブラウザに寄ったことで既存の製品の不具合が見えた形だった。依存の更新でテストが落ちたら、テストを直す前に同じことが実ブラウザで起きるかを測る (実測)
   - jsdom の dialog の polyfill (開閉だけを再現するもの) は実ブラウザの showModal の初期フォーカスの処理を持たないので、ユニットテストでは仕組み (helper が印へ focus を呼ぶか) を見て、実ブラウザの初期フォーカスは E2E の toBeFocused で見る形に分けた。印を外す変異で E2E が赤になることを確かめた (実測)
@@ -227,6 +233,7 @@ status: open
   - 応答の CSP の扱いは「SVG と CSP の検査」節、CSS が当たっていることの番兵は「Playwright でスタイルと配置を測る」節、Test Agents の生成物の扱いは「Playwright Test Agents とブラウザの MCP」節に置いた
 - `package.json` に `"type": "module"` が無いと、Playwright のテストの TS は CommonJS として読まれ `import.meta` が SyntaxError になる (実測)
 - Playwright で、スライドで開くドロワーの中の aria-disabled の要素を `click({ force: true })` すると、"Element is outside of the viewport" で落ちた。aria-hidden がスライドの始まりで外れるので「開いた」の確認が早く通り、force は静止を待たない。`toBeInViewport({ ratio: 1 })` を先に待つと直った (実測)
+  - 2026-11-13の仕分けで、別のリポジトリから、この項の手当てでは足りないという報告が届いた。Playwright の `toBeInViewport({ ratio: 1 })` は、滑り込むパネル (CSS の transform の transition) の動きの終わりの印にならない。画面に入り切った後も要素は30〜130px 動いており、静止を待たない `click({ force: true })` が外れてフォーカスが移らないテストが10回に2回落ちた。パネルの要素の `getAnimations()` の `finished` を待つ形にすると40回とも通った。待ちが空振りしていない対照として、開くたびに animation が1つあることを測った (実測)。仕分けたセッションの解釈: 親の項の「`toBeInViewport({ ratio: 1 })` を先に待つと直った」は、入り切った後も動きが残る間の click では当てにならない。getAnimations() の数え方の別の項は「Playwright でスタイルと配置を測る」節にある
 
 ### Playwright でスタイルと配置を測る
 
@@ -269,6 +276,12 @@ status: open
 - iframe の中ではモバイルの「横にあふれると layout viewport が広がる」挙動が起きないので、その連鎖は上の iframe 方式では再現できない。横あふれの値で代わりに判定した (実測)
 - 報告者の提案は、上の計測の手順 (checkVisibility、scrollWidth と clientWidth、中のスクロール領域の特定、横あふれと layout viewport の連鎖、iframe 方式の射程) を、ブラウザで実測する skill か参照ファイルにまとめること。次の棚卸しで同じ偽陽性を踏まない (実測)
 
+### Cloudflare Turnstile の widget を測る
+
+2026-11-13に仕分けた分で届いた。
+
+- 2026-11-13の仕分けで、別のリポジトリから届いた。Cloudflare Turnstile の `appearance: 'interaction-only'` を、テスト用の sitekey 4種 (常に pass / 常に block / invisible / 強制 interactive) で、プローブページと実アプリの両方で測った (実測)。操作が要らないとき、widget の中身の高さは0px になる。iframe は closed shadow root の中に1x1で入るので、`querySelectorAll('iframe')` では0件になる。読み込みの証拠には、light DOM の `input[name="cf-turnstile-response"]` に値が入ったことが使える (実測、Chromium)。操作が要るときは約0.4秒で枠 (約71px) が出て、`before-interactive-callback` もほぼ同時に発火する。解いたあとも枠は縮まない。並びを決めるときは、枠があとから出て下の要素が押し下げられることを前提にする (実測)。interaction-only の Turnstile が block (error-callback) になっても、widget は何も表示しない。押せない理由はアプリ側で出す必要がある (実測)。仕分けたセッションの解釈: `querySelectorAll('iframe')` の0件は「widget が無い」と「closed shadow root の中にある」を区別しないので、読み込みの判定には使えない。自動操作のブラウザで Turnstile が検証を拒む件は「React と E2E (Playwright)」節に、cross-origin の iframe の中の文字を拾えない wait_for の件は「Playwright Test Agents とブラウザの MCP」節にある
+
 ### SVG と CSP の検査
 
 2026-10-31に仕分けた分で届いた。
@@ -287,6 +300,7 @@ status: open
 - 本番の CSP の違反の報告がブラウザから届くかは、Playwright の CDP セッションで Reporting API のイベント (Network.enableReportingApi、reportingApiReportAdded / Updated、reportingApiEndpointsChangedForOrigin) を受けて確かめられ、報告の本文、宛先の登録、送信の結果 (Queued → Pending → Success) が見える。報告の送信はページのネットワークの一覧に出ないので、DevTools の画面では確かめられない (実測)
 - Reporting API の報告は数十秒まとめてから送られるので、違反を起こした直後にタブの context を閉じると、報告は送られずに消える (実測)
 - インラインの `style="width:2000px"` で作ったはみ出しの対照は、厳しい CSP の下では style が消されてはみ出さない。属性で幅を出す `canvas` を使う (実測)
+- CSP の違反の報告で disposition が欠けていたら WebKit (Safari 系) の report-uri の形と読める。止めたもの (blocked) と出所 (source-file のスキーム) を別の列で並べると、「http で開かれたページへの外からのインラインの差し込み」まで読み分けられた (実測)。この節の、report-uri の宛先を相対のパスにする項と、Reporting API の報告を CDP で受ける項は Chromium の側
 
 ### SVG とデザインツールの書き出し
 
@@ -370,6 +384,7 @@ status: open
 - リリースをタグ駆動にして2種類の成果物をタグの接頭辞で分け、タグは任意のコミットに打てるので CI で `git merge-base --is-ancestor <tag>^{commit} origin/main` を検査し (fetch-depth: 0)、environment のデプロイの許可は tag のパターンだけにした。tag の ruleset は管理者が bypass できるので、immutable releases を足した (実測。タグの push だけでデプロイと Release の作成まで通った)
 - tag の push で動く workflow は tag が指すコミットの workflow ファイルを使うので、main で直しても既存の tag の再実行では直らず、tag を打ち直す必要がある。immutable releases を ON にするとそれもできないので、正しく打ち直した後に ON にする (実測)
 - strict な required check の下では、squash 後の main のツリーが、マージゲートが緑の PR の head のツリーとハッシュで一致した。main の push で CI を回さない構成でも、main が検証済みであることを確かめられる (実測)
+  - 2026-11-13の仕分けで、別のリポジトリから同じ一致を別の用途に使った報告が届いた。squash マージで先に入った PR の上に積んだブランチを、`git rebase --onto origin/main <元の PR の HEAD>` で載せ替えた (実測)。載せ替えの前に、main のツリーのハッシュと元の PR の HEAD のツリーのハッシュ (`git rev-parse <rev>^{tree}`) を比べると、一致していれば載せ替えても作業ツリーが1バイトも変わらないと言い切れる。並列のレビュー agent が作業ツリーを読んでいる最中でも、安全に載せ替えられた (実測)。同じまとめにあった、push 済みのブランチを main へ寄せた後の force push が auto mode に止められた件は ISSUE-133 の「Claude Code の auto mode と権限」節に置いた
 - GitHub Actions を SHA でピン留めしている依存の更新の PR は、`git/ref/tags/<tag>` でタグが PR の SHA を指すことと、`compare/<旧>...<新>` で変わったファイルが自分の使う部分に触れていないことを確かめると、コメントの版ではなく実際に効く SHA を検証できる (実測)
 - 長く放置したあと、Dependabot の Actions の更新3本を1本のブランチにまとめて取り込み、CI の実行を1回に抑えた (実測)
 - ubuntu-latest の移行の告知は、移行がリポジトリに届く前から run に出続ける。実際の OS は Set up job のログの Image: の行で分かるので、直近の run を数えてから版を判断する (実測。告知の開始から9日後でも40本すべて旧イメージ)
@@ -400,6 +415,7 @@ status: open
 - GitHub の environment を削除すると、その中の secret と deployment branch policy も一緒に消え、API は environment ごと404を返す。作り直すときに environment 名をタイポすると workflow の `environment:` と一致せず、次の実行で保護なしの空の environment が自動で作られうる。作り直したら名前の集合、secret の名前、branch policy を API で数え直す (実測)
 - GitHub の environment の名前は大文字小文字を区別しない。`Staging` で作っても `environments/staging` で引ける (実測)
 - workflow の `run:` を正規表現で探すとき、`${{ github.repository }}` の式の中に空白があるので `\S+` では一致しない (実測)
+- 2026-11-13の仕分けで、別のリポジトリから届いた。mise は `.tool-versions` を trust なしで読み、actions/setup-node は `node-version-file: .tool-versions` で `node` と `nodejs` のどちらの名前も読む (src/util.ts の正規表現)。1つのファイルで手元と CI の Node を固定できる。mise の確認はグローバルの版と違う版を書かないと対照にならない (実測)。仕分けたセッションの解釈: 同じ目的で `.node-version` を1箇所に寄せる案は ISSUE-136 が扱い、setup-node が mise.toml を読める件はこの節の7.1.0の項にある
 
 ### CI のコンテナと digest 固定
 
@@ -439,6 +455,7 @@ status: open
 - Team プランの private のリポジトリで Pages を有効にすると、private のはずの中身が誰でも読める。Pages の閲覧範囲の制限は Enterprise Cloud の機能である。`keep_files: true` の deploy の action は gh-pages にある deploy の対象以外のファイルを消さないので、一度置かれたファイルは配信され続ける (実測。認証なしの読み出しが通った)
 - 報告者の提案: org やリポジトリの棚卸しの手順に、「private のリポジトリで Pages が有効になっていないか (`GET repos/{owner}/{repo}/pages`)」と「gh-pages に deploy の対象以外のファイルが残っていないか」を入れる
   - dotfiles で確かめたこと (2026-10-23): `gh api 'user/repos?affiliation=owner,organization_member'` で見える87件のうち、private の36件で `has_pages` が true のものは0件だった。対照として、public の51件のうち4件は true を返した。gh-pages のブランチの中身は見ていない。棚卸しの手順を置く場所は決めていない
+- 2026-11-13の仕分けで、別のリポジトリから届いた。GitHub の資格情報を盗んで workflow を注入し、すぐ revert して run を消すキャンペーンの IOC を、Org の全リポで gh の読み取り API だけで探した (実測)。revert と run の削除で痕跡を消す攻撃には、既定のブランチのコミット履歴 (revert しても残る) と、workflow ごとの `run_number` の欠け (`最大 - 最小 + 1 - 件数`) を見るのが効く。欠けの検査は、期間の直前の最後の run 番号とつながるかも見ないと、期間の最初の run の削除が見えない (実測)。作って消されたブランチや PR は今のブランチの一覧には出ないので、`repos/{repo}/events` (90日、最大300件) の CreateEvent / DeleteEvent / PullRequestEvent の ref とタイトルで追う (実測)。IOC の0件を結論にする前に、同じパターンを合成した IOC の行に当てる陽性の対照を並べると、パターンの書き間違いによる空振りと区別できた (実測)。`orgs/{org}/audit-log` は Enterprise Cloud 以外の Org で404。盗まれた資格情報での操作は本人の操作として記録されるので、資格情報が無事かはアカウントの security log の画面でしか確かめられない (実測)。報告者の提案は、この探し方 (コミット履歴・run 番号の欠けと境界・events・artifact と cache・既定のブランチの tree と workflow の中身、陽性の対照つき) を、リポを越えて使える skill かスクリプトにすること。dotfiles で確かめたこと (2026-11-13): グローバルの CLAUDE.md の観測カテゴリは、64行目で「0 件」「空」「緑」を健全の根拠にする前に正常なら非空になる対照を並べることを既に求めている。陽性の対照の項はその実例にあたる
 
 ### GitHub の CLI とリポジトリの管理
 
@@ -459,12 +476,15 @@ status: open
 - Dependabot の件数は manifest と lockfile (`pyproject.toml` と `uv.lock`、`package.json` と `pnpm-lock.yaml`) に同じ advisory を2回立てるので、(ディレクトリ, GHSA, パッケージ) で重複を除いてから仕分ける。311件が229件になった (実測)
 - Dependabot には既定で3日の cooldown があり (ドキュメントのみ)、pnpm の lockfile も ecosystem は npm で扱われ、pnpm 11まで対応している (ドキュメントのみ)。報告者の提案は、既定は変わりうるので cooldown を明示する運用をそろえること。github-actions の ecosystem で cooldown が使えない件は ISSUE-101 にある
 - `gh run rerun <run> --failed` の後は、再実行していない成功の job も API 上で新しい job id が振られて見える。`started_at` が元の時刻のままなら再実行されていない。ログは新しい id で取り直さないと前回の失敗のログを読む (実測)
+  - 2026-11-13の仕分けで、別のリポジトリから同じコマンドの報告が届いた。外部ミラーの不調で CI の1段だけが timeout した run を、翌日に `gh run rerun --failed` で落ちた job だけ再実行し、緑の job は同じ run の中で再利用させた (実測)。仕分けたセッションの解釈: 親の項 (再実行していない成功の job にも新しい job id が振られ、`started_at` は元の時刻のまま) と同じ再利用の挙動で、報告は job id には触れていない
 - `GET repos/{owner}/{repo}/rules/branches/{branch}` が `[]` なら、リポジトリと組織のどちらの ruleset もそのブランチに効いていない。「PR 必須のつもり」の private リポジトリで実際には何も強制されていなかったのを、この API で見つけた (実測)
 - `gh pr merge --match-head-commit` は短縮の SHA を受け付けず、GraphQL の `Could not coerce value ... to GitObjectID` で落ちるので、40桁で渡す (実測)。別の報告では、Dependabot の PR を続けてマージすると、lockfile がぶつかる PR は Dependabot が rebase して head が変わり、`--match-head-commit` に前の sha を渡した実行は「Head branch was modified」で止まった。マージのコマンドは毎回 head を引き直してから組む (実測)
   - 2026-11-11の仕分けで、別のリポジトリから拒否の形の報告が届いた。`gh pr merge --match-head-commit` にわざと古い SHA を渡すと、rc=1で `GraphQL: Head branch was modified. Review and try the merge again. (mergePullRequest)` と出て、PR は OPEN のまま残った (実測)
 - `gh pr diff` にはパスで絞る引数が無い。パスを渡しても何も出ないので、差分をファイルに書いてから diff --git の区切りで切り出す (実測)
 - `gh` の `--jq` は jq のオプション (`-c` など) を受け付けず、`accepts 1 arg(s)` で失敗する。整形は `tojson` を式の中で使う (実測)
 - `gh pr checks --watch` の出力をファイルへ書いて tail で読むと、書き直しのたびの一覧が縦につながる。そのため「test が pending なのに集約のジョブが pass」に見える行の並びができ、集約のジョブが待たずに緑になったと誤読しかけた。順序は actions の jobs API の started_at / completed_at で確かめる (実測)。dotfiles で確かめたこと (2026-11-11): `home/.claude/references/observation.md` は既に、`gh pr checks --watch` などの成否を持つ長時間コマンドの結論は専用クエリ (`gh run view <id> --json conclusion` 等) で確かめると書いている。CI の待ち方は ISSUE-132 の「pre-merge-quality-gate: ゲートの順序、増分、CI の待ち方」節にもある
+- Dependabot の版の更新を見るときに、到達先の版が上流の security advisory の範囲に入っていないかまで読ませたら、critical の advisory の範囲内の版への PR だと分かった。advisory は上流のリポジトリには公開されていたが、グローバルの Advisory Database にはまだ無く、pnpm audit は緑のままだった。audit の緑は「上流にしか載っていない advisory は見ていない」 (実測)。報告者の提案は、Dependabot の PR をマージする前に、到達先の版が上流の security advisory (GitHub のリポジトリの advisories) の範囲に入っていないかを確かめる手順を入れること。pnpm audit と Dependabot alert はグローバルの Advisory Database しか見ない (実測)。この Issue の「Rust と依存の脆弱性」節の、GitHub の Advisory DB が RustSec の項目を全部は取り込んでいない項と同じく、グローバルのデータベースの外にある advisory を audit や alert の緑が見ない型
+- `gh search commits "\"<メッセージ>\""` は引用符で囲んでもあいまい一致で、IOC のコミットのメッセージで自分のアカウントを検索すると無関係なコミットが5件当たった。件数を IOC の有無の判定に使わず、当たったコミットの1行目と日付を必ず開く (実測)。IOC を当てるときの0件の対照 (run の番号の連番) は ISSUE-133 の「セキュリティ」節にある
 
 ### pnpm
 
@@ -489,6 +509,7 @@ status: open
 - verifyDepsBeforeRun は node_modules の同期の代わりにならない。workspace では package.json の mtime だけを見るので、lockfile だけが変わると古い node_modules のまま exit 0で走る。同期は frozen install を検査の先頭に置いて担保した (実測。委譲先が再現し、ソースで裏付けた)
 - package.json の name を変えると、lockfile は変わらないのに verifyDepsBeforeRun が workspace structure has changed で pnpm run を止める。frozen のまま pnpm install で覚え直すと通り、lockfile の差分は0 (実測)
 - workspace のリポジトリを別のディレクトリへ mv したあと、verifyDepsBeforeRun: error の設定で pnpm run が ERR_PNPM_VERIFY_DEPS_BEFORE_RUN (workspace structure has changed) で止まった。原因は node_modules/.pnpm-workspace-state-v1.json が各プロジェクトを絶対パスで持っていることで (node_modules の中で旧パスが残っていたのはこのファイルだけで、.bin を対照にした grep はヒットした)、rm -rf node_modules のあと frozen-lockfile の install で state が新しいパスで書き直されて通り、lockfile の差分は0だった (実測)
+  - 2026-11-13の仕分けで、別のリポジトリから同じエラーの別の入口の報告が届いた。隔離した git worktree に本体の node_modules を symlink して、変異の注入と性能の計測を本体の作業ツリーから切り離した (実測)。その状態で `pnpm exec` を使うと "The workspace structure has changed since last install" で止まる。回避は `node_modules/.bin/<tool>` を直接呼ぶことで、vitest も vite build も動いた (実測)。仕分けたセッションの解釈: 上の項の、node_modules/.pnpm-workspace-state-v1.json が各プロジェクトを絶対パスで持つ機序と同じなら、symlink した node_modules の state は本体のパスを指したままなので、worktree のパスと合わずに止まると読める。報告は原因を書いておらず、手元でも確かめていない。Workflow の worktree に node_modules の symlink を置くと自動では消えない件は ISSUE-133 の hook と委譲の節にある
 - `pnpm install --frozen-lockfile --workspace-root` (絞り込んだ install) は、lockfile が最新だと Already up to date で早く終わって state のファイルを書き直さず、state を消してからでも作り直さない (filteredInstall: true が残る)。移行スクリプトの最後に install を置くだけでは直らなかった (実測)
 - 報告者の提案: ディレクトリを移す手順では、install の前に node_modules を消す
 - pnpm 11以降の pnpm exec は、node_modules が無いか lockfile と合わないと、実行の前に黙って install する。pnpm deploy の出力先の pnpm-workspace.yaml は verifyDepsBeforeRun を引き継がないのでそこで install が走り、`pnpm --config.verify-deps-before-run=error exec ...` にすると、揃っていれば実行し、揃っていなければ止まる (実測)
@@ -499,6 +520,7 @@ status: open
 - `pnpm --filter <pkg> deploy <dir>` は root の lockfile から対象のパッケージの依存だけを <dir> に入れ、<dir> に pnpm-lock.yaml を置く。トークンのあるジョブへビルドの依存を入れずに、デプロイ用の CLI だけを入れる用途に合う (実測。用途に合うという評価は推測)
 - pnpm dedupe は devEngines.runtime の範囲も解決し直すので、Node の runtime の更新が無関係なコミットに混ざる。runtime を先に exact へ固定してから dedupe する (実測)
 - package.json の devEngines.runtime に onFail: download を書くと、pnpm が lockfile に Node の版を固定して node_modules/.bin/node に置き、.bin の shim がそれを優先する。ホストの Node をセキュリティリリースへ上げても pnpm 経由は古いままで、audit も Dependabot も追わない (実測。pnpm exec node -v とホストの node -v が別の版だった)
+  - 2026-11-13の仕分けで、別のリポジトリから検出の手当ての案が届いた。Dependabot は devEngines.runtime の Node を上げないので、Node のセキュリティリリースの取り残しは nodejs.org/dist/index.json の security フラグで検出できる。リリースの前段に置く案がある (ドキュメントのみ)。dotfiles で確かめたこと (2026-11-13): dotfiles の `scripts/node-security-notifier` は既に同じ一覧を読んでいて、`src/node_security_notifier/fetch.py` の7行目が `INDEX_URL = "https://nodejs.org/dist/index.json"`、`index.py` の39行目が各項目の `security` を読む。仕分けたセッションの解釈: closed の ISSUE-131 の背景から読むと、照合の相手は mise の pin で、devEngines.runtime を見るかはコードを読んでいない。ISSUE-88 の INS-100 は同じ一覧を読む検査の形の崩れの扱いを持つ
 - packageManager で固定した pnpm 自身は lockfile に入らず、pnpm audit の対象の外にある。固定版が古いと、pnpm 自身のアドバイザリが20件以上あっても気づかない (実測。件数は委譲先の照会による)
 - pnpm audit の緑を疑って .modules.yaml と lockfile の日付と実際の版を突き合わせると、インストール済みの依存が lockfile より古いまま test と build が走っていた。audit は lockfile しか見ないので、検査の先頭に frozen install を置いて塞いだ (実測)
 - 報告者の提案: Node のリポジトリのセキュリティ確認に、pnpm audit の外にある3つ (node_modules と lockfile の一致、devEngines.runtime が固定した Node、packageManager が固定した pnpm) を確かめる項目を入れる (根拠は直前の3項目)
@@ -521,6 +543,7 @@ status: open
 - Homebrew の pnpm が12系だと、`packageManager` で古い版へ切り替わる前に12の CLI が引数を読む。`pnpm update --depth Infinity` は12の側で「数でない」と拒まれる。`pnpm update` は既定で深さを限らないので、`--depth` を外せば推移的な依存も名前で解き直せた (実測)
 - `packageManager` を持たない別の root (例: 仕様の道具だけを入れるサブディレクトリ) では、PATH の pnpm 12がそのまま動く。12は package.json の `pnpm.overrides` を読まないので、frozen でない install / update で lockfile から overrides が黙って消えた。frozen の install では表に出ない。node_modules が別の store の版 (v11) から入っていたことが証拠になった (実測)。報告者の提案は、「pnpm を使うリポジトリでは、別の lockfile を持つすべての root に packageManager を置く」を規約か検査に入れること (実測)
 - `pnpm install --offline --frozen-lockfile` は、同じ lockfile でも、手元の store に無いパッケージ (別のマシンや CI で解決された版) があると ERR_PNPM_NO_OFFLINE_TARBALL で落ちる。worktree の対照を作るときは、オフラインを前提にしない (実測)
+- pnpm 12の minimumReleaseAge が何に掛かるかを、同じ手順の対照で確かめた。公開から1日の npm のパッケージでは lock が止まり、公開から2日の devEngines.runtime の Node では止まらなかった。Node のセキュリティリリースを急いで入れるのに minimumReleaseAgeExclude は要らない。lock のログの「verified Xh ago」は検査を使い回したようにも読めるので、止まる側の対照を並べないと「方針が掛からない」とは言えない (実測)。仕分けたセッションの解釈: 報告は minimumReleaseAge の値を書いていない。値が1日より長く2日より短いなら、2日の Node が止まらないのは公開からの日数が値を超えていたからでも説明でき、「devEngines.runtime には掛からない」の証拠にならない。値が2日以上だったかを確かめてから採る。この節の、minimumReleaseAge を変えると「verified Nd ago」のキャッシュが外れる項と、pnpm 12.9の frozen install が lockfile の各版を minimumReleaseAge で検査する項と並ぶ
 
 ### Biome
 
@@ -536,6 +559,7 @@ status: open
 - Biome (2.5.15) の GritQL プラグインで「as const と as unknown 以外の型アサーションを禁じる」規則を、コードの片 `$value as $type` だけで書くと、import / export の別名 (`{ a as b }`) も error にした。`$cast <: TsAsExpression()` でノードの種類に絞ると拾わなくなった (実測。契約テストの許す側に別名を置いて確かめた)
 - biome 2.5.14から、HTML (Astro / Vue / Svelte も) で aria-label だけを持つアイコンのリンクを useAnchorContent のエラーにする (JSX と同じ判定)。リンクの中に視覚的に隠したテキストを置く形へ移すと通る (実測)。2.5.12からは noDescendingSpecificity の検出の範囲も広がり、別の要素どうしの比較が出る (changelog による)
 - Biome の `// biome-ignore` をオブジェクトのプロパティの前に置いていたら、値の文字列が長くなって formatter が `key:` の次の行へ折り返したとき、抑制がプロパティ名の行に当たって空振りし、元の警告と `suppressions/unused` の2件が出た。抑制のコメントは、警告の出る式 (文字列そのもの) の直前の行に置く (実測)
+- ソースを走査する検査のテストで、テンプレートリテラルの差し込みの例を普通の文字列 (`'${name} is missing'`) に書くと、Biome の lint/suspicious/noTemplateCurlyInString が警告を出す。テスト名に書いても同じ。例は `['$', '{', expr, '}'].join('')` のように実行時に組み立てる (実測)
 
 ### mise の lock
 
@@ -633,6 +657,8 @@ status: open
 - 依存先のリポジトリの [patch.crates-io] は依存する側に効かないので、必要な patch (zed なら async-task の fork) はルートの Cargo.toml に写し、Cargo.lock で fork の rev に解決されたことを確かめる (実測)。GPUI の取り込みは GPUI の節にある
 - Cargo の feature を `--all-features` で回す check がある構成で、新しい feature の中で `env!` を使うと、その環境変数を設定しない check が全部コンパイルで落ちる。値はソースの定数に置き、外の道具はソースから読む形にした (推測。実装前)
 - 依存の監査 (cargo audit と pnpm audit) の exit 1 が、脆弱性ではなく監査データベースへの接続の瞬断だったことがある。ログで理由を確かめ、接続が戻ったのを見てから通しで回し直した (実測)
+- Rust の workspace で、テスト専用の構築子を自クレートへの dev-dependency (`features = ["test-support"]`) で有効にする形を採り、出荷のコードから見えないことをクレート単位の `-p <crate> --lib --bins` の clippy の段で守ろうとした (実測)。この形は resolver 3 でも `cargo clippy --workspace --all-targets` で feature が揃い、他のクレートの出荷の lib から test-support の item を呼んでも緑で通る。穴を開けるのは `--all-targets` ではなく `--workspace` (同じ起動でそのクレートのテストを作ること) で、`-p` の絞り込みが塞ぐ (実測)。テスト専用の口は feature にせず `#[cfg(test)] pub(crate)` に閉じ、それを使うテストを crate の中の `#[cfg(test)]` モジュールへ移すと、他のクレートからはどのビルドでも見えなくなり、守るためのゲートが要らなくなった。他のクレートの lib から呼ぶ変異でコンパイルが落ちることで確かめた (実測)。独立に走らせた simplify の Efficiency と Altitude の2体が同じ根本原因 (feature を作ったこと自体) を指し、当て物のゲートを外す判断の根拠になった (実測)。報告者の提案は、Rust の規範に「テスト専用の API は feature で公開せず `#[cfg(test)] pub(crate)` にして、使うテストを crate の中に置く。自クレートへの dev-dependency で feature を有効にする形は `--workspace` のビルドで unify され、出荷のコードから参照しても検出されない」を足すこと (実測)。塞ぐために足したゲートが CI の入口から届いていなかった件は ISSUE-88 の行に置いた。dotfiles で確かめたこと (2026-11-13): `rules/cargo-build-practices.md` の21〜22行目は既に、feature による除外が成立するのは1回の build invocation の中だけで、同じ feature を立てる member が1つでも居れば `--workspace` のゲートは和集合を払うと書いている。`#[cfg(test)] pub(crate)` に閉じる手当ては rules と references に無かった
+- tracing-actix-web 0.7 は既定の feature `emit_event_on_error` で、誤りの応答のたびに誤りの型の Debug を error (5xx) / warn (4xx) の event として出す。応答の detail を伏せても元の文言はログに残る一方、誤りの型の Debug や Display に秘匿値を入れるとそのままログへ出る (実測)。この節の、actix-web 4.x の Logger が middleware の Err でアクセスログの行を出さない項と、VarError の Display が環境変数の生の値を起動ログに残す項の隣にあたる
 
 ### GPUI
 
@@ -657,6 +683,7 @@ status: open
 - テスト用のメール受信サービスで確認コードを取る処理が「待ち受けの起動の数秒前より後のメール」だけを見る形だと、人が先に送信すると永遠に拾えない。待ち受けを先に起動してから、合図して押してもらう順序に固定する (実測)
 - ある認証サービスで、ユーザーを Backend API で削除したあと端末の資格情報でフロントの API を叩くと、client の取得は401ではなく200でセッションが空になり、所属の一覧は401になった。端末からは普通のサインアウトと区別できないので、「アカウントが消された」は secret を持つ backend で確かめる (実測。dev のインスタンスで1回ずつ)
 - Resend の送信の一覧の API は full_access の鍵が要り、送信専用の鍵では401 restricted_api_key になる。読み取りだけの権限が無いので、人の目視に倒した (ドキュメントのみ)
+  - 2026-11-13の仕分けで、別のリポジトリから測り方の報告が届いた。外部の API で結果を読む計画を立てる前に、存在しない id を引く副作用の無いプローブで鍵の権限を測った。送信専用の鍵だと分かったので、人に読んでもらう段を先に用意できた (実測)。仕分けたセッションの解釈: 同じサービスかは原文に書かれていない。下の箇条の報告者の提案 (鍵の権限をドキュメントで見る) に対して、こちらは実物を副作用なしに測る形
 - 報告者の提案: 道具を作る前に、API が要る鍵の権限をドキュメントで見る
 - `supabase db push` は未適用の migration を全部流すので、1つの PR の中で「フロントを出してから revoke」のように配信の段を分けられない (実測)。計画の並列レビューで前提を疑う観点だけが出した穴で、レビューの形は ISSUE-133 の「Claude Code の hook と委譲」節に置いた
 - ローカルの Supabase Realtime は、E2E の beforeAll で psql から入れた行を、ページの購読の後に配ることがある (届く件数は実行ごとに変わる)。届いた行がクライアントの状態に入り、画面の判定 (「データあり」) が変わって、取得の失敗を見るつもりの E2E が偽の緑になった。理由は報告者の推論で、共有のレプリケーションのスロットをポーリングしているためと見ている。行が届いたこと自体は実測 (実測)。報告者の提案は、E2E を作る手順に「DB へ直接入れた fixture は Realtime で後から画面に混ざりうる」を足すこと (実測)
@@ -734,6 +761,7 @@ status: open
 - `ast-grep scan` は severity が error 以外のルールの違反を見つけても exit 0で終わる。`--error` を付けると全ルールを error として扱う (実測)
 - `jq empty` は空のファイルと、値を2つ並べたファイルを通す。`jq -n '[inputs] | length'` が1であることを見る (実測)
 - APM でサブディレクトリの skill を巨大なリポジトリから取ると、初回は190秒かかったが、残るのは124KB だった。2回目はキャッシュで0.2秒 (実測)
+- MoonBit 0.10.19で String / StringView の `view(start_offset=, end_offset=)` が非推奨になり、`--deny-warn` の check が赤くなる。旧 `view` は範囲外で abort するので、意味を保つ置き換え先は `exact_view(start=, end=)`。`clamped_view` は端へ丸めるので、テストの前提が崩れたときに黙って通す (実測)。報告者の提案は、MoonBit を使う他のリポジトリで toolchain を0.10.19以上へ上げるときは、`view(start_offset=` / `view(end_offset=` / 引数なしの `.view()` を事前に grep して `exact_view` へ移す手順を、toolchain の更新の手順に添えること (実測)
 
 ### 地理データの処理 (osmium)
 
@@ -791,3 +819,4 @@ status: open
 - ISSUE-123: chrome-devtools の take_screenshot の filePath。chrome-devtools-mcp の evaluate_script の項から参照した
 - ISSUE-132: CI の待ち方。`gh pr checks --watch` の項から参照した
 - ISSUE-140: settings.local.json の配置。`disabledMcpjsonServers` の項から参照した
+- ISSUE-131: node のセキュリティ修正が pin へ届かない件。node の security の照合の項から参照した
