@@ -1,5 +1,5 @@
 lockfile_version: '1'
-generated_at: '2026-11-12T08:47:50.506795+00:00'
+generated_at: '2026-11-13T05:33:51.363910+00:00'
 apm_version: 0.34.0
 dependencies:
 - repo_url: cloudflare/security-audit-skill
@@ -58,8 +58,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: dev-workflow
   host: github.com
-  resolved_commit: 0bf47673080fdc107687c5f27b8779e5a04265f8
-  resolved_ref: 0bf47673080fdc107687c5f27b8779e5a04265f8
+  resolved_commit: e1720e6d565c278d29c2e74841cfcd386546151b
+  resolved_ref: e1720e6d565c278d29c2e74841cfcd386546151b
   version: 0.2.0
   virtual_path: plugins/dev-workflow
   is_virtual: true
@@ -138,8 +138,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: security-blue-red-team
   host: github.com
-  resolved_commit: 0bf47673080fdc107687c5f27b8779e5a04265f8
-  resolved_ref: 0bf47673080fdc107687c5f27b8779e5a04265f8
+  resolved_commit: e1720e6d565c278d29c2e74841cfcd386546151b
+  resolved_ref: e1720e6d565c278d29c2e74841cfcd386546151b
   version: 0.5.0
   virtual_path: plugins/security-blue-red-team
   is_virtual: true
@@ -189,8 +189,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: web-monkey-qa
   host: github.com
-  resolved_commit: 0bf47673080fdc107687c5f27b8779e5a04265f8
-  resolved_ref: 0bf47673080fdc107687c5f27b8779e5a04265f8
+  resolved_commit: e1720e6d565c278d29c2e74841cfcd386546151b
+  resolved_ref: e1720e6d565c278d29c2e74841cfcd386546151b
   version: 0.2.0
   virtual_path: plugins/web-monkey-qa
   is_virtual: true
@@ -208,22 +208,22 @@ dependencies:
   - .claude/skills/web-monkey-qa/schemas/monkey-qa-profile.schema.yml
   - .claude/skills/web-monkey-qa/schemas/monkey-qa-profile.template.yml
   deployed_file_hashes:
-    .claude/agents/monkey-explorer-agent.md: sha256:92ba638a9294a4fccfc649ccf7f4d1aa32e1cfa16482257826eb28a58224c296
-    .claude/commands/monkey-qa.md: sha256:83c9266d8d5c0273bff9d5995593a1f5b97eb705137934832d567ee5ab9a922e
+    .claude/agents/monkey-explorer-agent.md: sha256:199043586cd61de2913ec2a600b0e8eafe7ea6616d04a5797bffadb35d883849
+    .claude/commands/monkey-qa.md: sha256:e64e989f737eaffc374e92cfd15c98442d1d1fc14e4813a2305a064c2fd8c8b0
     .claude/skills/web-monkey-qa/.claude-plugin/plugin.json: sha256:0ebd66dd8a9616c07f75efd1f69295923967dc3eb5a76cca19370f0198d77611
-    .claude/skills/web-monkey-qa/README.md: sha256:8f42e00fcb2fcf8fffdee65d7950b26fef39073325f18672c0487a3c06279576
-    .claude/skills/web-monkey-qa/SKILL.md: sha256:2bd7692e14da19d49c56fe43ef737e792916b6b53fcb43da4b7e85e06ba41222
-    .claude/skills/web-monkey-qa/agents/monkey-explorer-agent.md: sha256:92ba638a9294a4fccfc649ccf7f4d1aa32e1cfa16482257826eb28a58224c296
-    .claude/skills/web-monkey-qa/commands/monkey-qa.md: sha256:1eb61ce594a4e7a3a3b20c42cfe525f8dabf6129cb5d8f7328d5a6ff9668fdf7
+    .claude/skills/web-monkey-qa/README.md: sha256:3e5ba8ebf95a995d92eefb34dd72af01109fd1c5ea7e34dce225a67d74fae01b
+    .claude/skills/web-monkey-qa/SKILL.md: sha256:d27a80fc2a75bbb8e6e7ca596c0494853826b97166407845491964a28dea0adc
+    .claude/skills/web-monkey-qa/agents/monkey-explorer-agent.md: sha256:199043586cd61de2913ec2a600b0e8eafe7ea6616d04a5797bffadb35d883849
+    .claude/skills/web-monkey-qa/commands/monkey-qa.md: sha256:433feb1c2be14f0917857abe3a995c66fa98eed2315f51282aca8af9faf821c8
     .claude/skills/web-monkey-qa/schemas/findings.schema.json: sha256:922bcb7bd0ddcf75678171aae6e2b949c018fb3f6b6e96ebc31f57f1ea04202e
-    .claude/skills/web-monkey-qa/schemas/monkey-qa-profile.schema.yml: sha256:4f4ea6234c7eb7ede3620b8ad73ea8825e4fe97fe668959a884a52c7d431e7b1
-    .claude/skills/web-monkey-qa/schemas/monkey-qa-profile.template.yml: sha256:a412dbf03e8b453e890a51bd8b0b8b3969d03108579387a512b9c2ec3e64279e
-  content_hash: sha256:19c24cb2c723aa8f7c65e5424d79e0e21b818d782c3f6b051483544353b05888
+    .claude/skills/web-monkey-qa/schemas/monkey-qa-profile.schema.yml: sha256:9cbc4734903df0bf79a6206ff1497e36f6611cd02501a8d33aa707f358bfeb80
+    .claude/skills/web-monkey-qa/schemas/monkey-qa-profile.template.yml: sha256:0b79d04ba3a000a5028a7fa504c78e688464ff89573c0218a9cee8a7c2c432f6
+  content_hash: sha256:ff024a06a07c3dcf4129da581a7eb019c54fdffbc0ce13cda7cff703f9e2ebc7
 - repo_url: hidari/agentic-coding-tools
   name: macos-vm-verification
   host: github.com
-  resolved_commit: 0bf47673080fdc107687c5f27b8779e5a04265f8
-  resolved_ref: 0bf47673080fdc107687c5f27b8779e5a04265f8
+  resolved_commit: e1720e6d565c278d29c2e74841cfcd386546151b
+  resolved_ref: e1720e6d565c278d29c2e74841cfcd386546151b
   version: unknown
   virtual_path: skills/devops/macos-vm-verification
   is_virtual: true
@@ -245,8 +245,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: windows-vm-verification
   host: github.com
-  resolved_commit: 0bf47673080fdc107687c5f27b8779e5a04265f8
-  resolved_ref: 0bf47673080fdc107687c5f27b8779e5a04265f8
+  resolved_commit: e1720e6d565c278d29c2e74841cfcd386546151b
+  resolved_ref: e1720e6d565c278d29c2e74841cfcd386546151b
   version: unknown
   virtual_path: skills/devops/windows-vm-verification
   is_virtual: true
@@ -272,8 +272,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: context-loading-mechanics
   host: github.com
-  resolved_commit: 0bf47673080fdc107687c5f27b8779e5a04265f8
-  resolved_ref: 0bf47673080fdc107687c5f27b8779e5a04265f8
+  resolved_commit: e1720e6d565c278d29c2e74841cfcd386546151b
+  resolved_ref: e1720e6d565c278d29c2e74841cfcd386546151b
   version: unknown
   virtual_path: skills/meta/context-loading-mechanics
   is_virtual: true
@@ -287,8 +287,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: cross-repo-learnings
   host: github.com
-  resolved_commit: 0bf47673080fdc107687c5f27b8779e5a04265f8
-  resolved_ref: 0bf47673080fdc107687c5f27b8779e5a04265f8
+  resolved_commit: e1720e6d565c278d29c2e74841cfcd386546151b
+  resolved_ref: e1720e6d565c278d29c2e74841cfcd386546151b
   version: unknown
   virtual_path: skills/meta/cross-repo-learnings
   is_virtual: true
@@ -304,8 +304,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: session-handoff
   host: github.com
-  resolved_commit: 0bf47673080fdc107687c5f27b8779e5a04265f8
-  resolved_ref: 0bf47673080fdc107687c5f27b8779e5a04265f8
+  resolved_commit: e1720e6d565c278d29c2e74841cfcd386546151b
+  resolved_ref: e1720e6d565c278d29c2e74841cfcd386546151b
   version: unknown
   virtual_path: skills/meta/session-handoff
   is_virtual: true
@@ -321,8 +321,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: jev-lint-curated
   host: github.com
-  resolved_commit: 0bf47673080fdc107687c5f27b8779e5a04265f8
-  resolved_ref: 0bf47673080fdc107687c5f27b8779e5a04265f8
+  resolved_commit: e1720e6d565c278d29c2e74841cfcd386546151b
+  resolved_ref: e1720e6d565c278d29c2e74841cfcd386546151b
   version: unknown
   virtual_path: skills/tooling/jev-lint-curated
   is_virtual: true
@@ -348,8 +348,8 @@ dependencies:
 - repo_url: hidari/agentic-coding-tools
   name: markdown-to-pdf
   host: github.com
-  resolved_commit: 0bf47673080fdc107687c5f27b8779e5a04265f8
-  resolved_ref: 0bf47673080fdc107687c5f27b8779e5a04265f8
+  resolved_commit: e1720e6d565c278d29c2e74841cfcd386546151b
+  resolved_ref: e1720e6d565c278d29c2e74841cfcd386546151b
   version: unknown
   virtual_path: skills/tooling/markdown-to-pdf
   is_virtual: true
@@ -489,7 +489,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/web-monkey-qa
   active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
-  content_hash: sha256:92ba638a9294a4fccfc649ccf7f4d1aa32e1cfa16482257826eb28a58224c296
+  content_hash: sha256:199043586cd61de2913ec2a600b0e8eafe7ea6616d04a5797bffadb35d883849
 - kind: project-relative
   target: claude
   value: .claude/agents/red-team-agent.md
@@ -507,7 +507,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/web-monkey-qa
   active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
-  content_hash: sha256:83c9266d8d5c0273bff9d5995593a1f5b97eb705137934832d567ee5ab9a922e
+  content_hash: sha256:e64e989f737eaffc374e92cfd15c98442d1d1fc14e4813a2305a064c2fd8c8b0
 - kind: project-relative
   target: claude
   value: .claude/commands/security-blueteam.md
@@ -1695,7 +1695,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/web-monkey-qa
   active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
-  content_hash: sha256:8f42e00fcb2fcf8fffdee65d7950b26fef39073325f18672c0487a3c06279576
+  content_hash: sha256:3e5ba8ebf95a995d92eefb34dd72af01109fd1c5ea7e34dce225a67d74fae01b
 - kind: project-relative
   target: claude
   value: .claude/skills/web-monkey-qa/SKILL.md
@@ -1704,7 +1704,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/web-monkey-qa
   active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
-  content_hash: sha256:2bd7692e14da19d49c56fe43ef737e792916b6b53fcb43da4b7e85e06ba41222
+  content_hash: sha256:d27a80fc2a75bbb8e6e7ca596c0494853826b97166407845491964a28dea0adc
 - kind: project-relative
   target: claude
   value: .claude/skills/web-monkey-qa/agents/monkey-explorer-agent.md
@@ -1713,7 +1713,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/web-monkey-qa
   active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
-  content_hash: sha256:92ba638a9294a4fccfc649ccf7f4d1aa32e1cfa16482257826eb28a58224c296
+  content_hash: sha256:199043586cd61de2913ec2a600b0e8eafe7ea6616d04a5797bffadb35d883849
 - kind: project-relative
   target: claude
   value: .claude/skills/web-monkey-qa/commands/monkey-qa.md
@@ -1722,7 +1722,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/web-monkey-qa
   active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
-  content_hash: sha256:1eb61ce594a4e7a3a3b20c42cfe525f8dabf6129cb5d8f7328d5a6ff9668fdf7
+  content_hash: sha256:433feb1c2be14f0917857abe3a995c66fa98eed2315f51282aca8af9faf821c8
 - kind: project-relative
   target: claude
   value: .claude/skills/web-monkey-qa/schemas/findings.schema.json
@@ -1740,7 +1740,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/web-monkey-qa
   active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
-  content_hash: sha256:4f4ea6234c7eb7ede3620b8ad73ea8825e4fe97fe668959a884a52c7d431e7b1
+  content_hash: sha256:9cbc4734903df0bf79a6206ff1497e36f6611cd02501a8d33aa707f358bfeb80
 - kind: project-relative
   target: claude
   value: .claude/skills/web-monkey-qa/schemas/monkey-qa-profile.template.yml
@@ -1749,7 +1749,7 @@ deployments:
   owners:
   - hidari/agentic-coding-tools/plugins/web-monkey-qa
   active_owner: hidari/agentic-coding-tools/plugins/web-monkey-qa
-  content_hash: sha256:a412dbf03e8b453e890a51bd8b0b8b3969d03108579387a512b9c2ec3e64279e
+  content_hash: sha256:0b79d04ba3a000a5028a7fa504c78e688464ff89573c0218a9cee8a7c2c432f6
 - kind: project-relative
   target: claude
   value: .claude/skills/windows-vm-verification
