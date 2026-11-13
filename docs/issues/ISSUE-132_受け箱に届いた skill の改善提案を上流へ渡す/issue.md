@@ -81,6 +81,14 @@ dotfiles で確かめたこと (2026-10-23): 同じ日に、別のリポジト�
 
 - pre-merge-quality-gate の Phase 3 の実ブラウザ確認が、プロジェクトの CLAUDE.md が求めるときだけになった (v2026.11.0、ドキュメントのみ)。報告者の提案は、UI のあるプロジェクトで続けるなら、各プロジェクトの CLAUDE.md かグローバル CLAUDE.md に要求を書くか、ユーザーと決めること (ドキュメントのみ)。dotfiles で確かめたこと (2026-11-11): worktree の配布の写し (追跡外) の SKILL.md は、174行目 (v2026.11.0 の写し) に「UI 変更があり、プロジェクトの CLAUDE.md が実ブラウザでの確認を求めていれば」と書いている。グローバル CLAUDE.md は「完了前」の2で「UI を持つプロダクトの画面に関わる変更は、マージ前に実ブラウザで動作を確かめること。プロジェクトの CLAUDE.md が求めていなくても行う」と既に求めているので、このグローバル CLAUDE.md が読まれるセッションでは要求は残っている。仕分けたセッションの解釈: gate の条件の文だけを読むと「プロジェクトが求めなければ省いてよい」と読め、グローバルの規範と向きが食い違う (v2026.11.0 の写しでの読み)。dotfiles で確かめたこと (2026-11-13、v2026.11.2 の写し): SKILL.md の176行目は「UI 変更があり、CLAUDE.md (user スコープかプロジェクトのどちらか) が実ブラウザでの確認を求めていれば」になっており、上の食い違いは上流で解消した
 
+### pre-merge-quality-gate: レーンの読了の量と指摘の重なり
+
+2026-11-13に仕分けた分で届いた。別のリポジトリのセッションの報告。
+
+- 報告 (実測): pre-merge-quality-gate の Boy Scout Sweep で、触ったファイル (30本・約3.7万行) を約5000行ずつの8組に分けて別々の subagent に通読させ、ファイルごとの読んだ行数と総行数と未読の範囲を構造化出力の schema で返させた。8体の全員が担当のファイルを最終行まで読み、合計で総行数と一致した。前のゲートでは1体に全部を任せたら、同じ規模で約1650行しか通読できていなかった。所見も、ffi がまだ無かったころの言い方の取り残し、文書の表の行番号の参照のずれ、仕様書の文の途中の改行 (53行) など、差分の周辺だけでは出ない形が15件出た (実測)。読了範囲をファイルごとの数で返させると、Phase 0 で数えた各ファイルの行数と機械的に突き合わせられ、欠けを見落とさない。自由文の報告だと、どこまで読んだかが比べられない (実測)。報告者の提案は、Boy Scout Sweep の項目で、触ったファイルの総行数が大きいとき (目安で数千行を超えるとき) は、行数で組に分けて複数の subagent に通読させ、ファイルごとの lines_read と total_lines を schema で返させる形を既定にすること (実測)。dotfiles で確かめたこと (2026-11-13、v2026.11.2 の写し): worktree の配布の写し (追跡外) の pre-merge-quality-gate の SKILL.md は、62行目でレーンに何を何件読んだか (ファイル数と行数、読めなかった範囲はファイルと行の範囲) を報告させ、68行目で Boy Scout Sweep の報告を Phase 0 の削除を除いた一覧と各ファイルの行数に突き合わせ、欠けがあればそのレーンを1回だけやり直す、と既に書いている。Boy Scout Sweep は81行目で1本の `general-purpose` として起動する形で、行数で組に分ける記述は無い。仕分けたセッションの解釈: 読了範囲を数で返させて突き合わせる側は写しが既に持ち、新しいのは、大きいときに初めから組に分けて起動する側である。写しの60行目は起動する agent の総数を見積もることを求め、agentic-coding-tools の ISSUE-103 (closed) は起動数の上限をレーンの数から導く形で決めているので、組に分けるとレーンの数そのものが増える点はその裁定と合わせて見る
+- 差分が約1.5万行・150ファイルの PR のマージ前ゲートで、コードレビューを領域ごとに3レーン、ボーイスカウトをファイルの行数で均した3レーン (約1.5万行ずつ) に分け、レーンから反証役への流れを Workflow の pipeline で組んだ (実測)。ボーイスカウトのレーン1本に約1.5万行・約50ファイルの全文を読ませると、どのレーンも差分は読み切るが、大きいファイル (2000行級) とテストの多くを grep だけで済ませた。読了の範囲を報告させ、一覧と行数で突き合わせて初めて欠けが見えた (61ファイル・約2.6万行) (実測)。読み直しのレーンに「前のレーンが全文を読んだファイルを除いた一覧」(約1.3万行) だけを渡すと、全行を読み切り、最初のレーンが見落とした偽のテストのコメント (赤くならないと書いた変異が実際は赤くなる) を拾った (実測)。報告者の提案は、ボーイスカウトのレーンは1レーンあたりの全文の読了をおよそ1万行以下に絞り、差分の行数ではなく「削除を除いたファイルの全行数」で分けること。そうすれば読み直しのレーンが要らなくなる見込みだという (推測)。dotfiles で確かめたことと解釈は上の項と同じ。finder の読了範囲を数で返させた報告は ISSUE-100 の受け箱から届いた報告の節にもある
+- simplify の Reuse・Simplification・Altitude の3レーンが、同じ写し (ブラウザとサーバの同じ関数) を別々に挙げた。重なりは親が機構で束ねないと3件に数えてしまう (実測)。dotfiles で確かめたこと (2026-11-13、v2026.11.2 の写し): worktree の配布の写し (追跡外) の pre-merge-quality-gate の SKILL.md は、122行目で親が `Agent` tool のレーンの指摘へ ID を振ると書いているが、レーンをまたいで同じ指摘を束ねる手順は書いていない。simplify は `Skill` tool で起動するレーンで、修正の適用まで自分で行う (128行目)。仕分けたセッションの解釈: ISSUE-100 の「観点は束ねず」は観点 (レーン) を1体へまとめない決定で、ここで言う指摘の重なりを束ねることとは別
+
 ### superpowers の subagent-driven-development (外部の plugin)
 
 dotfiles も agentic-coding-tools も canonical を持たない。直せるのは、こちらが brief を書く側の手順 (ISSUE-100 のテンプレート) までである。
@@ -95,7 +103,9 @@ dotfiles も agentic-coding-tools も canonical を持たない。直せるの�
 - 報告 (実測): subagent-driven-development の pre-flight scan で、各タスクが作る型と使う型を実際のツリーで grep して突き合わせると、散文のレビューを複数通した計画に順序の食い違い (後のタスクが定める型を前のタスクが使う) が残っていた。実装の前に spec を実コードと突き合わせる項は ISSUE-133 の「Claude Code の hook と委譲」節にある
 - 報告 (実測): subagent-driven-development の fix-loop の「Minor はループに入れず最終レビューへ回す」が、グローバル CLAUDE.md の警告0とボーイスカウトとぶつかった。規定どおりだと、タスクが新しく作った警告やテストの空回りが最後まで残る。CLAUDE.md を優先して修正のラウンドに入れた。報告者の提案は、「Minor が警告の新規発生や dead pin に当たるときはループに入れる」を規範か `references/delegation.md` に1行足すこと (足せば毎回の上書きが要らなくなる、は推測)。規範に足す候補としては ISSUE-133 の「Claude Code の hook と委譲」節にある
 - 報告 (実測): 同梱の `task-brief` は見出しの形を決め打ちしている。英語の「Task」の見出し (`### Task N:`) しか拾わず、日本語の「手順 N」の plan では rc=3 で止まる (エラーの文面には、見出しの候補として手順の見出しが列挙される)。別のリポジトリでは、見出しが「Task A1」のような英字つきの ID だと「not found」で中身の空のファイルを作った (数字の ID を前提にしている)。2026-11-10の仕分けで、2つのリポジトリから届いた。どちらも awk で見出しの範囲を切り出して代えた。前者は、awk で「### 手順 N:」の節と plan の共通の節 (決定表・前提・同じコミットで変える組) を抜き出して brief を作ると、merge 済みの plan を書き換えずに済み、各 brief の行数で抜き出しの漏れを確かめた (実測)。同じ報告者の使用感では、superpowers の7.0.2の workspace・ledger・review-package のスクリプトは言語を問わず動き、task-brief だけが見出しを英語に縛っている (実測)
+  - 2026-11-13の仕分けで、別のリポジトリから同じ型の報告が届いた。subagent-driven-development の `task-brief` で、番号付きの手順 (「1. …」) で書いた Plan からタスクの本文を抜き出そうとした。`task-brief` は「Task N」の見出しでタスクを切り出すので、番号付きの手順で書いた Plan からは抜き出せず、ブリーフを手で書くことになった (実測)。報告者の提案は、Plan のテンプレートや writing-plans の出力に「Task N」の見出しを必須にするか、task-brief が番号付きの手順も切り出せるようにすること (実測、上の task-brief の項)。仕分けたセッションの解釈: 親の項の日本語の見出しと英字つきの ID に続く3つ目の形で、見出しではなく番号付きのリストで手順を書いた Plan にあたる。提案は次の項の報告者の提案 (見出しを「### Task N:」の形にする規約か、代わりの手順を置く) と同じ向き
 - 上の task-brief の件の報告者の提案は2つある。日本語で plan を書く規約 (writing-plans や in-repo-issue の Plan 結合) を持つリポジトリでは、plan の見出しを「### Task N: 手順の名前」の形にする規約を足すか、task-brief が使えないときの代わりの手順を skill の側に置く (推測)。計画の Task の ID に英字の接頭辞 (PR ごとの A1、B1 など) を使う運用なら、task-brief の代わりの切り出しを手順に用意するか、計画の見出しを数字だけにする (実測)。superpowers は外部なので、受けるなら brief の雛形 (ISSUE-100) か使う側の規約になる
+- 2026-11-13の仕分けで、別のリポジトリから届いた。同梱の `task-brief` の出力を、brief のパスへシェルのリダイレクトで書いた (実測)。task-brief は brief のファイルを自分で書き、stdout には「wrote <path>: N lines」だけを出す。そのため `task-brief ... > <同じ brief のパス>` とすると、書かれた brief を stdout の1行が上書きし、残った中身は途中から始まる壊れた形になる。Read は不正な UTF-8 として警告した。リダイレクトせずに呼べばよい (実測)。報告者の提案は、subagent-driven-development の手順書か task-brief の使い方の説明に「出力先は自分で書く。stdout をリダイレクトしない」を明記するか、stdout の案内を stderr に移すこと (実測)。仕分けたセッションの解釈: superpowers は外部なので、受けるなら brief の雛形 (ISSUE-100) か使う側の規約、または上流への報告になる
 
 ### superpowers の brainstorming の visual companion (外部の plugin)
 
@@ -111,6 +121,7 @@ dotfiles で確かめたこと (2026-10-31): `home/apm.yml` は ast-grep-practic
 
 - tree-sitter の Rust では属性は struct の子ではなく直前の兄弟なので、`kind: struct_item` に `follows: {kind: attribute_item, regex}` を付けると引ける。名前は `has: {field: name}` で取り、JSON の metaVariables から読む。間に別のものを挟むと引けなくなるので、引いた集合を設定側の集合と等号で比べて取りこぼしを赤に倒す (実測。ast-grep の0.45.3)。報告者の提案: skill に例を足す
 - 自作の lint 規則 (GritQL / ast-grep など) をコードの片で書くときは、許す側の対照に「同じ字面を持つが別の構文」(別名の `as`、型注釈の中の `as` など) を置く。報告元が GritQL の規則で踏んだ件が根拠 (実測)。報告者の提案: 規則を書く skill の確認項目に足す
+- 2026-11-13の仕分けで、別のリポジトリから CSS の抑止の書き方の報告が届いた。抑止の理由のコメントは抑止の行より前に置く。next-line は文字どおり次の行を指すので、抑止と宣言の間に理由のコメントを挟むと抑止が理由の行に掛かる (実測。並べ替えた後に件数が狙いどおりになった)。ast-grep 0.42.1 は CSS の `/* ast-grep-ignore-next-line: <id> */` を解釈しない (0.45.3 は解釈する)。手元と CI で版が違うと、手元で0件の抑止済みの検出が CI だけで error になる。`pnpm dlx --package=@ast-grep/cli@<版> ast-grep scan` で両方の版を並べて再現できる (実測)。報告者の提案は、ast-grep-practice skill に CSS の抑止の書き方 (/* */ の形、理由のコメントの位置) と、`ast-grep test` が抑止を解釈しないことを足すこと (実測)。抑止の形と無関係な id の対照は ISSUE-88 の INS-106 に、`ast-grep test` が抑止を解釈しない件は ISSUE-88 の INS-110 に置いた。dotfiles で確かめたこと (2026-11-13、apm が配った写し): worktree の `home/.claude/skills/ast-grep-practice/SKILL.md` の「Suppression comments」の節は、TypeScript の `// ast-grep-ignore` と `// ast-grep-ignore: no-direct-env-access` の2つの例だけで、CSS の `/* */` の形も、理由のコメントの位置も、`ast-grep test` との関係も書いていない。手元の ast-grep は0.45.3
 
 ### security-blue-red-team: profile の契約と red-team-agent の宛先
 
@@ -122,6 +133,16 @@ dotfiles で確かめたこと (2026-10-31): `home/apm.yml` は ast-grep-practic
 - 認証付きの行の判定を「ログインへの redirect」だけで見ると、未認証を401の JSON で返す API (React Router の Resource Route 系) で、無効になった jar の結果が PASS に化けた。session の行では expect の無い401も FAIL にする。cleanup 後の古い jar で smoke を回すと、この規則とセッションの無効化を同時に live で確かめられた (実測)
 - universal の schema の外に、攻撃者モデルの整合の検査 (入口のホストが allow_targets にある、認証付きの行は session だけ、backend 直の認証付きの行を置かない、jar の置き場、related_code_paths の glob が追跡下のファイルに当たる) を足すと、既存の profile の死んだ glob を5本と存在しない endpoint を一度に拾えた (実測)。skill の profile の検証器へ取り込める候補
 - `/security-redteam` の command は agent の入力にある `ATTACK_SURFACES_FILTER` を引数に持たないので、ad-hoc の絞り込みは依頼文で伝えるしかない。command の引数の一覧で確かめた (実測)。報告者の提案: command に `ATTACK_SURFACES_FILTER` を渡す引数を足す
+
+### web-monkey-qa: 資格情報の付け方と並列の explorer
+
+2026-11-13に仕分けた分で届いた。別のリポジトリのセッションが、HTTP Basic 認証の背後にある staging に3つの section の explorer を1つの wave で並列に dispatch した回の報告で、資格情報と並列の干渉の件は agentic-coding-tools の ISSUE-109 (closed) で直した。
+
+- 重点の画面を確実に探索させるため、committed の profile を編集せず、section を1つ足した variant を `.cache/` に作って `MONKEY_PROFILE` で指した (実測)。使用感として、dispatcher の手順は明快で、profile の variant を足すだけで重点の画面に当てられた。並列の安全性 (scratch の分離、ネットワークのダンプの秘密情報) と、Basic 認証の付け方がハーネスの弱点 (実測)。弱点の3つはこの項に続く3項目にある。dotfiles で確かめたこと (2026-11-13、v2026.11.2 の写し): 配った `agents/monkey-explorer-agent.md` の24行目は、`MONKEY_PROFILE` を profile の YAML の絶対パスとして受ける。仕分けたセッションの解釈: 追跡外に variant を置いて指す使い方は手順書に書かれていない使い方の実例で、報告者は渡すことを提案していない
+- agent-browser の `set credentials` は HTTP Basic の Authorization を対象の origin 以外 (presigned URL のストレージ、CDN、第三者の計測スクリプト) にも付けようとする。CORS の preflight の Access-Control-Request-Headers に authorization が載り、ストレージは403を返した (authorization 無しの対照は204)。アップロードなど CORS に頼る機能はこのハーネスで確かめられず、偽の失敗表示が出る。第三者のホストへ資格情報が送られた可能性もある (実測、送信そのものは未確認)。報告者の提案は、HTTP Basic 認証を origin 全体の `set credentials` ではなく、対象の origin へのリクエストだけに付ける方法 (例えば origin で絞ったヘッダの注入) に変え、できないなら CORS に頼る機能はカバーできないことと第三者のホストへ送られうることを profile の文書に書くこと。agentic-coding-tools の ISSUE-109 (closed) で直した。あちらは agent-browser 0.39.1 とポートだけ違うローカルの2つの origin で、`set credentials` が別の origin の script と img にも資格情報を実際に送ることを確かめ (報告者が未確認とした送信まで確かめられた)、`open <url> --headers` は scheme・host・port が完全に一致する origin にだけ付くことを確かめて、手順をそちらへ替えた。dotfiles で確かめたこと (2026-11-13、v2026.11.2 の写し): 配った `agents/monkey-explorer-agent.md` の56行目は最初の `open` に `--headers` を渡し、186行目は Basic 認証を origin で絞った `open --headers` でだけ送ると書いている。README の54行目は `set credentials` を使わない理由の canonical を agent の手順に置いている
+- explorer が `agent-browser network requests --json` を加工せずに出すと、リクエストの Authorization ヘッダ (Basic の Base64) がそのまま subagent のコンテキストに載る。3体中3体が1回ずつ踏んだ (実測)。報告者の提案は、monkey-explorer-agent の手順に「network のダンプは jq で status / method / URL に絞ってから出す。ヘッダを出さない」を明記すること。agentic-coding-tools の ISSUE-109 (closed) で直した。dotfiles で確かめたこと (2026-11-13、v2026.11.2 の写し): 配った `agents/monkey-explorer-agent.md` の126行目は network のバッファを射影を通してだけ読むと書き、129行目の射影は jq でバッファの件数 (`seen`) と絞った項目だけを出す。`seen` は、あちらのレビューで400以上に絞った射影が空のとき「見たうえで無かった」と言えるように足した対照
+- 並列の explorer が同じ scratchpad を共有し、同じファイル名の検知スクリプトを上書きしあって、別の explorer のセッションの console と network のバッファを消した (実測)。報告者の提案は、dispatcher が explorer ごとに専用の scratch のサブディレクトリを渡すこと。agentic-coding-tools の ISSUE-109 (closed) で直した。dotfiles で確かめたこと (2026-11-13、v2026.11.2 の写し): 配った `commands/monkey-qa.md` の36行目は、explorer ごと・起動ごとに一意な `SCRATCH_DIR` を dispatch の直前に `mktemp -d` で作って渡すと書き、`agents/monkey-explorer-agent.md` の68行目と188行目は書き込みを `SCRATCH_DIR` の下に限っている
+- agent-browser のブラウザが `press Escape` の直後などに勝手に作り直され、cookie と Basic 認証が消える (7回中3回、再現は取れず) (実測)。agentic-coding-tools の ISSUE-109 (closed) は、作り直しをハーネスの側で検知して section を止める手当て (Basic 認証の section で `BASE_URL` の `Document` が401になったら打ち切る) を入れた。あちらでも作り直しは再現せず、条件の切り分けと Basic 認証の無い section での検知は agentic-coding-tools の ISSUE-110 へ移した
 
 ### windows-vm-verification: ディスクの容量
 
@@ -181,7 +202,8 @@ dotfiles で確かめたこと (2026-10-31): `home/apm.yml` は ast-grep-practic
 - [ ] superpowers の2件は、brief の雛形 (ISSUE-100) に「型検査の recipe」と「同梱スクリプトはリポジトリの中から絶対パスで呼ぶ」を入れるかを決める
   - 2026-10-31に足した5件 (計画の冒頭の前提、目録の文書を Files に含める、件数の行はコントローラが持つ、最初に BASE へ ff-only、件数の両側のガード) も、同じく雛形に入れるかを決める
   - pre-flight scan の件と fix-loop の Minor の扱いの件は、ISSUE-133 の委譲の規範の候補と一緒に決める
-  - 2026-11-10に足した task-brief の見出しの形の件 (日本語の見出しと英字つきの ID) も、雛形か使う側の規約で受けるかを同じく決める
+  - 2026-11-10に足した task-brief の見出しの形の件 (日本語の見出しと英字つきの ID) と、2026-11-13に子の項として足した番号付きの手順の Plan の件も、雛形か使う側の規約で受けるかを同じく決める
+  - 2026-11-13に足した task-brief の出力先の件 (stdout をリダイレクトすると brief が壊れる) は、雛形か使う側の規約で受けるか、外部の上流へ報告するかを決める
 - [x] in-repo-issue の2節 (後から取り付ける経路、Issue の外にある写しと参照) を agentic-coding-tools へ渡す。`always_run` のコメントは版を添えて測り直してもらい、`issue-id.py` の CLI にかかる分は ISSUE-121 と一緒に渡す
   - 2026-10-31に渡した。後から取り付ける経路は agentic-coding-tools の ISSUE-32 へ追記され (`always_run` は版と files / types の絞り込みの有無をそろえて測り直すタスクになった)、写しと参照は agentic-coding-tools の ISSUE-97 として起票された。`--check-diff` の罠を SKILL.md に書くかは ISSUE-121 のタスクが持ったまま
 - [ ] in-repo-issue の「後から取り付ける経路」節の残り2項目 (採番の形式の変更を配るときの告知、配る `issue-id.py` が764行で全文を読むのが重い) を agentic-coding-tools へ渡すか決める。2026-10-31の依頼では範囲を3点に絞って書いたので外れた
@@ -190,6 +212,7 @@ dotfiles で確かめたこと (2026-10-31): `home/apm.yml` は ast-grep-practic
 - [ ] 「ゲートの順序、増分、CI の待ち方」節の5項目め (merge の後に回す事後のゲート) を agentic-coding-tools へ渡すか決める
 - [ ] 「ゲートの順序、増分、CI の待ち方」節の6項目め (worktree のブランチと `--delete-branch`) を、merge の手順を持つ skill へ渡すか決める
 - [ ] ast-grep-practice の2件を、第三者の上流 (mizchi/skills) へ報告するか、使う側の書き方で受けるかを決める
+  - 2026-11-13に足した CSS の抑止の件 (理由のコメントの位置、0.42.1と0.45.3の版の差、`ast-grep test` が抑止を解釈しないこと) も、同じく決める
 - [ ] security-blue-red-team の6件を agentic-coding-tools へ渡す。ISSUE-114 で寄せる範囲を決めてから、契約に足すか自作の層で持つかを決めてもらう
 - [x] windows-vm-verification の3節を agentic-coding-tools へ渡す。CLI (winvm) にネットワークを切る区間の入口を足すかも決めてもらう
   - 2026-10-31に渡した。ディスクの容量と GUI 自動化は agentic-coding-tools の ISSUE-100、ネットワークを切る区間 (winvm の入口の判断を含む) は agentic-coding-tools の ISSUE-101 として起票された。配布版の gui-automation.md に既にあった2件 (日付の Spinner、インストーラの後の wuauserv) は除いた
@@ -198,6 +221,7 @@ dotfiles で確かめたこと (2026-10-31): `home/apm.yml` は ast-grep-practic
   - 2026-11-13にユーザーと決めた。上流の ISSUE-99 (closed) の裁定 (増分の手順は散文にせず、マージを head の SHA に縛った) に従い渡さない。どちらも増分の手順を散文で足す提案で、裁定を緩める向きになる。同じ日に足したほかの2項目 (ゲートが見た SHA の控え方、run の登録前に空が返ること) は v2026.11.1 で上流に入っていた
 - [x] 「pre-merge-quality-gate: Phase 3 の実ブラウザ確認の条件」節の件を閉じるか決める
   - 2026-11-13にユーザーと決めた。v2026.11.1 で gate の条件の文が user スコープの CLAUDE.md を含む形になったので、それで足りるとして閉じる
+- [ ] 「pre-merge-quality-gate: レーンの読了の量と指摘の重なり」節 (2026-11-13) の3項目を agentic-coding-tools へ渡すか決める。上流は読了の突き合わせとやり直しを既に入れているので、渡すならレーンの行数の上限と行数での分け方 (2つのリポジトリから届いた)、レーンをまたぐ指摘の束ね方に絞る。起動数の上限をレーンの数から導いた agentic-coding-tools の ISSUE-103 (closed) の裁定と合わせて見る
 
 ## 関連
 
@@ -207,3 +231,7 @@ dotfiles で確かめたこと (2026-10-31): `home/apm.yml` は ast-grep-practic
 - ISSUE-121: `issue-id.py` の接頭辞と走査の除外を外から渡す。in-repo-issue の後付けの取り付けと同じ面を持つ
 - ISSUE-114: security-blue-red-team を cloudflare の security-audit へ寄せる検討。Layer 2 / 3 を自作に残す見立てで、security-blue-red-team の節の提案が触る層と重なる
 - ISSUE-75: 写しの食い違いを config-guard で検査する dotfiles 側の前例。ロードマップを写しにする雛形の提案と形が似ている
+- ISSUE-88: 検査と変異注入の知見。ast-grep の CSS の抑止の件を INS-110 に置いた
+- agentic-coding-tools の ISSUE-103 (closed): 起動数の上限をレーンの数から導いた裁定。レーンの読了の量の節から参照した
+- agentic-coding-tools の ISSUE-109 (closed): web-monkey-qa の資格情報の露出と並列の explorer の干渉を直した
+- agentic-coding-tools の ISSUE-110: web-monkey-qa の作り直しの条件の切り分け
