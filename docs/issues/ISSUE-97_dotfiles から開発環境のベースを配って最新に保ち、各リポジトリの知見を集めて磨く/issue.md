@@ -49,7 +49,7 @@ dotfiles で確かめたこと:
   - 2026-11-10の仕分けで、zsh の単語分割を踏んだ報告が4つのリポジトリの6つのまとめから届いた (どれも実測)。複数行の文字列を入れた変数をクォートせずに渡すと `grep pattern $F` が1つの巨大なファイル名として扱われ、検査が何も見ないまま ugrep の警告に紛れて「0件」に見えた件 (手当ては、git の管理下なら `git grep -- <paths>` を使うこと。並列の批評役の subagent も同じ罠を踏んでいた)、`set -- $var` が語に分かれず bash の前提で書いた1行が黙って別のものを見た件、Bash ツールの zsh で空白区切りの文字列の変数を `for s in $LIST` で回すと全体が1要素として渡った件 (手当ては、bash の配列で組んだ別のスクリプトにし、流す前に並びと本数だけを出す --plan で確かめること)、`for v in $VAR` で pnpm why に "8.2.0 8.3.0" が1つの引数で渡り、結果がもっともらしくて気づきにくかった件 (同じセッションの中で2回目)、`for g in "fmt-check" "test-crate foo"; do cargo xtask $g; done` で `test-crate foo` が1引数で渡りサブコマンド不明で終了コードが2になりテストの赤に見えた件 (手当ては、引数を配列にするかサブコマンドごとに書き分けること)、`for p in "a b"; do set -- $p` で gh api の引数が空になり422が返った件である
   - 2026-11-10の仕分けで、パイプの rc が終端のコマンドのものになる件を踏んだ報告が、同じリポジトリの2つのまとめから届いた (どちらも実測)。`cargo build ... | grep ... | head && 次のコマンド` で、ビルドが失敗しても head の終了コードで && が通り、古いバイナリで測った件 (手当ては、ビルドの出力をファイルに落として終了コードを直接見ること) と、zsh には `PIPESTATUS` が無く、パイプの先の rc を取ったつもりで空になり、パイプへ繋いだ時点で観測の rc は終端のコマンドのものになる件である。`PIPESTATUS` の件も `references/observation.md` に載っている。dotfiles で確かめたこと (2026-11-10、zsh 5.9): `zsh -c 'false | true'` の後で `PIPESTATUS` は空、小文字の `pipestatus` は `1 0` を返した
   - 2026-11-11の仕分けで、別のリポジトリからまた届いた。zsh では `cmd | tail; echo ${PIPESTATUS[0]}` が空になる。rc を見たいときは、出力をファイルに落としてから `echo rc=$?` する (実測)。dotfiles で確かめたこと (2026-11-11): `references/observation.md` の152行目は、zsh に `PIPESTATUS` が無く、小文字の `pipestatus` が1始まりであることを既に書いている
-  - 2026-11-13の仕分けで、別のリポジトリからまた届いた。zsh の Bash ツールで `cmd | tail; echo ${PIPESTATUS[0]}` は空になり、終了コードが取れない。パイプなしで実行して `$?` を見た (実測)。dotfiles で確かめたこと (2026-11-13): `references/observation.md` の152行目は、zsh に `PIPESTATUS` が無く、小文字の `pipestatus` が1始まりであることを既に書いている
+  - 2026-11-13の仕分けで、別のリポジトリからまた届いた。zsh の Bash ツールで `cmd | tail; echo ${PIPESTATUS[0]}` は空になり、終了コードが取れない。パイプなしで実行して `$?` を見た (実測)。dotfiles で確かめたことは上の子と同じ (2026-11-13に `references/observation.md` の152行目で再確認)
 - 結果を tail で切り詰めて失敗の行が落ち、`passed` だけが見えたこと: dotfiles のメモリにはあるが references には無い
 - 変異がビルドの未使用の検査に横取りされること、変異が当たらないまま緑を読むこと: ISSUE-88 の INS-7 と INS-10 の2件目として届いた。前回の6つにある「変異がコンパイラの警告に横取りされる」と同じ型である
 
@@ -134,7 +134,7 @@ stale な記述の検出には使わない。ISSUE-115 の試験で、過去形�
 
 ## 関連
 
-- ISSUE-126: 子。受け箱 (PR 253 で dotfiles の ignore 済みディレクトリに置いた) の送る側と仕分ける側の設計を持つ
+- ISSUE-126 (closed): 子。受け箱 (PR 253 で dotfiles の ignore 済みディレクトリに置いた) の送る側と仕分ける側の設計を持つ
 - ISSUE-144: 子。採否台帳で読む件を客観的な条件で絞り、まとめて決められるようにする (刈り込みの工程の一部)
 - ISSUE-53: 配布先の加入状況と写しの drift を見る層。写しの drift の判定はあちらが持ち、この Issue の写しの告知はあちらの判定の形が決まってから着手する
 - ISSUE-101: apm の pin の鮮度を告げる。この Issue から切り出した
@@ -142,8 +142,8 @@ stale な記述の検出には使わない。ISSUE-115 の試験で、過去形�
 - ISSUE-86 (closed): `.gitleaks.toml` の写しを PUBLIC のリポジトリへ置き、PRIVATE には既定ルールだけの設定を置いた展開。写しか参照かの切り分けで方針が変わりうる (変わるのは内容で、着手順ではない)
 - ISSUE-50: ruleset の汎用定義を dotfiles に置き、各リポジトリへ適用する計画を持つ。対象のリポジトリは実行時に取得するので、母集団の決定とも重なる
 - ISSUE-83 と ISSUE-71: SessionStart へ告知を足すときの前提
-- ISSUE-88 と ISSUE-89: 委譲による収集の実例 (もう1つの経路は ISSUE-126 の受け箱)
-- ISSUE-77: 配布済みの skill と dotfiles のフック実装が食い違う件。同種の drift にあたる
+- ISSUE-88 と ISSUE-89 (ISSUE-89 は closed): 委譲による収集の実例 (もう1つの経路は ISSUE-126 の受け箱)
+- ISSUE-77 (closed): 配布済みの skill と dotfiles のフック実装が食い違う件。同種の drift にあたる
 - ISSUE-90: 配布物の形が変わったことに気づく層
 - Issue 42 (closed): 外部ストレージと SessionStart の注入の前例
 - agentic-coding-tools の ISSUE-32: 層 2 (採番スクリプトの写しと、in-repo-issue の hook block の固定テンプレート)、層 3 (横断スイープ)、層 4 (template の写しをやめる) の spec を持つ
