@@ -193,11 +193,11 @@ dotfiles で確かめたこと (2026-10-31): `home/apm.yml` は ast-grep-practic
 - [ ] security-blue-red-team の6件を agentic-coding-tools へ渡す。ISSUE-114 で寄せる範囲を決めてから、契約に足すか自作の層で持つかを決めてもらう
 - [x] windows-vm-verification の3節を agentic-coding-tools へ渡す。CLI (winvm) にネットワークを切る区間の入口を足すかも決めてもらう
   - 2026-10-31に渡した。ディスクの容量と GUI 自動化は agentic-coding-tools の ISSUE-100、ネットワークを切る区間 (winvm の入口の判断を含む) は agentic-coding-tools の ISSUE-101 として起票された。配布版の gui-automation.md に既にあった2件 (日付の Spinner、インストーラの後の wuauserv) は除いた
-- [ ] justfile の `*args` の件を第三者の上流へ報告するか決める。workflow-authoring の件は brief を書く側で外すことを、ISSUE-100 のテンプレートに入れるか決める
-- [ ] 「ゲートの順序、増分、CI の待ち方」節に2026-11-11に足した「当て直しのファイル一覧を増分に揃える」を agentic-coding-tools へ渡すか決める。上流の ISSUE-99 (closed) の裁定 (増分の手順は散文にしない) を緩める提案になるので、閉じるか残すかをユーザーと決める。同じ日に足したほかの2項目 (ゲートが見た SHA の控え方、run の登録前に空が返ること) は v2026.11.1 で上流に入っていた
-- [ ] 「pre-merge-quality-gate: Phase 3 の実ブラウザ確認の条件」節の件は v2026.11.1 で gate の条件の文が user スコープの CLAUDE.md を含む形になったので、それで足りるとして閉じるかをユーザーと確かめる
-- [ ] 「ゲートの順序、増分、CI の待ち方」節の1項目めに2026-11-11に足した子 (ゲートの直し自体を増分に含める、引き継ぎ書の使い回しの前提が外れた実例) を、agentic-coding-tools の ISSUE-99 へ足すか決める。ISSUE-99 は closed で「増分の手順は散文にせず、マージを head の SHA に縛った」と決めているので、閉じた Issue へは足せない。新しい Issue にするか、裁定のとおり閉じるかをユーザーと決める
-- [ ] workflow-authoring のテンプレート文字列の中の文字列連結の件を、ISSUE-100 のテンプレートか Workflow の script を書く側の注意で受けるか決める
+- [ ] justfile の `*args` の件を第三者の上流へ報告するか決める。workflow-authoring の2件 (brief を書く側で外すこと、テンプレート文字列の中の文字列連結) を、ISSUE-100 のテンプレートか Workflow の script を書く側の注意で受けるか決める
+- [x] 「ゲートの順序、増分、CI の待ち方」節に2026-11-11に足した2項目 (1項目めの子の「ゲートの直し自体を増分に含める」と、「当て直しのファイル一覧を増分に揃える」) を agentic-coding-tools へ渡すか決める
+  - 2026-11-13にユーザーと決めた。上流の ISSUE-99 (closed) の裁定 (増分の手順は散文にせず、マージを head の SHA に縛った) に従い渡さない。どちらも増分の手順を散文で足す提案で、裁定を緩める向きになる。同じ日に足したほかの2項目 (ゲートが見た SHA の控え方、run の登録前に空が返ること) は v2026.11.1 で上流に入っていた
+- [x] 「pre-merge-quality-gate: Phase 3 の実ブラウザ確認の条件」節の件を閉じるか決める
+  - 2026-11-13にユーザーと決めた。v2026.11.1 で gate の条件の文が user スコープの CLAUDE.md を含む形になったので、それで足りるとして閉じる
 
 ## 関連
 
