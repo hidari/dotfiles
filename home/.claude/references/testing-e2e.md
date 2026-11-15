@@ -4,9 +4,9 @@
 
 規範の遵守そのものには要らない。手当ての具体が要るとき、規範を疑うとき、似た失敗を踏んで「これは既知か」を確かめるときに読む。
 
-E2E の assertion が空振りしていないことを、陽性の合図か前提の assert で先に示す。下の節はその実例。
+E2E の assertion が空振りしていないことを、陽性の合図か前提の assert で先に示す。陰性の確認、動きの終わりを待つ、競合の再現の節はその実例。
 
-Playwright とブラウザの MCP の、版に依存する道具の事実は `~/.claude/references/testing-e2e-tools.md` が持つ。Playwright とブラウザの MCP の挙動が想定と食い違ったときに開く。
+Playwright とブラウザの MCP の、版に依存する道具の事実は `~/.claude/references/testing-e2e-tools.md` が持つ。Playwright やブラウザの MCP の API を使う E2E を書くとき、落ちたテストを流し直す前、挙動が想定と食い違ったときに開く。
 
 ## 陰性の確認は陽性の合図を待ってから行う
 
@@ -18,9 +18,9 @@ E2E で、ある要素が0件であること、何も起きないこと、遷移
 
 ## 動きの終わりを待つ
 
-動いて現れる要素を押す前や測る前に、静止を待つときに読む。
+CSS の transition や animation で動いて現れる要素を押す前や測る前に、静止を待つときに読む。
 
-- 画面に入り切った・aria-hidden が外れた、は静止の印ではない。動きの終わりは要素の `getAnimations()` の `finished` で待ち、待ちが空振りしていない対照 (開くたびに animation が1つある) を並べる。滑り込むパネルの中の要素をこの形で待つと40回とも通った (実測)。事例は `~/.claude/references/testing-e2e-tools.md` の「滑り込むパネルの中の要素を force で押す」にある
+- 画面に入り切った・aria-hidden が外れた、は静止の印ではない。動きの終わりは要素の `getAnimations()` の `finished` で待ち、待ちが空振りしていない対照 (開くたびに animation が1つある) を並べる。CSS の transform の transition で滑り込むパネルの中の要素をこの形で待つと40回とも通った (実測)。JS で動かす要素では getAnimations が空になりうる (推測。確かめていない)。事例は `~/.claude/references/testing-e2e-tools.md` の「滑り込むパネルの中の要素を force で押す」にある
 
 ## 競合の再現は競合が起きた前提を assert する
 
@@ -65,5 +65,5 @@ Playwright Test Agents を取り付けたとき、generator や healer にテス
 
 - healer の定義は直せないテストを `test.fixme()` で skip させる経路を持ち、失敗を緑に見せる。brief で禁止し、実行されたテストの ID の集合で skip が無いことを確かめる (healer が実際に fixme を付けるところも、この手当てが効くことも確かめていない。定義を読んだだけ)。件数ではなく ID の集合で見る理由は `~/.claude/references/observation.md` の「非 0 件も証明にならない」にある
 - generator は書いたテストを実行しないので、テストの実行と型エラーと赤の確認はコントローラが持つ。コントローラが毎回 `playwright test` を回して赤は healer に渡す流れにすると回った (実測)
-- generator が返す written=true は記録して書いたことを意味しない (実測)。信じずに notes を読んで確かめ、generator への brief にその手順を入れる (提案)
+- generator が返す written=true は記録して書いたことを意味しないので、notes を読んで確かめる (実測)。generator への brief にその手順を入れる (提案)
 - generator や healer を使ったあとは、`playwright test` の前にテスト用のポートが残っていないか確かめる (提案)

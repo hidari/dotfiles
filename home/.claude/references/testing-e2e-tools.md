@@ -2,7 +2,7 @@
 
 `~/.claude/references/testing-e2e.md` が名指しする、Playwright とブラウザの MCP の版に依存する道具の事実と手当て。
 
-規範の遵守そのものには要らない。道具の挙動が想定と食い違ったとき、似た失敗を踏んで「これは既知か」を確かめるときに読む。各節に道具の版を添え、記録の無いものは「版は未記録」と書く。
+規範の遵守そのものには要らない。道具の挙動が想定と食い違ったとき、似た失敗を踏んで「これは既知か」を確かめるときに読む。各節に道具の版を添え、記録の無いものは「版は未記録」と書く。報告の日付は記録のあるものだけに添える。
 
 ## 実装の切り替えの前後で同じ意味を持つ assertion
 
@@ -47,7 +47,7 @@ CSS が当たっていることの番兵は `~/.claude/references/testing-e2e.md
 
 滑り込むパネルやドロワーの中の要素を `click({ force: true })` で押すときに読む。Playwright の版は未記録。
 
-- スライドで開くドロワーの中の aria-disabled の要素を `click({ force: true })` すると、"Element is outside of the viewport" で落ちた。aria-hidden がスライドの始まりで外れるので「開いた」の確認が早く通り、force は静止を待たない (実測)。`toBeInViewport({ ratio: 1 })` を先に待つと直った (実測)。ただし `toBeInViewport({ ratio: 1 })` は動きの終わりの印にならず、画面に入り切った後も要素は30〜130px 動いていて、静止を待たない click が外れるテストが10回に2回落ちた (実測)
+- スライドで開くドロワーの中の aria-disabled の要素を `click({ force: true })` すると、"Element is outside of the viewport" で落ちた。aria-hidden がスライドの始まりで外れるので「開いた」の確認が早く通り、force は静止を待たない (実測)。`toBeInViewport({ ratio: 1 })` を先に待つと直った (実測)。ただし `toBeInViewport({ ratio: 1 })` は滑り込むパネル (CSS の transform の transition) の動きの終わりの印にならず、画面に入り切った後も要素は30〜130px 動いていて、静止を待たない click が外れるテストが10回に2回落ちた (実測)
 - 手当ては `~/.claude/references/testing-e2e.md` の「動きの終わりを待つ」にある
 
 ## 状態を変えた直後の computed style とスタイルの差し込み
@@ -92,4 +92,4 @@ Playwright Test Agents を取り付けたとき、generator や healer にテス
 - 機序: Test Agents の MCP サーバは playwright.config の webServer (アプリの dev サーバや vite preview) を立て、generator が終わっても握ったまま残す (実測)。立てる契機として記録があるのは、generator が雛形の spec を開いたときだけ
 - 症状: 次の `playwright test` が「port is already used」で起動できない。`reuseExistingServer: false` と `--strictPort` の構成でも、`reuseExistingServer: false` だけの構成でも起きた (実測)。generator を直列に回すと、2本目以降で setup がポートの使用中で失敗し、generator は記録せず計画から静的にテストを書いて written=true を返した。このときポートを握っていたのは MCP サーバ自身が起動して残した preview だった (実測。原因は未特定で再現していない)
 - 手当て: 同じ MCP の test_run で回すと既存の webServer を使って通せ、実行したテストの ID の集合も出力に出るので ID で pin できる。または /mcp で MCP を切ってから正規の入口で回す (実測)
-- 止めるとき: 残っていた preview は MCP の run-test の子で、止める対象はその PID だった (実測)。止めるものを絞る判定は `~/.claude/references/host-environment.md` の「起動したものを使い終わったら落とす」にある
+- 止めるとき: 親のプロセスをたどって MCP の run-test の子だと確かめ、その preview の PID だけを止める (実測)。止めるものを絞る判定は `~/.claude/references/host-environment.md` の「起動したものを使い終わったら落とす」にある
