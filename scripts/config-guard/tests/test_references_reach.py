@@ -9,11 +9,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from config_guard.instruction_budget import CLAUDE_MD_PATH
-from config_guard.references_reach import (
-    REFERENCES_GLOB,
-    check_references_reach,
-    reached_references,
-)
+from config_guard.instruction_refs import REFERENCES_GLOB
+from config_guard.references_reach import check_references_reach, reached_references
 from tests.conftest import REPO_ROOT, write_file
 
 REF_A = "home/.claude/references/a.md"

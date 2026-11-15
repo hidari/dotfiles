@@ -203,6 +203,19 @@ def test_broken_instruction_ref_is_detected(tmp_path: Path) -> None:
     assert any(f.detail == "~/.claude/references/gone.md" for f in findings)
 
 
+def test_unreached_reference_is_detected(tmp_path: Path) -> None:
+    # 到達の検査が scan に配線されていること。参照検査は存在しない名指しを報告できないので、
+    # 配線を忘れると名指しの無い references を誰も報告しない
+    repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
+    write_file(repo, "home/.claude/references/orphan.md", "# orphan\n")
+
+    findings = scan(str(repo))
+
+    assert [(f.source, f.detail) for f in findings] == [
+        ("home/.claude/references/orphan.md", "orphan.md")
+    ]
+
+
 def test_term_without_reachable_definition_is_detected(tmp_path: Path) -> None:
     # 語の検査が scan に配線されていること。配線を忘れると、移設で語だけが常時層に
     # 残っても誰も赤くならない状態へ戻る (実装とテストは緑のまま通る)
@@ -408,17 +421,3 @@ def test_console_script_scans_the_root_given_on_the_command_line(
     assert main([str(bad)]) == 1
     assert proc.stdout == capsys.readouterr().out
     assert proc.returncode == 1
-
-
-def test_scan_は名指しの無い_references_を含む(tmp_path: Path) -> None:
-    """cli への取り付けを外すと本体スキャンから到達の検査が消える。単体テストは通り続ける。"""
-    init_repo(tmp_path)
-    write_file(tmp_path, "home/.claude/settings.json", "{}")
-    write_file(tmp_path, CLAUDE_MD_PATH, "# 本体\n")
-    write_file(tmp_path, "home/.claude/references/orphan.md", "# orphan\n")
-    run_git(tmp_path, "add", "-A")
-    run_git(tmp_path, "commit", "-qm", "init")
-
-    findings = scan(str(tmp_path))
-
-    assert any(f.source == "home/.claude/references/orphan.md" for f in findings)
