@@ -38,7 +38,8 @@ REPO_PREFIX = "home/.claude/"
 #
 # 常時層の 2 つは instruction_budget が canonical を持つ。再宣言すると、予算検査と
 # 参照検査が別の規約で別の集合を見たまま両方緑になる
-SOURCE_GLOBS = (CLAUDE_MD_PATH, RULES_GLOB, "home/.claude/references/*.md")
+REFERENCES_GLOB = "home/.claude/references/*.md"
+SOURCE_GLOBS = (CLAUDE_MD_PATH, RULES_GLOB, REFERENCES_GLOB)
 
 _INLINE_CODE = re.compile(r"`([^`]*)`")
 _FENCE = re.compile(r"^\s*(`{3,})")

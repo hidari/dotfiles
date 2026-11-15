@@ -9,10 +9,10 @@ mise の global ツール pin が exact か / 要求されるコマンドが bre
 宣言どうしと実配置で揃っているか / herdr-app の keybinding が重複せず解決するか / 追跡下の
 Markdown の相対リンクが実在するか / 常時ロードされる指示ファイルの総バイト数が予算内か /
 その予算そのものが main から無音で上がっていないか / rules の paths 宣言が pin と
-一致するか / 指示ファイルどうしの参照 (パスと見出し) が実在するか / rules が定義する語が
-定義の届かない層で使われていないか / Issue の `## 関連` 節がリンクを持たず識別子だけで書かれ
-その識別子が実在するか / 追跡下の docs/ 直下が規約のサブディレクトリだけで構成されているかを
-検査する。
+一致するか / 指示ファイルどうしの参照 (パスと見出し) が実在するか / references が CLAUDE.md と
+rules から参照の連鎖で届くか / rules が定義する語が定義の届かない層で使われていないか /
+Issue の `## 関連` 節がリンクを持たず識別子だけで書かれその識別子が実在するか /
+追跡下の docs/ 直下が規約のサブディレクトリだけで構成されているかを検査する。
 """
 
 from __future__ import annotations
@@ -40,6 +40,7 @@ from config_guard.instruction_refs import check_instruction_refs
 from config_guard.markdown_links import check_markdown_links
 from config_guard.mise_pins import check_mise_pins
 from config_guard.models import Finding
+from config_guard.references_reach import check_references_reach
 from config_guard.related_refs import check_related_refs, related_refs_summary
 from config_guard.rules_paths import check_rules_paths
 from config_guard.settings_invariants import check_settings_invariants
@@ -120,6 +121,10 @@ def scan(repo_root: str) -> list[Finding]:
     # 指示ファイルどうしの参照が実在するか。参照は全てバッククォート記法なので
     # markdown_links からは 1 件も見えない (インラインコードを除去してから探すため)
     findings.extend(check_instruction_refs(str(root)))
+
+    # references が CLAUDE.md と rules から参照の連鎖で届くか。名指しの無い references は
+    # 誰も開かないが、参照の実在を見る上の検査からは見えない (無い名指しは報告できない)
+    findings.extend(check_references_reach(str(root)))
 
     # rules が定義する語が、定義の届かない層で使われていないか。移設は語だけを
     # 常時層へ残す形で壊れ、参照検査からも予算検査からも見えない

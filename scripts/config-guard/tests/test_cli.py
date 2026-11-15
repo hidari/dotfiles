@@ -203,6 +203,19 @@ def test_broken_instruction_ref_is_detected(tmp_path: Path) -> None:
     assert any(f.detail == "~/.claude/references/gone.md" for f in findings)
 
 
+def test_unreached_reference_is_detected(tmp_path: Path) -> None:
+    # 到達の検査が scan に配線されていること。参照検査は存在しない名指しを報告できないので、
+    # 配線を忘れると名指しの無い references を誰も報告しない
+    repo = _make_repo(tmp_path, "good", GOOD_SKILL, GOOD_SETTINGS)
+    write_file(repo, "home/.claude/references/orphan.md", "# orphan\n")
+
+    findings = scan(str(repo))
+
+    assert [(f.source, f.detail) for f in findings] == [
+        ("home/.claude/references/orphan.md", "orphan.md")
+    ]
+
+
 def test_term_without_reachable_definition_is_detected(tmp_path: Path) -> None:
     # 語の検査が scan に配線されていること。配線を忘れると、移設で語だけが常時層に
     # 残っても誰も赤くならない状態へ戻る (実装とテストは緑のまま通る)
