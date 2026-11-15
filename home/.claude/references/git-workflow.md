@@ -58,3 +58,19 @@ heredoc は中身が command 文字列を通るので回避にならない。
 
 `git cherry` は squash で patch-id が変わるため信用できない。
 origin/main への取り込みは空のファイル diff で確認する。
+
+ツリーのハッシュ (`git rev-parse <rev>^{tree}`) の一致を見ると、diff より強く言い切れる (いずれも実測)。
+
+- strict な required check の下では、squash 後の main のツリーが、マージゲートが緑だった PR の head のツリーとハッシュで一致した。main の push で CI を回さない構成でも、main が検証済みであることを確かめられる
+- squash で先に入った PR の上に積んだブランチを `git rebase --onto origin/main <元の PR の HEAD>` で載せ替える前に、main のツリーと元の PR の HEAD のツリーのハッシュを比べる。一致していれば、載せ替えても作業ツリーは1バイトも変わらない。並列のレビュー agent が作業ツリーを読んでいる最中でも、安全に載せ替えられた
+
+squash の後のローカルのブランチは `git branch -d` で消えない。消し方に2つの罠がある (いずれも実測)。
+
+- `-D` で消すのは、`gh pr list --head <b> --state merged --json headRefOid` の値とローカルの `git rev-parse <b>` が一致するときだけにする。一致しなければ未 push のコミットが残っている
+- `gh pr merge --delete-branch` は、そのブランチが別の git worktree でチェックアウトされていると、ローカルのブランチの削除を飛ばして警告だけ出す (merge とリモートの削除は済む)。あとで `git worktree remove` と `git branch -D` を手で打つ
+
+## hook が走らない取り込みの経路
+
+古いブランチのコミットを cherry-pick で新しいブランチへ取り込むとき、cherry-pick は pre-commit の hook を走らせない。差分を増分で見る検査は取り込んだコミットを一度も見ないので、違反が黙って CI まで素通りする。ローカルにだけ残っていた古いブランチの2コミットを取り込んだとき、記法の検査の違反112件がローカルの CI まで届いた (実測)。書き捨てのリポジトリに追記するだけの `pre-commit` hook を置くと、2回の commit で2行が書かれ、`git cherry-pick` の後も2行のままだった (報告 2026-11-11、git 2.56.0。この版で再現した)。
+
+古いコミットを取り込んだら、直後に増分の検査を手で回す (実測)。`pre-commit run --from-ref <base> --to-ref HEAD` 相当で足りる見込みだが、範囲指定が hook と同じ検査を走らせるかは確かめていない (推測)。rebase で取り込む場合も同じかは試していない。
