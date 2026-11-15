@@ -107,3 +107,11 @@ def test_render_does_not_double_escape_an_already_escaped_pipe() -> None:
     its = [{"id": "INS-1", "order": 1, "issue": "ISSUE-1", "text": "既定値を `a \\|\\| b` で出す"}]
     out = render("ISSUE-1", its, {}, SNAP)
     assert "| INS-1 | 既定値を `a \\|\\| b` で出す | まだ |  |  |  |" in out
+
+
+def test_render_unescapes_before_truncation_so_the_cut_never_splits_an_escape() -> None:
+    text = "x" * 39 + "\\|y" + "z" * 10
+    out = render(
+        "ISSUE-1", [{"id": "K1-001", "order": 1, "issue": "ISSUE-1", "text": text}], {}, SNAP
+    )
+    assert "| K1-001 | " + "x" * 39 + "\\|… | まだ |  |  |  |" in out

@@ -24,7 +24,7 @@ def _cell(s: str) -> str:
 
 
 def _head(text: str) -> str:
-    # 表の行から取った原文は既に `\\|` を持つ。逃がしを戻してから切り、_cell で1回だけ逃がす
+    # 表の行から取った原文は既に `\|` を持つ。逃がしを戻してから切り、_cell で1回だけ逃がす
     first = text.split("\n")[0].removeprefix("- ").replace("\\|", "|")
     return first if len(first) <= HEAD_LEN else first[:HEAD_LEN] + "…"
 
