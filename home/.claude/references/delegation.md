@@ -61,6 +61,8 @@ auto mode classifier がブロックして実害は無かったが、防御が 1
 
 テストが赤いのに `git status` が clean という矛盾で気づいたが、矛盾が出なければ誤った結論のまま進んでいた。
 
+隔離コピーで pnpm を使わせるときの brief の要件は `~/.claude/references/host-environment.md` の「書き捨ての置き場 `.cache/` はツールからは本体の一部」節が持つ。
+
 ## 設計案の並列生成
 
 テスト件数ガードの設計で、4 案中 3 案が揃って「件数の exact 一致」へ収束した。

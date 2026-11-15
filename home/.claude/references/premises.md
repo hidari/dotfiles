@@ -18,7 +18,7 @@
 
 2026-08時点で Claude が作るコードは不必要に複雑なコード・テスト・ドキュメントを書きがちで、そのぶん drift しやすかった。Fable 5.1 の移行文書 (claude-api skill の `shared/model-migration.md`、Claude Code 2.1.282同梱) も、頼まれた以上に周辺のコードを直す・余分なテストを書く・書き捨ての確認を恒久的なテストとしてコミットする傾向を挙げている。
 
-コメントが黙って偽になる典型は、ライブラリや toolchain の振る舞いを根拠にしたコメントである。「clippy の `unused_async` は trait の実装を対象から外すので、await の無い async fn の trait 実装は落ちない」と書いたコメントが、Rust 1.98 で `unused_async_trait_impl` が足されて偽になった (実測)。このようなコメントを書くなら確かめた版を添え、依存や toolchain を上げたら主張を確かめ直す。版つきのコメントは、旧版の tarball を registry から `.cache/` へ落として該当関数の本文を新しい版と diff すると、短く確定できた (変わったのがバンドラの変数名の付け替えだけ、のように)。主張が複数あるなら、主張ごとに1体の subagent で新しい版の同梱ソースと突き合わせられる (いずれも実測)。
+コメントが黙って偽になる典型は、ライブラリや toolchain の振る舞いを根拠にしたコメントである。「clippy の `unused_async` は trait の実装を対象から外すので、await の無い async fn の trait 実装は落ちない」と書いたコメントが、Rust 1.98で `unused_async_trait_impl` が足されて偽になった (実測)。確かめ直す手当ては `~/.claude/references/observation.md` の「検索キーの偽陰性」節が持つ。
 
 ## テストコードをファーストクラスドキュメントとして書く理由
 
