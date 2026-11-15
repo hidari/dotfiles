@@ -4,7 +4,9 @@
   python -m knowledge_ledger.delta <worktree> <base-items.json> <out-delta.json>
   --today YYYY-MM-DD
 - 追記された最上位の箇条 (子を含む) は新しい件。ID は ISSUE-133 が K133-<続き番号>、
-  ISSUE-134 が K134-<続き番号>、ISSUE-88 は箇条の INS 番号、ほかの Issue は K<番号>-<連番>
+  ISSUE-134 が K134-<続き番号>、ほかの Issue は K<番号>-<連番>
+- ISSUE-88 の表の行 (`| INS-n |`) は INS 番号の新しい件、
+  `- INS-n の` の箇条は既存の INS の件への追記
 - 既存の箇条の子として足された行は、親の箇条の1行目で台帳の件を引き、
   原文へ足して report_count を増やす
 - 台帳に無い既存の箇条へ足された子は、親の1行目と足した子を合わせて新しい件にする
@@ -12,6 +14,7 @@
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -86,8 +89,26 @@ def _new_item(
     )
 
 
+# hook の下で走ると git は所在を指す GIT_* を子へ渡し、-C より優先されて別のリポジトリを読む。
+# 所在の指定を -C に一本化するため、所在を指す変数だけを落とす (config-guard の git_run と同じ集合)
+_GIT_LOCATION_VARS = frozenset(
+    {
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_COMMON_DIR",
+        "GIT_PREFIX",
+        "GIT_NAMESPACE",
+    }
+)
+
+
 def _git(wt: str, *args: str) -> str:
-    return subprocess.run(["git", "-C", wt, *args], capture_output=True, check=True).stdout.decode()
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_LOCATION_VARS}
+    return subprocess.run(
+        ["git", "-C", wt, *args], capture_output=True, check=True, env=env
+    ).stdout.decode()
 
 
 def _added_lines(wt: str, path: str) -> set[int]:

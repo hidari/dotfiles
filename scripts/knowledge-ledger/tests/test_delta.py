@@ -1,6 +1,7 @@
 """delta の3規則を小さな git リポジトリで1件ずつ確かめる。"""
 
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -13,7 +14,9 @@ BASE_MD = "# 知見\n\n- 既存の箇条\n"
 
 
 def git(repo: Path, *args: str) -> None:
-    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
+    # 使い捨てのリポジトリしか触らないので、GIT_ で始まる変数を選ばずに全部落とす
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, env=env)
 
 
 def make_repo(tmp_path: Path, head_md: str) -> Path:
@@ -78,3 +81,15 @@ def test_main_takes_today_and_writes_delta(tmp_path: Path) -> None:
     assert main([str(repo), str(base_path), str(out_path), "--today", TODAY]) == 0
     written = json.loads(out_path.read_text(encoding="utf-8"))
     assert written["new"][0]["added"] == TODAY
+
+
+def test_inherited_git_location_env_does_not_leak(tmp_path: Path, monkeypatch: Any) -> None:
+    """hook の下で継承した GIT_DIR / GIT_INDEX_FILE は -C より優先される。所在を指す変数を落とし、
+    -C で渡したリポジトリを読むこと"""
+    decoy = tmp_path / "decoy"
+    monkeypatch.setenv("GIT_DIR", str(decoy / "git"))
+    monkeypatch.setenv("GIT_INDEX_FILE", str(decoy / "index"))
+    repo = make_repo(tmp_path, BASE_MD + "- 新しい箇条\n")
+    d = build_delta(str(repo), [ledger_item("- 既存の箇条")], TODAY)
+    assert [i["text"] for i in d["new"]] == ["- 新しい箇条"]
+    assert not decoy.exists()

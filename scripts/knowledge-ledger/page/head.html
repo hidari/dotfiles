@@ -90,6 +90,8 @@ textarea { min-height: 34px; resize: vertical; }
 .row { font-size: .86rem; } .row .k { color: var(--muted); font-size: .76rem; margin-right: 8px; }
 .row.summary-row .v { font-size: 1.02rem; font-weight: 500; }
 .chip.stored { border-style: dashed; color: var(--muted); }
+.claude-why { color: var(--accent); }
+.chip.by-claude { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 .pick { display: flex; align-items: center; gap: 6px; font-size: .78rem; color: var(--muted); }
 .pick input { width: auto }
 @media (max-width: 560px) { .decide { grid-template-columns: 1fr } h1 { font-size: 1.5rem } }
@@ -99,7 +101,7 @@ textarea { min-height: 34px; resize: vertical; }
 <main class="wrap">
   <header style="display:grid;gap:8px">
     <h1>知見の採否台帳</h1>
-    <p class="lede">ほかのリポジトリのセッションから受け箱に届き、ISSUE-133・134・88 ほかの Issue に仕分けた知見を1件ずつ確かめる。「台帳に載った日」で新しく足した分だけに絞れる。要約と置き場の案、見立ては下ごしらえの agent が付けた参考で、判断はここで決める。決めた結果は dotfiles のセッションが読んで Issue と規範に反映する。</p>
+    <p class="lede">ほかのリポジトリのセッションから受け箱に届き、ISSUE-133・134・88 ほかの Issue に仕分けた知見を1件ずつ確かめる。「台帳に載った日」で新しく足した分だけに絞れる。要約と置き場の案、見立ては下ごしらえの agent が付けた参考。判断は dotfiles のセッションが判定表で付け、「Claude の判断」の印が出る。ここで押し直すと人の判断になり、印が消える。決めた結果は dotfiles のセッションが読んで Issue と規範に反映する。</p>
     <div class="status" id="status-row" role="status" aria-live="polite"><span id="status">判断の保存先に接続しています…</span><span id="unsaved"></span><button type="button" id="retry" hidden>未保存の分をもう一度送る</button></div>
   </header>
 
@@ -114,6 +116,7 @@ textarea { min-height: 34px; resize: vertical; }
 
   <section class="filters" aria-label="絞り込み">
     <label for="f-state">判断<select id="f-state"><option value="">すべて</option><option value="todo" selected>既定の一覧</option><option value="採る">採る</option><option value="保留">保留</option><option value="採らない">採らない</option></select></label>
+    <label for="f-by">判断した側<select id="f-by"><option value="">すべて</option><option value="human">人</option><option value="claude">Claude</option></select></label>
     <label for="f-issue">Issue<select id="f-issue"><option value="">すべて</option></select></label>
     <label for="f-section">分野<select id="f-section"><option value="">すべて</option></select></label>
     <label for="f-rec">見立て<select id="f-rec"><option value="">すべて</option><option>採る</option><option>保留</option><option>採らない</option></select></label>

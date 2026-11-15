@@ -311,3 +311,66 @@ test("conditionCounts: 節ごとの該当件数", () => {
   assert.deepEqual(L.conditionCounts(items, []), []);
   assert.deepEqual(L.conditionCounts([], clauses), [0, 0, 0]);
 });
+
+test("decider: 判断が無ければ null、decidedBy が claude なら claude、それ以外の判断は人 (decidedBy を持たない前からの判断を含む)", () => {
+  assert.equal(L.decider(undefined), null);
+  assert.equal(L.decider({}), null);
+  assert.equal(L.decider({ decision: null, decidedBy: "claude" }), null);
+  assert.equal(L.decider({ decision: "採る" }), "human");
+  assert.equal(L.decider({ decision: "採る", decidedBy: "human" }), "human");
+  assert.equal(L.decider({ decision: "保留", decidedBy: "claude" }), "claude");
+  assert.equal(L.decider({ decision: "採らない", decidedBy: "other" }), "human");
+});
+
+test("stampOf: 判断を変えたときと「このままでよい」のときだけ人の印を付け、メモだけの保存では付けない", () => {
+  assert.deepEqual(L.stampOf({ decision: "採る" }), { decidedBy: "human" });
+  assert.deepEqual(L.stampOf({ decision: null }), { decidedBy: "human" });
+  assert.deepEqual(L.stampOf({ decidedAt: "2026-11-15T00:00:00.000Z" }), { decidedBy: "human" });
+  assert.deepEqual(L.stampOf({ note: "x" }), {});
+  assert.deepEqual(L.stampOf({}), {});
+});
+
+test("matchesDecider: 空はすべて、claude と human は判断した側で絞り、未判断はどちらにも当たらない", () => {
+  const c = { decision: "採る", decidedBy: "claude" }, h = { decision: "採る" }, none = {};
+  assert.deepEqual([c, h, none].map(d => L.matchesDecider(d, "")), [true, true, true]);
+  assert.deepEqual([c, h, none].map(d => L.matchesDecider(d, "claude")), [true, false, false]);
+  assert.deepEqual([c, h, none].map(d => L.matchesDecider(d, "human")), [false, true, false]);
+});
+
+test("needsOwner: Claude の保留のうち利用者の裁定が要るもの (H1・H2) だけ true", () => {
+  assert.equal(L.needsOwner({ decision: "保留", decidedBy: "claude", claudeRule: "H1" }), true);
+  assert.equal(L.needsOwner({ decision: "保留", decidedBy: "claude", claudeRule: "H2" }), true);
+  assert.equal(L.needsOwner({ decision: "保留", decidedBy: "claude", claudeRule: "H3" }), false);
+  assert.equal(L.needsOwner({ decision: "採らない", decidedBy: "claude", claudeRule: "H1" }), false);
+  assert.equal(L.needsOwner({ decision: "保留", claudeRule: "H1" }), false);
+  assert.equal(L.needsOwner(null), false);
+});
+
+test("inDefaultList: Claude の判断は出さず、利用者の裁定が要る Claude の保留だけ節によらず出す", () => {
+  const c = [clause(pred("issue", "eq", "none"))];
+  assert.equal(L.inDefaultList(item(), { decision: "採る", decidedBy: "claude", claudeRule: "14" }, []), false);
+  assert.equal(L.inDefaultList(item(), { decision: "保留", decidedBy: "claude", claudeRule: "H3" }, []), false);
+  assert.equal(L.inDefaultList(item(), { decision: "保留", decidedBy: "claude", claudeRule: "H1" }, c), true);
+});
+
+test("needsReview: Claude の判断に追記が届いても人の見直しには出さない (次の仕分けで Claude が裁定し直す)", () => {
+  const it = item({ appended: "2999-01-01", report_count: 3 });
+  assert.equal(L.needsReview(it, { decision: "採る", decidedBy: "claude", seenReports: 1, decidedAt: "2026-11-15T00:00:00Z" }), false);
+  assert.equal(L.needsReview(it, { decision: "採る", decidedBy: "human", seenReports: 1, decidedAt: "2026-11-15T00:00:00Z" }), true);
+});
+
+test("inDefaultList: 保管中も含めると未判断は節によらず出し、利用者の裁定が要る Claude の保留も見直しの件も落とさない", () => {
+  const c = [clause(pred("issue", "eq", "none"))];
+  assert.equal(L.inDefaultList(item(), null, c, true), true);
+  assert.equal(L.inDefaultList(item(), null, c, false), false);
+  assert.equal(L.inDefaultList(item(), { decision: "保留", decidedBy: "claude", claudeRule: "H1" }, c, true), true);
+  assert.equal(L.inDefaultList(item(), { decision: "保留", decidedBy: "claude", claudeRule: "H3" }, c, true), false);
+  assert.equal(L.inDefaultList(item({ appended: "2999-01-01" }), { decision: "採る", updatedAt: "2026-11-01T00:00:00Z" }, c, true), true);
+  assert.equal(L.inDefaultList(item(), { decision: "採る", updatedAt: "2026-11-01T00:00:00Z" }, [], true), false);
+});
+
+test("isJudgement: 判断を変えたときと「このままでよい」だけが判断の書き込み", () => {
+  assert.equal(L.isJudgement({ decision: null }), true);
+  assert.equal(L.isJudgement({ decidedAt: "x" }), true);
+  assert.equal(L.isJudgement({ note: "x" }), false);
+});
