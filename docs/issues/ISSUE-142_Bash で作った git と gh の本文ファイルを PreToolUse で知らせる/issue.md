@@ -16,6 +16,10 @@ status: open
 
 dotfiles で確かめたこと (2026-10-31): `home/.claude/settings.json` の PreToolUse で Bash に配線されている hook は apm-install-guard の1本だけである。`home/.claude/hooks` 配下に、本文ファイルの書き方 (`-F` / `--body-file` と `printf` の組み合わせ) を見るものは無い。
 
+### 受け箱から届いた報告 (2026-11-15の仕分け)
+
+- 別のリポジトリから同じ違反が届いた。「コミット本文は Write でファイルに書く」規約を、作業の流れで1回 heredoc で書いてしまい、気づいて作り直した。規約は覚えていても、連続するコミットの途中で落ちやすい (実測)。仕分けたセッションの解釈: 背景の2件 (printf) と同じ型で、heredoc の形も検出の対象に入る
+
 ## タスク
 
 - [ ] 誤検知率を何で測るかを先に決める (どの transcript の Bash 呼び出しを母集団にし、何を正解とするか)

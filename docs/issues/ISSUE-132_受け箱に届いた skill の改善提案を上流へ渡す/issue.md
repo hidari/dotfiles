@@ -36,6 +36,11 @@ dotfiles で確かめたこと: skill の frontmatter スキーマは `parent` /
 - Makefile の target などが Issue ディレクトリの中のファイルを glob で指していると、Issue を閉じて `closed/` へ移した時点で黙って見失う (実測)。報告者の提案: パスは変数1つにし、クローズの手順の相対リンクの補正と同じタイミングで道具側の参照も grep する
 - in-repo Issue を初めて導入し、リリースまでのロードマップのチェックボックスを `closed/` の所在の写しとして置いて、写しと所在の食い違いを CI の検査で赤にした。順序と依存をロードマップと各 Issue の「前提」の両方に書くと起票の直後にもう食い違ったので、依存の canonical をロードマップ1箇所へ寄せた (実測)。報告者の提案: 箱を写しと位置づけて検査で赤にする形を雛形にし、「依存の canonical は1箇所に決める」指針を skill に足す。dotfiles の ISSUE-75 も似た写しの検査を持つ
 
+### in-repo-issue: A.0 の重複検索のコマンドが grep の置き換えで欠ける
+
+- 報告 (実測): in-repo Issue の起票の前の重複の検索で、skill が示す `grep -rli '<語>' docs/issues --include='issue.md'` の形を打つと、開発機の grep (ugrep のシェル関数) が `--include=issue.md` をファイルとして読んで警告を出し、当たりが欠けた。`find docs/issues -name issue.md -exec /usr/bin/grep -l -- '<語>' {} +` に替え、見た Issue の本数 (34) と、当たる語の対照を並べて数え直した (実測)。C.3 の節は同じ理由で `/usr/bin/grep` を明示するよう書いているが、A.0 にはその注意が無い (実測)。dotfiles で確かめたこと (2026-11-15): worktree の配布の写し (追跡外) の in-repo-issue の SKILL.md は、120行目の A.0 で報告どおりの形を示し、261行目 (C.3 の箱の数え方) は ugrep のシェル関数を避けて `/usr/bin/grep` を明示するよう書いている。この開発機の Bash ツール (grep は shell snapshot のシェル関数) で同じ形を `docs/issues` に `status` で当てると、警告は出ず145件で、`/usr/bin/grep` の同じ形と `find docs/issues -name issue.md` の数 (どちらも145) と一致した。仕分けたセッションの解釈: この開発機では再現せず、欠ける条件 (ugrep の版か、シェル関数の定義の違いか) は未特定
+- 報告者の提案 (実測): A.0 の検索のコマンドを、C.3 と同じく `find ... -exec /usr/bin/grep -l` の形にするか、「見た Issue の本数を数えて対照を並べる」を足す
+
 ### session-handoff: 実行中の subagent はセッションを越えて resume できない
 
 報告 (実測): subagent の agent id は前のセッションの中のプロセスにしか届かず、新しいセッションの一覧には出ない。引き継ぎ書に「同じ implementer を resume する」と書いても使えない。報告元は、作業木の未コミットの変更をコントローラが全文読み、テストとゲートを回してから wip でコミットし、残り (変異注入と報告) だけを新しい subagent に渡した。復元先が HEAD になるので変異の復元も安全になった。
@@ -68,7 +73,9 @@ dotfiles で確かめたこと (2026-10-23): 同じ日に、別のリポジト�
   - 2026-11-11の仕分けで、別のリポジトリから同じ型の報告が届いた。PR を作る前の品質ゲートの所見を直したコミットはゲートを通っていなかったので、merge の前にその増分 (数コミット、約190行) だけへ4観点 (simplify、code-reviewer、boy-scout、E2E 影響) を Workflow で並列に当て直すと、E2E 影響の観点から Important が1件出た。足した UI テストの1行が、要素の外れる向きと逆にしか画面を寄せず、効いていなかった。直したうえで UI テストを回して緑を確かめた (実測)。引き継ぎ書の「HEAD が Ready の前と同じならゲートの Phase 1 を使い回してよい」という前提は成り立っておらず、前のゲートが見たのはその所見を直す前のコミットだった (実測)。報告者の提案は、merge の前の品質ゲートの手順に「前回のゲートが見た sha と、いまの head の差分 (ゲートの直し自体を含む) に Phase 1 を当てる」を明記すること (実測)。仕分けたセッションの解釈: 親の項は2026-10-31に agentic-coding-tools の ISSUE-99 へ渡し済みで、新しいのは「ゲートの直し自体も増分に含める」ことと、引き継ぎ書の使い回しの前提が外れた実例
 - push の直後で新しい run が pending のとき、`gh pr checks --watch` は待たずに「no checks reported」で rc=1 で終わった。前の head の run が in_progress でも同じだった (実測)。報告者の提案: CI を待つ手順を、headSha で run を特定して `gh run watch` で待つ形へ置き換えるか、rc=1 と「no checks reported」の組を「まだ始まっていない」と扱う注記を足す。同じ報告で、新しい run を `gh run list --branch <branch> --json databaseId,headSha` で引き、push した commit と一致する run の ID を `gh run watch --exit-status` に渡すと、pending の間も待ち続けて rc 0で終わった (実測)。/goal の条件文に `gh pr checks --watch` を入れた件は ISSUE-133 の「Claude Code の /goal」節にある
   - 2026-11-11の仕分けで、別のリポジトリから、run が登録される前は空が返るという報告が届いた。`pull_request` だけで起動する CI では、push しただけでは run が登録されず、PR を作った直後の `gh run list --commit <SHA>` は `[]` だった (実測)。CI を待つスクリプトの live smoke は、`git push && gh pr create && gh run list --commit <SHA> && <待ち>` の1本の連結で background 起動して行った (実測)。報告者の手当ては、登録前の空を live smoke で踏むなら、PR の作成と同じ連結に入れること (実測)。仕分けたセッションの解釈: 上の、headSha で run を引いて待つ形は、引いた時点で run が未登録なら空を返すので、空を「run が無い」と読まずに引き直す分岐が要る。dotfiles で確かめたこと (2026-11-13、v2026.11.2 の写し): 配った pre-merge-quality-gate の `scripts/wait-ci-runs.py` は、登録前に `gh run list --commit <SHA>` が `[]` と rc 0 を返すことを docstring に書き、登録まで引き直す。この分岐は上流で実装済み
+  - 2026-11-15の仕分けで、別のリポジトリから pre-merge-quality-gate の `wait-ci-runs.py` を PR の作成の直後に起動した報告が届いた。その時点で登録されていた run (`pull_request_target` の自動の Draft 化の skip の1件) だけを見て「1件中0件失敗」で rc=0 を返し、本命の merge-gate の run (`pull_request`) はその後に登録されていた。件数が1で中身が skip だけだったことに気づいて読み直さなければ、必須チェックを見ないまま merge へ進むところだった。もう一度起動すると2件を待って正しく判定した (実測)。報告者の提案: 待った run の中に必須チェックを持つ workflow が1つも無いとき (skip だけ、または期待する workflow の名前が無いとき) は rc=0 を返さず、登録を待ち直すか「判定不能」で止まるようにする (実測)。仕分けたセッションの解釈: 上の2026-11-11の子 (登録の前は空が返る) の続きで、こちらは空ではなく一部の run だけが登録済みの窓なので、空を引き直す分岐では捕まらない
 - 長いゲート (20〜30分) の前に並列レビューを先に回し、修正を入れてから最終のゲートを1回だけ回す順序にした (実測)
+  - 2026-11-15の仕分けで、別のリポジトリから順序の別の面が届いた。長い最終のゲート (preflight など) を回す前に、速い文書の検査の層 (ci) を一度通しておかないと、最初の数十秒で落ちる検査のために長い実行を何度もやり直すことになる (実測)。報告者は skill を名指ししていない
 - 前のゲートで simplify の Efficiency 観点が出した最適化を効果を数えずに採ったら、直前の処理が既に同じ表を全部読んでいて、省けるのは課金の枠のおよそ0.4%だった。次のゲートの Altitude 観点が「判断の分岐が shell 層に増えた」「adapter の doc と逆を言う」と指摘し、取り下げた (実測)。報告者の提案: Efficiency の提案を採る前に、隣の処理が既に払っている同じコストと課金や上限の枠に並べて効果を数えることを Phase 2 の判断の軸に足し、効果が枠の数%に満たなければ採らないのを既定にする (実測)
 - 2026-11-04の仕分けで、別のリポジトリから、merge の後に品質ゲートを事後に回し、merge 前に出せなかった記録を取り返した報告が届いた。見出しを merge 前の結果と分け、merge の可否の宣言は書かない形にした (実測)。事後のゲートの検証役が見つけた照合の射程のずれは ISSUE-88 の INS-82 に置いた
 - 2026-11-10の仕分けで、別のリポジトリから、`gh pr merge --delete-branch` はそのブランチが別の git worktree でチェックアウトされていると、ローカルのブランチの削除を飛ばして警告だけ出す (merge とリモートの削除は済む) という報告が届いた。後で worktree remove と branch -D を手で打つ必要がある (実測)。報告者の提案: merge の手順を持つ skill に、「worktree で作業したブランチは --delete-branch がローカルを消さないので、merge の後に worktree remove と branch -D を打つ」の1行を足す (実測)。報告者は skill を名指ししていないので、渡すときに宛先の skill を確かめる
@@ -87,6 +94,7 @@ dotfiles で確かめたこと (2026-10-23): 同じ日に、別のリポジト�
 
 - 報告 (実測): pre-merge-quality-gate の Boy Scout Sweep で、触ったファイル (30本・約3.7万行) を約5000行ずつの8組に分けて別々の subagent に通読させ、ファイルごとの読んだ行数と総行数と未読の範囲を構造化出力の schema で返させた。8体の全員が担当のファイルを最終行まで読み、合計で総行数と一致した。前のゲートでは1体に全部を任せたら、同じ規模で約1650行しか通読できていなかった。所見も、ffi がまだ無かったころの言い方の取り残し、文書の表の行番号の参照のずれ、仕様書の文の途中の改行 (53行) など、差分の周辺だけでは出ない形が15件出た (実測)。読了範囲をファイルごとの数で返させると、Phase 0 で数えた各ファイルの行数と機械的に突き合わせられ、欠けを見落とさない。自由文の報告だと、どこまで読んだかが比べられない (実測)。報告者の提案は、Boy Scout Sweep の項目で、触ったファイルの総行数が大きいとき (目安で数千行を超えるとき) は、行数で組に分けて複数の subagent に通読させ、ファイルごとの lines_read と total_lines を schema で返させる形を既定にすること (実測)。dotfiles で確かめたこと (2026-11-13、v2026.11.2 の写し): worktree の配布の写し (追跡外) の pre-merge-quality-gate の SKILL.md は、62行目でレーンに何を何件読んだか (ファイル数と行数、読めなかった範囲はファイルと行の範囲) を報告させ、68行目で Boy Scout Sweep の報告を Phase 0 の削除を除いた一覧と各ファイルの行数に突き合わせ、欠けがあればそのレーンを1回だけやり直す、と既に書いている。Boy Scout Sweep は81行目で1本の `general-purpose` として起動する形で、行数で組に分ける記述は無い。仕分けたセッションの解釈: 読了範囲を数で返させて突き合わせる側は写しが既に持ち、新しいのは、大きいときに初めから組に分けて起動する側である。写しの60行目は起動する agent の総数を見積もることを求め、agentic-coding-tools の ISSUE-103 (closed) は起動数の上限をレーンの数から導く形で決めているので、組に分けるとレーンの数そのものが増える点はその裁定と合わせて見る
 - 差分が約1.5万行・150ファイルの PR のマージ前ゲートで、コードレビューを領域ごとに3レーン、ボーイスカウトをファイルの行数で均した3レーン (約1.5万行ずつ) に分け、レーンから反証役への流れを Workflow の pipeline で組んだ (実測)。ボーイスカウトのレーン1本に約1.5万行・約50ファイルの全文を読ませると、どのレーンも差分は読み切るが、大きいファイル (2000行級) とテストの多くを grep だけで済ませた。読了の範囲を報告させ、一覧と行数で突き合わせて初めて欠けが見えた (61ファイル・約2.6万行) (実測)。読み直しのレーンに「前のレーンが全文を読んだファイルを除いた一覧」(約1.3万行) だけを渡すと、全行を読み切り、最初のレーンが見落とした偽のテストのコメント (赤くならないと書いた変異が実際は赤くなる) を拾った (実測)。報告者の提案は、ボーイスカウトのレーンは1レーンあたりの全文の読了をおよそ1万行以下に絞り、差分の行数ではなく「削除を除いたファイルの全行数」で分けること。そうすれば読み直しのレーンが要らなくなる見込みだという (推測)。dotfiles で確かめたことと解釈は上の項と同じ。finder の読了範囲を数で返させた報告は ISSUE-100 の受け箱から届いた報告の節にもある
+  - 2026-11-15の仕分けで、別のリポジトリから同じ型の報告が届いた。反証役を付けたレーン (コードレビュー・Boy Scout) の指摘15件のうち、落としたものは0件だったが、修正案を代案へ差し替えたものが4件、見落としの追加が2件あった。読了範囲の報告で、Boy Scout のレーンが大きなファイル (2000行超) を grep で済ませていたことが分かり、そのファイルだけをやり直すレーンを立てて埋められた (実測)
 - simplify の Reuse・Simplification・Altitude の3レーンが、同じ写し (ブラウザとサーバの同じ関数) を別々に挙げた。重なりは親が機構で束ねないと3件に数えてしまう (実測)。dotfiles で確かめたこと (2026-11-13、v2026.11.2 の写し): worktree の配布の写し (追跡外) の pre-merge-quality-gate の SKILL.md は、122行目で親が `Agent` tool のレーンの指摘へ ID を振ると書いているが、レーンをまたいで同じ指摘を束ねる手順は書いていない。simplify は `Skill` tool で起動するレーンで、修正の適用まで自分で行う (128行目)。仕分けたセッションの解釈: ISSUE-100 の「観点は束ねず」は観点 (レーン) を1体へまとめない決定で、ここで言う指摘の重なりを束ねることとは別
 
 ### superpowers の subagent-driven-development (外部の plugin)
@@ -122,6 +130,7 @@ dotfiles で確かめたこと (2026-10-31): `home/apm.yml` は ast-grep-practic
 - tree-sitter の Rust では属性は struct の子ではなく直前の兄弟なので、`kind: struct_item` に `follows: {kind: attribute_item, regex}` を付けると引ける。名前は `has: {field: name}` で取り、JSON の metaVariables から読む。間に別のものを挟むと引けなくなるので、引いた集合を設定側の集合と等号で比べて取りこぼしを赤に倒す (実測。ast-grep の0.45.3)。報告者の提案: skill に例を足す
 - 自作の lint 規則 (GritQL / ast-grep など) をコードの片で書くときは、許す側の対照に「同じ字面を持つが別の構文」(別名の `as`、型注釈の中の `as` など) を置く。報告元が GritQL の規則で踏んだ件が根拠 (実測)。報告者の提案: 規則を書く skill の確認項目に足す
 - 2026-11-13の仕分けで、別のリポジトリから CSS の抑止の書き方の報告が届いた。抑止の理由のコメントは抑止の行より前に置く。next-line は文字どおり次の行を指すので、抑止と宣言の間に理由のコメントを挟むと抑止が理由の行に掛かる (実測。並べ替えた後に件数が狙いどおりになった)。ast-grep 0.42.1 は CSS の `/* ast-grep-ignore-next-line: <id> */` を解釈しない (0.45.3 は解釈する)。手元と CI で版が違うと、手元で0件の抑止済みの検出が CI だけで error になる。`pnpm dlx --package=@ast-grep/cli@<版> ast-grep scan` で両方の版を並べて再現できる (実測)。報告者の提案は、ast-grep-practice skill に CSS の抑止の書き方 (/* */ の形、理由のコメントの位置) と、`ast-grep test` が抑止を解釈しないことを足すこと (実測)。抑止の形と無関係な id の対照は ISSUE-88 の INS-106 に、`ast-grep test` が抑止を解釈しない件は ISSUE-88 の INS-110 に置いた。dotfiles で確かめたこと (2026-11-13、apm が配った写し): worktree の `home/.claude/skills/ast-grep-practice/SKILL.md` の「Suppression comments」の節は、TypeScript の `// ast-grep-ignore` と `// ast-grep-ignore: no-direct-env-access` の2つの例だけで、CSS の `/* */` の形も、理由のコメントの位置も、`ast-grep test` との関係も書いていない。手元の ast-grep は0.45.3
+- 2026-11-15の仕分けで、別のリポジトリから届いた。報告者の提案: ast-grep の運用の skill に「Rust のマクロ引数の中は token_tree で、式の規則が届かない。数える検査を作るときは rg の件数と突き合わせる」の注を足す (実測)。根拠の実測は ISSUE-88 のこの仕分けで足した行にある
 
 ### security-blue-red-team: profile の契約と red-team-agent の宛先
 
@@ -143,6 +152,8 @@ dotfiles で確かめたこと (2026-10-31): `home/apm.yml` は ast-grep-practic
 - explorer が `agent-browser network requests --json` を加工せずに出すと、リクエストの Authorization ヘッダ (Basic の Base64) がそのまま subagent のコンテキストに載る。3体中3体が1回ずつ踏んだ (実測)。報告者の提案は、monkey-explorer-agent の手順に「network のダンプは jq で status / method / URL に絞ってから出す。ヘッダを出さない」を明記すること。agentic-coding-tools の ISSUE-109 (closed) で直した。dotfiles で確かめたこと (2026-11-13、v2026.11.2 の写し): 配った `agents/monkey-explorer-agent.md` の126行目は network のバッファを射影を通してだけ読むと書き、129行目の射影は jq でバッファの件数 (`seen`) と絞った項目だけを出す。`seen` は、あちらのレビューで400以上に絞った射影が空のとき「見たうえで無かった」と言えるように足した対照
 - 並列の explorer が同じ scratchpad を共有し、同じファイル名の検知スクリプトを上書きしあって、別の explorer のセッションの console と network のバッファを消した (実測)。報告者の提案は、dispatcher が explorer ごとに専用の scratch のサブディレクトリを渡すこと。agentic-coding-tools の ISSUE-109 (closed) で直した。dotfiles で確かめたこと (2026-11-13、v2026.11.2 の写し): 配った `commands/monkey-qa.md` の36行目は、explorer ごと・起動ごとに一意な `SCRATCH_DIR` を dispatch の直前に `mktemp -d` で作って渡すと書き、`agents/monkey-explorer-agent.md` の68行目と188行目は書き込みを `SCRATCH_DIR` の下に限っている
 - agent-browser のブラウザが `press Escape` の直後などに勝手に作り直され、cookie と Basic 認証が消える (7回中3回、再現は取れず) (実測)。agentic-coding-tools の ISSUE-109 (closed) は、作り直しをハーネスの側で検知して section を止める手当て (Basic 認証の section で `BASE_URL` の `Document` が401になったら打ち切る) を入れた。あちらでも作り直しは再現せず、条件の切り分けと Basic 認証の無い section での検知は agentic-coding-tools の ISSUE-110 へ移した
+  - 2026-11-15の仕分けで、別のリポジトリから同じ型の報告が届いた。explorer の2体が、どちらも listbox や共有ダイアログで Escape を押した直後に tab が about:blank になり、cookie と viewport のエミュレーションも消えた (ブラウザの作り直しと推定)。scope 付きの Basic 認証ヘッダが失われ、1体は予算の途中で打ち切りになった。報告者はアプリではなく harness の側の事象と見ており、原因は未特定 (実測、原因は推測)。報告者の提案: Escape の直後にブラウザが作り直される事象の再現と原因の切り分けを Issue にする。作り直しを検出したら Basic 認証の再付与と再ログインで続行するか、少なくとも打ち切りの理由を「harness の事象」として findings の外に構造化して残せると、予算の消費が読める (実測、提案の効果は推測)。仕分けたセッションの解釈: 再現と切り分けは親の項のとおり agentic-coding-tools の ISSUE-110 にあり、新しいのは viewport のエミュレーションも消えることと、打ち切りの理由を findings の外へ残す提案
+- 2026-11-15の仕分けで、別のリポジトリから届いた。web-monkey-qa の submit の許可リストが検索だけなので、フォームの検証の文言のような「送信して初めて出る」変更は探索で踏まれない。配信の焦点がフォームのときは、別に一時的な spec で確かめる前提で回す必要がある (実測)
 
 ### windows-vm-verification: ディスクの容量
 
@@ -173,12 +184,20 @@ dotfiles で確かめたこと (2026-10-31): `home/apm.yml` は ast-grep-practic
 - ゲストのアダプタを切っている間にホストから ssh を打つと、ControlMaster の多重化の接続が壊れたまま残り、戻した後の ssh (それを使うラッパも) が10分固まった。新しい ssh では Broken pipe が出て張り直された (実測)。回避は、区間の前後で `ssh -O exit <host>` するか、その区間だけ `-o ControlMaster=no` にする (推測)。報告者の提案: CLI (winvm) にこの区間を扱う入口を足す
 - ネットワークを切っている間は ssh で同期できないので、`prlctl exec` で base64 を書き込み、ハッシュを照合してから使った (実測)
 
+### macos-vm-verification: ssh から GUI アプリを起動する
+
+- 2026-11-15の仕分けで、別のリポジトリから届いた。macos-vm-verification (macvm) の doctor は --vm が要り、ssh の alias は skill の側に無いので利用者に聞くことになる。スナップショットで原状へ戻して止める手順はそのまま通った (実測)。報告者の提案: macvm の skill に、ssh から GUI アプリを起動するときは `.app` に包んで `open -n` を使う (`launchctl asuser` は断られる) ことを書く (実測)。起動の実測は ISSUE-134 の GPUI の節にある
+
 ### justfile (第三者の上流): `*args` の展開で引数が割れる
 
 2026-10-31に仕分けた分で届いた。justfile skill は apm 経由の第三者の上流なので、直せるのは使う側の書き方と上流への報告まで。
 
 - justfile の `*args` を `{{ args }}` で展開すると、空白を含む引数が分割される。`just --dry-run` で `-t "a b"` が `-t a b` に割れ、`set positional-arguments` と `"$@"` で保たれた (実測)。justfile skill の例も `{{args}}` の形なので同じ罠を踏む。報告者の提案: 例を直す
   - 2026-11-10の仕分けで、別のリポジトリから同じ手当ての別の理由が届いた。`just` のレシピに引数を素通しするとき、`{{args}}` を本文に書くとレシピ本文を静的に読むテストの補助関数が式の展開を扱えず壊れることがある。`[positional-arguments]` と `"$@"` にすると本文に `{{...}}` が残らず、クォートも安全になる (実測)
+
+### justfile (第三者の上流): dump を読む検査の罠
+
+- 2026-11-15の仕分けで、別のリポジトリから届いた。報告者の提案: just の dump を読む検査を書くときの3つの罠 (priors、shebang、script 属性) を、ast-grep や just の skill の参照に足す (実測)。罠の本文は ISSUE-134 の「その他のツール」節の just の dump の項の子にある。仕分けたセッションの解釈: justfile skill は apm 経由の第三者の上流なので、上の節と同じく渡せるのは上流への報告まで。ast-grep-practice も第三者の上流
 
 ### workflow-authoring (組み込みの skill): 反証役へ既定値を指示する参照例
 
@@ -191,6 +210,7 @@ dotfiles で確かめたこと (2026-10-31): `home/apm.yml` は ast-grep-practic
 2026-11-11に仕分けた分で届いた。組み込みの skill なので、直せるのは script と brief を書く側まで。
 
 - Workflow の script で、バッククォートのテンプレート文字列の中に「' + 変数 + '」の連結を書くと展開されず、文字のまま agent へ渡る。共通の前置きに絶対パスがあったので害は無かったが、置き場の指定が壊れうる (実測)。報告者の提案は、Workflow の authoring の注意に「テンプレート文字列の中で文字列連結の綴りを書かない (${} で埋める)」を足すこと (実測)。仕分けたセッションの解釈: workflow-authoring は組み込みの skill なので、受けるなら script と brief を書く側の注意か ISSUE-100 のテンプレートになる
+- 2026-11-15の仕分けで、別のリポジトリから同じテンプレート文字列の別の壊れ方が届いた。Workflow の script でプロンプトをテンプレート文字列にすると、本文に混ざったエスケープしていないバッククォート (インラインコードの記法) でパースが壊れ、agent が1つも起動しないまま失敗した。本文に記法が混ざるなら、普通の文字列に \n でつなぐ (実測)。仕分けたセッションの解釈: 上の項は連結の綴りが展開されずに agent へ渡る形で、こちらは script のパース自体が壊れる形。受け方は上の項と同じく、script と brief を書く側の注意か ISSUE-100 のテンプレートになる
 
 ## タスク
 
@@ -230,6 +250,7 @@ dotfiles で確かめたこと (2026-10-31): `home/apm.yml` は ast-grep-practic
 - ISSUE-100: マージ前ゲートの dispatch プロンプトのテンプレート。brief の雛形の置き場
 - ISSUE-121: `issue-id.py` の接頭辞と走査の除外を外から渡す。in-repo-issue の後付けの取り付けと同じ面を持つ
 - ISSUE-114: security-blue-red-team を cloudflare の security-audit へ寄せる検討。Layer 2 / 3 を自作に残す見立てで、security-blue-red-team の節の提案が触る層と重なる
+- ISSUE-134: 特定の技術領域に閉じた知見。`--match-head-commit` の拒否の形、ssh から GUI アプリを起動した実測、just の dump を読む検査の罠の本文を、各節の項から参照した
 - ISSUE-75: 写しの食い違いを config-guard で検査する dotfiles 側の前例。ロードマップを写しにする雛形の提案と形が似ている
 - ISSUE-88: 検査と変異注入の知見。ast-grep の CSS の抑止の件を INS-110 に置いた
 - agentic-coding-tools の ISSUE-103 (closed): 起動数の上限をレーンの数から導いた裁定。レーンの読了の量の節から参照した
