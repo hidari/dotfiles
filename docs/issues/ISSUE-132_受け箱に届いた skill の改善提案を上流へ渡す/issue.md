@@ -240,7 +240,7 @@ dotfiles で確かめたこと (2026-10-31): `home/apm.yml` は ast-grep-practic
 - [ ] 「in-repo-issue: A.0 の重複検索のコマンドが grep の置き換えで欠ける」節 (2026-11-15) を agentic-coding-tools へ渡すか決める
 - [ ] 「macos-vm-verification: ssh から GUI アプリを起動する」節 (2026-11-15) を agentic-coding-tools へ渡すか決める
 - [ ] 「ゲートの順序、増分、CI の待ち方」節に2026-11-15に足した2つの子 (`wait-ci-runs.py` が一部の run だけ登録済みの窓で rc=0 を返す件と、速い層を先に通す順序の件) を agentic-coding-tools へ渡すか決める
-- [ ] 「web-monkey-qa」節に2026-11-15に足した2項目 (Escape で閉じた直後の探索、submit の許可リスト) を agentic-coding-tools へ渡すか決める
+- [ ] 「web-monkey-qa」節に2026-11-15に足した2項目 (Escape の直後にブラウザが作り直される件の再報告、submit の許可リスト) を agentic-coding-tools へ渡すか決める
 - [ ] justfile の `*args` の件を第三者の上流へ報告するか決める。workflow-authoring の2件 (brief を書く側で外すこと、テンプレート文字列の中の文字列連結) を、ISSUE-100 のテンプレートか Workflow の script を書く側の注意で受けるか決める
   - 2026-11-15に足した「justfile (第三者の上流): dump を読む検査の罠」節と、workflow-authoring のテンプレート文字列の別の壊れ方も、同じく決める
 - [x] 「ゲートの順序、増分、CI の待ち方」節に2026-11-11に足した2項目 (1項目めの子の「ゲートの直し自体を増分に含める」と、「当て直しのファイル一覧を増分に揃える」) を agentic-coding-tools へ渡すか決める

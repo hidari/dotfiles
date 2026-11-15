@@ -132,7 +132,7 @@ status: open
 
 ## 関連
 
-- ISSUE-107 (closed): advisor を挟んだ応答で usage が executor の段の和になる機構。「未測定と注意」節の usage の約2倍のずれの項から参照した
+- ISSUE-107 (closed): advisor を挟んだ応答で usage が executor の段の和になる機構。「反証の試行結果」節の「未測定と注意」の段落にある、usage の約2倍のずれの項から参照した
 - ISSUE-99 (closed): 同じ委譲元からの依頼 (plan のコード片)
 - agentic-coding-tools の ISSUE-47: gate の起動数の写し。テンプレート化で置き場が動く
 - agentic-coding-tools の ISSUE-33: gate の出力フォーマット節が空虚な合格を許す件。受け欄の形に関わる
