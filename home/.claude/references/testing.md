@@ -4,12 +4,15 @@
 
 規範の遵守そのものには要らない。手当ての具体が要るとき、規範を疑うとき、似た失敗を踏んで「これは既知か」を確かめるときに読む。
 
-例外が 1 つある。次の E2E の生成手順は、E2E を作る瞬間に引く手順で、規範ではなく手順であることを理由に常時層から外した。
+例外が 1 つある。「E2E の生成」節の手順は、E2E を作る瞬間に引く手順で、規範ではなく手順であることを理由に常時層から外した。
+
+E2E を書くとき、E2E の緑を疑うときの手当てと一次実測は `~/.claude/references/testing-e2e.md` が持つ。
 
 ## E2E の生成
 
-- 公式 Playwright Test Agents を `pnpm exec playwright init-agents --loop=claude` で生成し、Planner / Generator / Healer で作成する
+- 公式 Playwright Test Agents を `pnpm exec playwright init-agents --loop=claude` で生成し、planner / generator / healer で作成する
 - playwright を devDependency に持たないプロジェクトでは `pnpm dlx` で代替する
+- Test Agents で生成したあとの扱いは `~/.claude/references/testing-e2e.md` の「Playwright Test Agents で生成するとき」節が持つ
 
 ## 変異注入で pin を確かめる
 
