@@ -233,12 +233,18 @@ dotfiles で確かめたこと (2026-10-31): `home/apm.yml` は ast-grep-practic
 - [ ] 「ゲートの順序、増分、CI の待ち方」節の6項目め (worktree のブランチと `--delete-branch`) を、merge の手順を持つ skill へ渡すか決める
 - [ ] ast-grep-practice の2件を、第三者の上流 (mizchi/skills) へ報告するか、使う側の書き方で受けるかを決める
   - 2026-11-13に足した CSS の抑止の件 (理由のコメントの位置、0.42.1と0.45.3の版の差、`ast-grep test` が抑止を解釈しないこと) も、同じく決める
+  - 2026-11-15に足した Rust のマクロ引数の token_tree の件も、同じく決める
 - [ ] security-blue-red-team の6件を agentic-coding-tools へ渡す。ISSUE-114 で寄せる範囲を決めてから、契約に足すか自作の層で持つかを決めてもらう
 - [x] windows-vm-verification の3節を agentic-coding-tools へ渡す。CLI (winvm) にネットワークを切る区間の入口を足すかも決めてもらう
   - 2026-10-31に渡した。ディスクの容量と GUI 自動化は agentic-coding-tools の ISSUE-100、ネットワークを切る区間 (winvm の入口の判断を含む) は agentic-coding-tools の ISSUE-101 として起票された。配布版の gui-automation.md に既にあった2件 (日付の Spinner、インストーラの後の wuauserv) は除いた
+- [ ] 「in-repo-issue: A.0 の重複検索のコマンドが grep の置き換えで欠ける」節 (2026-11-15) を agentic-coding-tools へ渡すか決める
+- [ ] 「macos-vm-verification: ssh から GUI アプリを起動する」節 (2026-11-15) を agentic-coding-tools へ渡すか決める
+- [ ] 「ゲートの順序、増分、CI の待ち方」節に2026-11-15に足した2つの子 (`wait-ci-runs.py` が一部の run だけ登録済みの窓で rc=0 を返す件と、速い層を先に通す順序の件) を agentic-coding-tools へ渡すか決める
+- [ ] 「web-monkey-qa」節に2026-11-15に足した2項目 (Escape で閉じた直後の探索、submit の許可リスト) を agentic-coding-tools へ渡すか決める
 - [ ] justfile の `*args` の件を第三者の上流へ報告するか決める。workflow-authoring の2件 (brief を書く側で外すこと、テンプレート文字列の中の文字列連結) を、ISSUE-100 のテンプレートか Workflow の script を書く側の注意で受けるか決める
+  - 2026-11-15に足した「justfile (第三者の上流): dump を読む検査の罠」節と、workflow-authoring のテンプレート文字列の別の壊れ方も、同じく決める
 - [x] 「ゲートの順序、増分、CI の待ち方」節に2026-11-11に足した2項目 (1項目めの子の「ゲートの直し自体を増分に含める」と、「当て直しのファイル一覧を増分に揃える」) を agentic-coding-tools へ渡すか決める
-  - 2026-11-13にユーザーと決めた。上流の ISSUE-99 (closed) の裁定 (増分の手順は散文にせず、マージを head の SHA に縛った) に従い渡さない。どちらも増分の手順を散文で足す提案で、裁定を緩める向きになる。同じ日に足したほかの2項目 (ゲートが見た SHA の控え方、run の登録前に空が返ること) は v2026.11.1 で上流に入っていた
+  - 2026-11-13にユーザーと決めた。agentic-coding-tools の ISSUE-99 (closed) の裁定 (増分の手順は散文にせず、マージを head の SHA に縛った) に従い渡さない。どちらも増分の手順を散文で足す提案で、裁定を緩める向きになる。同じ日に足したほかの2項目 (ゲートが見た SHA の控え方、run の登録前に空が返ること) は v2026.11.1 で上流に入っていた
 - [x] 「pre-merge-quality-gate: Phase 3 の実ブラウザ確認の条件」節の件を閉じるか決める
   - 2026-11-13にユーザーと決めた。v2026.11.1 で gate の条件の文が user スコープの CLAUDE.md を含む形になったので、それで足りるとして閉じる
 - [ ] 「pre-merge-quality-gate: レーンの読了の量と指摘の重なり」節 (2026-11-13) の3項目を agentic-coding-tools へ渡すか決める。上流は読了の突き合わせとやり直しを既に入れているので、渡すならレーンの行数の上限と行数での分け方 (2つのリポジトリから届いた)、レーンをまたぐ指摘の束ね方に絞る。起動数の上限をレーンの数から導いた agentic-coding-tools の ISSUE-103 (closed) の裁定と合わせて見る
@@ -250,9 +256,11 @@ dotfiles で確かめたこと (2026-10-31): `home/apm.yml` は ast-grep-practic
 - ISSUE-100: マージ前ゲートの dispatch プロンプトのテンプレート。brief の雛形の置き場
 - ISSUE-121: `issue-id.py` の接頭辞と走査の除外を外から渡す。in-repo-issue の後付けの取り付けと同じ面を持つ
 - ISSUE-114: security-blue-red-team を cloudflare の security-audit へ寄せる検討。Layer 2 / 3 を自作に残す見立てで、security-blue-red-team の節の提案が触る層と重なる
+- ISSUE-133: 全リポジトリ向けの規範と references の候補。ゲートの Workflow での回し方、/goal の CI の待ち方、pre-flight scan と fix-loop の Minor の扱いを各節から参照した
 - ISSUE-134: 特定の技術領域に閉じた知見。`--match-head-commit` の拒否の形、ssh から GUI アプリを起動した実測、just の dump を読む検査の罠の本文を、各節の項から参照した
 - ISSUE-75: 写しの食い違いを config-guard で検査する dotfiles 側の前例。ロードマップを写しにする雛形の提案と形が似ている
 - ISSUE-88: 検査と変異注入の知見。ast-grep の CSS の抑止の件を INS-110 に置いた
+- agentic-coding-tools の ISSUE-99 (closed): 「ゲートの順序、増分、CI の待ち方」節の最初の3項目を渡した先。増分の手順を散文にせずマージを head の SHA に縛った裁定で、2026-11-11の2項目を渡さない根拠にした
 - agentic-coding-tools の ISSUE-103 (closed): 起動数の上限をレーンの数から導いた裁定。レーンの読了の量の節から参照した
 - agentic-coding-tools の ISSUE-109 (closed): web-monkey-qa の資格情報の露出と並列の explorer の干渉を直した
 - agentic-coding-tools の ISSUE-110: web-monkey-qa の作り直しの条件の切り分け

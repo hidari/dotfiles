@@ -101,7 +101,7 @@ security-guidance は入れない。自作のどれも置き換えないうえ�
 
 ## 関連
 
-- 40: security-blue-red-team の command と agent が二重に登録されている件。寄せるときに一緒に片付く可能性がある
+- Issue 40: security-blue-red-team の command と agent が二重に登録されている件。寄せるときに一緒に片付く可能性がある
 - ISSUE-90: apm の依存が持ち込む常時ロード層の検知。plugin の説明文も同じく config-guard の予算の外で載る
 - ISSUE-127: 監査用の砂箱イメージ。試用記録で確定まで進めなかった原因
 - ISSUE-128: 同じ試用で、user スコープに入っている skill を project スコープへ重ねて apm install した件

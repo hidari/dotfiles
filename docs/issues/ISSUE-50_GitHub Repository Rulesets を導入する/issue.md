@@ -81,3 +81,4 @@ classic だけを見ると今も 404 なので、上の判定手順を使わな�
 - agentic-coding-tools の ISSUE-48: 保護ブランチの判定手順が in-repo-issue skill の
   ライフサイクル節の内側にあり、Issue を扱っていない文脈からは到達しない。この Issue が
   ruleset を足すほど classic API だけの判定は外れるので、手順へ入る辺はあちらが作る
+- ISSUE-133: 全リポジトリ向けの規範の候補。作業の規範の節にタグ用 ruleset の実測を持ち、タグの ruleset のタスクから参照した

@@ -50,7 +50,7 @@ dotfiles で確かめたこと:
   - 2026-11-10の仕分けで、パイプの rc が終端のコマンドのものになる件を踏んだ報告が、同じリポジトリの2つのまとめから届いた (どちらも実測)。`cargo build ... | grep ... | head && 次のコマンド` で、ビルドが失敗しても head の終了コードで && が通り、古いバイナリで測った件 (手当ては、ビルドの出力をファイルに落として終了コードを直接見ること) と、zsh には `PIPESTATUS` が無く、パイプの先の rc を取ったつもりで空になり、パイプへ繋いだ時点で観測の rc は終端のコマンドのものになる件である。`PIPESTATUS` の件も `references/observation.md` に載っている。dotfiles で確かめたこと (2026-11-10、zsh 5.9): `zsh -c 'false | true'` の後で `PIPESTATUS` は空、小文字の `pipestatus` は `1 0` を返した
   - 2026-11-11の仕分けで、別のリポジトリからまた届いた。zsh では `cmd | tail; echo ${PIPESTATUS[0]}` が空になる。rc を見たいときは、出力をファイルに落としてから `echo rc=$?` する (実測)。dotfiles で確かめたこと (2026-11-11): `references/observation.md` の152行目は、zsh に `PIPESTATUS` が無く、小文字の `pipestatus` が1始まりであることを既に書いている
   - 2026-11-13の仕分けで、別のリポジトリからまた届いた。zsh の Bash ツールで `cmd | tail; echo ${PIPESTATUS[0]}` は空になり、終了コードが取れない。パイプなしで実行して `$?` を見た (実測)。dotfiles で確かめたことは上の子と同じ (2026-11-13に `references/observation.md` の152行目で再確認)
-  - 2026-11-15の仕分けで、別のリポジトリからまた届いた。zsh で `TS="a.test.ts b.test.ts"` を `vitest run $TS` に渡すと1つの引数になり「No test files found」で終了1になった。変異注入の結果が全部「赤」に見えたが、テストは1本も走っていなかった。`${=TS}` で分けるか配列を使い、終了コードではなく Tests の行の件数で判定する (実測)。dotfiles で確かめたこと (2026-11-15): `home/.claude/references/observation.md` の161行目は、zsh の `for x in $VAR` が単語分割されないことを既に書いている
+  - 2026-11-15の仕分けで、別のリポジトリからまた届いた。zsh で `TS="a.test.ts b.test.ts"` を `vitest run $TS` に渡すと1つの引数になり「No test files found」で終了1になった。変異注入の結果が全部「赤」に見えたが、テストは1本も走っていなかった。`${=TS}` で分けるか配列を使い、終了コードではなく Tests の行の件数で判定する (実測)。dotfiles で確かめたこと (2026-11-15): `references/observation.md` の161行目は、zsh の `for x in $VAR` が単語分割されないことを既に書いている
   - 2026-11-15の仕分けで、別のリポジトリからまた届いた。zsh で `cmd | tail -1; echo "rc=${PIPESTATUS[0]}"` と書くと rc が空で出る。zsh の配列は小文字の `pipestatus` で、`PIPESTATUS` は bash だけ。空は失敗でも成功でもないので、検査の通過を読み落とす。rc を見たいコマンドはパイプに繋がず、出力をファイルへ書いてから `$?` を読む (実測)。dotfiles で確かめたこと (2026-11-15): `references/observation.md` の152行目は、zsh に `PIPESTATUS` が無く小文字の `pipestatus` が1始まりであることを今も書いている
 - 結果を tail で切り詰めて失敗の行が落ち、`passed` だけが見えたこと: dotfiles のメモリにはあるが references には無い
 - 変異がビルドの未使用の検査に横取りされること、変異が当たらないまま緑を読むこと: ISSUE-88 の INS-7 と INS-10 の2件目として届いた。前回の6つにある「変異がコンパイラの警告に横取りされる」と同じ型である
@@ -58,7 +58,10 @@ dotfiles で確かめたこと:
 dotfiles で確かめたこと (2026-10-22): メモリのディレクトリは40あり (前回は39)、「単語分割」を含むメモリを持つプロジェクトは前回と同じ4つだった。
 
 一方で、dotfiles のメモリにも references にも無い知見も2つ届いた。zsh の `=` から始まる語のコマンドパス展開と、`pgrep -f` の自己照合で、本文は ISSUE-133 のシェルの節に置いた。前者は、このまとめを仕分けたセッション自身も同じ日に区切り線の `echo` で踏んだ。後者に近い形 (`pgrep -f` が同じ引数を持つ親のプロセスを拾う) は、別のプロジェクトのメモリに1件あった。
-- 2026-11-15の仕分けで、`grep -c` が出現数ではなく行数を数えることを踏んだ報告が届いた。minify されたファイルや1行のカタログに `grep -c` を使うと新旧とも1になって差が見えず、`grep -oF ... | wc -l` で出現数を数えた (実測)。dotfiles のメモリ (grep -c は行数を返す) にはあるが references には無い。dotfiles で確かめたこと (2026-11-15): `home/.claude/references/observation.md` で `grep -c` が出るのは163行目の1件で、BSD sed の置換の確認で部分一致を数えた件であり、行数しか数えない件ではない
+
+2026-11-15の仕分けでも、dotfiles のメモリにはあるが references には無い形の再発見が届いた。
+
+- 2026-11-15の仕分けで、`grep -c` が出現数ではなく行数を数えることを踏んだ報告が届いた。minify されたファイルや1行のカタログに `grep -c` を使うと新旧とも1になって差が見えず、`grep -oF ... | wc -l` で出現数を数えた (実測)。dotfiles のメモリ (grep -c は行数を返す) にはあるが references には無い。dotfiles で確かめたこと (2026-11-15): `references/observation.md` で `grep -c` が出るのは163行目の1件で、BSD sed の置換の確認で部分一致を数えた件であり、行数しか数えない件ではない
 
 ## 方向性 (会話で出したもの。未決)
 
@@ -153,4 +156,9 @@ stale な記述の検出には使わない。ISSUE-115 の試験で、過去形�
 - agentic-coding-tools の ISSUE-35: issue-scoped-artifacts の hook block の写しをやめられるかを検討している
 - agentic-coding-tools の ISSUE-36: 消費側へ要求する取り付けの棚卸し。型 3 (写しの drift) が重なる。型 6 (配布層自体) の鮮度は ISSUE-101 が持つ
 - agentic-coding-tools の ISSUE-22: deploy 先がホーム直下の 1 箇所しかない
+- ISSUE-48: 足した規範が委譲元のトリガから届くか。再発見の手当ての項から参照した
+- ISSUE-133: 全リポジトリ向けの規範の候補。メモリにも references にも無い知見の本文をシェルの節に置いた
+- ISSUE-46: マイルストーンの表と「検査を取り付ける土台」の節。着手順の項から参照した
+- ISSUE-115 (closed): Tirith のフックの撤去。stale の検出の試験の項から参照した
+- agentic-coding-tools の ISSUE-65: キーを使う呼び出しは利用者が `!` で走らせる裁定。Jev の再試験の境界と同じ
 - agentic-coding-tools の ISSUE-57: 収集時の一般化で、語単位の検査が落とす形の記録を持つ

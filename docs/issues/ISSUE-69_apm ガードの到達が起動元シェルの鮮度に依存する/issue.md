@@ -46,7 +46,8 @@ dotfiles で確かめたこと: PR #275 で node の pin を 24.18.0 から 24.2
 2026-10-31の仕分けで、別のリポジトリから同じ型の報告が3件目として届いた。新しいのは手当てで、コマンドの頭で `eval "$(mise env -s zsh)"` を評価すると、Bash ツールのシェルの版が今の mise.toml に揃った (実測)。報告者の提案: subagent の brief の雛形に、この1行と実際に走る版の確認を入れる。
 
 2026-11-13の仕分けで、別のリポジトリから同じ型の報告が4件目として届いた。`.mise.toml` の node の版を上げた後も、エージェントの Bash は会話の頭で決まった PATH を持ち続け、`node --version` は旧い版を返した (`mise current` と `mise exec -- node --version` は新しい版)。版を上げた検証のゲートは `mise exec -- <コマンド>` で回さないと、旧い版で緑になる (実測)。機構は上と同じで、手当ても上の報告者の提案 (`mise exec` で包むか新しいセッションで回す) と同じ。新しいのは、旧い版で緑になるとゲートの側から言い直した点
-- 2026-11-15の仕分けで、別のリポジトリから同じ型の報告が5件目として届いた。リポジトリの mise.toml で node を上げたあと、Claude Code の Bash ツールでは `mise current node` が新しい版を返すのに PATH 上の `node` は古い版のままだった。リポジトリで開いた `zsh -ic` は新しい版、`zsh -lc` で cd した後は古い版を指した。手元の検証は `mise exec -- <cmd>` 越しで回す必要がある (実測。mise activate の hook がプロンプトのたびに PATH を書き換える作りなので対話でないシェルでは効かない、という機序は ps や mise の docs では確かめていない推測)。報告者の提案: プロジェクトの mise pin が Claude の検証に効かないという意味で、global の規範か references に置く価値がある。`mise current` と `node --version` の食い違いが症状 (実測)。仕分けたセッションの解釈: 機構と手当ては上の4件と同じで、新しいのは `zsh -lc` で cd した後は古い版を指したという対照
+
+2026-11-15の仕分けで、別のリポジトリから同じ型の報告が5件目として届いた。リポジトリの mise.toml で node を上げたあと、Claude Code の Bash ツールでは `mise current node` が新しい版を返すのに PATH 上の `node` は古い版のままだった。リポジトリで開いた `zsh -ic` は新しい版、`zsh -lc` で cd した後は古い版を指した。手元の検証は `mise exec -- <cmd>` 越しで回す必要がある (実測。mise activate の hook がプロンプトのたびに PATH を書き換える作りなので対話でないシェルでは効かない、という機序は ps や mise の docs では確かめていない推測)。報告者の提案: プロジェクトの mise pin が Claude の検証に効かないという意味で、global の規範か references に置く価値がある。`mise current` と `node --version` の食い違いが症状 (実測)。仕分けたセッションの解釈: 機構と手当ては上の4件と同じで、新しいのは `zsh -lc` で cd した後は古い版を指したという対照
 
 ## タスク
 

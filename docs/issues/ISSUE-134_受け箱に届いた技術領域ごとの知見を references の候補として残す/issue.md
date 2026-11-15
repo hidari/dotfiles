@@ -842,6 +842,8 @@ status: open
 
 ### macOS のディスクイメージと外付けのファイルシステム
 
+2026-11-15に仕分けた分で届いた。
+
 - 2026-11-15の仕分けで、別のリポジトリから届いた。外付けディスク (APFS と exFAT) を前提にした SQLite の検証を、物理ディスクの代わりに hdiutil の sparse のディスクイメージを /Volumes にマウントして回した (実測)。ディスクイメージはファイルシステムのドライバを本物の外付けと同じ経路で通すので、ロック、WAL の -shm の有無、kill -9 からの戻りのようなファイルシステム側の振る舞いの検証には使える。fsync の速さや抜いたときの耐え方は中身の置き場 (内蔵 SSD) のものになるので、デバイス側の検証の代わりにはならず、結果は節を分けて書くのがよい (実測)。報告者の提案: 外付けストレージの検証が要るとき、物理ディスクを待つ前にディスクイメージでファイルシステム側だけ先に片付け、デバイスにしか無い性質 (fsync の速さ、抜いたときの耐え方) だけを物理ディスクの手作業に残す進め方を、検証の手当ての参照に足す (実測)。SQLite の -shm の有無を対照つきで確かめる項は ISSUE-133 の観測の節にある
 - exFAT のディスクイメージは `hdiutil create -size 1g -layout NONE -type SPARSE` で空のイメージを作り、`hdiutil attach -nomount` で出た device が `diskutil info` で Virtual: Yes と大きさの一致を確かめてから `diskutil eraseDisk ExFAT <名前> MBR /dev/diskN` をかけると作れた (実測)。`hdiutil create -fs ExFAT` は「その操作は許可されていません」で失敗した。理由は切り分けていない (実測)。`diskutil eraseDisk ExFAT` はボリューム名が長いと「valid volume name ではない」で失敗し、14文字で失敗して9文字の大文字で通った (実測)
 - macOS 26 では exFAT は FSKit のドライバでマウントされ、mount の属性に fskit と出る。SD カードでもディスクイメージでも同じだった (実測)
@@ -852,12 +854,16 @@ status: open
 
 ### macOS の画像の色と ICC
 
+2026-11-15に仕分けた分で届いた。
+
 - 2026-11-15の仕分けで、別のリポジトリから届いた。ICC の無い sRGB の JPEG に、画素を変えずに sRGB の ICC を埋め込んで、ビューアの色の扱いを切り分けた (実測)。JPEG に ICC を埋め込むときは、SOI の直後に `FF E2` の APP2 セグメント (`ICC_PROFILE\0` + 通し番号1 + 総数1 + プロファイル本体) を差し込むと、画素を1ビットも変えずに埋め込める。埋め込めたかは APP2 の ICC_PROFILE の数で確かめる (実測)
-- macOS で同じ写真の sRGB 版と Display P3 版を ColorSync (`sips -m`) で変換してから画素の差を数え、目の判定の代わりにした (実測)。色の正しさの判定は、目ではなく ColorSync で変換した画素と比べる数字で行うと揺れない。利用者本人も自分の色の見え方を当てにしていなかった (実測)
+- macOS で同じ写真の sRGB 版と Display P3 版を ColorSync (`sips -m`) で変換してから画素の差を数え、目の判定の代わりにした (実測)。色の正しさの判定は、目ではなく ColorSync で変換した画素と比べる数字で行うと揺れない (実測)
 - macOS の `sips --embedProfile` と `sips -m` は、sRGB のプロファイルを渡すと JPEG を再圧縮するだけで ICC を書かない (APP2 が0件のまま、画素は平均0.7/255ずれる)。`sips -g profile` は埋め込みが無くても sRGB と答えるので、それでは確かめられない (実測)。報告者の提案: macOS の画像ツールでの ICC の埋め込みは sips に頼らず、APP2 を直接差し込むか別の道具を使い、APP2 の数で確かめる手順を、画像を扱うリポジトリ共通の参照に置く (実測)。仕分けたセッションの解釈: `sips -g profile` が埋め込みの有無ではなく既定の解釈を答える形は、dotfiles のメモリの「自己申告は設定を答える」と同じ型
 - macOS のプレビュー.app は ICC の無い JPEG を sRGB として扱わず、同じ画素に sRGB の ICC を埋めたコピーとは違って見えた。「ICC 無し = sRGB」とみなすアプリ (ブラウザと同じ扱い) の表示は、プレビューと食い違う (実測、目視)
 
 ### macOS のファイル名の Unicode 正規化
+
+2026-11-15に仕分けた分で届いた。
 
 - 2026-11-15の仕分けで、別のリポジトリから届いた。Finder から窓へドロップされたファイルのパスは NFD で渡ることがある (濁点が結合文字に分かれる)。パスやファイル名を文字列で比べるところは正規化をそろえないと、見た目が同じでも一致しない (実測)。報告者の提案: ファイルのパスを比べるコードには NFC / NFD をそろえる規約を、macOS を対象にするリポジトリ共通の注意として置く (実測)
 
@@ -873,12 +879,12 @@ status: open
 
 - ISSUE-133: 同じ受け箱から届いた、技術領域に閉じない知見
 - ISSUE-97: 集めた知見を磨いて配る工程
-- ISSUE-88: 検査と変異注入の知見。このファイルの項目のうち pin の作り方にあたる部分は ISSUE-88 の INS-8 / INS-19〜21 / INS-23 / INS-27 / INS-57 / INS-72 / INS-77 / INS-79〜82 にあり、各項目の末尾から番号で参照している
+- ISSUE-88: 検査と変異注入の知見。このファイルの項目のうち pin の作り方にあたる部分は ISSUE-88 の INS にあり、各項目から番号で参照している
 - ISSUE-118: コンテナランタイムの移行。Supabase CLI のネイティブのランタイムの報告を置いた
 - ISSUE-136: global の mise に `.node-version` を読ませるか
 - ISSUE-101: apm の pin の遅れの告知。github-actions の ecosystem で Dependabot の cooldown が使えない件を参照した
 - ISSUE-124: apm-install-guard の誤検知。Python の shlex の項から参照した
 - ISSUE-123: chrome-devtools の take_screenshot の filePath。chrome-devtools-mcp の evaluate_script の項から参照した
-- ISSUE-132: CI の待ち方。`gh pr checks --watch` の項から参照した
+- ISSUE-132: 受け箱に届いた skill の改善提案。`gh pr checks --watch` の項 (CI の待ち方) と、GPUI の節の macvm で GUI アプリを起動する項から参照した
 - ISSUE-140: settings.local.json の配置。`disabledMcpjsonServers` の項から参照した
 - ISSUE-131: node のセキュリティ修正が pin へ届かない件。node の security の照合の項から参照した
