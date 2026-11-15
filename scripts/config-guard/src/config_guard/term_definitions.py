@@ -45,6 +45,9 @@ ACKNOWLEDGED: dict[tuple[str, str], str] = {
     ("変異注入", "home/.claude/references/testing.md"): _NAMES_THE_DEFINITION,
     ("dead pin", "home/.claude/references/observation.md"): _NAMES_THE_DEFINITION,
     ("dead pin", "home/.claude/references/testing.md"): _NAMES_THE_DEFINITION,
+    ("dead pin", "home/.claude/references/observation-checks.md"): _NAMES_THE_DEFINITION,
+    ("変異注入", "home/.claude/references/delegation.md"): _NAMES_THE_DEFINITION,
+    ("変異注入", "home/.claude/references/observation-checks.md"): _NAMES_THE_DEFINITION,
 }
 
 
