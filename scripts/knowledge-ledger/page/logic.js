@@ -85,7 +85,8 @@ var LedgerLogic = (() => {
   const decider = doc => (!decided(doc) ? null : doc.decidedBy === "claude" ? "claude" : "human");
   const matchesDecider = (doc, by) => !by || decider(doc) === by;
   // 人がページで判断を変えたときと「このままでよい」のときに付ける印。Claude の判断を押し直すと印が人へ移る
-  const stampOf = patch => (patch.decision !== undefined || patch.decidedAt !== undefined ? { decidedBy: "human" } : {});
+  const isJudgement = patch => patch.decision !== undefined || patch.decidedAt !== undefined;
+  const stampOf = patch => (isJudgement(patch) ? { decidedBy: "human" } : {});
   // Claude の保留のうち、利用者の裁定 (H1) か予算の引き上げ (H2) を待つもの。人が見ないと解けないので既定の一覧に出す
   const OWNER_RULES = new Set(["H1", "H2"]);
   const needsOwner = doc => decider(doc) === "claude" && doc.decision === "保留" && OWNER_RULES.has(doc.claudeRule);
@@ -104,10 +105,11 @@ var LedgerLogic = (() => {
     return day !== "" && item.appended >= day;
   }
 
-  function inDefaultList(item, doc, clauses) {
+  // includeStored は「保管中も含める」。未判断の件を昇格の条件によらず出す
+  function inDefaultList(item, doc, clauses, includeStored = false) {
     if (needsReview(item, doc) || needsOwner(doc)) return true;
     if (decided(doc)) return false;
-    return clauses.length === 0 || promoted(item, clauses);
+    return includeStored || clauses.length === 0 || promoted(item, clauses);
   }
 
   function bulkTargets(selectedIds, decisionOf) {
@@ -147,7 +149,7 @@ var LedgerLogic = (() => {
   const conditionCounts = (items, clauses) =>
     clauses.map(c => items.reduce((n, it) => n + (clauseMatches(it, c) ? 1 : 0), 0));
 
-  return { BASE_DATE, PRED_KINDS, addedOf, reportsOf, decider, matchesDecider, stampOf, needsOwner, parseConditions, promoted, localDate, needsReview, inDefaultList, bulkTargets, undoTargets, cardGroups, conditionCounts };
+  return { BASE_DATE, PRED_KINDS, addedOf, reportsOf, decider, matchesDecider, isJudgement, stampOf, needsOwner, parseConditions, promoted, localDate, needsReview, inDefaultList, bulkTargets, undoTargets, cardGroups, conditionCounts };
 })();
 
 if (typeof module !== "undefined") module.exports = LedgerLogic;

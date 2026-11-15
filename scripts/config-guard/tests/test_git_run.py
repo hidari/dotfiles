@@ -18,12 +18,22 @@ from tests.conftest import REPO_ROOT
 _HOOK_PATH = REPO_ROOT / "home" / ".claude" / "hooks" / "hook_git.py"
 
 
-def _load_hook_module() -> Any:
-    spec = importlib.util.spec_from_file_location("hook_git_under_test", _HOOK_PATH)
+# knowledge-ledger も依存を持たない別パッケージで、同じ集合を独立コピーで持つ
+_LEDGER_DELTA_PATH = (
+    REPO_ROOT / "scripts" / "knowledge-ledger" / "src" / "knowledge_ledger" / "delta.py"
+)
+
+
+def _load_module(name: str, path: Any) -> Any:
+    spec = importlib.util.spec_from_file_location(name, path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _load_hook_module() -> Any:
+    return _load_module("hook_git_under_test", _HOOK_PATH)
 
 
 def test_strips_git_location_vars(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -50,3 +60,8 @@ def test_hook_git_location_vars_match_config_guard() -> None:
     # 片方に GIT_* を足し忘れると leak が silent に残るため、この import 照合が赤で検出する。
     hook = _load_hook_module()
     assert hook.LOCATION_VARS == git_run._GIT_LOCATION_VARS
+
+
+def test_knowledge_ledger_location_vars_match_config_guard() -> None:
+    delta = _load_module("knowledge_ledger_delta_under_test", _LEDGER_DELTA_PATH)
+    assert delta._GIT_LOCATION_VARS == git_run._GIT_LOCATION_VARS

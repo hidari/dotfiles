@@ -4,7 +4,9 @@
   python -m knowledge_ledger.delta <worktree> <base-items.json> <out-delta.json>
   --today YYYY-MM-DD
 - 追記された最上位の箇条 (子を含む) は新しい件。ID は ISSUE-133 が K133-<続き番号>、
-  ISSUE-134 が K134-<続き番号>、ISSUE-88 は箇条の INS 番号、ほかの Issue は K<番号>-<連番>
+  ISSUE-134 が K134-<続き番号>、ほかの Issue は K<番号>-<連番>
+- ISSUE-88 の表の行 (`| INS-n |`) は INS 番号の新しい件、
+  `- INS-n の` の箇条は既存の INS の件への追記
 - 既存の箇条の子として足された行は、親の箇条の1行目で台帳の件を引き、
   原文へ足して report_count を増やす
 - 台帳に無い既存の箇条へ足された子は、親の1行目と足した子を合わせて新しい件にする

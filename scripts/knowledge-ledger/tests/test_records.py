@@ -100,3 +100,10 @@ def test_main_rejects_decision_for_unknown_id(tmp_path: Path) -> None:
     (ddir / "K9-999.json").write_text(json.dumps({"decision": "採る"}), encoding="utf-8")
     with pytest.raises(ValueError, match="K9-999"):
         main([str(tmp_path), str(tmp_path / "items.json"), str(ddir), "--snapshot", SNAP])
+
+
+def test_render_does_not_double_escape_an_already_escaped_pipe() -> None:
+    """表の行から取った原文は `\\|` を既に持つ。二重に逃がすと GFM で列がずれる"""
+    its = [{"id": "INS-1", "order": 1, "issue": "ISSUE-1", "text": "既定値を `a \\|\\| b` で出す"}]
+    out = render("ISSUE-1", its, {}, SNAP)
+    assert "| INS-1 | 既定値を `a \\|\\| b` で出す | まだ |  |  |  |" in out

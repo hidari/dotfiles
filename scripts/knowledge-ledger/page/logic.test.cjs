@@ -358,3 +358,19 @@ test("needsReview: Claude の判断に追記が届いても人の見直しには
   assert.equal(L.needsReview(it, { decision: "採る", decidedBy: "claude", seenReports: 1, decidedAt: "2026-11-15T00:00:00Z" }), false);
   assert.equal(L.needsReview(it, { decision: "採る", decidedBy: "human", seenReports: 1, decidedAt: "2026-11-15T00:00:00Z" }), true);
 });
+
+test("inDefaultList: 保管中も含めると未判断は節によらず出し、利用者の裁定が要る Claude の保留も見直しの件も落とさない", () => {
+  const c = [clause(pred("issue", "eq", "none"))];
+  assert.equal(L.inDefaultList(item(), null, c, true), true);
+  assert.equal(L.inDefaultList(item(), null, c, false), false);
+  assert.equal(L.inDefaultList(item(), { decision: "保留", decidedBy: "claude", claudeRule: "H1" }, c, true), true);
+  assert.equal(L.inDefaultList(item(), { decision: "保留", decidedBy: "claude", claudeRule: "H3" }, c, true), false);
+  assert.equal(L.inDefaultList(item({ appended: "2999-01-01" }), { decision: "採る", updatedAt: "2026-11-01T00:00:00Z" }, c, true), true);
+  assert.equal(L.inDefaultList(item(), { decision: "採る", updatedAt: "2026-11-01T00:00:00Z" }, [], true), false);
+});
+
+test("isJudgement: 判断を変えたときと「このままでよい」だけが判断の書き込み", () => {
+  assert.equal(L.isJudgement({ decision: null }), true);
+  assert.equal(L.isJudgement({ decidedAt: "x" }), true);
+  assert.equal(L.isJudgement({ note: "x" }), false);
+});

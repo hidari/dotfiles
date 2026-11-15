@@ -84,8 +84,8 @@ def test_main_takes_today_and_writes_delta(tmp_path: Path) -> None:
 
 
 def test_inherited_git_location_env_does_not_leak(tmp_path: Path, monkeypatch: Any) -> None:
-    """pre-commit の hook は GIT_DIR や GIT_INDEX_FILE を付けて走る。継承すると使い捨ての
-    リポジトリではなく本体の index と設定を書き換える (2026-11-15 に worktree で踏んだ)"""
+    """hook の下で継承した GIT_DIR / GIT_INDEX_FILE は -C より優先される。所在を指す変数を落とし、
+    -C で渡したリポジトリを読むこと"""
     decoy = tmp_path / "decoy"
     monkeypatch.setenv("GIT_DIR", str(decoy / "git"))
     monkeypatch.setenv("GIT_INDEX_FILE", str(decoy / "index"))

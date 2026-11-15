@@ -79,8 +79,7 @@
     let r = ITEMS.filter(i => {
       const doc = view(i.id), d = doc.decision || null;
       if (!sticky.has(i.id)) {
-        // 既定の一覧は昇格した未判断の件と、判断の後に追記があった件。保管中も含めるときは未判断の全件
-        if (st === "todo" && !(showStored ? (L.needsReview(i, doc) || !d) : L.inDefaultList(i, doc, stored.clauses))) return false;
+        if (st === "todo" && !L.inDefaultList(i, doc, stored.clauses, showStored)) return false;
         if (st && st !== "todo" && d !== st) return false;
         if (!L.matchesDecider(doc, by)) return false;
       }
@@ -168,7 +167,7 @@
     // 判断を変えたときだけ decidedAt が進む。メモだけの保存では進めない。
     // 「このままでよい」は呼び出し側が decidedAt だけを渡す
     // 同じときに、見た時点の届いた報告の数 (seenReports) も記録する
-    const stamp = patch.decision !== undefined || patch.decidedAt !== undefined;
+    const stamp = L.isJudgement(patch);
     const decidedAt = patch.decision !== undefined ? { decidedAt: now } : {};
     const seen = stamp ? { seenReports: L.reportsOf(byId.get(id)) } : {};
     pending.set(id, { ...(pending.get(id) || {}), ...patch, ...decidedAt, ...seen, ...L.stampOf(patch), updatedAt: now });

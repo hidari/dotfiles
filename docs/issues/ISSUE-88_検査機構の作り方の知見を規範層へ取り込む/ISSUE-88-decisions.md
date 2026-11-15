@@ -97,7 +97,7 @@
 | INS-89 | ソースの grep 系の検査でコメントを落とすとき、文字列の中身まで落とすと補間… | 採る | Claude | 14 | ~/.claude/references/testing.md の fixture の値の選び方の節 |
 | INS-90 | 拒否集合のテストを UCD の範囲表の全符号位置で回し、弾いた件数・通した件数・… | 採る | Claude | 14 | ~/.claude/references/testing.md に全列挙のテストの節を新設 |
 | INS-91 | 写す・公開する系の操作の前の検査は、写す時点 (merge の後) だけでなく、… | 採らない | Claude | R4 |  |
-| INS-92 | 「届かなかったときの既定値」を `\\|\\| code=000` のように置く行は… | 採る | Claude | 14 | ~/.claude/references/testing.md の変異注入の節 (既定値の盲点) |
+| INS-92 | 「届かなかったときの既定値」を `\|\| code=000` のように置く行は、正… | 採る | Claude | 14 | ~/.claude/references/testing.md の変異注入の節 (既定値の盲点) |
 | INS-93 | 「古い状態を読んで緑になるのでは」という静的レビューの指摘を、変異の赤で反証でき… | 採らない | Claude | R4 |  |
 | INS-94 | 計画のファイル名や見出しを「計画への参照の語」として自動で集め、コードへの混入を… | 採らない | Claude | R5 |  |
 | INS-95 | Quint の仕様の検査に、前提スイッチを倒した写しで inv が破れることと、… | 採らない | Claude | R1 | ~/.claude/CLAUDE.md |
