@@ -59,7 +59,7 @@
   };
 
   // 絞り込みと開いていたページをこのブラウザに覚える
-  const UI_FIELDS = ["f-state", "f-issue", "f-section", "f-rec", "f-cov", "f-added", "f-sort", "f-q"];
+  const UI_FIELDS = ["f-state", "f-by", "f-issue", "f-section", "f-rec", "f-cov", "f-added", "f-sort", "f-q"];
   const saveUi = () => ls.set(LS_UI, { ...Object.fromEntries(UI_FIELDS.map(k => [k, $(k).value])), stored: $("show-stored").checked, page });
   const restoreUi = () => {
     const u = ls.get(LS_UI);
@@ -73,7 +73,7 @@
   restoreUi();
 
   function filtered() {
-    const st = $("f-state").value, iss = $("f-issue").value, sec = $("f-section").value, rec = $("f-rec").value, cov = $("f-cov").value, add = $("f-added").value;
+    const st = $("f-state").value, by = $("f-by").value, iss = $("f-issue").value, sec = $("f-section").value, rec = $("f-rec").value, cov = $("f-cov").value, add = $("f-added").value;
     const q = $("f-q").value.trim().toLowerCase();
     const showStored = $("show-stored").checked;
     let r = ITEMS.filter(i => {
@@ -82,6 +82,7 @@
         // 既定の一覧は昇格した未判断の件と、判断の後に追記があった件。保管中も含めるときは未判断の全件
         if (st === "todo" && !(showStored ? (L.needsReview(i, doc) || !d) : L.inDefaultList(i, doc, stored.clauses))) return false;
         if (st && st !== "todo" && d !== st) return false;
+        if (!L.matchesDecider(doc, by)) return false;
       }
       if (iss && i.issue !== iss) return false;
       if (sec && i.section !== sec) return false;
@@ -110,9 +111,10 @@
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const RETRYABLE = new Set(["unavailable", "resource_exhausted"]);
-  // 書く欄はこの4つと updatedAt だけ。前の版の控えや文書が持つ欄 (seenAppended など) は送らない。
-  // decidedAt は判断を変えたときと「このままでよい」のときだけ patch に載る
-  const WRITTEN = ["decision", "note", "decidedAt", "seenReports"];
+  // 書く欄はこの8つと updatedAt だけ。前の版の控えや文書が持つ欄 (seenAppended など) は送らない。
+  // decidedAt と decidedBy は判断を変えたときと「このままでよい」のときだけ patch に載る。
+  // claude で始まる3つはページが書かず、set へ倒れたときに保存先の値を落とさないために載せる
+  const WRITTEN = ["decision", "note", "decidedAt", "seenReports", "decidedBy", "claudeRule", "claudeReason", "claudeDest"];
   const written = o => Object.fromEntries(WRITTEN.filter(k => o && o[k] !== undefined).map(k => [k, o[k]]));
   async function writeOnce(id, patch) {
     const ref = db.collection("decisions").doc(id);
@@ -169,7 +171,7 @@
     const stamp = patch.decision !== undefined || patch.decidedAt !== undefined;
     const decidedAt = patch.decision !== undefined ? { decidedAt: now } : {};
     const seen = stamp ? { seenReports: L.reportsOf(byId.get(id)) } : {};
-    pending.set(id, { ...(pending.get(id) || {}), ...patch, ...decidedAt, ...seen, updatedAt: now });
+    pending.set(id, { ...(pending.get(id) || {}), ...patch, ...decidedAt, ...seen, ...L.stampOf(patch), updatedAt: now });
     persistPending();
     paint(id); tallies();
     flush(id);
@@ -210,6 +212,10 @@
     c.ack.hidden = !review; c.ack.disabled = !canSend(src.decisions);
     // 昇格の条件に当てはまらない未判断の件は保管中。「採らない」と読める表示にしない
     c.stored.hidden = !(!d && !review && stored.clauses.length > 0 && !L.promoted(i, stored.clauses));
+    const byC = L.decider(v) === "claude";
+    c.byClaude.hidden = !byC;
+    c.claudeWhy.hidden = !byC;
+    text(c.claudeWhy, byC ? ["判定表 " + (v.claudeRule || "?"), v.claudeReason, v.claudeDest ? "反映先: " + v.claudeDest : ""].filter(Boolean).join(" / ") : "");
     c.sel.checked = selected.has(id);
   }
 
@@ -225,6 +231,8 @@
     c.append(meta);
     const chips = mk("div", "chips");
     const storedChip = mk("span", "chip stored", "保管中 (判断していない)"); storedChip.hidden = true; chips.append(storedChip);
+    const byClaude = mk("span", "chip by-claude", "Claude の判断"); byClaude.hidden = true; chips.append(byClaude);
+    const claudeWhy = mk("div", "row claude-why"); claudeWhy.hidden = true;
     const after = mk("span", "chip after", "判断の後に報告が追記された"); after.hidden = true; chips.append(after);
     const ack = mk("button", "ack", "このままでよい"); ack.type = "button"; ack.hidden = true;
     // 判断が届く前は confirmed に件が無く、書くと set で既存の判断を null で上書きしうるので、確定済みの判断がある件だけ通す
@@ -249,6 +257,7 @@
     if (!(i.covered && i.covered.quote) && i.covered && i.covered.searched && i.covered.searched.length) {
       c.append(mk("div", "path", "探した語: " + i.covered.searched.join("、")));
     }
+    c.append(claudeWhy);
     const dec = mk("div", "decide");
     const btnBox = mk("div", "btns"); btnBox.setAttribute("role", "group"); btnBox.setAttribute("aria-label", i.id + " の判断");
     const btns = [];
@@ -276,7 +285,7 @@
     const saved = mk("div", "saved");
     dec.append(btnBox, ta, saved);
     c.append(dec);
-    cards.set(i.id, { el: c, dl, btns, undo, ta, saved, after, ack, stored: storedChip, sel });
+    cards.set(i.id, { el: c, dl, btns, undo, ta, saved, after, ack, stored: storedChip, byClaude, claudeWhy, sel });
     return c;
   }
 
@@ -300,7 +309,7 @@
   const repaintAll = () => { for (const id of cards.keys()) paint(id); tallies(); };
   const resetView = () => { sticky.clear(); page = 0; render(); };
 
-  for (const id of ["f-state", "f-section", "f-rec", "f-cov", "f-added", "f-sort", "show-stored"]) $(id).addEventListener("change", resetView);
+  for (const id of ["f-state", "f-by", "f-section", "f-rec", "f-cov", "f-added", "f-sort", "show-stored"]) $(id).addEventListener("change", resetView);
   $("f-issue").addEventListener("change", () => { fillSections(); resetView(); });
   let qt = null; $("f-q").addEventListener("input", () => { clearTimeout(qt); qt = setTimeout(resetView, 250); });
   $("prev").addEventListener("click", () => { sticky.clear(); page--; render(); window.scrollTo({ top: 0 }); });

@@ -12,6 +12,7 @@
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -86,8 +87,26 @@ def _new_item(
     )
 
 
+# hook の下で走ると git は所在を指す GIT_* を子へ渡し、-C より優先されて別のリポジトリを読む。
+# 所在の指定を -C に一本化するため、所在を指す変数だけを落とす (config-guard の git_run と同じ集合)
+_GIT_LOCATION_VARS = frozenset(
+    {
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_COMMON_DIR",
+        "GIT_PREFIX",
+        "GIT_NAMESPACE",
+    }
+)
+
+
 def _git(wt: str, *args: str) -> str:
-    return subprocess.run(["git", "-C", wt, *args], capture_output=True, check=True).stdout.decode()
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_LOCATION_VARS}
+    return subprocess.run(
+        ["git", "-C", wt, *args], capture_output=True, check=True, env=env
+    ).stdout.decode()
 
 
 def _added_lines(wt: str, path: str) -> set[int]:

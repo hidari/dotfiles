@@ -81,13 +81,23 @@ var LedgerLogic = (() => {
 
   const decided = doc => !!(doc && doc.decision);
 
+  // 判断した側。印を持つのは Claude が書いた判断だけで、印の無い判断 (前からの判断を含む) は人のものと読む
+  const decider = doc => (!decided(doc) ? null : doc.decidedBy === "claude" ? "claude" : "human");
+  const matchesDecider = (doc, by) => !by || decider(doc) === by;
+  // 人がページで判断を変えたときと「このままでよい」のときに付ける印。Claude の判断を押し直すと印が人へ移る
+  const stampOf = patch => (patch.decision !== undefined || patch.decidedAt !== undefined ? { decidedBy: "human" } : {});
+  // Claude の保留のうち、利用者の裁定 (H1) か予算の引き上げ (H2) を待つもの。人が見ないと解けないので既定の一覧に出す
+  const OWNER_RULES = new Set(["H1", "H2"]);
+  const needsOwner = doc => decider(doc) === "claude" && doc.decision === "保留" && OWNER_RULES.has(doc.claudeRule);
+
   // 届いた報告の数。merge.py と同じく無ければ1と数える
   const reportsOf = item => item.report_count || 1;
 
   // 判断か「このままでよい」の時点で見た報告の数 (seenReports) を今の数と比べる。merge.py は追記のたびに数を増やすので、
   // 同じ日に2度目の追記があっても見分けられる。seenReports を持たない判断は日付で比べ、同じ日は前後を決められないので見直しへ倒す (>=)
   function needsReview(item, doc) {
-    if (!decided(doc) || !item.appended) return false;
+    // Claude の判断への追記は人の見直しに出さず、次の仕分けで Claude が裁定し直す
+    if (!decided(doc) || !item.appended || decider(doc) === "claude") return false;
     // 今より多い数は新しい版のページが書いたもの。古い版で開いても見直しに出さない
     if (typeof doc.seenReports === "number") return doc.seenReports < reportsOf(item);
     const day = localDate(doc.decidedAt ?? doc.updatedAt);
@@ -95,7 +105,7 @@ var LedgerLogic = (() => {
   }
 
   function inDefaultList(item, doc, clauses) {
-    if (needsReview(item, doc)) return true;
+    if (needsReview(item, doc) || needsOwner(doc)) return true;
     if (decided(doc)) return false;
     return clauses.length === 0 || promoted(item, clauses);
   }
@@ -137,7 +147,7 @@ var LedgerLogic = (() => {
   const conditionCounts = (items, clauses) =>
     clauses.map(c => items.reduce((n, it) => n + (clauseMatches(it, c) ? 1 : 0), 0));
 
-  return { BASE_DATE, PRED_KINDS, addedOf, reportsOf, parseConditions, promoted, localDate, needsReview, inDefaultList, bulkTargets, undoTargets, cardGroups, conditionCounts };
+  return { BASE_DATE, PRED_KINDS, addedOf, reportsOf, decider, matchesDecider, stampOf, needsOwner, parseConditions, promoted, localDate, needsReview, inDefaultList, bulkTargets, undoTargets, cardGroups, conditionCounts };
 })();
 
 if (typeof module !== "undefined") module.exports = LedgerLogic;
