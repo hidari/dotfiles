@@ -71,7 +71,7 @@ console script のシバンへ venv の絶対パスが焼き込まれるので s
 
 ## 0 件・空・緑を健全と読む
 
-検査・探針・witness・smoke を組むとき (比較器、件数の数え方、版で割れる探針、PATH を空にするプローブ、処理系の版のガード) と、外部依存の不在で早期 return するテストを持つスイートの結果を読むときは `~/.claude/references/observation-checks.md` を開く。
+検査・探針・witness・smoke を組むときと、外部依存の不在で早期 return するテストを持つスイートの結果を読むときは `~/.claude/references/observation-checks.md` を開く。
 
 ### 何を何件見たか
 

@@ -22,7 +22,7 @@ minify されたファイルや1行のカタログに `grep -c` を使うと、�
 
 ## git の出力の日本語パスはクォートされる
 
-日本語のパスを含む git の出力 (`--name-only`・`ls-tree`・`--stat`・diff のヘッダ・`ls-files`) を、grep や Read や別の git コマンドへ渡すときに踏む。受け方の canonical は `~/.claude/references/observation.md` の「パースが静かに欠ける」項 (NUL 区切りで受ける) で、ここはクォートの出方と、設定でクォートを外す形を足す。
+日本語のパスを含む git の出力 (`--name-only`・`ls-tree`・`--stat`・diff のヘッダ・`ls-files`) を、grep や Read や別の git コマンドへ渡すときに踏む。受け方の canonical は `~/.claude/references/observation.md` の「パースが静かに欠ける」項 (NUL 区切りで受ける) で、`ls-files` を `-z` 無しで対照にして取りこぼしと誤読した例は同じファイルの「対照側も同じだけ壊れる」項にある。ここはクォートの出方と、設定でクォートを外す形を足す。
 
 - 機序: git の `--name-only`、`ls-tree --name-only`、`--stat`、diff のヘッダは、既定 (core.quotepath=true) で ASCII 以外を含むパスを8進のエスケープで出す。`ls-files` も日本語のファイル名を引用符と8進数で出す (どちらも実測)
 - 症状: 出力を grep や Read に渡すと、エラーにならずに0件になったり開けなかったりした。`ls-tree --name-only` から取ったパスを `git show` に渡すと、クォート付きのまま does not exist になった。ls-files の一覧と subagent が返したパスを突き合わせると、読んだはずのファイルが未読に数えられた (どれも実測)
@@ -32,6 +32,6 @@ minify されたファイルや1行のカタログに `grep -c` を使うと、�
 
 `gh pr checks --watch` の出力をファイルに書いて tail で読むときに踏む。
 
-`gh pr checks --watch` の出力をファイルへ書いて tail で読むと、書き直しのたびの一覧が縦につながる。そのため「test が pending なのに集約のジョブが pass」に見える行の並びができ、集約のジョブが待たずに緑になったと誤読しかけた。順序は actions の jobs API の started_at / completed_at で確かめる (実測。報告日は未記録、gh の版は未記録)。
+書き直しのたびの一覧が縦につながるので、「test が pending なのに集約のジョブが pass」に見える行の並びができ、集約のジョブが待たずに緑になったと誤読しかけた。順序は actions の jobs API の started_at / completed_at で確かめる (実測。報告日は未記録、gh の版は未記録)。
 
 結論そのものの確かめ方は `~/.claude/references/observation.md` の「成否が隠れる」項が持つ。
