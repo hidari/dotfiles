@@ -1,6 +1,6 @@
 # 調査と点検の委譲の一次実測
 
-`~/.claude/references/delegation.md` の続き。容量の都合で分けた。調査や点検を subagent や Workflow に委ねて、その結果を文書や計画へ写すときの観測を持つ。
+`~/.claude/references/delegation.md` の続き。調査や点検を subagent や Workflow に委ねて、その結果を文書や計画へ写すときの観測を持つ。
 
 規範の遵守そのものには要らない。手当ての具体が要るとき、規範を疑うとき、似た失敗を踏んで「これは既知か」を確かめるときに読む。
 

@@ -4,12 +4,12 @@
 
 規範の遵守そのものには要らない。手当ての具体が要るとき、規範を疑うとき、似た失敗を踏んで「これは既知か」を確かめるときに読む。
 
-ただし「Bash コマンドの沈黙経路」節は例外で、コマンドを組む前に開く。
-手当ての canonical がここにしか無いため、遵守の時点で要る。
+ただし「Bash コマンドの沈黙経路」節とその続きの `~/.claude/references/observation-shell.md` は例外で、コマンドを組む前に開く。
+手当ての canonical がこの節と observation-shell.md にしか無いため、遵守の時点で要る。
 
 ## 報告を網羅と読む
 
-複数のファイルへまとめて書き換えを当てるとき、測った値や一次資料の値を文書へ写すときは `~/.claude/references/observation-records.md` を開く。
+複数のファイルへまとめて書き換えや削除を当てるとき、formatter の `--write` を作業ツリー全体へかけるとき、測った値や一次資料の値を文書へ写すときは `~/.claude/references/observation-records.md` を開く。
 
 ### 未読ファイルを追跡下へ入れる
 
@@ -71,7 +71,7 @@ console script のシバンへ venv の絶対パスが焼き込まれるので s
 
 ## 0 件・空・緑を健全と読む
 
-検査・探針・witness・smoke を組むとき (比較器、件数の数え方、版で割れる探針、PATH を空にするプローブ、処理系の版のガード) の続きは `~/.claude/references/observation-checks.md` が持つ。
+検査・探針・witness・smoke を組むとき (比較器、件数の数え方、版で割れる探針、PATH を空にするプローブ、処理系の版のガード) と、外部依存の不在で早期 return するテストを持つスイートの結果を読むときは `~/.claude/references/observation-checks.md` を開く。
 
 ### 何を何件見たか
 
