@@ -1,4 +1,4 @@
-# ISSUE-134 の採否 (2026-11-15 に判断の保存先から写した)
+# ISSUE-134 の採否 (2026-11-16 に判断の保存先から写した)
 
 この表は `knowledge_ledger.records` が台帳の判断の保存先から生成する。手で直さない。記号の意味は ISSUE-146-spec.md の判定表が持ち、理由の文面は判断の保存先が持つ。
 
@@ -535,3 +535,4 @@
 | K134-529 | macOS の `sips --embedProfile` と `sips -m… | 採らない | Claude | R6 |  |
 | K134-530 | macOS のプレビュー.app は ICC の無い JPEG を sRGB と… | 採らない | Claude | R4 |  |
 | K134-531 | 2026-11-15の仕分けで、別のリポジトリから届いた。Finder から窓へ… | 採る | Claude | 14 | ~/.claude/references/tool-macos.md (新規) の「ファイル名の Unicode 正規化」節 |
+| K134-532 | 2026-11-16の仕分けで、別のリポジトリから届いた。GitHub の Fr… | 採らない | Claude | R5 |  |
