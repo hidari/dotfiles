@@ -5,11 +5,11 @@
 規範の遵守そのものには要らない。手当ての具体が要るとき、規範を疑うとき、似た失敗を踏んで「これは既知か」を確かめるときに読む。
 
 ただし「Bash コマンドの沈黙経路」節とその続きの `~/.claude/references/observation-shell.md` は例外で、コマンドを組む前に開く。
-手当ての canonical がこの節と observation-shell.md にしか無いため、遵守の時点で要る。
+手当ての canonical がこの2か所にしか無いため、遵守の時点で要る。
 
 ## 報告を網羅と読む
 
-複数のファイルへまとめて書き換えや削除を当てるとき、formatter の `--write` を作業ツリー全体へかけるとき、測った値や一次資料の値を文書へ写すときは `~/.claude/references/observation-records.md` を開く。
+複数のファイルへまとめて書き換えや削除を当てるとき、formatter の `--write` をかけるとき、測った値や一次資料の値を文書へ写すときは `~/.claude/references/observation-records.md` を開く。
 
 ### 未読ファイルを追跡下へ入れる
 
@@ -71,7 +71,7 @@ console script のシバンへ venv の絶対パスが焼き込まれるので s
 
 ## 0 件・空・緑を健全と読む
 
-検査・探針・witness・smoke を組むときと、外部依存の不在で早期 return するテストを持つスイートの結果を読むときは `~/.claude/references/observation-checks.md` を開く。
+検査・探針・witness・smoke を組むとき、比較の結果が報告や期待の件数と合わないとき、外部依存の不在で早期 return するテストを持つスイートの結果を読むとき、処理系の版を pin しているときは `~/.claude/references/observation-checks.md` を開く。
 
 ### 何を何件見たか
 
@@ -149,7 +149,7 @@ ruff の isort が `src` 設定に依存するか確かめるプローブを対�
 破られ方に共通するのは、失敗が「エラー」ではなく「成功に見える結果」として返ること。
 これまで踏んだ「成功に見える結果」の形には「0 件」「何も起きない」「無関係な件数」「短い正常な結果」がある。
 
-この節の続きは `~/.claude/references/observation-shell.md` が持ち、組む前に一緒に開く (文字列の中の `$?`、`grep -c`、git の出力の日本語パス、`--watch` の出力をファイルで読む)。
+この節の続きは `~/.claude/references/observation-shell.md` が持つ (文字列の中の `$?`、`grep -c`、git の出力の日本語パス、`--watch` の出力をファイルで読む)。
 
 ### 成否が隠れる
 
