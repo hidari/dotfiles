@@ -249,6 +249,7 @@ dotfiles で確かめたこと (2026-10-31): `home/apm.yml` は ast-grep-practic
 - [x] 「pre-merge-quality-gate: Phase 3 の実ブラウザ確認の条件」節の件を閉じるか決める
   - 2026-11-13にユーザーと決めた。v2026.11.1 で gate の条件の文が user スコープの CLAUDE.md を含む形になったので、それで足りるとして閉じる
 - [ ] 「pre-merge-quality-gate: レーンの読了の量と指摘の重なり」節 (2026-11-13) の3項目を agentic-coding-tools へ渡すか決める。上流は読了の突き合わせとやり直しを既に入れているので、渡すならレーンの行数の上限と行数での分け方 (2つのリポジトリから届いた)、レーンをまたぐ指摘の束ね方に絞る。起動数の上限をレーンの数から導いた agentic-coding-tools の ISSUE-103 (closed) の裁定と合わせて見る
+  - 2026-11-16に足した、機械生成の記録 (1400行) の本文を対象外と明示して手で書いた部分だけをレーンに見せた件も、渡すかを同じく決める。pre-merge-quality-gate の使用感として届き、報告者の提案は無い
 
 ## 関連
 
@@ -260,7 +261,7 @@ dotfiles で確かめたこと (2026-10-31): `home/apm.yml` は ast-grep-practic
 - ISSUE-133: 全リポジトリ向けの規範と references の候補。ゲートの Workflow での回し方、/goal の CI の待ち方、pre-flight scan と fix-loop の Minor の扱いを各節から参照した
 - ISSUE-134: 特定の技術領域に閉じた知見。`--match-head-commit` の拒否の形、ssh から GUI アプリを起動した実測、just の dump を読む検査の罠の本文を、各節の項から参照した
 - ISSUE-75: 写しの食い違いを config-guard で検査する dotfiles 側の前例。ロードマップを写しにする雛形の提案と形が似ている
-- ISSUE-88: 検査と変異注入の知見。ast-grep の CSS の抑止の件を INS-110 に置いた
+- ISSUE-88: 検査と変異注入の知見。ast-grep の CSS の抑止の件を INS-110 に置いた。抑止の形と無関係な id の対照は INS-106、事後のゲートの照合の射程のずれは INS-82、Rust のマクロ引数の token_tree の件は INS-133 にある
 - agentic-coding-tools の ISSUE-99 (closed): 「ゲートの順序、増分、CI の待ち方」節の最初の3項目を渡した先。増分の手順を散文にせずマージを head の SHA に縛った裁定で、2026-11-11の2項目を渡さない根拠にした
 - agentic-coding-tools の ISSUE-103 (closed): 起動数の上限をレーンの数から導いた裁定。レーンの読了の量の節から参照した
 - agentic-coding-tools の ISSUE-109 (closed): web-monkey-qa の資格情報の露出と並列の explorer の干渉を直した

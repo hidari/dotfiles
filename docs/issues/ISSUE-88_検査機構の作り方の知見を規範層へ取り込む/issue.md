@@ -368,6 +368,7 @@ INS-7 には3件目の報告が届いた (実測)。型の narrowing を兼ね�
 - [ ] INS-104〜108 と、2026-11-11の仕分けの再報告 (INS-9 / INS-76) を同じ検証に通し、取り込むものを選ぶ
 - [ ] INS-109〜122 と、2026-11-13の仕分けの再報告 (INS-106 / INS-88 / INS-34 / INS-99 / INS-76 / INS-7 / INS-100 / INS-24 / INS-9) を同じ検証に通し、取り込むものを選ぶ
 - [ ] INS-123〜135 と、2026-11-15の仕分けの再報告 (INS-76 / INS-34 / INS-114 / INS-78 / INS-29 / INS-112 / INS-57 / INS-8 / INS-9 / INS-52) を同じ検証に通し、取り込むものを選ぶ
+- [ ] INS-136 を同じ検証に通し、取り込むかを決める
 - [ ] 足した規範が委譲元のトリガから到達するかを確かめる。`references/` へ足すだけでは常時層から到達できず、ISSUE-48 が孤児の節の実例を持つ
 - [ ] 新規の scoped rules を足した場合は `config_guard.rules_paths.EXPECTED_PATHS` への pin を足す (`check_rules_paths` が「pin が無い」で報告する)
 
@@ -389,5 +390,5 @@ INS-7 には3件目の報告が届いた (実測)。型の narrowing を兼ね�
 - ISSUE-46 — 両リポジトリの Issue をマイルストーンへ整理し着手順を決める。所属の canonical はあちらの表
 - ISSUE-89 (closed) — Rust のビルド規範。常時層の予算を共有するので配分をまとめて決める予定だった
 - ISSUE-99 (closed) と ISSUE-97 — どちらも常時層へ書き足しうるので、同じ予算の配分に入る予定だった。ISSUE-99 は閉じたので、残るのは ISSUE-97
-- ISSUE-133 と ISSUE-134 — INS-7〜135 と同じ受け箱から届いた知見。INS-80 / INS-81 / INS-82 の技術の側は ISSUE-134 の「Playwright でスタイルと配置を測る」「React と E2E (Playwright)」「Rust と依存の脆弱性」節が持つ。INS-82 は ISSUE-132 の「pre-merge-quality-gate: ゲートの順序、増分、CI の待ち方」節も参照している。INS-19〜23 と INS-26 / INS-27 の報告の技術の側の記述を持つ。INS-55 / INS-56 は ISSUE-133 の「セキュリティ」節が、INS-57 は ISSUE-134 の「その他のツール」節が参照している。INS-77 と INS-79 の機序は ISSUE-134 の「iOS」節と「React と E2E (Playwright)」節が持つ
+- ISSUE-133 と ISSUE-134 — INS-7〜136 と同じ受け箱から届いた知見。INS-80 / INS-81 / INS-82 の技術の側は ISSUE-134 の「Playwright でスタイルと配置を測る」「React と E2E (Playwright)」「Rust と依存の脆弱性」節が持つ。INS-82 は ISSUE-132 の「pre-merge-quality-gate: ゲートの順序、増分、CI の待ち方」節も参照している。INS-19〜23 と INS-26 / INS-27 の報告の技術の側の記述を持つ。INS-55 / INS-56 は ISSUE-133 の「セキュリティ」節が、INS-57 は ISSUE-134 の「その他のツール」節が参照している。INS-77 と INS-79 の機序は ISSUE-134 の「iOS」節と「React と E2E (Playwright)」節が持つ
 - ISSUE-98 — run step の shell 検査と Python の job の形。workflow と recipe の関係の項 (INS-58) から参照した
