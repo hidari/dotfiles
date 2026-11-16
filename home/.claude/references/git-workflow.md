@@ -69,8 +69,12 @@ squash の後のローカルのブランチは `git branch -d` で消えない�
 - `-D` で消すのは、`gh pr list --head <b> --state merged --json headRefOid` の値とローカルの `git rev-parse <b>` が一致するときだけにする。一致していれば、未 push のコミットを失わない
 - `gh pr merge --delete-branch` は、そのブランチが別の git worktree でチェックアウトされていると、ローカルのブランチの削除を飛ばして警告だけ出す (merge とリモートの削除は済む)。あとで `git worktree remove` と `git branch -D` を手で打つ (gh の版は未記録)
 
-## hook が走らない取り込みの経路
+## hook が走らない経路
+
+hook に載せた検査を素通りする経路 (cherry-pick での取り込み、タグを起点にするリリースでのタグだけの push) を踏むときに開く。
 
 古いブランチのコミットを cherry-pick で新しいブランチへ取り込むとき、cherry-pick は pre-commit の hook を走らせない。差分を増分で見る検査は取り込んだコミットを一度も見ないので、違反が黙って CI まで素通りする。ローカルにだけ残っていた古いブランチの2コミットを取り込んだとき、記法の検査の違反112件がローカルの CI まで届いた (実測)。書き捨てのリポジトリに追記するだけの `pre-commit` hook を置くと、2回の commit で2行が書かれ、`git cherry-pick` の後も2行のままだった (2026-11-11に git 2.56.0 で再現した)。
 
 古いコミットを取り込んだら、直後に増分の検査を手で回す (実測)。`pre-commit run --from-ref <base> --to-ref HEAD` 相当で足りる見込みだが、範囲指定が hook と同じ検査を走らせるかは確かめていない (推測)。rebase で取り込む場合も同じかは試していない。
+
+既存のコミットへタグだけを push すると、pre-commit の pre-push hook は走らなかった。使い捨ての bare リモートで、新しいコミットを含む push を対照に確かめた (実測)。pre-push に CI 相当の検査を載せていても、タグを起点にするリリースは検査を通らない。手当ては、タグを起点にリリースするタスクの側で、検査を前段に置くこと。
