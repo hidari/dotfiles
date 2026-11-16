@@ -1,4 +1,4 @@
-# ISSUE-88 の採否 (2026-11-15 に判断の保存先から写した)
+# ISSUE-88 の採否 (2026-11-16 に判断の保存先から写した)
 
 この表は `knowledge_ledger.records` が台帳の判断の保存先から生成する。手で直さない。記号の意味は ISSUE-146-spec.md の判定表が持ち、理由の文面は判断の保存先が持つ。
 
@@ -143,3 +143,4 @@
 | INS-133 | ast-grep で Rust の enum の変種がどこで組まれているかを数え… | 採る | Claude | 14 | ~/.claude/references/tool-ast-grep.md (新規)。版は未記録と添える |
 | INS-134 | ast-grep は項に付いた `#[cfg(...)]` の属性を読めるので、… | 採らない | Claude | R4 |  |
 | INS-135 | 計画の文書に書いた性質 (「A の後に B が消えた ⇔ 関数が B を返す」の… | 採る | Claude | 14 | ~/.claude/references/testing.md に property-based test の節を新設 |
+| INS-136 | 機械で組み立てた文書に、検査の文言として書かれたホームディレクトリの接頭辞の語が… | 採らない | Claude | R4 |  |
