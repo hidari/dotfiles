@@ -1,6 +1,6 @@
 # node-security-notifier
 
-nodejs.org の配布一覧 (`index.json`) から security リリースの版を日次で取得し、状態ファイルへ書く。mise の global 設定にある node の pin と比べて告げるのは、Claude Code の SessionStart で走るプローブ (`home/.claude/hooks/guard_probes.py` の `probe_node_security`) の側である。
+nodejs.org の配布一覧 (`index.json`) から security リリースの版を定期的に取得し、状態ファイルへ書く。mise の global 設定にある node の pin と比べて告げるのは、Claude Code の SessionStart で走るプローブ (`home/.claude/hooks/guard_probes.py` の `probe_node_security`) の側である。
 
 ## 実行
 
@@ -12,4 +12,4 @@ uv run node-security-notifier
 
 ## 自動実行
 
-bootstrap.sh が LaunchAgent (`com.hidari.node-security-notifier`) を導入し、plist の時刻に日次で `run.sh` を起動する。ログの置き場も plist が持つ。
+bootstrap.sh が LaunchAgent (`com.hidari.node-security-notifier`) を導入し、ログイン時と plist の間隔ごとに `run.sh` を起動する。ログの置き場も plist が持つ。

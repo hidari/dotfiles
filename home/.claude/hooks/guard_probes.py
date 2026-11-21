@@ -218,7 +218,7 @@ def probe_task_list_id() -> ProbeResult:
     )
 
 
-# 日次の LaunchAgent (scripts/node-security-notifier) が書く判定結果の置き場。書き手の
+# 定期的に走る LaunchAgent (scripts/node-security-notifier) が書く判定結果の置き場。書き手の
 # STATE_RELPATH と一致することはテストが両方を読み込んで突き合わせる。
 NODE_SECURITY_STATE_RELPATH = Path(".local/state/node-security-notifier/security-releases.json")
 _NODE_SECURITY_LABEL = "com.hidari.node-security-notifier"
@@ -268,7 +268,7 @@ def _node_security_status(path: Path) -> tuple[int, list[str]]:
 def probe_node_security(now: float | None = None) -> ProbeResult:
     """mise の node の pin が、既知の security リリースより古くないか。
 
-    判定の元は日次の LaunchAgent が書く状態ファイルで、ここは通信しない。比較を書き手では
+    判定の元は定期的に走る LaunchAgent が書く状態ファイルで、ここは通信しない。比較を書き手では
     なくここで行うのは、pin を上げた直後に古い判定が残って誤報にならないようにするため。
     作業の場の外へ出す通知は読まれないまま残るので、作業の場であるセッションの頭で告げる。
     """

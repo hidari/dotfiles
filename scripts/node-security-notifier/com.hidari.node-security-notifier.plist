@@ -8,13 +8,10 @@
     <array>
         <string>__DOTFILES_DIR__/scripts/node-security-notifier/run.sh</string>
     </array>
-    <key>StartCalendarInterval</key>
-    <dict>
-        <key>Hour</key>
-        <integer>18</integer>
-        <key>Minute</key>
-        <integer>0</integer>
-    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartInterval</key>
+    <integer>3600</integer>
     <key>StandardOutPath</key>
     <string>__HOME__/.local/state/node-security-notifier/launchd.log</string>
     <key>StandardErrorPath</key>
