@@ -1007,7 +1007,7 @@ main() {
             echo "  - Install apm-managed skills and plugins"
             echo "  - Install Claude Code plugins declared in settings.json"
             echo "  - Enable pre-commit git hooks in this repo"
-            echo "  - Install a daily LaunchAgent (com.hidari.node-security-notifier) that records Node.js security releases for the session-start check"
+            echo "  - Install a periodic LaunchAgent (com.hidari.node-security-notifier) that records Node.js security releases for the session-start check"
         fi
         echo "  - Create symlinks for dotfiles"
         echo ""

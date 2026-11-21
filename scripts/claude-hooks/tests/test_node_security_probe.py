@@ -16,6 +16,7 @@ import sys
 import time
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 import guard_probes
 import pytest
@@ -61,13 +62,29 @@ def test_状態ファイルの置き場は書き手と一致する() -> None:
     assert _writer().STATE_RELPATH == guard_probes.NODE_SECURITY_STATE_RELPATH
 
 
-def test_告げるラベルとログの置き場は_plist_と一致する() -> None:
+def _plist() -> dict[str, Any]:
     notifier = REPO_ROOT / "scripts/node-security-notifier"
     with (notifier / "com.hidari.node-security-notifier.plist").open("rb") as f:
-        plist = plistlib.load(f)
+        plist: dict[str, Any] = plistlib.load(f)
+    return plist
+
+
+def test_告げるラベルとログの置き場は_plist_と一致する() -> None:
+    plist = _plist()
 
     assert plist["Label"] == guard_probes._NODE_SECURITY_LABEL
     assert plist["StandardErrorPath"].replace("__HOME__", "~") == guard_probes._NODE_SECURITY_LOG
+
+
+def test_取得は時刻指定ではなく間隔で起動する() -> None:
+    # 時刻指定はスリープ中に過ぎた分を次の起床で1回だけ走らせる。その起床が数秒で眠り直す
+    # DarkWake だとネットワークが無いまま失敗し、1日分を取り逃す (2026-11-18から3日続けて実測)。
+    # 起きて使っている時間のどこかで取れるよう、ログイン時と一定の間隔で起動する
+    plist = _plist()
+
+    assert "StartCalendarInterval" not in plist
+    assert plist["RunAtLoad"] is True
+    assert 0 < plist["StartInterval"] <= 3600
 
 
 def test_pin_が最新の_security_版なら健全(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
