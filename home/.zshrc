@@ -435,7 +435,7 @@ eval "$(mise activate zsh)"
 # 実体は scripts/apm-guard/apm で、bootstrap の SYMLINK_PAIRS が張る。
 export PATH="$HOME/.local/libexec/apm-guard:$PATH"
 
-# gh の shim (ISSUE-147) を PATH の先頭へ置く。
+# gh の shim を PATH の先頭へ置く。
 # path 配列へ書いてはならない理由は上の apm ガードと同じで、mise activate の再構成で
 # 本物の gh より後ろへ落ちると一度も横取りできない。
 # 実体は scripts/gh-token-shim/gh で、bootstrap の SYMLINK_PAIRS が張る。

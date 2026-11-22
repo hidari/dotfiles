@@ -1155,7 +1155,12 @@ refute_token_on_stderr() {
 }
 
 @test "valid_owner: trailing newline rejected" {
-    run ghts_valid_owner "$(printf 'acme\nx')"
+    run ghts_valid_owner $'acme\n'
+    [ "$status" -ne 0 ]
+}
+
+@test "valid_owner: embedded newline rejected" {
+    run ghts_valid_owner $'acme\nx'
     [ "$status" -ne 0 ]
 }
 
@@ -2003,7 +2008,7 @@ _write_config() {
 # =============================================================================
 
 @test "wiring: is distributed by SYMLINK_PAIRS" {
-    # 配布経路から落ちると shim が配置されず、ガードは「静かに何もしない」状態になる
+    # 配布経路から落ちると shim が配置されず、本物の gh が保存済みのログインで直接動く
     load_pairs_array SYMLINK_PAIRS
 
     local pair found_shim=0 found_lib=0
