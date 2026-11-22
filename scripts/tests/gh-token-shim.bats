@@ -13,6 +13,8 @@ SHIM_SOURCE="$REPO_ROOT/scripts/gh-token-shim/gh"
 setup() {
     # shellcheck source=/dev/null
     source "$LIB"
+    # ghts_owner_source が読む変数。呼び出し元の環境の値で結果が変わらないよう外す
+    unset GH_REPO GHTS_ORIGIN_URL
     setup_shim_fixture
 }
 
@@ -759,6 +761,161 @@ refute_token_on_stderr() {
     [ "$output" = "acme" ]
 }
 
+@test "owner_from_url: http scheme" {
+    run ghts_owner_from_url http://github.com/Acme/web
+    [ "$status" -eq 0 ]
+    [ "$output" = "acme" ]
+}
+
+@test "owner_from_url: www host" {
+    run ghts_owner_from_url https://www.github.com/acme/web/pull/3
+    [ "$status" -eq 0 ]
+    [ "$output" = "acme" ]
+}
+
+@test "owner_from_url: host that only starts with github.com -> empty" {
+    run ghts_owner_from_url https://github.com.evil.test/acme/web
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "owner_from_url: host that only ends with github.com -> empty" {
+    run ghts_owner_from_url https://evilgithub.com/acme/web
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "owner_from_url: api host is not a repository URL -> empty" {
+    run ghts_owner_from_url https://api.github.com/repos/acme/web
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "owner_from_args: -R http URL -> stranger" {
+    run ghts_owner_from_args pr merge 1 -R http://github.com/stranger/x
+    [ "$status" -eq 0 ]
+    [ "$output" = "stranger" ]
+}
+
+@test "owner_from_args: -R /x -> empty" {
+    run ghts_owner_from_args pr merge 1 -R /x
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "owner_from_args: api full URL on api.github.com -> owner" {
+    run ghts_owner_from_args api -X DELETE https://api.github.com/repos/Stranger/x/issues/1/labels
+    [ "$status" -eq 0 ]
+    [ "$output" = "stranger" ]
+}
+
+@test "owner_from_args: api full URL on another host -> empty" {
+    run ghts_owner_from_args api https://api.example.test/repos/acme/x
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "owner_from_args: api full URL without an owner path -> empty" {
+    run ghts_owner_from_args api https://api.github.com/user
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+# --- ghts_owner_source: どの解決元が「ある」か (値を読めるかどうかとは別) ---
+
+@test "owner_source: -R -> args" {
+    run ghts_owner_source pr view 3 -R acme/web
+    [ "$output" = "args" ]
+}
+
+@test "owner_source: --repo= and -Rvalue -> args" {
+    run ghts_owner_source pr view 3 --repo=acme/web
+    [ "$output" = "args" ]
+    run ghts_owner_source pr view 3 -Racme/web
+    [ "$output" = "args" ]
+}
+
+@test "owner_source: -R with an unparseable or empty value is still args" {
+    run ghts_owner_source pr merge 1 -R /x
+    [ "$output" = "args" ]
+    run ghts_owner_source pr merge 1 -R ""
+    [ "$output" = "args" ]
+}
+
+@test "owner_source: api repos/ orgs/ users/ endpoints -> args" {
+    run ghts_owner_source api repos/acme/web
+    [ "$output" = "args" ]
+    run ghts_owner_source api /orgs/acme/members
+    [ "$output" = "args" ]
+    run ghts_owner_source api -H "Accept: x" -X GET users/bob
+    [ "$output" = "args" ]
+}
+
+@test "owner_source: api full URL on any host -> args" {
+    run ghts_owner_source api https://api.github.com/repos/acme/web
+    [ "$output" = "args" ]
+    run ghts_owner_source api https://ghes.example.test/api/v3/user
+    [ "$output" = "args" ]
+}
+
+@test "owner_source: api user and api graphql -> none" {
+    run ghts_owner_source api user
+    [ "$output" = "none" ]
+    run ghts_owner_source api graphql -f 'query={viewer{login}}'
+    [ "$output" = "none" ]
+}
+
+@test "owner_source: repo verb with a repository argument -> args" {
+    run ghts_owner_source repo view acme/web
+    [ "$output" = "args" ]
+    # スラッシュが無くても「リポジトリを引数で指した」ことに変わりはない
+    run ghts_owner_source repo sync myfork
+    [ "$output" = "args" ]
+}
+
+@test "owner_source: repo verb without a repository argument -> none" {
+    run ghts_owner_source repo sync
+    [ "$output" = "none" ]
+    # deploy-key / autolink の次の語は動詞でリポジトリではない
+    run ghts_owner_source repo deploy-key list
+    [ "$output" = "none" ]
+    run ghts_owner_source repo autolink list
+    [ "$output" = "none" ]
+}
+
+@test "owner_source: github.com URL positional -> args" {
+    run ghts_owner_source pr merge https://github.com/acme/web/pull/3
+    [ "$output" = "args" ]
+}
+
+@test "owner_source: other positionals and flag values -> none" {
+    run ghts_owner_source pr merge 3 --body https://example.com/notes
+    [ "$output" = "none" ]
+    run ghts_owner_source pr merge 3 --body a/b
+    [ "$output" = "none" ]
+    run ghts_owner_source pr checkout feature/x
+    [ "$output" = "none" ]
+    run ghts_owner_source pr list
+    [ "$output" = "none" ]
+}
+
+@test "owner_source: GH_REPO -> gh_repo, args win over it" {
+    GH_REPO=bob/x
+    run ghts_owner_source pr list
+    [ "$output" = "gh_repo" ]
+    run ghts_owner_source pr list -R acme/x
+    [ "$output" = "args" ]
+}
+
+@test "owner_source: origin URL -> origin, GH_REPO wins over it" {
+    GHTS_ORIGIN_URL=https://gitlab.com/acme/w.git
+    run ghts_owner_source pr list
+    [ "$output" = "origin" ]
+    GH_REPO=bob/x
+    run ghts_owner_source pr list
+    [ "$output" = "gh_repo" ]
+}
+
 @test "owner_from_url: other host (gitlab scp) -> empty" {
     run ghts_owner_from_url git@gitlab.com:acme/web.git
     [ "$status" -eq 0 ]
@@ -1109,6 +1266,139 @@ _write_config() {
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-write-acme"
     [ "$(shim_log op)" = "read -n op://TestVault/gh-write-acme/credential" ]
+}
+
+# 解決元が「ある」のに持ち主を読めないとき、後ろの解決元へ進まない。
+# どのテストも cwd の origin は設定にある acme で、進んでしまうと acme として昇格する。
+
+@test "shim: a write with an unparseable -R stops instead of using the origin" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" pr merge 1 -R /x
+
+    [ "$status" -eq 1 ]
+    assert_contains "$stderr" "gh-token-shim: "
+    assert_not_called gh op security git
+}
+
+@test "shim: a write with -R as an http URL of an unlisted owner stops" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" pr merge 1 -R http://github.com/stranger/x
+
+    [ "$status" -eq 1 ]
+    assert_contains "$stderr" "stranger"
+    assert_not_called gh op security
+}
+
+@test "shim: a write with -R as a www URL of an unlisted owner stops" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" pr merge 1 -R https://www.github.com/stranger/x
+
+    [ "$status" -eq 1 ]
+    assert_contains "$stderr" "stranger"
+    assert_not_called gh op security
+}
+
+@test "shim: a write with GH_REPO as an http URL of an unlisted owner stops" {
+    init_acme_repo
+    SHIM_ENV=(GH_REPO=http://github.com/stranger/x)
+
+    run_shim "$SHIM_REPO" pr merge 1
+
+    [ "$status" -eq 1 ]
+    assert_contains "$stderr" "stranger"
+    assert_not_called gh op security
+}
+
+@test "shim: a write with GH_REPO naming an unlisted owner stops" {
+    init_acme_repo
+    SHIM_ENV=(GH_REPO=stranger/x)
+
+    run_shim "$SHIM_REPO" pr merge 1
+
+    [ "$status" -eq 1 ]
+    assert_contains "$stderr" "stranger"
+    assert_not_called gh op security
+}
+
+@test "shim: a write with an unparseable GH_REPO stops instead of using the origin" {
+    init_acme_repo
+    SHIM_ENV=(GH_REPO=/x)
+
+    run_shim "$SHIM_REPO" pr merge 1
+
+    [ "$status" -eq 1 ]
+    assert_not_called gh op security git
+}
+
+@test "shim: an api write to a full URL of an unlisted owner stops" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" api -X DELETE https://api.github.com/repos/stranger/x/issues/1/labels
+
+    [ "$status" -eq 1 ]
+    assert_contains "$stderr" "stranger"
+    assert_not_called gh op security
+}
+
+@test "shim: an api write to a full URL on another host stops instead of using the origin" {
+    init_acme_repo
+
+    # パスは repos/acme/... の形。ホストを見ずに読むと設定にある acme として昇格する
+    run_shim "$SHIM_REPO" api -X DELETE https://api.example.test/repos/acme/x/issues/1/labels
+
+    [ "$status" -eq 1 ]
+    assert_not_called gh op security git
+}
+
+@test "shim: a write whose origin is not a github.com URL stops instead of using the default owner" {
+    env -u GIT_DIR -u GIT_WORK_TREE git init -q "$SHIM_REPO"
+    env -u GIT_DIR -u GIT_WORK_TREE git -C "$SHIM_REPO" remote add origin https://gitlab.com/acme/w.git
+
+    run_shim "$SHIM_REPO" pr merge 1
+
+    [ "$status" -eq 1 ]
+    # origin を実際に問い合わせたうえで止まった
+    [ "$(shim_log git)" = "remote get-url origin" ]
+    assert_not_called gh op security
+}
+
+@test "shim: a read with an unparseable -R uses the default owner, not the origin" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" pr view -R /x
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-home"
+}
+
+@test "shim: a read whose origin is not a github.com URL uses the default owner" {
+    env -u GIT_DIR -u GIT_WORK_TREE git init -q "$SHIM_REPO"
+    env -u GIT_DIR -u GIT_WORK_TREE git -C "$SHIM_REPO" remote add origin https://gitlab.com/acme/w.git
+
+    run_shim "$SHIM_REPO" pr list
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-home"
+}
+
+@test "shim: a write with -R as a www URL of a listed owner elevates for that owner" {
+    run_shim "$SHIM_PLAIN" pr merge 1 -R https://www.github.com/bob/x
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-write-bob"
+    [ "$(shim_log op)" = "read -n op://TestVault/gh-write-bob/credential" ]
+}
+
+@test "shim: an api write to a full URL of a listed owner elevates for that owner" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" api -X DELETE https://api.github.com/repos/bob/x/issues/1/labels
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-write-bob"
 }
 
 # --- 手順 6 / 7: トークンの読み出し ---

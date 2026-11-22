@@ -69,24 +69,25 @@ config_example_path() {
     esac
 }
 
-# 持ち主の候補を出す (検証前)。最初に決まった解決元で確定し、後ろへは進まない。
-# 設定に無い持ち主を -R で指した書き込みが、cwd の origin の持ち主として昇格しないため。
+# 持ち主の候補を出す (検証前。読めなければ空)。最初に「ある」解決元だけから読み、
+# 読めなくても後ろの解決元へは進まない。-R や GH_REPO で名指した先を読めないときに
+# cwd の origin や既定の持ち主へ進むと、書き込みが別の持ち主として昇格する。
+# 既定の持ち主を使うのは、解決元がどれも無いときだけ。
 resolve_owner() {
-    local owner url
-    owner="$(ghts_owner_from_args "$@")"
-    if [ -z "$owner" ] && [ -n "${GH_REPO:-}" ]; then
-        owner="$(ghts_owner_from_args -R "$GH_REPO")"
+    local source
+    GHTS_ORIGIN_URL=""
+    source="$(ghts_owner_source "$@")"
+    if [ "$source" = none ]; then
+        # リポジトリの外や origin が無いときは失敗する。その場合は none のまま
+        GHTS_ORIGIN_URL="$(git remote get-url origin 2>/dev/null)" || GHTS_ORIGIN_URL=""
+        source="$(ghts_owner_source "$@")"
     fi
-    if [ -z "$owner" ]; then
-        # リポジトリの外や origin が無いときは失敗する。その場合は既定の持ち主へ進む
-        if url="$(git remote get-url origin 2>/dev/null)"; then
-            owner="$(ghts_owner_from_url "$url")"
-        fi
-    fi
-    if [ -z "$owner" ]; then
-        owner=$GHTS_DEFAULT_OWNER
-    fi
-    printf '%s\n' "$owner"
+    case "$source" in
+    args) ghts_owner_from_args "$@" ;;
+    gh_repo) ghts_owner_from_args -R "$GH_REPO" ;;
+    origin) ghts_owner_from_url "$GHTS_ORIGIN_URL" ;;
+    none) printf '%s\n' "$GHTS_DEFAULT_OWNER" ;;
+    esac
 }
 
 # --- 手順 1: 既にトークンがあれば、そのまま委譲する ---
@@ -139,7 +140,7 @@ if ! ghts_valid_owner "$owner" || ! ghts_has_owner "$owner"; then
         if ghts_valid_owner "$owner"; then
             die "refusing a write for owner '$owner', which is not listed in $config"
         fi
-        die "refusing a write: the repository owner is not a valid name"
+        die "refusing a write: cannot tell a valid repository owner from the arguments, GH_REPO or the origin remote"
     fi
     owner=$GHTS_DEFAULT_OWNER
 fi

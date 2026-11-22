@@ -212,19 +212,53 @@ _ghts_lower() {
     printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
 }
 
+# github.com の URL からホストより後ろ (owner/repo...) を小文字で出す。
+# github.com のものでなければ rc 1。受ける形: scp 形式、ssh://、http(s):// (www. 付きを含む)。
+# ホストは完全一致で見る (前方一致では github.com.<別ドメイン> が通る)。
+_ghts_github_url_rest() {
+    # host を変数に切り出すのは、リテラルの ssh://git@host/ が gitleaks の
+    # email-address に当たるのを避けるため
+    local host=github.com u rest authority
+    u=$(_ghts_lower "$1")
+    case "$u" in
+    git@"$host":*)
+        printf '%s\n' "${u#git@"$host":}"
+        return 0
+        ;;
+    ssh://* | http://* | https://*) ;;
+    *) return 1 ;;
+    esac
+
+    rest=${u#*://}
+    case "$rest" in
+    */*)
+        authority=${rest%%/*}
+        rest=${rest#*/}
+        ;;
+    *)
+        authority=$rest
+        rest=""
+        ;;
+    esac
+    case "$u" in
+    ssh://*)
+        [ "$authority" = "git@$host" ] || return 1
+        ;;
+    *)
+        case "$authority" in
+        "$host" | "www.$host") ;;
+        *) return 1 ;;
+        esac
+        ;;
+    esac
+    printf '%s\n' "$rest"
+}
+
 # github.com の remote / Web の URL から小文字の owner を出す。それ以外は空。
 # 検証はしない (呼び出し側が ghts_valid_owner で行う)。
 ghts_owner_from_url() {
-    # host を変数に切り出すのは、リテラルの ssh://git@host/ が gitleaks の
-    # email-address に当たるのを避けるため
-    local host=github.com u rest
-    u=$(_ghts_lower "$1")
-    case "$u" in
-    git@"$host":*) rest=${u#git@"$host":} ;;
-    ssh://git@"$host"/*) rest=${u#ssh://git@"$host"/} ;;
-    https://"$host"/*) rest=${u#https://"$host"/} ;;
-    *) return 0 ;;
-    esac
+    local rest
+    rest=$(_ghts_github_url_rest "$1") || return 0
     printf '%s\n' "${rest%%/*}"
 }
 
@@ -247,9 +281,42 @@ _ghts_owner_from_repo_spec() {
     return 0
 }
 
-# gh api のエンドポイントから owner を出す。repos/O/.. orgs/O/.. users/U のみ
+# gh api のエンドポイントが持ち主を名指す形なら rc 0。
+# 完全な URL (ホストを問わない) か、repos/ orgs/ users/ で始まるパス
+_ghts_endpoint_names_owner() {
+    local ep=$1
+    case "$ep" in
+    *://*) return 0 ;;
+    esac
+    ep=${ep#/}
+    case "$ep" in
+    repos/* | orgs/* | users/*) return 0 ;;
+    esac
+    return 1
+}
+
+# gh api のエンドポイントから owner を出す。repos/O/.. orgs/O/.. users/U のみ。
+# 完全な URL は api.github.com のものだけを読む (他のホストは空)
 _ghts_owner_from_endpoint() {
-    local ep=${1#/} kind rest owner
+    local ep=$1 lowered authority kind rest owner
+    case "$ep" in
+    *://*)
+        lowered=$(_ghts_lower "$ep")
+        case "$lowered" in
+        http://* | https://*) ;;
+        *) return 0 ;;
+        esac
+        authority=${lowered#*://}
+        authority=${authority%%/*}
+        [ "$authority" = api.github.com ] || return 0
+        rest=${ep#*://}
+        case "$rest" in
+        */*) ep=${rest#*/} ;;
+        *) return 0 ;;
+        esac
+        ;;
+    esac
+    ep=${ep#/}
     kind=${ep%%/*}
     case "$ep" in
     */*) rest=${ep#*/} ;;
@@ -264,16 +331,23 @@ _ghts_owner_from_endpoint() {
     return 0
 }
 
-# gh の引数から持ち主を決めて小文字で出す (決められなければ空)。rc は常に 0。
-# 優先順: 1 -R/--repo、2 api のエンドポイント、2' その他の位置引数の URL / OWNER/REPO
-ghts_owner_from_args() {
-    local args=("$@") i=0 n=$# a repo="" sub="" endpoint="" cand="" pos=0
+# gh の引数を1回なめて、持ち主の解決元が引数に「ある」か (_GHTS_ARGS_PRESENT) と、
+# そこから読めた小文字の owner (_GHTS_ARGS_OWNER。読めなければ空) を設定する。
+# 「ある」と「読めた」を分けるのは、名指しはあるのに読めない引数 (-R /x など) を
+# 「引数に指定が無い」と同じに扱うと、呼び出し側が次の解決元の持ち主で昇格するため。
+# 優先順: 1 -R/--repo、2 api のエンドポイント、2' その他の位置引数
+_ghts_scan_args() {
+    local args=("$@") i=0 n=$# a rest
+    local has_repo=0 repo="" sub="" verb="" endpoint="" pos=0 pos_present=0 cand=""
+    _GHTS_ARGS_PRESENT=0
+    _GHTS_ARGS_OWNER=""
 
     while [ "$i" -lt "$n" ]; do
         a=${args[$i]}
         i=$((i + 1))
         case "$a" in
         -R | --repo)
+            has_repo=1
             if [ "$i" -lt "$n" ]; then
                 repo=${args[$i]}
                 i=$((i + 1))
@@ -281,10 +355,12 @@ ghts_owner_from_args() {
             continue
             ;;
         --repo=*)
+            has_repo=1
             repo=${a#--repo=}
             continue
             ;;
         -R?*)
+            has_repo=1
             repo=${a#-R}
             continue
             ;;
@@ -309,26 +385,69 @@ ghts_owner_from_args() {
         pos=$((pos + 1))
         if [ "$pos" -eq 1 ]; then
             sub=$a
-        elif [ "$pos" -ge 3 ] && [ -z "$cand" ]; then
-            # サブコマンドと動詞の後ろの位置引数だけを対象にする。素の OWNER/REPO は
-            # repo サブコマンドの動詞直後だけ (ブランチ名・パス・フラグ値と区別できない)
-            case "$a" in
-            *://* | git@*) cand=$(ghts_owner_from_url "$a") ;;
-            */*)
-                if [ "$sub" = repo ] && [ "$pos" -eq 3 ]; then
-                    cand=$(_ghts_owner_from_repo_spec "$a")
-                fi
-                ;;
-            esac
+        elif [ "$pos" -eq 2 ]; then
+            verb=$a
+        elif [ "$pos_present" -eq 0 ]; then
+            # サブコマンドと動詞の後ろの位置引数だけを対象にする。
+            # github.com の URL はどのサブコマンドでも持ち主の名指しとみなす。それ以外の
+            # URL やスラッシュ入りの語は、ブランチ名・パス・フラグの値と区別できない
+            if rest=$(_ghts_github_url_rest "$a"); then
+                pos_present=1
+                cand=${rest%%/*}
+            elif [ "$sub" = repo ] && [ "$pos" -eq 3 ]; then
+                # repo サブコマンドの動詞直後はリポジトリの名指し (形を問わない)。
+                # 下の動詞は次の語がさらに動詞か名前で、リポジトリではない
+                case "$verb" in
+                deploy-key | autolink | gitignore | license) ;;
+                *)
+                    pos_present=1
+                    case "$a" in
+                    */*) cand=$(_ghts_owner_from_repo_spec "$a") ;;
+                    esac
+                    ;;
+                esac
+            fi
         fi
     done
 
-    if [ -n "$repo" ]; then
-        _ghts_owner_from_repo_spec "$repo"
+    if [ "$has_repo" -eq 1 ]; then
+        _GHTS_ARGS_PRESENT=1
+        _GHTS_ARGS_OWNER=$(_ghts_owner_from_repo_spec "$repo")
     elif [ "$sub" = api ]; then
-        [ -n "$endpoint" ] && _ghts_owner_from_endpoint "$endpoint"
-    elif [ -n "$cand" ]; then
-        printf '%s\n' "$cand"
+        if [ -n "$endpoint" ] && _ghts_endpoint_names_owner "$endpoint"; then
+            _GHTS_ARGS_PRESENT=1
+            _GHTS_ARGS_OWNER=$(_ghts_owner_from_endpoint "$endpoint")
+        fi
+    elif [ "$pos_present" -eq 1 ]; then
+        _GHTS_ARGS_PRESENT=1
+        _GHTS_ARGS_OWNER=$cand
+    fi
+    return 0
+}
+
+# gh の引数から持ち主を決めて小文字で出す (決められなければ空)。rc は常に 0。
+ghts_owner_from_args() {
+    _ghts_scan_args "$@"
+    [ -n "$_GHTS_ARGS_OWNER" ] && printf '%s\n' "$_GHTS_ARGS_OWNER"
+    return 0
+}
+
+# 持ち主の解決元のうち、最初に「ある」ものを1語で出す。rc は常に 0。
+#   args    引数が持ち主を名指している (読めるかどうかは問わない)
+#   gh_repo 環境変数 GH_REPO が空でない
+#   origin  GHTS_ORIGIN_URL が空でない (呼び出し側が git remote get-url origin の結果を入れる)
+#   none    どれも無い
+# 引数と変数だけで決まる (git は呼ばない)。
+ghts_owner_source() {
+    _ghts_scan_args "$@"
+    if [ "$_GHTS_ARGS_PRESENT" -eq 1 ]; then
+        echo args
+    elif [ -n "${GH_REPO:-}" ]; then
+        echo gh_repo
+    elif [ -n "${GHTS_ORIGIN_URL:-}" ]; then
+        echo origin
+    else
+        echo none
     fi
     return 0
 }
