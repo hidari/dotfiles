@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # =============================================================================
-# gh-token-shim の操作分類 (ghts_classify) のテスト
+# gh-token-shim (共有判定層 lib.sh と入口の shim) のテスト
 # =============================================================================
 
 load test_helper
@@ -20,7 +20,7 @@ setup() {
 # 入口の shim 用の fixture
 # -----------------------------------------------------------------------------
 
-# shim を本番と同じ形 (symlink) で置き、偽の gh / security / op を別のディレクトリに置く。
+# shim を本番と同じ形 (symlink) で置き、偽の gh / security / op / git を別のディレクトリに置く。
 # 既定の持ち主 (home) を acme / bob と別にしてあるのは、同じ値だと「origin から決めた」と
 # 「既定へ落ちた」が区別できず、持ち主の解決を壊しても緑になるため。
 setup_shim_fixture() {
@@ -95,7 +95,18 @@ esac
 owner=${ref#op://*/gh-write-}
 printf 'tok-write-%s' "${owner%/credential}"
 FAKE
-    chmod +x "$FAKE_DIR/gh" "$FAKE_DIR/security" "$FAKE_DIR/op"
+
+    # git は引数を残してから実物へ渡す。実物の場所は今ここで絶対パスに確定させる
+    # (PATH で探すと偽物が自分自身を見つける)。
+    local real_git
+    real_git="$(command -v git)"
+    cat >"$FAKE_DIR/git" <<FAKE
+#!/bin/sh
+set +x
+printf '%s\\n' "\$*" >>"\$GHTS_TEST_LOG/git.log"
+exec "$real_git" "\$@"
+FAKE
+    chmod +x "$FAKE_DIR/gh" "$FAKE_DIR/security" "$FAKE_DIR/op" "$FAKE_DIR/git"
 }
 
 # origin が acme のリポジトリを作る。hook から起動されたときに継承した GIT_DIR が
@@ -863,7 +874,7 @@ _write_config() {
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "preset-token"
     assert_contains "$output" "ARG=[merge]"
-    assert_not_called security op
+    assert_not_called security op git
 }
 
 @test "shim: an existing GITHUB_TOKEN alone also passes through, GH_TOKEN stays unset" {
@@ -875,7 +886,7 @@ _write_config() {
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "<unset>"
     assert_contains "$output" "GITHUB_TOKEN=[preset-github]"
-    assert_not_called security op
+    assert_not_called security op git
 }
 
 @test "shim: an existing GH_TOKEN passes through before the config is read" {
@@ -907,7 +918,7 @@ _write_config() {
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "<unset>"
     assert_contains "$output" "ARG=[--version]"
-    assert_not_called security op
+    assert_not_called security op git
 }
 
 @test "shim: no arguments at all is delegated" {
@@ -977,7 +988,7 @@ _write_config() {
     assert_contains "$stderr" "web UI"
     refute_contains "$stderr" "config.example"
     [ -z "$output" ]
-    assert_not_called gh security op
+    assert_not_called gh security op git
 }
 
 # --- 手順 5: 持ち主の解決 ---
@@ -990,6 +1001,7 @@ _write_config() {
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-read-acme"
     [ "$(shim_log security)" = "find-generic-password -s gh-token-shim -a acme:read -w" ]
+    [ "$(shim_log git)" = "remote get-url origin" ]
     assert_not_called op
     refute_token_on_stderr
 }
@@ -1001,6 +1013,8 @@ _write_config() {
 
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-read-bob"
+    # 引数で決まったら origin を見に行かない
+    assert_not_called git
 }
 
 @test "shim: GH_REPO wins over the origin of the cwd" {
@@ -1027,6 +1041,8 @@ _write_config() {
 
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-read-home"
+    # git に聞いたうえで (失敗して) 既定へ落ちた
+    [ "$(shim_log git)" = "remote get-url origin" ]
 }
 
 @test "shim: a read for an owner not in the config uses the default owner's read token" {
