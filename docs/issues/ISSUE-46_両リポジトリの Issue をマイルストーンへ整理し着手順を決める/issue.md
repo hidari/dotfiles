@@ -99,7 +99,7 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | M9 | フックの共通基盤とガードの穴 | Issue 26、ISSUE-58、ISSUE-67、ISSUE-71、ISSUE-66、ISSUE-83、ISSUE-84、ISSUE-119、ISSUE-124、ISSUE-130、ISSUE-142 |
 | M10 | 規範層の構造を直す | ISSUE-48、ISSUE-61、ISSUE-88、ISSUE-100、ISSUE-108 |
 | M11 | セッションの取り違えを検出する | ISSUE-78、ISSUE-82、ISSUE-91 |
-| M12 | 受け箱の知見を行き先へ渡す | ISSUE-132、ISSUE-133、ISSUE-134、ISSUE-144 |
+| M12 | 受け箱の知見を行き先へ渡す | ISSUE-132、ISSUE-133、ISSUE-134、ISSUE-144、ISSUE-146 |
 
 ### M7 の細分 (2026-09-02)
 
@@ -114,7 +114,7 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
 | Raycast | Issue 22、Issue 23 |
 | PowerShell | Issue 27、Issue 28 |
 | コンテナ | ISSUE-118、ISSUE-127、ISSUE-143 |
-| 単独 | Issue 31、Issue 33、ISSUE-51、ISSUE-95、ISSUE-109、ISSUE-114、ISSUE-116、ISSUE-123、ISSUE-125、ISSUE-136、ISSUE-140、ISSUE-145 |
+| 単独 | Issue 31、Issue 33、ISSUE-51、ISSUE-95、ISSUE-109、ISSUE-114、ISSUE-116、ISSUE-123、ISSUE-125、ISSUE-136、ISSUE-140、ISSUE-145、ISSUE-147 |
 
 ### 数え方
 
@@ -152,6 +152,12 @@ Issue 43 が挙げる書き換えコストの原因を、直近のクローズ (
   `git show <ref>:<path>` で読む。数えた SHA は「件数の推移」節に残す。並行するセッションが上流の
   作業ツリーを feature ブランチへ切り替えていると、その枝でだけ status が動いた Issue の分がずれる
   (2026-09-17 に実例がある)
+
+### 割り当ての検算 (2026-11-23、ISSUE-146 と ISSUE-147 の割り当ての後)
+
+dotfiles の active な Issue は81件 (open が79件、in_progress が2件) で、その全件がいずれかのマイルストーンへ入ることを、この変更のインデックスで数えて確かめた。M7 は25件、M12 は5件になり、ほかのマイルストーンの件数は下の検算から動いていない。表の腐りは0件、未割り当てはこの Issue 自身の1件だけだった。対照として、表を直す前の HEAD で同じ検算を回すと、未割り当てに ISSUE-146 と ISSUE-147 が加わって3件になった。
+
+下の検算からの動きは、表に載らないまま起票とマージを済ませていた2件を入れたこと。どちらも、起票した PR で表へ足す手順が漏れていた。所属はユーザーが決めた。ISSUE-146 は受け箱の知見の採否を裁定して規範へ反映する Issue なので M12 へ入れた。ISSUE-147 は開発機の gh の認証情報を持ち主ごとのトークンへ絞る Issue で、既存の群に主題が重なる Issue が無いので M7 の単独へ入れた。
 
 ### 割り当ての検算 (2026-11-11、ISSUE-145 の起票の後)
 
