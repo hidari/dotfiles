@@ -19,7 +19,16 @@
 set +x
 set -u
 
-self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# 自分のあるディレクトリ。PATH から起動されたときは必ずスラッシュを含む。含まないのは
+# bash gh のように cwd のファイルを直接渡されたとき
+case "${BASH_SOURCE[0]}" in
+*/*)
+    self_dir=${BASH_SOURCE[0]%/*}
+    # ルート直下 (/gh) は切り詰めると空になる
+    self_dir="$(cd "${self_dir:-/}" && pwd)"
+    ;;
+*) self_dir=$PWD ;;
+esac
 
 # キーチェーンの service 名。account は <owner>:read
 KEYCHAIN_SERVICE=gh-token-shim

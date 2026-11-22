@@ -708,6 +708,11 @@ assert_security_read() {
     assert_url_owner acme https://www.github.com/acme/web/pull/3
 }
 
+@test "owner_from_url: every ASCII uppercase letter is lowercased" {
+    # 小文字化は1文字ずつの置換なので、26文字すべてを通す (1文字欠けても他の検査は緑)
+    assert_url_owner abcdefghijklmnopqrstuvwxyz-0 https://GITHUB.COM/ABCDEFGHIJKLMNOPQRSTUVWXYZ-0/web
+}
+
 @test "owner_from_url: host that only starts with github.com -> empty" {
     assert_url_owner "" https://github.com.evil.test/acme/web
 }
@@ -1766,12 +1771,9 @@ _write_config() {
 }
 
 @test "shim: a write with no real gh on PATH exits 127 before asking op" {
-    local sysbin="$BATS_TEST_TMPDIR/sysbin"
-    mkdir -p "$sysbin"
-    ln -s "$(command -v dirname)" "$sysbin/dirname"
-    ln -s "$(command -v tr)" "$sysbin/tr"
+    # /usr/bin と /bin を PATH に入れない。shim はここまで外部コマンドを1つも要らない
     rm "$FAKE_DIR/gh"
-    SHIM_PATH="$SHIM_DIR:$FAKE_DIR:$sysbin"
+    SHIM_PATH="$SHIM_DIR:$FAKE_DIR"
 
     SHIM_RUN_OPTS=(-127)
     run_shim "$SHIM_PLAIN" pr merge 1 -R acme/x
@@ -1783,12 +1785,9 @@ _write_config() {
 
 @test "shim: exits 127 when no real gh is left on PATH" {
     # /usr/bin を PATH に入れない (CI の runner は /usr/bin/gh を持つ)。
-    # shim 自身が要る外部コマンドだけを別のディレクトリへ並べる
-    local sysbin="$BATS_TEST_TMPDIR/sysbin"
-    mkdir -p "$sysbin"
-    ln -s "$(command -v dirname)" "$sysbin/dirname"
+    # shim はここまで外部コマンドを1つも要らない
     rm "$FAKE_DIR/gh"
-    SHIM_PATH="$SHIM_DIR:$FAKE_DIR:$sysbin"
+    SHIM_PATH="$SHIM_DIR:$FAKE_DIR"
 
     SHIM_RUN_OPTS=(-127)
     run_shim "$SHIM_PLAIN" --version
@@ -1796,6 +1795,19 @@ _write_config() {
     [ "$status" -eq 127 ]
     assert_contains "$stderr" "gh-token-shim: "
     [ -z "$output" ]
+}
+
+@test "shim: run as a bare file name from its own directory still finds lib.sh" {
+    # bash gh の形では BASH_SOURCE にスラッシュが無い。PATH に shim は無いので、
+    # run_shim の配線の検査は通さずに直接起動する
+    run --separate-stderr env -u GH_TOKEN -u GITHUB_TOKEN -u GH_REPO -u GIT_DIR -u GIT_WORK_TREE \
+        -u SHELLOPTS HOME="$SHIM_HOME" GHTS_TEST_SHIM_DIR="$SHIM_DIR" GHTS_TEST_LOG="$SHIM_LOG" \
+        GH_TOKEN_SHIM_CONFIG="$SHIM_CONF" PATH="$FAKE_DIR:/usr/bin:/bin" \
+        /bin/bash -c 'cd "$GHTS_TEST_SHIM_DIR" && exec /bin/bash gh pr list -R acme/x'
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-acme"
+    assert_security_read acme
 }
 
 @test "shim: stops when lib.sh is missing instead of delegating without a token" {

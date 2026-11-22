@@ -27,7 +27,7 @@ _GHTS_MUTATION_RE='(^|[^a-z0-9_])mutation([^a-z0-9_]|$)'
 # query= の中身を見るのは graphql だけ (REST では query はただの検索語)。
 _ghts_classify_api() {
     local seen_api=0 method="" has_field=0 has_input=0 is_graphql=0 query_mutates=0
-    local a val lowered
+    local a val
 
     while [ $# -gt 0 ]; do
         a=$1
@@ -94,8 +94,8 @@ _ghts_classify_api() {
         case "$val" in
         query=@*) query_mutates=1 ;;
         query=*)
-            lowered=$(_ghts_lower "${val#query=}")
-            if [[ $lowered =~ $_GHTS_MUTATION_RE ]]; then query_mutates=1; fi
+            _ghts_lower_into "${val#query=}"
+            if [[ $_GHTS_LOWER =~ $_GHTS_MUTATION_RE ]]; then query_mutates=1; fi
             ;;
         esac
     done
@@ -105,9 +105,9 @@ _ghts_classify_api() {
         return 0
     fi
 
-    method=$(printf '%s' "$method" | tr '[:lower:]' '[:upper:]')
+    # メソッドは大文字小文字を問わない
     case "$method" in
-    GET | HEAD) GHTS_CLASS="read" ;;
+    [Gg][Ee][Tt] | [Hh][Ee][Aa][Dd]) GHTS_CLASS="read" ;;
     "")
         if [ "$has_input" -eq 1 ]; then
             GHTS_CLASS="write"
@@ -179,8 +179,19 @@ ghts_valid_owner() {
     [[ ${1-} =~ $_GHTS_OWNER_RE ]]
 }
 
-_ghts_lower() {
-    printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+# ASCII の英大文字を小文字にした値を _GHTS_LOWER へ入れる。呼ぶたびに子プロセスを
+# 作らないよう、出力ではなく変数で返す。大文字が無ければ置換は回さない
+_ghts_lower_into() {
+    local pair
+    _GHTS_LOWER=$1
+    case "$_GHTS_LOWER" in
+    *[ABCDEFGHIJKLMNOPQRSTUVWXYZ]*) ;;
+    *) return 0 ;;
+    esac
+    for pair in Aa Bb Cc Dd Ee Ff Gg Hh Ii Jj Kk Ll Mm Nn Oo Pp Qq Rr Ss Tt Uu Vv Ww Xx Yy Zz; do
+        _GHTS_LOWER=${_GHTS_LOWER//${pair%?}/${pair#?}}
+    done
+    return 0
 }
 
 # 小文字にしたホスト名が github.com のものなら rc 0。完全一致で見る
@@ -198,7 +209,8 @@ _ghts_github_url_rest() {
     # host を変数に切り出すのは、リテラルの ssh://git@host/ が gitleaks の
     # email-address に当たるのを避けるため
     local host=github.com u rest authority
-    u=$(_ghts_lower "$1")
+    _ghts_lower_into "$1"
+    u=$_GHTS_LOWER
     case "$u" in
     git@"$host":*)
         printf '%s\n' "${u#git@"$host":}"
@@ -241,7 +253,7 @@ ghts_owner_from_url() {
 # -R / --repo の値 (OWNER/REPO, HOST/OWNER/REPO, URL) から小文字の owner を出す。
 # HOST が github.com のものでなければ何も出さない (読めない名指しとして扱わせる)
 ghts_owner_from_repo_spec() {
-    local spec=$1 slashes owner
+    local spec=$1 slashes
     case "$spec" in
     *://* | git@*)
         ghts_owner_from_url "$spec"
@@ -251,11 +263,12 @@ ghts_owner_from_repo_spec() {
     slashes=${spec//[^\/]/}
     if [ "${#slashes}" -ge 2 ]; then
         # HOST/OWNER/REPO は先頭の host を確かめてから落とす
-        _ghts_is_github_host "$(_ghts_lower "${spec%%/*}")" || return 0
+        _ghts_lower_into "${spec%%/*}"
+        _ghts_is_github_host "$_GHTS_LOWER" || return 0
         spec=${spec#*/}
     fi
-    owner=${spec%%/*}
-    [ -n "$owner" ] && printf '%s\n' "$(_ghts_lower "$owner")"
+    _ghts_lower_into "${spec%%/*}"
+    [ -n "$_GHTS_LOWER" ] && printf '%s\n' "$_GHTS_LOWER"
     return 0
 }
 
@@ -283,15 +296,15 @@ _ghts_endpoint_names_owner() {
 # gh api のエンドポイントから owner を出す。repos/O/.. orgs/O/.. users/U のみ。
 # 完全な URL は api.github.com のものだけを読む (他のホストは空)
 _ghts_owner_from_endpoint() {
-    local ep=$1 lowered authority kind rest owner
+    local ep=$1 authority kind rest
     case "$ep" in
     *://*)
-        lowered=$(_ghts_lower "$ep")
-        case "$lowered" in
+        _ghts_lower_into "$ep"
+        case "$_GHTS_LOWER" in
         http://* | https://*) ;;
         *) return 0 ;;
         esac
-        authority=${lowered#*://}
+        authority=${_GHTS_LOWER#*://}
         authority=${authority%%/*}
         [ "$authority" = api.github.com ] || return 0
         rest=${ep#*://}
@@ -309,10 +322,10 @@ _ghts_owner_from_endpoint() {
     */*) rest=${ep#*/} ;;
     *) rest="" ;;
     esac
-    owner=${rest%%/*}
     case "$kind" in
     repos | orgs | users)
-        [ -n "$owner" ] && printf '%s\n' "$(_ghts_lower "$owner")"
+        _ghts_lower_into "${rest%%/*}"
+        [ -n "$_GHTS_LOWER" ] && printf '%s\n' "$_GHTS_LOWER"
         ;;
     esac
     return 0
@@ -619,11 +632,13 @@ ghts_load_config() {
         vault) GHTS_VAULT=$val ;;
         default_owner)
             ghts_valid_owner "$val" || return 1
-            GHTS_DEFAULT_OWNER=$(_ghts_lower "$val")
+            _ghts_lower_into "$val"
+            GHTS_DEFAULT_OWNER=$_GHTS_LOWER
             ;;
         owner)
             ghts_valid_owner "$val" || return 1
-            GHTS_OWNERS="${GHTS_OWNERS:+$GHTS_OWNERS }$(_ghts_lower "$val")"
+            _ghts_lower_into "$val"
+            GHTS_OWNERS="${GHTS_OWNERS:+$GHTS_OWNERS }$_GHTS_LOWER"
             ;;
         esac
     done <"$file"
