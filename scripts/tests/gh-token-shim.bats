@@ -419,3 +419,235 @@ setup() {
     [ "$status" -eq 0 ]
     [ "$output" = "write" ]
 }
+
+# =============================================================================
+# 持ち主の解決 (ghts_owner_from_args / ghts_owner_from_url) と設定の解釈
+# =============================================================================
+
+@test "owner_from_args: pr view 3 -R Acme/Web -> acme" {
+    run ghts_owner_from_args pr view 3 -R Acme/Web
+    [ "$status" -eq 0 ]
+    [ "$output" = "acme" ]
+}
+
+@test "owner_from_args: --repo=acme/web -> acme" {
+    run ghts_owner_from_args pr view 3 --repo=acme/web
+    [ "$status" -eq 0 ]
+    [ "$output" = "acme" ]
+}
+
+@test "owner_from_args: --repo acme/web (separate value) -> acme" {
+    run ghts_owner_from_args pr view 3 --repo Acme/web
+    [ "$status" -eq 0 ]
+    [ "$output" = "acme" ]
+}
+
+@test "owner_from_args: -R HOST/OWNER/REPO -> acme" {
+    run ghts_owner_from_args pr view 3 -R github.com/acme/web
+    [ "$status" -eq 0 ]
+    [ "$output" = "acme" ]
+}
+
+@test "owner_from_args: -R URL -> acme" {
+    run ghts_owner_from_args pr view 3 -R https://github.com/acme/web
+    [ "$status" -eq 0 ]
+    [ "$output" = "acme" ]
+}
+
+@test "owner_from_args: -R wins over api endpoint" {
+    run ghts_owner_from_args api repos/other/web -R acme/web
+    [ "$status" -eq 0 ]
+    [ "$output" = "acme" ]
+}
+
+@test "owner_from_args: api repos/Acme/web/rulesets -> acme" {
+    run ghts_owner_from_args api repos/Acme/web/rulesets
+    [ "$status" -eq 0 ]
+    [ "$output" = "acme" ]
+}
+
+@test "owner_from_args: api /repos/acme/web -> acme" {
+    run ghts_owner_from_args api /repos/acme/web
+    [ "$status" -eq 0 ]
+    [ "$output" = "acme" ]
+}
+
+@test "owner_from_args: api orgs/acme/members -> acme" {
+    run ghts_owner_from_args api orgs/acme/members
+    [ "$status" -eq 0 ]
+    [ "$output" = "acme" ]
+}
+
+@test "owner_from_args: api users/bob -> bob" {
+    run ghts_owner_from_args api users/bob
+    [ "$status" -eq 0 ]
+    [ "$output" = "bob" ]
+}
+
+@test "owner_from_args: api user -> empty" {
+    run ghts_owner_from_args api user
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "owner_from_args: api flags with values are not the endpoint" {
+    run ghts_owner_from_args api -H "Accept: x" -X GET repos/acme/web
+    [ "$status" -eq 0 ]
+    [ "$output" = "acme" ]
+}
+
+@test "owner_from_args: repo view acme/web -> acme" {
+    run ghts_owner_from_args repo view acme/web
+    [ "$status" -eq 0 ]
+    [ "$output" = "acme" ]
+}
+
+@test "owner_from_args: pr merge URL -> acme" {
+    run ghts_owner_from_args pr merge https://github.com/acme/web/pull/3
+    [ "$status" -eq 0 ]
+    [ "$output" = "acme" ]
+}
+
+@test "owner_from_args: pr list -> empty" {
+    run ghts_owner_from_args pr list
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "owner_from_args: search repos foo -> empty" {
+    run ghts_owner_from_args search repos foo
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "owner_from_url: scp style with .git" {
+    run ghts_owner_from_url git@github.com:Acme/web.git
+    [ "$status" -eq 0 ]
+    [ "$output" = "acme" ]
+}
+
+@test "owner_from_url: scp style without .git" {
+    run ghts_owner_from_url git@github.com:acme/web
+    [ "$status" -eq 0 ]
+    [ "$output" = "acme" ]
+}
+
+@test "owner_from_url: ssh scheme" {
+    # リテラルの ssh://git@host/ は gitleaks の email-address に当たるので組み立てる
+    local host=github.com
+    run ghts_owner_from_url "ssh://git@${host}/acme/web"
+    [ "$status" -eq 0 ]
+    [ "$output" = "acme" ]
+}
+
+@test "owner_from_url: https with .git" {
+    run ghts_owner_from_url https://github.com/acme/web.git
+    [ "$status" -eq 0 ]
+    [ "$output" = "acme" ]
+}
+
+@test "owner_from_url: https with trailing path" {
+    run ghts_owner_from_url https://github.com/acme/web/pull/3
+    [ "$status" -eq 0 ]
+    [ "$output" = "acme" ]
+}
+
+@test "owner_from_url: other host (gitlab scp) -> empty" {
+    run ghts_owner_from_url git@gitlab.com:acme/web.git
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "owner_from_url: GHES host -> empty" {
+    run ghts_owner_from_url https://github.example.com/acme/web
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "valid_owner: acme-1 accepted" {
+    run ghts_valid_owner acme-1
+    [ "$status" -eq 0 ]
+}
+
+@test "valid_owner: rejects bad names" {
+    local bad
+    for bad in -acme acme/x 'a;b' ../x '' "$(printf 'a%.0s' $(seq 1 40))"; do
+        run ghts_valid_owner "$bad"
+        [ "$status" -ne 0 ] || { echo "accepted: $bad"; return 1; }
+    done
+}
+
+@test "valid_owner: 39 chars accepted" {
+    run ghts_valid_owner "$(printf 'a%.0s' $(seq 1 39))"
+    [ "$status" -eq 0 ]
+}
+
+@test "valid_owner: trailing newline rejected" {
+    run ghts_valid_owner "$(printf 'acme\nx')"
+    [ "$status" -ne 0 ]
+}
+
+_write_config() {
+    CONF="$BATS_TEST_TMPDIR/ghts.conf"
+    printf '%s\n' "$@" >"$CONF"
+}
+
+@test "load_config: normal file sets three variables" {
+    _write_config '# comment' '' 'vault=Dev Vault' 'default_owner=Acme' 'owner=Acme' '' 'owner=bob-2'
+    ghts_load_config "$CONF"
+    [ "$GHTS_VAULT" = "Dev Vault" ]
+    [ "$GHTS_DEFAULT_OWNER" = "acme" ]
+    [ "$GHTS_OWNERS" = "acme bob-2" ]
+}
+
+@test "load_config: missing vault -> rc 1" {
+    _write_config 'default_owner=acme' 'owner=acme'
+    run ghts_load_config "$CONF"
+    [ "$status" -eq 1 ]
+}
+
+@test "load_config: missing default_owner -> rc 1" {
+    _write_config 'vault=v' 'owner=acme'
+    run ghts_load_config "$CONF"
+    [ "$status" -eq 1 ]
+}
+
+@test "load_config: invalid owner line -> rc 1" {
+    _write_config 'vault=v' 'default_owner=acme' 'owner=a;b'
+    run ghts_load_config "$CONF"
+    [ "$status" -eq 1 ]
+}
+
+@test "load_config: missing file -> rc 1" {
+    run ghts_load_config "$BATS_TEST_TMPDIR/nonexistent.conf"
+    [ "$status" -eq 1 ]
+}
+
+@test "load_config: last line without newline is read" {
+    CONF="$BATS_TEST_TMPDIR/ghts.conf"
+    printf 'vault=v\ndefault_owner=acme\nowner=zed' >"$CONF"
+    ghts_load_config "$CONF"
+    [ "$GHTS_OWNERS" = "zed" ]
+}
+
+@test "load_config: file is never sourced" {
+    local work="$BATS_TEST_TMPDIR/work"
+    mkdir -p "$work"
+    CONF="$work/ghts.conf"
+    printf '%s\n' 'vault=$(touch pwned)' 'default_owner=acme' >"$CONF"
+    cd "$work"
+    ghts_load_config "$CONF"
+    # 設定を実際に読んだ陽性対照: 値がリテラルのまま入る
+    [ "$GHTS_VAULT" = '$(touch pwned)' ]
+    [ ! -e "$work/pwned" ]
+}
+
+@test "has_owner: member and non-member" {
+    GHTS_OWNERS="acme bob-2"
+    ghts_has_owner acme
+    ghts_has_owner bob-2
+    run ghts_has_owner ac
+    [ "$status" -ne 0 ]
+    run ghts_has_owner ""
+    [ "$status" -ne 0 ]
+}

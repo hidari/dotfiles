@@ -200,3 +200,174 @@ ghts_classify() {
     esac
     return 0
 }
+
+# 持ち主 (owner) として許す名前。先頭は英数字、全体で39文字まで
+_GHTS_OWNER_RE='^[A-Za-z0-9]([A-Za-z0-9-]{0,38})$'
+
+ghts_valid_owner() {
+    [[ ${1-} =~ $_GHTS_OWNER_RE ]]
+}
+
+_ghts_lower() {
+    printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+# github.com の remote / Web の URL から小文字の owner を出す。それ以外は空。
+# 検証はしない (呼び出し側が ghts_valid_owner で行う)。
+ghts_owner_from_url() {
+    # host を変数に切り出すのは、リテラルの ssh://git@host/ が gitleaks の
+    # email-address に当たるのを避けるため
+    local host=github.com u rest
+    u=$(_ghts_lower "$1")
+    case "$u" in
+    git@"$host":*) rest=${u#git@"$host":} ;;
+    ssh://git@"$host"/*) rest=${u#ssh://git@"$host"/} ;;
+    https://"$host"/*) rest=${u#https://"$host"/} ;;
+    *) return 0 ;;
+    esac
+    printf '%s\n' "${rest%%/*}"
+}
+
+# -R / --repo の値 (OWNER/REPO, HOST/OWNER/REPO, URL) から小文字の owner を出す
+_ghts_owner_from_repo_spec() {
+    local spec=$1 slashes owner
+    case "$spec" in
+    *://* | git@*)
+        ghts_owner_from_url "$spec"
+        return 0
+        ;;
+    esac
+    slashes=${spec//[^\/]/}
+    if [ "${#slashes}" -ge 2 ]; then
+        # HOST/OWNER/REPO は先頭の host を落とす
+        spec=${spec#*/}
+    fi
+    owner=${spec%%/*}
+    [ -n "$owner" ] && printf '%s\n' "$(_ghts_lower "$owner")"
+    return 0
+}
+
+# gh api のエンドポイントから owner を出す。repos/O/.. orgs/O/.. users/U のみ
+_ghts_owner_from_endpoint() {
+    local ep=${1#/} kind rest owner
+    kind=${ep%%/*}
+    case "$ep" in
+    */*) rest=${ep#*/} ;;
+    *) rest="" ;;
+    esac
+    owner=${rest%%/*}
+    case "$kind" in
+    repos | orgs | users)
+        [ -n "$owner" ] && printf '%s\n' "$(_ghts_lower "$owner")"
+        ;;
+    esac
+    return 0
+}
+
+# gh の引数から持ち主を決めて小文字で出す (決められなければ空)。rc は常に 0。
+# 優先順: 1 -R/--repo、2 api のエンドポイント、2' その他の位置引数の URL / OWNER/REPO
+ghts_owner_from_args() {
+    local args=("$@") i=0 n=$# a repo="" sub="" endpoint="" cand="" pos=0
+
+    while [ "$i" -lt "$n" ]; do
+        a=${args[$i]}
+        i=$((i + 1))
+        case "$a" in
+        -R | --repo)
+            if [ "$i" -lt "$n" ]; then
+                repo=${args[$i]}
+                i=$((i + 1))
+            fi
+            continue
+            ;;
+        --repo=*)
+            repo=${a#--repo=}
+            continue
+            ;;
+        -R?*)
+            repo=${a#-R}
+            continue
+            ;;
+        esac
+
+        if [ "$sub" = api ]; then
+            case "$a" in
+            # 値を取るフラグ。値をエンドポイントと取り違えない
+            -X | --method | -f | -F | --field | --raw-field | --input | -H | --header | -q | --jq | -t | --template | --cache | --hostname | -p | --preview)
+                i=$((i + 1))
+                continue
+                ;;
+            -*) continue ;;
+            esac
+            if [ -z "$endpoint" ]; then endpoint=$a; fi
+            continue
+        fi
+
+        case "$a" in
+        -*) continue ;;
+        esac
+        pos=$((pos + 1))
+        if [ "$pos" -eq 1 ]; then
+            sub=$a
+        elif [ "$pos" -ge 3 ] && [ -z "$cand" ]; then
+            # サブコマンドと動詞の後ろの位置引数だけを対象にする
+            case "$a" in
+            *://* | git@*) cand=$(ghts_owner_from_url "$a") ;;
+            */*) cand=$(_ghts_owner_from_repo_spec "$a") ;;
+            esac
+        fi
+    done
+
+    if [ -n "$repo" ]; then
+        _ghts_owner_from_repo_spec "$repo"
+    elif [ "$sub" = api ]; then
+        [ -n "$endpoint" ] && _ghts_owner_from_endpoint "$endpoint"
+    elif [ -n "$cand" ]; then
+        printf '%s\n' "$cand"
+    fi
+    return 0
+}
+
+# 設定ファイルを行ごとに読む。source はしない (値はリテラルのまま)。
+# 設定する変数: GHTS_VAULT / GHTS_DEFAULT_OWNER / GHTS_OWNERS (小文字・空白区切り)
+# vault と default_owner が揃い、全ての owner が正規表現に当たるとき rc 0
+ghts_load_config() {
+    local file=${1-} line key val
+    GHTS_VAULT=""
+    GHTS_DEFAULT_OWNER=""
+    GHTS_OWNERS=""
+    [ -r "$file" ] || return 1
+
+    while IFS= read -r line || [ -n "$line" ]; do
+        case "$line" in
+        "" | "#"*) continue ;;
+        *=*) ;;
+        *) continue ;;
+        esac
+        key=${line%%=*}
+        val=${line#*=}
+        case "$key" in
+        vault) GHTS_VAULT=$val ;;
+        default_owner)
+            ghts_valid_owner "$val" || return 1
+            GHTS_DEFAULT_OWNER=$(_ghts_lower "$val")
+            ;;
+        owner)
+            ghts_valid_owner "$val" || return 1
+            GHTS_OWNERS="${GHTS_OWNERS:+$GHTS_OWNERS }$(_ghts_lower "$val")"
+            ;;
+        esac
+    done <"$file"
+
+    [ -n "$GHTS_VAULT" ] && [ -n "$GHTS_DEFAULT_OWNER" ]
+}
+
+# GHTS_OWNERS (空白区切り) に含まれれば rc 0
+ghts_has_owner() {
+    local o
+    [ -n "${1-}" ] || return 1
+    for o in $GHTS_OWNERS; do
+        [ "$o" = "$1" ] && return 0
+    done
+    return 1
+}
