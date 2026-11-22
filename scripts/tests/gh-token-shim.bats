@@ -187,502 +187,389 @@ refute_token_on_stderr() {
     refute_contains "$stderr" "tok-"
 }
 
+# 関数を引数つきで走らせ、rc が 0 で出力が期待と完全に一致することを確かめる
+assert_exact_output() {
+    local expected="$1"
+    shift
+    run "$@"
+    if [ "$status" -ne 0 ] || [ "$output" != "$expected" ]; then
+        echo "$*: rc 0 と [$expected] のはずが rc $status と [$output]" >&2
+        return 1
+    fi
+}
+
+# ghts_classify が引数を期待の分類にすること
+assert_class() {
+    local expected="$1"
+    shift
+    assert_exact_output "$expected" ghts_classify "$@"
+}
+
+# ghts_owner_from_args が引数から期待の持ち主を出すこと (空は「決められない」)
+assert_owner() {
+    local expected="$1"
+    shift
+    assert_exact_output "$expected" ghts_owner_from_args "$@"
+}
+
+# ghts_owner_from_url が URL から期待の持ち主を出すこと (空は「読めない」)
+assert_url_owner() {
+    assert_exact_output "$1" ghts_owner_from_url "$2"
+}
+
+# 偽物の記録が期待の1行と完全に一致すること
+assert_shim_log() {
+    local name="$1" expected="$2" actual
+    actual="$(shim_log "$name")"
+    if [ "$actual" != "$expected" ]; then
+        echo "$name の記録は [$expected] のはずが [$actual]" >&2
+        return 1
+    fi
+}
+
+# op が指定の持ち主の強いトークンを1回だけ読んだこと。
+# 期待する argv はここにだけ書く (本体から取ると、本体を変える変異が緑になる)
+assert_op_read() {
+    assert_shim_log op "read -n op://TestVault/gh-write-$1/credential"
+}
+
+# security が指定の持ち主の普段使いのトークンを1回だけ読んだこと
+assert_security_read() {
+    assert_shim_log security "find-generic-password -s gh-token-shim -a $1:read -w"
+}
+
 @test "classify: --version -> none" {
-    run ghts_classify --version
-    [ "$status" -eq 0 ]
-    [ "$output" = "none" ]
+    assert_class none --version
 }
 
 @test "classify: version -> none" {
-    run ghts_classify version
-    [ "$status" -eq 0 ]
-    [ "$output" = "none" ]
+    assert_class none version
 }
 
 @test "classify: help -> none" {
-    run ghts_classify help
-    [ "$status" -eq 0 ]
-    [ "$output" = "none" ]
+    assert_class none help
 }
 
 @test "classify: help pr -> none" {
-    run ghts_classify help pr
-    [ "$status" -eq 0 ]
-    [ "$output" = "none" ]
+    assert_class none help pr
 }
 
 @test "classify: completion -s zsh -> none" {
-    run ghts_classify completion -s zsh
-    [ "$status" -eq 0 ]
-    [ "$output" = "none" ]
+    assert_class none completion -s zsh
 }
 
 @test "classify: auth status -> none" {
-    run ghts_classify auth status
-    [ "$status" -eq 0 ]
-    [ "$output" = "none" ]
+    assert_class none auth status
 }
 
 @test "classify: auth logout -> none" {
-    run ghts_classify auth logout
-    [ "$status" -eq 0 ]
-    [ "$output" = "none" ]
+    assert_class none auth logout
 }
 
 @test "classify: (no args) -> none" {
-    run ghts_classify
-    [ "$status" -eq 0 ]
-    [ "$output" = "none" ]
+    assert_class none
 }
 
 @test "classify: pr list -> read" {
-    run ghts_classify pr list
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read pr list
 }
 
 @test "classify: pr view 3 -> read" {
-    run ghts_classify pr view 3
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read pr view 3
 }
 
 @test "classify: pr create --fill -> read" {
-    run ghts_classify pr create --fill
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read pr create --fill
 }
 
 @test "classify: pr comment 3 --body-file x -> read" {
-    run ghts_classify pr comment 3 --body-file x
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read pr comment 3 --body-file x
 }
 
 @test "classify: issue create -> read" {
-    run ghts_classify issue create
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read issue create
 }
 
 @test "classify: run view 1 -> read" {
-    run ghts_classify run view 1
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read run view 1
 }
 
 @test "classify: run watch 1 -> read" {
-    run ghts_classify run watch 1
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read run watch 1
 }
 
 @test "classify: co 3 -> read" {
-    run ghts_classify co 3
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read co 3
 }
 
 @test "classify: api repos/a/b -> read" {
-    run ghts_classify api repos/a/b
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read api repos/a/b
 }
 
 @test "classify: api -X GET repos/a/b -> read" {
-    run ghts_classify api -X GET repos/a/b
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read api -X GET repos/a/b
 }
 
 @test "classify: api --method=HEAD repos/a/b -> read" {
-    run ghts_classify api --method=HEAD repos/a/b
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read api --method=HEAD repos/a/b
 }
 
 @test "classify: api graphql -f query='query { viewer { login } }' -> read" {
-    run ghts_classify api graphql -f query='query { viewer { login } }'
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read api graphql -f query='query { viewer { login } }'
 }
 
 @test "classify: release view v1 -> read" {
-    run ghts_classify release view v1
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read release view v1
 }
 
 @test "classify: release list -> read" {
-    run ghts_classify release list
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read release list
 }
 
 @test "classify: repo view a/b -> read" {
-    run ghts_classify repo view a/b
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read repo view a/b
 }
 
 @test "classify: repo clone a/b -> read" {
-    run ghts_classify repo clone a/b
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read repo clone a/b
 }
 
 @test "classify: ruleset list -> read" {
-    run ghts_classify ruleset list
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read ruleset list
 }
 
 @test "classify: secret list -> read" {
-    run ghts_classify secret list
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read secret list
 }
 
 @test "classify: pr merge 3 --squash -> write" {
-    run ghts_classify pr merge 3 --squash
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write pr merge 3 --squash
 }
 
 @test "classify: release create v1 -> write" {
-    run ghts_classify release create v1
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write release create v1
 }
 
 @test "classify: release upload v1 f -> write" {
-    run ghts_classify release upload v1 f
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write release upload v1 f
 }
 
 @test "classify: release delete-asset v1 f -> write" {
-    run ghts_classify release delete-asset v1 f
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write release delete-asset v1 f
 }
 
 @test "classify: repo sync -> write" {
-    run ghts_classify repo sync
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write repo sync
 }
 
 @test "classify: workflow run ci.yml -> write" {
-    run ghts_classify workflow run ci.yml
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write workflow run ci.yml
 }
 
 @test "classify: run rerun 1 -> write" {
-    run ghts_classify run rerun 1
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write run rerun 1
 }
 
 @test "classify: run cancel 1 -> write" {
-    run ghts_classify run cancel 1
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write run cancel 1
 }
 
 @test "classify: secret set X -> write" {
-    run ghts_classify secret set X
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write secret set X
 }
 
 @test "classify: variable delete X -> write" {
-    run ghts_classify variable delete X
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write variable delete X
 }
 
 @test "classify: cache delete 1 -> write" {
-    run ghts_classify cache delete 1
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write cache delete 1
 }
 
 @test "classify: api -X POST repos/a/b/x -> write" {
-    run ghts_classify api -X POST repos/a/b/x
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write api -X POST repos/a/b/x
 }
 
 @test "classify: api -XPOST repos/a/b/x -> write" {
-    run ghts_classify api -XPOST repos/a/b/x
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write api -XPOST repos/a/b/x
 }
 
 @test "classify: api --method=patch repos/a/b -> write" {
-    run ghts_classify api --method=patch repos/a/b
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write api --method=patch repos/a/b
 }
 
 @test "classify: api repos/a/b/labels -f name=x -> write" {
-    run ghts_classify api repos/a/b/labels -f name=x
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write api repos/a/b/labels -f name=x
 }
 
 @test "classify: api repos/a/b -Fx=1 -> write" {
-    run ghts_classify api repos/a/b -Fx=1
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write api repos/a/b -Fx=1
 }
 
 @test "classify: api repos/a/b --input body.json -> write" {
-    run ghts_classify api repos/a/b --input body.json
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write api repos/a/b --input body.json
 }
 
 @test "classify: api graphql -f query='mutation { x }' -> write" {
-    run ghts_classify api graphql -f query='mutation { x }'
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write api graphql -f query='mutation { x }'
 }
 
 @test "classify: api graphql --input q.json -> write" {
-    run ghts_classify api graphql --input q.json
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write api graphql --input q.json
 }
 
 @test "classify: api graphql -F query=@q.graphql -> write" {
-    run ghts_classify api graphql -F query=@q.graphql
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write api graphql -F query=@q.graphql
 }
 
 @test "classify: repo create a/b --private -> admin" {
-    run ghts_classify repo create a/b --private
-    [ "$status" -eq 0 ]
-    [ "$output" = "admin" ]
+    assert_class admin repo create a/b --private
 }
 
 @test "classify: repo delete a/b --yes -> admin" {
-    run ghts_classify repo delete a/b --yes
-    [ "$status" -eq 0 ]
-    [ "$output" = "admin" ]
+    assert_class admin repo delete a/b --yes
 }
 
 @test "classify: repo edit --visibility public -> admin" {
-    run ghts_classify repo edit --visibility public
-    [ "$status" -eq 0 ]
-    [ "$output" = "admin" ]
+    assert_class admin repo edit --visibility public
 }
 
 @test "classify: repo rename x -> admin" {
-    run ghts_classify repo rename x
-    [ "$status" -eq 0 ]
-    [ "$output" = "admin" ]
+    assert_class admin repo rename x
 }
 
 @test "classify: repo archive -> admin" {
-    run ghts_classify repo archive
-    [ "$status" -eq 0 ]
-    [ "$output" = "admin" ]
+    assert_class admin repo archive
 }
 
 @test "classify: repo unarchive -> admin" {
-    run ghts_classify repo unarchive
-    [ "$status" -eq 0 ]
-    [ "$output" = "admin" ]
+    assert_class admin repo unarchive
 }
 
 @test "classify: repo fork a/b -> admin" {
-    run ghts_classify repo fork a/b
-    [ "$status" -eq 0 ]
-    [ "$output" = "admin" ]
+    assert_class admin repo fork a/b
 }
 
 @test "classify: repo deploy-key add k -> admin" {
-    run ghts_classify repo deploy-key add k
-    [ "$status" -eq 0 ]
-    [ "$output" = "admin" ]
+    assert_class admin repo deploy-key add k
 }
 
 @test "classify: repo autolink create p u -> admin" {
-    run ghts_classify repo autolink create p u
-    [ "$status" -eq 0 ]
-    [ "$output" = "admin" ]
+    assert_class admin repo autolink create p u
 }
 
 @test "classify: repo deploy-key list -> read" {
-    run ghts_classify repo deploy-key list
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read repo deploy-key list
 }
 
 @test "classify: repo autolink view 1 -> read" {
-    run ghts_classify repo autolink view 1
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read repo autolink view 1
 }
 
 @test "classify: repo deploy-key delete 1 -> admin" {
-    run ghts_classify repo deploy-key delete 1
-    [ "$status" -eq 0 ]
-    [ "$output" = "admin" ]
+    assert_class admin repo deploy-key delete 1
 }
 
 @test "classify: repo autolink delete 1 -> admin" {
-    run ghts_classify repo autolink delete 1
-    [ "$status" -eq 0 ]
-    [ "$output" = "admin" ]
+    assert_class admin repo autolink delete 1
 }
 
 @test "classify: release delete v1 -> write" {
-    run ghts_classify release delete v1
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write release delete v1
 }
 
 @test "classify: release edit v1 -> write" {
-    run ghts_classify release edit v1
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write release edit v1
 }
 
 @test "classify: workflow enable x -> write" {
-    run ghts_classify workflow enable x
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write workflow enable x
 }
 
 @test "classify: workflow disable x -> write" {
-    run ghts_classify workflow disable x
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write workflow disable x
 }
 
 @test "classify: run delete 1 -> write" {
-    run ghts_classify run delete 1
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write run delete 1
 }
 
 @test "classify: secret delete X -> write" {
-    run ghts_classify secret delete X
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write secret delete X
 }
 
 @test "classify: secret remove X -> write" {
-    run ghts_classify secret remove X
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write secret remove X
 }
 
 @test "classify: variable set X -> write" {
-    run ghts_classify variable set X
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write variable set X
 }
 
 @test "classify: variable remove X -> write" {
-    run ghts_classify variable remove X
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write variable remove X
 }
 
 # --- --help / -h: 何も実行しないので、書き込みと管理の判定を read へ下げる ---
 
 @test "classify: pr merge --help -> read" {
-    run ghts_classify pr merge --help
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read pr merge --help
 }
 
 @test "classify: pr merge -h -> read" {
-    run ghts_classify pr merge -h
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read pr merge -h
 }
 
 @test "classify: release create --help -> read" {
-    run ghts_classify release create --help
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read release create --help
 }
 
 @test "classify: repo create --help -> read" {
-    run ghts_classify repo create --help
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read repo create --help
 }
 
 @test "classify: pr merge 3 --body --help -> write" {
     # --help は --body の値で、gh は merge を実行する。none へ下げるとトークン無しで委譲する
-    run ghts_classify pr merge 3 --body --help
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write pr merge 3 --body --help
 }
 
 @test "classify: repo create x -h URL -> admin" {
     # repo create の -h は --homepage で、値を取る
-    run ghts_classify repo create x -h https://example.com
-    [ "$status" -eq 0 ]
-    [ "$output" = "admin" ]
+    assert_class admin repo create x -h https://example.com
 }
 
 @test "classify: api -X POST repos/a/b/x -H Accept:x -> write" {
     # gh api の -H はヘッダで、ヘルプではない
-    run ghts_classify api -X POST repos/a/b/x -H Accept:x
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write api -X POST repos/a/b/x -H Accept:x
 }
 
 @test "classify: api -X POST repos/a/b/x -h -> write" {
-    run ghts_classify api -X POST repos/a/b/x -h
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write api -X POST repos/a/b/x -h
 }
 
 # --- query= の mutation は graphql のときだけ、語として見る ---
 
 @test "classify: api -X GET repos/a/b/issues -f query=mutation -> read" {
-    run ghts_classify api -X GET repos/acme/web/issues -f query=mutation
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read api -X GET repos/acme/web/issues -f query=mutation
 }
 
 @test "classify: api -X GET repos/a/b -F query=@f -> read" {
-    run ghts_classify api -X GET repos/a/b -F query=@f
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read api -X GET repos/a/b -F query=@f
 }
 
 @test "classify: api graphql -f query='{viewer{mutationCount}}' -> read" {
-    run ghts_classify api graphql -f 'query={viewer{mutationCount}}'
-    [ "$status" -eq 0 ]
-    [ "$output" = "read" ]
+    assert_class read api graphql -f 'query={viewer{mutationCount}}'
 }
 
 @test "classify: api graphql with a mutation in each written form -> write" {
-    run ghts_classify api graphql -f 'query=mutation{x}'
-    [ "$output" = "write" ]
-    run ghts_classify api graphql -f 'query=mutation($id:ID!){x(id:$id)}'
-    [ "$output" = "write" ]
-    run ghts_classify api graphql -f 'query=  Mutation Name { x }'
-    [ "$output" = "write" ]
-    run ghts_classify api graphql -f 'query=mutation'
-    [ "$output" = "write" ]
+    assert_class write api graphql -f 'query=mutation{x}'
+    assert_class write api graphql -f 'query=mutation($id:ID!){x(id:$id)}'
+    assert_class write api graphql -f 'query=  Mutation Name { x }'
+    assert_class write api graphql -f 'query=mutation'
 }
 
 @test "classify: api -f query='mutation { x }' graphql (field before the endpoint) -> write" {
-    run ghts_classify api -f 'query=mutation { x }' graphql
-    [ "$status" -eq 0 ]
-    [ "$output" = "write" ]
+    assert_class write api -f 'query=mutation { x }' graphql
 }
 
 # =============================================================================
@@ -690,227 +577,153 @@ refute_token_on_stderr() {
 # =============================================================================
 
 @test "owner_from_args: pr view 3 -R Acme/Web -> acme" {
-    run ghts_owner_from_args pr view 3 -R Acme/Web
-    [ "$status" -eq 0 ]
-    [ "$output" = "acme" ]
+    assert_owner acme pr view 3 -R Acme/Web
 }
 
 @test "owner_from_args: --repo=acme/web -> acme" {
-    run ghts_owner_from_args pr view 3 --repo=acme/web
-    [ "$status" -eq 0 ]
-    [ "$output" = "acme" ]
+    assert_owner acme pr view 3 --repo=acme/web
 }
 
 @test "owner_from_args: --repo acme/web (separate value) -> acme" {
-    run ghts_owner_from_args pr view 3 --repo Acme/web
-    [ "$status" -eq 0 ]
-    [ "$output" = "acme" ]
+    assert_owner acme pr view 3 --repo Acme/web
 }
 
 @test "owner_from_args: -R HOST/OWNER/REPO -> acme" {
-    run ghts_owner_from_args pr view 3 -R github.com/acme/web
-    [ "$status" -eq 0 ]
-    [ "$output" = "acme" ]
+    assert_owner acme pr view 3 -R github.com/acme/web
 }
 
 @test "owner_from_args: -R URL -> acme" {
-    run ghts_owner_from_args pr view 3 -R https://github.com/acme/web
-    [ "$status" -eq 0 ]
-    [ "$output" = "acme" ]
+    assert_owner acme pr view 3 -R https://github.com/acme/web
 }
 
 @test "owner_from_args: -R wins over api endpoint" {
-    run ghts_owner_from_args api repos/other/web -R acme/web
-    [ "$status" -eq 0 ]
-    [ "$output" = "acme" ]
+    assert_owner acme api repos/other/web -R acme/web
 }
 
 @test "owner_from_args: api repos/Acme/web/rulesets -> acme" {
-    run ghts_owner_from_args api repos/Acme/web/rulesets
-    [ "$status" -eq 0 ]
-    [ "$output" = "acme" ]
+    assert_owner acme api repos/Acme/web/rulesets
 }
 
 @test "owner_from_args: api /repos/acme/web -> acme" {
-    run ghts_owner_from_args api /repos/acme/web
-    [ "$status" -eq 0 ]
-    [ "$output" = "acme" ]
+    assert_owner acme api /repos/acme/web
 }
 
 @test "owner_from_args: api orgs/acme/members -> acme" {
-    run ghts_owner_from_args api orgs/acme/members
-    [ "$status" -eq 0 ]
-    [ "$output" = "acme" ]
+    assert_owner acme api orgs/acme/members
 }
 
 @test "owner_from_args: api users/bob -> bob" {
-    run ghts_owner_from_args api users/bob
-    [ "$status" -eq 0 ]
-    [ "$output" = "bob" ]
+    assert_owner bob api users/bob
 }
 
 @test "owner_from_args: api user -> empty" {
-    run ghts_owner_from_args api user
-    [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    assert_owner "" api user
 }
 
 @test "owner_from_args: api flags with values are not the endpoint" {
-    run ghts_owner_from_args api -H "Accept: x" -X GET repos/acme/web
-    [ "$status" -eq 0 ]
-    [ "$output" = "acme" ]
+    assert_owner acme api -H "Accept: x" -X GET repos/acme/web
 }
 
 @test "owner_from_args: repo view acme/web -> acme" {
-    run ghts_owner_from_args repo view acme/web
-    [ "$status" -eq 0 ]
-    [ "$output" = "acme" ]
+    assert_owner acme repo view acme/web
 }
 
 @test "owner_from_args: pr merge URL -> acme" {
-    run ghts_owner_from_args pr merge https://github.com/acme/web/pull/3
-    [ "$status" -eq 0 ]
-    [ "$output" = "acme" ]
+    assert_owner acme pr merge https://github.com/acme/web/pull/3
 }
 
 @test "owner_from_args: pr list -> empty" {
-    run ghts_owner_from_args pr list
-    [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    assert_owner "" pr list
 }
 
 @test "owner_from_args: search repos foo -> empty" {
-    run ghts_owner_from_args search repos foo
-    [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    assert_owner "" search repos foo
 }
 
 @test "owner_from_args: pr create --base main --head feature/x -> empty" {
-    run ghts_owner_from_args pr create --base main --head feature/x
-    [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    assert_owner "" pr create --base main --head feature/x
 }
 
 @test "owner_from_args: pr checkout feature/x -> empty" {
-    run ghts_owner_from_args pr checkout feature/x
-    [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    assert_owner "" pr checkout feature/x
 }
 
 @test "owner_from_args: pr merge 3 --body a/b -> empty" {
-    run ghts_owner_from_args pr merge 3 --body a/b
-    [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    assert_owner "" pr merge 3 --body a/b
 }
 
 @test "owner_from_args: release create v1 dist/x -> empty" {
-    run ghts_owner_from_args release create v1 dist/x
-    [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    assert_owner "" release create v1 dist/x
 }
 
 @test "owner_from_args: workflow run .github/workflows/ci.yml -> empty" {
-    run ghts_owner_from_args workflow run .github/workflows/ci.yml
-    [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    assert_owner "" workflow run .github/workflows/ci.yml
 }
 
 @test "owner_from_args: issue create -t x/y -> empty" {
-    run ghts_owner_from_args issue create -t x/y
-    [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    assert_owner "" issue create -t x/y
 }
 
 @test "owner_from_url: scp style with .git" {
-    run ghts_owner_from_url git@github.com:Acme/web.git
-    [ "$status" -eq 0 ]
-    [ "$output" = "acme" ]
+    assert_url_owner acme git@github.com:Acme/web.git
 }
 
 @test "owner_from_url: scp style without .git" {
-    run ghts_owner_from_url git@github.com:acme/web
-    [ "$status" -eq 0 ]
-    [ "$output" = "acme" ]
+    assert_url_owner acme git@github.com:acme/web
 }
 
 @test "owner_from_url: ssh scheme" {
     # リテラルの ssh://git@host/ は gitleaks の email-address に当たるので組み立てる
     local host=github.com
-    run ghts_owner_from_url "ssh://git@${host}/acme/web"
-    [ "$status" -eq 0 ]
-    [ "$output" = "acme" ]
+    assert_url_owner acme "ssh://git@${host}/acme/web"
 }
 
 @test "owner_from_url: https with .git" {
-    run ghts_owner_from_url https://github.com/acme/web.git
-    [ "$status" -eq 0 ]
-    [ "$output" = "acme" ]
+    assert_url_owner acme https://github.com/acme/web.git
 }
 
 @test "owner_from_url: https with trailing path" {
-    run ghts_owner_from_url https://github.com/acme/web/pull/3
-    [ "$status" -eq 0 ]
-    [ "$output" = "acme" ]
+    assert_url_owner acme https://github.com/acme/web/pull/3
 }
 
 @test "owner_from_url: http scheme" {
-    run ghts_owner_from_url http://github.com/Acme/web
-    [ "$status" -eq 0 ]
-    [ "$output" = "acme" ]
+    assert_url_owner acme http://github.com/Acme/web
 }
 
 @test "owner_from_url: www host" {
-    run ghts_owner_from_url https://www.github.com/acme/web/pull/3
-    [ "$status" -eq 0 ]
-    [ "$output" = "acme" ]
+    assert_url_owner acme https://www.github.com/acme/web/pull/3
 }
 
 @test "owner_from_url: host that only starts with github.com -> empty" {
-    run ghts_owner_from_url https://github.com.evil.test/acme/web
-    [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    assert_url_owner "" https://github.com.evil.test/acme/web
 }
 
 @test "owner_from_url: host that only ends with github.com -> empty" {
-    run ghts_owner_from_url https://evilgithub.com/acme/web
-    [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    assert_url_owner "" https://evilgithub.com/acme/web
 }
 
 @test "owner_from_url: api host is not a repository URL -> empty" {
-    run ghts_owner_from_url https://api.github.com/repos/acme/web
-    [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    assert_url_owner "" https://api.github.com/repos/acme/web
 }
 
 @test "owner_from_args: -R http URL -> stranger" {
-    run ghts_owner_from_args pr merge 1 -R http://github.com/stranger/x
-    [ "$status" -eq 0 ]
-    [ "$output" = "stranger" ]
+    assert_owner stranger pr merge 1 -R http://github.com/stranger/x
 }
 
 @test "owner_from_args: -R /x -> empty" {
-    run ghts_owner_from_args pr merge 1 -R /x
-    [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    assert_owner "" pr merge 1 -R /x
 }
 
 @test "owner_from_args: api full URL on api.github.com -> owner" {
-    run ghts_owner_from_args api -X DELETE https://api.github.com/repos/Stranger/x/issues/1/labels
-    [ "$status" -eq 0 ]
-    [ "$output" = "stranger" ]
+    assert_owner stranger api -X DELETE https://api.github.com/repos/Stranger/x/issues/1/labels
 }
 
 @test "owner_from_args: api full URL on another host -> empty" {
-    run ghts_owner_from_args api https://api.example.test/repos/acme/x
-    [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    assert_owner "" api https://api.example.test/repos/acme/x
 }
 
 @test "owner_from_args: api full URL without an owner path -> empty" {
-    run ghts_owner_from_args api https://api.github.com/user
-    [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    assert_owner "" api https://api.github.com/user
 }
 
 # --- ghts_owner_source: どの解決元が「ある」か (値を読めるかどうかとは別) ---
@@ -972,8 +785,7 @@ refute_token_on_stderr() {
 @test "owner_source: api endpoint with an explicit owner and the {repo} placeholder is args" {
     run ghts_owner_source api 'repos/acme/{repo}/pulls'
     [ "$output" = "args" ]
-    run ghts_owner_from_args api 'repos/acme/{repo}/pulls'
-    [ "$output" = "acme" ]
+    assert_owner acme api 'repos/acme/{repo}/pulls'
 }
 
 @test "owner_source: api full URL with the {owner} placeholder stays args" {
@@ -1054,47 +866,33 @@ refute_token_on_stderr() {
 }
 
 @test "owner_from_args: a positional after a flag value is still read" {
-    run ghts_owner_from_args repo sync -b main acme/web
-    [ "$output" = "acme" ]
-    run ghts_owner_from_args repo view --json name bob/x
-    [ "$output" = "bob" ]
-    run ghts_owner_from_args pr view --json title https://github.com/acme/web/pull/3
-    [ "$output" = "acme" ]
+    assert_owner acme repo sync -b main acme/web
+    assert_owner bob repo view --json name bob/x
+    assert_owner acme pr view --json title https://github.com/acme/web/pull/3
 }
 
 @test "owner_from_args: --flag=value and attached short values do not skip the next word" {
-    run ghts_owner_from_args repo sync --branch=main acme/web
-    [ "$output" = "acme" ]
-    run ghts_owner_from_args repo sync -bmain acme/web
-    [ "$output" = "acme" ]
-    run ghts_owner_from_args pr view --json=title https://github.com/acme/web/pull/3
-    [ "$output" = "acme" ]
+    assert_owner acme repo sync --branch=main acme/web
+    assert_owner acme repo sync -bmain acme/web
+    assert_owner acme pr view --json=title https://github.com/acme/web/pull/3
 }
 
 @test "owner_from_args: a short flag that is a switch for the verb does not eat the URL" {
     # pr merge の -s は --squash、-d は --delete-branch。pr view の -w は --web
-    run ghts_owner_from_args pr merge -s https://github.com/bob/x/pull/1
-    [ "$output" = "bob" ]
-    run ghts_owner_from_args pr merge -d https://github.com/bob/x/pull/1
-    [ "$output" = "bob" ]
-    run ghts_owner_from_args pr view -w https://github.com/acme/web/pull/3
-    [ "$output" = "acme" ]
-    run ghts_owner_from_args repo view -w acme/web
-    [ "$output" = "acme" ]
+    assert_owner bob pr merge -s https://github.com/bob/x/pull/1
+    assert_owner bob pr merge -d https://github.com/bob/x/pull/1
+    assert_owner acme pr view -w https://github.com/acme/web/pull/3
+    assert_owner acme repo view -w acme/web
 }
 
 # --- gh api のエンドポイントのクエリ文字列 ---
 
 @test "owner_from_args: api 'orgs/acme?x=1' -> acme" {
-    run ghts_owner_from_args api 'orgs/acme?x=1'
-    [ "$status" -eq 0 ]
-    [ "$output" = "acme" ]
+    assert_owner acme api 'orgs/acme?x=1'
 }
 
 @test "owner_from_args: api 'repos/acme/x?per_page=1' -> acme" {
-    run ghts_owner_from_args api 'repos/acme/x?per_page=1'
-    [ "$status" -eq 0 ]
-    [ "$output" = "acme" ]
+    assert_owner acme api 'repos/acme/x?per_page=1'
 }
 
 @test "owner_source: api 'orgs/{owner}?per_page=1' keeps the placeholder -> none" {
@@ -1105,35 +903,25 @@ refute_token_on_stderr() {
 # --- HOST/OWNER/REPO の HOST ---
 
 @test "owner_from_args: -R with a host other than github.com -> empty" {
-    run ghts_owner_from_args pr view 3 -R github.com.evil/acme/x
-    [ "$status" -eq 0 ]
-    [ -z "$output" ]
-    run ghts_owner_from_args pr view 3 -R evil.example/acme/x
-    [ -z "$output" ]
-    run ghts_owner_from_args repo view github.com.evil/acme/x
-    [ -z "$output" ]
+    assert_owner "" pr view 3 -R github.com.evil/acme/x
+    assert_owner "" pr view 3 -R evil.example/acme/x
+    assert_owner "" repo view github.com.evil/acme/x
     # 名指しはあるので、解決元は args のまま (後ろの解決元へ進ませない)
     run ghts_owner_source pr view 3 -R github.com.evil/acme/x
     [ "$output" = "args" ]
 }
 
 @test "owner_from_args: -R with the github.com host in other spellings -> acme" {
-    run ghts_owner_from_args pr view 3 -R GitHub.com/Acme/x
-    [ "$output" = "acme" ]
-    run ghts_owner_from_args pr view 3 -R www.github.com/acme/x
-    [ "$output" = "acme" ]
+    assert_owner acme pr view 3 -R GitHub.com/Acme/x
+    assert_owner acme pr view 3 -R www.github.com/acme/x
 }
 
 @test "owner_from_url: other host (gitlab scp) -> empty" {
-    run ghts_owner_from_url git@gitlab.com:acme/web.git
-    [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    assert_url_owner "" git@gitlab.com:acme/web.git
 }
 
 @test "owner_from_url: GHES host -> empty" {
-    run ghts_owner_from_url https://github.example.com/acme/web
-    [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    assert_url_owner "" https://github.example.com/acme/web
 }
 
 @test "valid_owner: acme-1 accepted" {
@@ -1383,7 +1171,7 @@ _write_config() {
 
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-read-acme"
-    [ "$(shim_log security)" = "find-generic-password -s gh-token-shim -a acme:read -w" ]
+    assert_security_read acme
     [ "$(shim_log git)" = "remote get-url origin" ]
     assert_not_called op
     refute_token_on_stderr
@@ -1435,7 +1223,7 @@ _write_config() {
 
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-read-home"
-    [ "$(shim_log security)" = "find-generic-password -s gh-token-shim -a home:read -w" ]
+    assert_security_read home
 }
 
 @test "shim: a read for an invalid owner name uses the default owner's read token" {
@@ -1478,7 +1266,7 @@ _write_config() {
 
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-write-acme"
-    [ "$(shim_log op)" = "read -n op://TestVault/gh-write-acme/credential" ]
+    assert_op_read acme
 }
 
 # 解決元が「ある」のに持ち主を読めないとき、後ろの解決元へ進まない。
@@ -1602,7 +1390,7 @@ _write_config() {
 
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-write-bob"
-    [ "$(shim_log op)" = "read -n op://TestVault/gh-write-bob/credential" ]
+    assert_op_read bob
 }
 
 @test "shim: an api write to a full URL of a listed owner elevates for that owner" {
@@ -1631,7 +1419,7 @@ _write_config() {
 
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-write-acme"
-    [ "$(shim_log op)" = "read -n op://TestVault/gh-write-acme/credential" ]
+    assert_op_read acme
 }
 
 @test "shim: an api write with the {owner} placeholder follows GH_REPO before the origin" {
@@ -1653,7 +1441,7 @@ _write_config() {
 
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-read-acme"
-    [ "$(shim_log security)" = "find-generic-password -s gh-token-shim -a acme:read -w" ]
+    assert_security_read acme
     assert_not_called op
 }
 
@@ -1664,7 +1452,7 @@ _write_config() {
 
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-write-acme"
-    [ "$(shim_log op)" = "read -n op://TestVault/gh-write-acme/credential" ]
+    assert_op_read acme
 }
 
 @test "shim: repo sync --branch main elevates for the origin owner" {
@@ -1674,7 +1462,7 @@ _write_config() {
 
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-write-acme"
-    [ "$(shim_log op)" = "read -n op://TestVault/gh-write-acme/credential" ]
+    assert_op_read acme
 }
 
 @test "shim: pr merge with a github.com URL in --body asks op for the origin owner, not the URL's" {
@@ -1684,7 +1472,7 @@ _write_config() {
 
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-write-acme"
-    [ "$(shim_log op)" = "read -n op://TestVault/gh-write-acme/credential" ]
+    assert_op_read acme
     assert_not_called security
 }
 
@@ -1695,7 +1483,7 @@ _write_config() {
 
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-read-acme"
-    [ "$(shim_log security)" = "find-generic-password -s gh-token-shim -a acme:read -w" ]
+    assert_security_read acme
     assert_not_called op
 }
 
@@ -1706,7 +1494,7 @@ _write_config() {
 
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-read-acme"
-    [ "$(shim_log security)" = "find-generic-password -s gh-token-shim -a acme:read -w" ]
+    assert_security_read acme
 }
 
 @test "shim: issue comment with an unlisted owner's URL in --body uses the origin owner" {
@@ -1716,7 +1504,7 @@ _write_config() {
 
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-read-acme"
-    [ "$(shim_log security)" = "find-generic-password -s gh-token-shim -a acme:read -w" ]
+    assert_security_read acme
 }
 
 @test "shim: pr merge -s URL elevates for the owner in the URL, not the origin" {
@@ -1728,7 +1516,7 @@ _write_config() {
 
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-write-bob"
-    [ "$(shim_log op)" = "read -n op://TestVault/gh-write-bob/credential" ]
+    assert_op_read bob
     assert_not_called git
 }
 
@@ -1739,7 +1527,7 @@ _write_config() {
 
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-write-acme"
-    [ "$(shim_log op)" = "read -n op://TestVault/gh-write-acme/credential" ]
+    assert_op_read acme
 }
 
 # --- --help は承認も拒否も起こさない ---
@@ -1777,7 +1565,7 @@ _write_config() {
 
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-read-acme"
-    [ "$(shim_log security)" = "find-generic-password -s gh-token-shim -a acme:read -w" ]
+    assert_security_read acme
 }
 
 # --- HOST/OWNER/REPO の HOST が github.com でなければ読めない名指しとして扱う ---
@@ -1821,7 +1609,7 @@ _write_config() {
 
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-write-acme"
-    [ "$(shim_log op)" = "read -n op://TestVault/gh-write-acme/credential" ]
+    assert_op_read acme
     assert_not_called security
     refute_token_on_stderr
 }
@@ -1842,7 +1630,7 @@ _write_config() {
     [ "$status" -eq 1 ]
     assert_contains "$stderr" "gh-token-shim: "
     # op が実際に呼ばれて失敗した (止まった理由が手前の検査ではない)
-    [ "$(shim_log op)" = "read -n op://TestVault/gh-write-acme/credential" ]
+    assert_op_read acme
     [ -z "$output" ]
     assert_not_called gh security
     refute_token_on_stderr
@@ -1855,7 +1643,7 @@ _write_config() {
     run_shim "$SHIM_REPO" pr merge 3
 
     [ "$status" -eq 1 ]
-    [ "$(shim_log op)" = "read -n op://TestVault/gh-write-acme/credential" ]
+    assert_op_read acme
     assert_not_called gh security
 }
 
@@ -1868,7 +1656,7 @@ _write_config() {
     [ "$status" -eq 1 ]
     assert_contains "$stderr" "gh-token-shim: "
     assert_contains "$stderr" "security add-generic-password -s gh-token-shim -a acme:read -w"
-    [ "$(shim_log security)" = "find-generic-password -s gh-token-shim -a acme:read -w" ]
+    assert_security_read acme
     [ -z "$output" ]
     assert_not_called gh op
     refute_token_on_stderr
