@@ -510,6 +510,46 @@ assert_security_read() {
     assert_class write variable remove X
 }
 
+# --- none は先頭の語だけで決める ---
+# gh は知らないフラグの次の語を値として読み飛ばしてからサブコマンドを決める。フラグの
+# 後ろに version や help が見えても、それがサブコマンドとは限らない。none はトークンを
+# 付けずに委譲する唯一の分類なので、取り違えると保存済みのログインで動く
+
+@test "classify: --preview help api -X DELETE repos/acme/x -> read" {
+    assert_class read --preview help api -X DELETE repos/acme/x
+}
+
+@test "classify: --squash version pr merge -> read" {
+    assert_class read --squash version pr merge
+}
+
+@test "classify: -R bob/x version -> read" {
+    assert_class read -R bob/x version
+}
+
+@test "classify: an empty first argument -> read" {
+    assert_class read "" version
+}
+
+@test "classify: --help and -h alone -> none" {
+    assert_class none --help
+    assert_class none -h
+}
+
+@test "classify: --version followed by a command -> read" {
+    assert_class read --version pr list
+}
+
+@test "classify: -h repo create x y -> read" {
+    # repo create の -h は --homepage。先頭の -h だけで none にすると、作成を
+    # トークン無しで委譲する
+    assert_class read -h repo create x y
+}
+
+@test "classify: --help pr merge 3 -> read" {
+    assert_class read --help pr merge 3
+}
+
 # --- サブコマンドと動詞のあいだの -R / --repo とその値は、動詞に数えない ---
 
 @test "classify: pr -R bob/x merge 3 -> write" {
@@ -1110,6 +1150,15 @@ _write_config() {
     assert_gh_ran_with_token "<unset>"
     refute_contains "$output" "ARG="
     assert_not_called security op
+}
+
+@test "shim: a none-class word after a flag is not delegated without a token" {
+    run_shim "$SHIM_PLAIN" --preview help api -X DELETE repos/acme/x
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-home"
+    assert_security_read home
+    assert_not_called op
 }
 
 # --- 手順 3: 設定 ---

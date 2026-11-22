@@ -123,24 +123,41 @@ _ghts_classify_api() {
 }
 
 # ghts_scan が読んだサブコマンド・動詞・その次の語から GHTS_CLASS を決める。
-# 引数は gh の引数そのもの (gh api の分類だけが使う)。
+# 引数は gh の引数そのもの (none の判定と gh api の分類が使う)。
 # 書き込みの組、管理の組の順に引き、どちらにも無い組み合わせは read。
+#
+# none (トークン無しで委譲してよい) だけは、引数が無いか、先頭の語そのものがトークンの
+# 要らないサブコマンドか、引数が --version / --help / -h の1つだけのときに限る。
+# gh は知らないフラグの次の語を値として読み飛ばしてからサブコマンドを決めるので
+# (gh 2.102.0 の --preview help api --help は api のヘルプを出す)、フラグより後ろの語を
+# サブコマンドと決めつけると、トークンの要る操作を保存済みのログインへ渡す。
+# 後ろに語が続く --help / -h は下の表で引いたうえで read へ下げる。
+#
 # --help / -h が付いた書き込みと管理の操作は read へ下げる。gh はヘルプを出すだけで
 # 何も実行しないので、承認を求めるのも管理の操作として断るのも意味がない。
 # none まで下げないのは、ヘルプの見分けを誤ったときにトークン無しで委譲しないため
 # (トークン無しの gh は保存済みのログインで動く)。
 _ghts_classify_scanned() {
-    local key="$_GHTS_SUB/$_GHTS_VERB"
-    case "$_GHTS_SUB" in
-    "" | version | help | completion | auth)
-        GHTS_CLASS="none"
-        return 0
-        ;;
-    api)
-        _ghts_classify_api "$@"
-        return 0
+    local key="$_GHTS_SUB/$_GHTS_VERB" tokenless=0
+    case "$#" in
+    0) tokenless=1 ;;
+    1)
+        case "$1" in
+        --version | --help | -h) tokenless=1 ;;
+        esac
         ;;
     esac
+    case "${1-}" in
+    version | help | completion | auth) tokenless=1 ;;
+    esac
+    if [ "$tokenless" -eq 1 ]; then
+        GHTS_CLASS="none"
+        return 0
+    fi
+    if [ "$_GHTS_SUB" = api ]; then
+        _ghts_classify_api "$@"
+        return 0
+    fi
 
     # この2つの動詞は、次の語がさらに動詞になる
     case "$key" in
