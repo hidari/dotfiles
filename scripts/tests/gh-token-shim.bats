@@ -314,6 +314,14 @@ assert_security_read() {
     assert_class read api --method=HEAD repos/a/b
 }
 
+@test "classify: api -X get repos/a/b -> read" {
+    assert_class read api -X get repos/a/b
+}
+
+@test "classify: api --method=Head repos/a/b -> read" {
+    assert_class read api --method=Head repos/a/b
+}
+
 @test "classify: api graphql -f query='query { viewer { login } }' -> read" {
     assert_class read api graphql -f query='query { viewer { login } }'
 }
@@ -416,6 +424,19 @@ assert_security_read() {
 
 @test "classify: api graphql --input q.json -> write" {
     assert_class write api graphql --input q.json
+}
+
+@test "classify: api -X GET graphql --input q.json -> write" {
+    # graphql は GET と書いても送る中身で決まる。メソッドだけで読み取りにしない
+    assert_class write api -X GET graphql --input q.json
+}
+
+@test "classify: api -X GET graphql -f query='mutation { x }' -> write" {
+    assert_class write api -X GET graphql -f 'query=mutation { x }'
+}
+
+@test "classify: api -X GET graphql -f query='{viewer{login}}' -> read" {
+    assert_class read api -X GET graphql -f 'query={viewer{login}}'
 }
 
 @test "classify: api graphql -F query=@q.graphql -> write" {
@@ -775,6 +796,10 @@ assert_security_read() {
 
 @test "owner_from_args: api full URL on api.github.com -> owner" {
     assert_owner stranger api -X DELETE https://api.github.com/repos/Stranger/x/issues/1/labels
+}
+
+@test "owner_from_args: api full URL with an uppercase host -> owner" {
+    assert_owner stranger api https://API.GitHub.com/repos/Stranger/x
 }
 
 @test "owner_from_args: api full URL on another host -> empty" {
