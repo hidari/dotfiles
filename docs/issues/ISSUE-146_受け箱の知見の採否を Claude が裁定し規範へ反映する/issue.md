@@ -32,6 +32,11 @@ parent: ISSUE-97
 - [ ] 次からの受け箱の仕分けで、同じ判定表で裁定まで回す手順を決める
   - 統合の件は、代表の件の伏せた裁定ではなく保存先の判断 (人の判断があればそれ) を継承させる。2026-11-15 の書き込みでは、代表を人が採ると判断した3件が、代表の伏せた裁定のまま書かれていたので直した
   - 根本の原因は、統合の件が代表の判断の写しを自前の decision として持ち、統合先が claudeDest の自由文にしか無いこと。手順のメモではなく、統合先を構造化した欄で持ち、records か verify で「統合の件の decision と代表の実効の判断が一致する」を検査して食い違いで失敗させる
+- [ ] tools.md の各項目と tool-*.md の各節の冒頭・各ファイルの冒頭の段落が、同じ「いつ踏むか」の文を二重三重に持つ。索引か節のどちらかに寄せ、見出しと索引の項目の一対一を config-guard で検査する (drift の面を減らす)
+- [ ] tool-gh.md の IOC の節と Pages の公開範囲の節は道具の事実ではなく監査の手順なので security.md へ移す。tool-claude-code.md の「Workflow と subagent の戻り値を JSON で読む」節と /goal の完了条件の節は delegation.md へ移す (置き場が主題と合っていない)
+- [ ] 機械で検査できる項目を検査へ落とす: ソースの不可視文字 (U+200B 等)、`git grep -E` に `\b` `\s` を渡す形、追跡下の `*.sh` の bash 3.2 に無い機能 (mapfile, `${var^^}`, declare -A) (散文で持つより検査のほうが drift しない)
+- [ ] tool-git.md の「index のモード100755も検査するとよい」は config-guard の hook_wiring が既に持つかを確かめ、持つならそれを名指しして提案の文を消す (既に実装済みなら提案が残っているだけになる)
+- [ ] tool-just.md の `{{args}}` の件は agentic-coding-tools の justfile skill の例を直す側で扱い、直ったら tool-just.md は `[positional-arguments]` の規則だけにする (罠の元が skill の例にある)
 
 ## 関連
 
