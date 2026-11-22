@@ -98,7 +98,7 @@ jobs:
       # .pre-commit-config.yaml の shellcheck hook と揃える (理由は向こうのコメント)。
       # -z/-0 でファイル名を null 区切りにし空白安全化、-r で0件時の空実行を防ぐ。
       - name: Run shellcheck
-        run: git ls-files -z '*.sh' '*.bash' 'scripts/apm-guard/apm' 'scripts/repo-wiring/repo-wiring' | xargs -0 -r shellcheck -x -P SCRIPTDIR
+        run: git ls-files -z '*.sh' '*.bash' 'scripts/apm-guard/apm' 'scripts/gh-token-shim/gh' 'scripts/repo-wiring/repo-wiring' | xargs -0 -r shellcheck -x -P SCRIPTDIR
 
       # pre-commit の shellcheck-bats hook の CI ミラー (backstop)。コードを絞る理由は向こうのコメント。
       - name: Run shellcheck on bats

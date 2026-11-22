@@ -1643,3 +1643,68 @@ _write_config() {
     assert_contains "$stderr" "gh-token-shim: "
     assert_not_called gh security op
 }
+
+# =============================================================================
+# 取り付け (配布経路・PATH への差し込み・設定の雛形)
+# =============================================================================
+
+@test "wiring: is distributed by SYMLINK_PAIRS" {
+    # 配布経路から落ちると shim が配置されず、ガードは「静かに何もしない」状態になる
+    load_pairs_array SYMLINK_PAIRS
+
+    local pair found_shim=0 found_lib=0
+    for pair in "${SYMLINK_PAIRS[@]}"; do
+        case "$pair" in
+        "scripts/gh-token-shim/gh|.local/libexec/gh-token-shim/gh") found_shim=1 ;;
+        "scripts/gh-token-shim/lib.sh|.local/libexec/gh-token-shim/lib.sh") found_lib=1 ;;
+        esac
+    done
+
+    [ "$found_shim" -eq 1 ]
+    [ "$found_lib" -eq 1 ]
+}
+
+@test "wiring: the source is executable" {
+    # 実行権限が落ちると PATH 解決から外れ、本物の gh が直接呼ばれて shim が素通りする
+    [ -x "$SHIM_SOURCE" ]
+}
+
+@test "wiring: zshrc prepends the shim after mise activate" {
+    # path 配列側へ書くと mise activate の再構成で本物より後ろへ落ちる。
+    # 順序そのものが仕様なので行番号で pin する。
+    local mise_line prepend_line
+    mise_line="$(grep -n 'mise activate zsh' "$ZSHRC_FILE" | head -1 | cut -d: -f1)"
+    prepend_line="$(grep -n 'libexec/gh-token-shim' "$ZSHRC_FILE" | head -1 | cut -d: -f1)"
+
+    [ -n "$mise_line" ]
+    [ -n "$prepend_line" ]
+    [ "$prepend_line" -gt "$mise_line" ]
+}
+
+@test "wiring: the zshrc PATH entry matches the SYMLINK_PAIRS target" {
+    # 配置先と PATH に入れる先が別々に書かれているので、片方だけ直すと shim は
+    # 置かれるのに PATH に載らない (またはその逆) という無音の失敗になる
+    load_pairs_array SYMLINK_PAIRS
+
+    local pair target dir=""
+    for pair in "${SYMLINK_PAIRS[@]}"; do
+        case "$pair" in
+        "scripts/gh-token-shim/gh|"*)
+            target="${pair#*|}"
+            dir="${target%/*}"
+            ;;
+        esac
+    done
+
+    [ -n "$dir" ]
+    run grep -F "\$HOME/$dir" "$ZSHRC_FILE"
+    [ "$status" -eq 0 ]
+}
+
+@test "wiring: config.example loads with ghts_load_config" {
+    # 雛形が読めなくなると、利用者が写した設定がそのまま shim を止める
+    ghts_load_config "$REPO_ROOT/scripts/gh-token-shim/config.example"
+    [ "$GHTS_VAULT" = "Dev" ]
+    [ "$GHTS_DEFAULT_OWNER" = "example-user" ]
+    [ "$GHTS_OWNERS" = "example-org example-user" ]
+}
