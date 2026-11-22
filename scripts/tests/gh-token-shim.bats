@@ -562,8 +562,8 @@ assert_security_read() {
 }
 
 @test "classify: -h repo create x y -> read" {
-    # repo create の -h は --homepage。先頭の -h だけで none にすると、作成を
-    # トークン無しで委譲する
+    # 先頭の -h の後ろにコマンドが続く形を none にしない。none はトークン無しで
+    # 委譲するので、gh がこの形をどう解釈しても、トークン無しで書き込みへ届く経路を作らない
     assert_class read -h repo create x y
 }
 
