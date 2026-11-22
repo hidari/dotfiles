@@ -435,6 +435,12 @@ eval "$(mise activate zsh)"
 # 実体は scripts/apm-guard/apm で、bootstrap の SYMLINK_PAIRS が張る。
 export PATH="$HOME/.local/libexec/apm-guard:$PATH"
 
+# gh の shim を PATH の先頭へ置く。
+# path 配列へ書いてはならない理由は上の apm ガードと同じで、mise activate の再構成で
+# 本物の gh より後ろへ落ちると一度も横取りできない。
+# 実体は scripts/gh-token-shim/gh で、bootstrap の SYMLINK_PAIRS が張る。
+export PATH="$HOME/.local/libexec/gh-token-shim:$PATH"
+
 # tirith (ターミナルのセキュリティツール)
 # init が返すのは PATH ではなく zsh フックの source なので、path 配列 (このファイル上部)
 # には入らない。tirith 本体は Homebrew 管理で /opt/homebrew/bin に入り、そこは path 配列の

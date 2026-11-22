@@ -298,7 +298,7 @@ repos:
         name: shellcheck (shell static analysis)
         language: system
         entry: shellcheck -x -P SCRIPTDIR
-        files: (\.sh$|\.bash$|^scripts/apm-guard/apm$|^scripts/repo-wiring/repo-wiring$)
+        files: (\.sh$|\.bash$|^scripts/apm-guard/apm$|^scripts/gh-token-shim/gh$|^scripts/repo-wiring/repo-wiring$)
 
       # .bats の静的解析。shellcheck は bats の構文を読め、SC2314 / SC2315 は bats を前提にした
       # ルールである。bats では最後の文でない `!` がテストを失敗させないので、否定のアサーションが

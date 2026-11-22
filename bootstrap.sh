@@ -48,6 +48,8 @@ SYMLINK_PAIRS=(
     "scripts/repo-wiring/repo-wiring|.local/bin/repo-wiring"
     "scripts/apm-guard/apm|.local/libexec/apm-guard/apm"
     "scripts/apm-guard/lib.sh|.local/libexec/apm-guard/lib.sh"
+    "scripts/gh-token-shim/gh|.local/libexec/gh-token-shim/gh"
+    "scripts/gh-token-shim/lib.sh|.local/libexec/gh-token-shim/lib.sh"
 )
 
 # apm が deploy した成果物を source とするシンボリックリンク定義（ソース|ターゲット）。

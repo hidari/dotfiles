@@ -1,0 +1,184 @@
+#!/bin/bash
+# PATH の先頭に置く gh の shim。リポジトリの持ち主ごとに fine-grained トークンを選び、
+# 書き込みのときだけ 1Password から強いトークンを読んで (呼ぶたびに承認が出る) 本物へ渡す。
+#
+# 判定できないときにトークンを付けずに委譲することはしない。gh は保存済みのログインで動き、
+# 承認の後ろに置いたはずの書き込みが素通りする。設定や lib.sh を読めないときと、書き込みの
+# 持ち主を決められないときは止まる。読み取りの持ち主を決められないときだけは、既定の
+# 持ち主の普段使いのトークンで続ける (外れても 403 / 404 で止まるだけで、強い側には倒れない)。
+# 強いトークンを読めないときに普段使いのトークンで続行することも、迷ったときに強いトークンへ
+# 倒すこともしない。
+#
+# 下の手順の順序そのものが仕様 (scripts/tests/gh-token-shim.bats が pin する)。
+# 手順 8 のうち本物の gh の確認だけは、トークンを読む手順 6 / 7 より前に行う。
+#
+# bash 専用で 3.2 互換を保つ (macOS の /bin/bash)。
+
+# SHELLOPTS=xtrace が export されていると、ここも xtrace で始まり、トークンを付けて
+# exec する行が値ごと stderr へ出る。何よりも先に切る。
+set +x
+set -u
+
+# 自分のあるディレクトリ。PATH から起動されたときは必ずスラッシュを含む。含まないのは
+# bash gh のように cwd のファイルを直接渡されたとき
+case "${BASH_SOURCE[0]}" in
+*/*)
+    self_dir=${BASH_SOURCE[0]%/*}
+    # ルート直下 (/gh) は切り詰めると空になる
+    self_dir="$(cd "${self_dir:-/}" && pwd)"
+    ;;
+*) self_dir=$PWD ;;
+esac
+
+# キーチェーンの service 名。account は <owner>:read
+KEYCHAIN_SERVICE=gh-token-shim
+
+die() {
+    local line
+    for line in "$@"; do
+        echo "gh-token-shim: $line" >&2
+    done
+    exit 1
+}
+
+# PATH から自分のディレクトリを取り除く。sed で消さないのは、パスに正規表現のメタ文字が
+# 入ると置換が壊れ、しかも壊れ方が「消えなかった」= 自分自身の再実行として現れるため。
+strip_self_from_path() {
+    local entry result=""
+    local IFS=:
+    for entry in $PATH; do
+        [ "$entry" = "$self_dir" ] && continue
+        result="${result:+$result:}$entry"
+    done
+    printf '%s' "$result"
+}
+
+# 本物の gh を real_gh へ入れる。自分自身へ戻らないことを確かめる。
+real_gh=""
+resolve_real_gh() {
+    PATH="$(strip_self_from_path)"
+    export PATH
+
+    if ! real_gh="$(command -v gh)"; then
+        echo "gh-token-shim: gh not found after removing the shim from PATH" >&2
+        exit 127
+    fi
+    # -ef は symlink を追って inode を比べる。パス文字列の比較では、shim が別名でも
+    # PATH に残っていたときに一致しない。その別名は GH_TOKEN を受け取って手順 1 で
+    # 素通しするので、止めないと検査を一段飛ばした形で本物へ届く。
+    if [ "$real_gh" -ef "${BASH_SOURCE[0]}" ]; then
+        die "refusing to re-exec the shim itself (PATH still resolves to $real_gh)"
+    fi
+}
+
+# config.example の場所。shim は symlink で配られるので、リンクを1段たどって実体の隣を指す。
+config_example_path() {
+    local target
+    target="$(readlink "${BASH_SOURCE[0]}" 2>/dev/null)"
+    case "$target" in
+    /*) printf '%s\n' "${target%/*}/config.example" ;;
+    *) printf '%s\n' "$self_dir/config.example" ;;
+    esac
+}
+
+# 持ち主の候補を owner へ入れる (検証前。読めなければ空)。最初に「ある」解決元だけから
+# 読み、読めなくても後ろの解決元へは進まない。-R や GH_REPO で名指した先を読めないときに
+# cwd の origin や既定の持ち主へ進むと、書き込みが別の持ち主として昇格する。
+# origin を git に聞くのは引数にも GH_REPO にも名指しが無いときだけで、既定の持ち主を
+# 使うのは origin も無いときだけ。
+owner=""
+resolve_owner() {
+    local origin
+    case "$GHTS_OWNER_SOURCE" in
+    args) owner=$GHTS_ARGS_OWNER ;;
+    gh_repo) owner="$(ghts_owner_from_repo_spec "$GH_REPO")" ;;
+    none)
+        # リポジトリの外や origin が無いときは git が失敗する
+        if origin="$(git remote get-url origin 2>/dev/null)" && [ -n "$origin" ]; then
+            owner="$(ghts_owner_from_url "$origin")"
+        else
+            owner=$GHTS_DEFAULT_OWNER
+        fi
+        ;;
+    esac
+}
+
+# --- 手順 1: 既にトークンがあれば、そのまま委譲する ---
+# 承認した gh の子プロセスが入れ子で呼ぶ gh と、CI のように呼び手がトークンを決めている
+# 場面のため。lib.sh を読む前に置くので、配置が壊れていてもこの経路は動く。
+if [ -n "${GH_TOKEN:-}" ] || [ -n "${GITHUB_TOKEN:-}" ]; then
+    resolve_real_gh
+    exec "$real_gh" "$@"
+fi
+
+if [ ! -r "$self_dir/lib.sh" ]; then
+    die "cannot read $self_dir/lib.sh; refusing to run gh"
+fi
+# shellcheck source=./lib.sh
+. "$self_dir/lib.sh" || die "failed to load $self_dir/lib.sh; refusing to run gh"
+
+# 引数をなめるのはここの1回だけ。分類と持ち主の解決元の両方がここで決まる
+ghts_scan "$@"
+
+# --- 手順 2: トークンの要らない操作は、そのまま委譲する ---
+if [ "$GHTS_CLASS" = none ]; then
+    resolve_real_gh
+    exec "$real_gh" "$@"
+fi
+
+# --- 手順 3: 設定を読む ---
+config="${GH_TOKEN_SHIM_CONFIG:-$HOME/.config/gh-token-shim/config}"
+if ! ghts_load_config "$config"; then
+    die "cannot load the config: $config" \
+        "it needs vault=, default_owner= and valid owner= lines; see $(config_example_path)"
+fi
+
+case "$GHTS_CLASS" in
+admin)
+    # --- 手順 4: 強いトークンでも通らない操作は昇格させずに止める ---
+    # 承認しても必ず 403 になるので、意味のない承認を習慣にしない。
+    die "this operation needs repository administration, which no token managed by the shim has" \
+        "do it in the GitHub web UI instead"
+    ;;
+read | write) ;;
+*)
+    die "unexpected classification; refusing to run gh"
+    ;;
+esac
+
+# --- 手順 5: 持ち主を決める ---
+resolve_owner
+if ! ghts_valid_owner "$owner" || ! ghts_has_owner "$owner"; then
+    if [ "$GHTS_CLASS" = write ]; then
+        # 検証を通らない名前は端末へそのまま出さない
+        if ghts_valid_owner "$owner"; then
+            die "refusing a write for owner '$owner', which is not listed in $config"
+        fi
+        die "refusing a write: cannot tell a valid repository owner from the arguments, GH_REPO or the origin remote"
+    fi
+    owner=$GHTS_DEFAULT_OWNER
+fi
+
+# --- 手順 8 の前半: 本物の gh をトークンより先に確かめる ---
+# 委譲できないと分かるのが読み出しの後だと、止まるだけの呼び出しがキーチェーンを読み、
+# 1Password の承認ダイアログを出す。意味のない承認を習慣にしないため先に置く。
+resolve_real_gh
+
+token=""
+if [ "$GHTS_CLASS" = read ]; then
+    # --- 手順 6: 普段使いのトークンをキーチェーンから読む ---
+    if ! token="$(security find-generic-password -s "$KEYCHAIN_SERVICE" -a "$owner:read" -w)" ||
+        [ -z "$token" ]; then
+        die "cannot read the read token for $owner from the keychain" \
+            "store it with: security add-generic-password -s $KEYCHAIN_SERVICE -a $owner:read -w"
+    fi
+else
+    # --- 手順 7: 強いトークンを 1Password から読む。read のトークンでは続行しない ---
+    if ! token="$(op read -n "op://$GHTS_VAULT/gh-write-$owner/credential")" ||
+        [ -z "$token" ]; then
+        die "cannot read the write token for $owner from 1Password; not continuing with the read token"
+    fi
+fi
+
+# --- 手順 8 の後半: トークンを本物の gh の環境にだけ載せて exec する ---
+GH_TOKEN="$token" exec "$real_gh" "$@"

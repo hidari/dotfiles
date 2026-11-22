@@ -1,0 +1,19 @@
+# gh-token-shim の設定の雛形。
+# 実際の設定は ~/.config/gh-token-shim/config に置く。そのファイルは追跡しない。
+# 書式は 1 行 1 キーの key=value。# で始まる行と空行は無視される。
+
+# 書き込み用トークンを引く 1Password の vault 名。
+vault=Dev
+
+# 既定の持ち主。origin や -R から持ち主を決められないときに使う。
+# owner の行が無くても、扱える持ち主に暗黙に含まれる。
+default_owner=example-user
+
+# 扱える持ち主 (組織またはユーザー) を 1 行ずつ足す。
+owner=example-org
+
+# 持ち主ごとに用意するもの。
+# 読み取り用トークンは macOS のキーチェーンに入れる。
+#   security add-generic-password -s gh-token-shim -a <owner>:read -w
+# 書き込み用トークンは 1Password の vault に、項目名 gh-write-<owner>、
+# フィールド名 credential で入れる。
