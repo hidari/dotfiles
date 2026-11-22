@@ -341,3 +341,81 @@ setup() {
     [ "$status" -eq 0 ]
     [ "$output" = "admin" ]
 }
+
+@test "classify: repo deploy-key list -> read" {
+    run ghts_classify repo deploy-key list
+    [ "$status" -eq 0 ]
+    [ "$output" = "read" ]
+}
+
+@test "classify: repo autolink view 1 -> read" {
+    run ghts_classify repo autolink view 1
+    [ "$status" -eq 0 ]
+    [ "$output" = "read" ]
+}
+
+@test "classify: repo deploy-key delete 1 -> admin" {
+    run ghts_classify repo deploy-key delete 1
+    [ "$status" -eq 0 ]
+    [ "$output" = "admin" ]
+}
+
+@test "classify: repo autolink delete 1 -> admin" {
+    run ghts_classify repo autolink delete 1
+    [ "$status" -eq 0 ]
+    [ "$output" = "admin" ]
+}
+
+@test "classify: release delete v1 -> write" {
+    run ghts_classify release delete v1
+    [ "$status" -eq 0 ]
+    [ "$output" = "write" ]
+}
+
+@test "classify: release edit v1 -> write" {
+    run ghts_classify release edit v1
+    [ "$status" -eq 0 ]
+    [ "$output" = "write" ]
+}
+
+@test "classify: workflow enable x -> write" {
+    run ghts_classify workflow enable x
+    [ "$status" -eq 0 ]
+    [ "$output" = "write" ]
+}
+
+@test "classify: workflow disable x -> write" {
+    run ghts_classify workflow disable x
+    [ "$status" -eq 0 ]
+    [ "$output" = "write" ]
+}
+
+@test "classify: run delete 1 -> write" {
+    run ghts_classify run delete 1
+    [ "$status" -eq 0 ]
+    [ "$output" = "write" ]
+}
+
+@test "classify: secret delete X -> write" {
+    run ghts_classify secret delete X
+    [ "$status" -eq 0 ]
+    [ "$output" = "write" ]
+}
+
+@test "classify: secret remove X -> write" {
+    run ghts_classify secret remove X
+    [ "$status" -eq 0 ]
+    [ "$output" = "write" ]
+}
+
+@test "classify: variable set X -> write" {
+    run ghts_classify variable set X
+    [ "$status" -eq 0 ]
+    [ "$output" = "write" ]
+}
+
+@test "classify: variable remove X -> write" {
+    run ghts_classify variable remove X
+    [ "$status" -eq 0 ]
+    [ "$output" = "write" ]
+}

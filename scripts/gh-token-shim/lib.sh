@@ -115,15 +115,17 @@ _ghts_classify_api() {
 # gh の引数を分類して none/read/write/admin のいずれか1語を出す。rc は常に 0。
 # サブコマンドは最初の非フラグ、動詞はその次の非フラグ。未知の組み合わせは read。
 ghts_classify() {
-    local sub="" verb="" a
+    local sub="" verb="" verb2="" a
     for a in "$@"; do
         case "$a" in
         -*) continue ;;
         esac
         if [ -z "$sub" ]; then
             sub=$a
-        else
+        elif [ -z "$verb" ]; then
             verb=$a
+        else
+            verb2=$a
             break
         fi
     done
@@ -149,8 +151,20 @@ ghts_classify() {
         ;;
     repo)
         case "$verb" in
-        create | delete | edit | rename | archive | unarchive | fork | deploy-key | autolink)
+        create | delete | edit | rename | archive | unarchive | fork)
             echo admin
+            ;;
+        deploy-key)
+            case "$verb2" in
+            add | delete) echo admin ;;
+            *) echo read ;;
+            esac
+            ;;
+        autolink)
+            case "$verb2" in
+            create | delete) echo admin ;;
+            *) echo read ;;
+            esac
             ;;
         sync) echo write ;;
         *) echo read ;;
