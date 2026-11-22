@@ -865,6 +865,30 @@ refute_token_on_stderr() {
     [ "$output" = "none" ]
 }
 
+@test "owner_source: api endpoint with the {owner} placeholder is not args" {
+    # gh がプレースホルダを現在のリポジトリ (GH_REPO / cwd) で埋めるので、
+    # 名指しの無い呼び出しと同じに扱う
+    run ghts_owner_source api 'repos/{owner}/{repo}/pulls'
+    [ "$output" = "none" ]
+    run ghts_owner_source api -X POST '/repos/{owner}/{repo}/labels' -f name=x
+    [ "$output" = "none" ]
+    GH_REPO=bob/x
+    run ghts_owner_source api 'repos/{owner}/{repo}/pulls'
+    [ "$output" = "gh_repo" ]
+}
+
+@test "owner_source: api endpoint with an explicit owner and the {repo} placeholder is args" {
+    run ghts_owner_source api 'repos/acme/{repo}/pulls'
+    [ "$output" = "args" ]
+    run ghts_owner_from_args api 'repos/acme/{repo}/pulls'
+    [ "$output" = "acme" ]
+}
+
+@test "owner_source: api full URL with the {owner} placeholder stays args" {
+    run ghts_owner_source api 'https://api.github.com/repos/{owner}/{repo}/pulls'
+    [ "$output" = "args" ]
+}
+
 @test "owner_source: repo verb with a repository argument -> args" {
     run ghts_owner_source repo view acme/web
     [ "$output" = "args" ]
@@ -1396,6 +1420,36 @@ _write_config() {
     init_acme_repo
 
     run_shim "$SHIM_REPO" api -X DELETE https://api.github.com/repos/bob/x/issues/1/labels
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-write-bob"
+}
+
+@test "shim: an api read with the {owner} placeholder uses the origin owner" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" api 'repos/{owner}/{repo}/pulls'
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-acme"
+    assert_contains "$output" "ARG=[repos/{owner}/{repo}/pulls]"
+}
+
+@test "shim: an api write with the {owner} placeholder elevates for the origin owner" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" api -X POST 'repos/{owner}/{repo}/labels' -f name=x
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-write-acme"
+    [ "$(shim_log op)" = "read -n op://TestVault/gh-write-acme/credential" ]
+}
+
+@test "shim: an api write with the {owner} placeholder follows GH_REPO before the origin" {
+    init_acme_repo
+    SHIM_ENV=(GH_REPO=bob/x)
+
+    run_shim "$SHIM_REPO" api -X POST 'repos/{owner}/{repo}/labels' -f name=x
 
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-write-bob"

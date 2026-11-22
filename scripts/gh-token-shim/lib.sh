@@ -282,15 +282,21 @@ _ghts_owner_from_repo_spec() {
 }
 
 # gh api のエンドポイントが持ち主を名指す形なら rc 0。
-# 完全な URL (ホストを問わない) か、repos/ orgs/ users/ で始まるパス
+# 完全な URL (ホストを問わない) か、repos/ orgs/ users/ で始まるパス。
+# ただしパスの持ち主がプレースホルダ {owner} のものは除く
 _ghts_endpoint_names_owner() {
-    local ep=$1
+    local ep=$1 owner
     case "$ep" in
     *://*) return 0 ;;
     esac
     ep=${ep#/}
     case "$ep" in
-    repos/* | orgs/* | users/*) return 0 ;;
+    repos/* | orgs/* | users/*)
+        owner=${ep#*/}
+        # {owner} は gh が現在のリポジトリ (GH_REPO / cwd) で埋める。名指しではない
+        [ "${owner%%/*}" = '{owner}' ] && return 1
+        return 0
+        ;;
     esac
     return 1
 }
