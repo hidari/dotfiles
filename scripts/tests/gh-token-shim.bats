@@ -35,6 +35,7 @@ setup_shim_fixture() {
     SHIM_CONF="$BATS_TEST_TMPDIR/ghts.conf"
     SHIM_PATH="$SHIM_DIR:$FAKE_DIR:/usr/bin:/bin"
     SHIM_ENV=()
+    SHIM_RUN_OPTS=()
     mkdir -p "$SHIM_DIR" "$FAKE_DIR" "$SHIM_LOG" "$SHIM_HOME" "$SHIM_PLAIN"
     ln -s "$SHIM_SOURCE" "$SHIM_DIR/gh"
     ln -s "$LIB" "$SHIM_DIR/lib.sh"
@@ -124,6 +125,7 @@ init_acme_repo() {
 # - cwd は必ず明示する。bats の既定の cwd はこのリポジトリで、実物の origin を持つ。
 # - CPU 時間を縛るのは、自分自身の再実行が無限再帰として現れるため。
 # shim へ渡す環境は SHIM_ENV に、設定の場所は SHIM_CONF に入れてから呼ぶ。
+# 127 で終わるはずの呼び出しは SHIM_RUN_OPTS=(-127) を入れてから呼ぶ (run が BW01 を出さない)。
 run_shim() {
     local dir="$1"
     shift
@@ -138,7 +140,7 @@ run_shim() {
     local conf_env=()
     if [ -n "$SHIM_CONF" ]; then conf_env=("GH_TOKEN_SHIM_CONFIG=$SHIM_CONF"); fi
 
-    run --separate-stderr env -u GH_TOKEN -u GITHUB_TOKEN -u GH_REPO -u GIT_DIR -u GIT_WORK_TREE \
+    run "${SHIM_RUN_OPTS[@]}" --separate-stderr env -u GH_TOKEN -u GITHUB_TOKEN -u GH_REPO -u GIT_DIR -u GIT_WORK_TREE \
         -u GH_TOKEN_SHIM_CONFIG -u SHELLOPTS \
         HOME="$SHIM_HOME" GHTS_TEST_SHIM_DIR="$SHIM_DIR" GHTS_TEST_LOG="$SHIM_LOG" \
         "${conf_env[@]}" "${SHIM_ENV[@]}" \
@@ -593,6 +595,96 @@ refute_token_on_stderr() {
     [ "$output" = "write" ]
 }
 
+# --- --help / -h: 何も実行しないので、書き込みと管理の判定を read へ下げる ---
+
+@test "classify: pr merge --help -> read" {
+    run ghts_classify pr merge --help
+    [ "$status" -eq 0 ]
+    [ "$output" = "read" ]
+}
+
+@test "classify: pr merge -h -> read" {
+    run ghts_classify pr merge -h
+    [ "$status" -eq 0 ]
+    [ "$output" = "read" ]
+}
+
+@test "classify: release create --help -> read" {
+    run ghts_classify release create --help
+    [ "$status" -eq 0 ]
+    [ "$output" = "read" ]
+}
+
+@test "classify: repo create --help -> read" {
+    run ghts_classify repo create --help
+    [ "$status" -eq 0 ]
+    [ "$output" = "read" ]
+}
+
+@test "classify: pr merge 3 --body --help -> write" {
+    # --help は --body の値で、gh は merge を実行する。none へ下げるとトークン無しで委譲する
+    run ghts_classify pr merge 3 --body --help
+    [ "$status" -eq 0 ]
+    [ "$output" = "write" ]
+}
+
+@test "classify: repo create x -h URL -> admin" {
+    # repo create の -h は --homepage で、値を取る
+    run ghts_classify repo create x -h https://example.com
+    [ "$status" -eq 0 ]
+    [ "$output" = "admin" ]
+}
+
+@test "classify: api -X POST repos/a/b/x -H Accept:x -> write" {
+    # gh api の -H はヘッダで、ヘルプではない
+    run ghts_classify api -X POST repos/a/b/x -H Accept:x
+    [ "$status" -eq 0 ]
+    [ "$output" = "write" ]
+}
+
+@test "classify: api -X POST repos/a/b/x -h -> write" {
+    run ghts_classify api -X POST repos/a/b/x -h
+    [ "$status" -eq 0 ]
+    [ "$output" = "write" ]
+}
+
+# --- query= の mutation は graphql のときだけ、語として見る ---
+
+@test "classify: api -X GET repos/a/b/issues -f query=mutation -> read" {
+    run ghts_classify api -X GET repos/acme/web/issues -f query=mutation
+    [ "$status" -eq 0 ]
+    [ "$output" = "read" ]
+}
+
+@test "classify: api -X GET repos/a/b -F query=@f -> read" {
+    run ghts_classify api -X GET repos/a/b -F query=@f
+    [ "$status" -eq 0 ]
+    [ "$output" = "read" ]
+}
+
+@test "classify: api graphql -f query='{viewer{mutationCount}}' -> read" {
+    run ghts_classify api graphql -f 'query={viewer{mutationCount}}'
+    [ "$status" -eq 0 ]
+    [ "$output" = "read" ]
+}
+
+@test "classify: api graphql with a mutation in each written form -> write" {
+    run ghts_classify api graphql -f 'query=mutation{x}'
+    [ "$output" = "write" ]
+    run ghts_classify api graphql -f 'query=mutation($id:ID!){x(id:$id)}'
+    [ "$output" = "write" ]
+    run ghts_classify api graphql -f 'query=  Mutation Name { x }'
+    [ "$output" = "write" ]
+    run ghts_classify api graphql -f 'query=mutation'
+    [ "$output" = "write" ]
+}
+
+@test "classify: api -f query='mutation { x }' graphql (field before the endpoint) -> write" {
+    run ghts_classify api -f 'query=mutation { x }' graphql
+    [ "$status" -eq 0 ]
+    [ "$output" = "write" ]
+}
+
 # =============================================================================
 # 持ち主の解決 (ghts_owner_from_args / ghts_owner_from_url) と設定の解釈
 # =============================================================================
@@ -938,6 +1030,98 @@ refute_token_on_stderr() {
     GH_REPO=bob/x
     run ghts_owner_source pr list
     [ "$output" = "gh_repo" ]
+}
+
+# --- フラグの値は位置引数に数えない ---
+
+@test "owner_source: values of value-taking flags are not positionals" {
+    run ghts_owner_source repo view --json nameWithOwner -q .nameWithOwner
+    [ "$output" = "none" ]
+    run ghts_owner_source repo sync -b main
+    [ "$output" = "none" ]
+    run ghts_owner_source repo sync --branch main
+    [ "$output" = "none" ]
+    run ghts_owner_source pr merge 3 --body https://github.com/bob/x/issues/1
+    [ "$output" = "none" ]
+    run ghts_owner_source pr comment 3 --body "https://github.com/bob/x/pull/1 see this"
+    [ "$output" = "none" ]
+    run ghts_owner_source pr create --title t --body https://github.com/stranger/x/issues/1
+    [ "$output" = "none" ]
+    run ghts_owner_source issue comment 3 -b https://github.com/stranger/x/issues/1
+    [ "$output" = "none" ]
+    run ghts_owner_source pr list -s https://github.com/bob/x
+    [ "$output" = "none" ]
+}
+
+@test "owner_from_args: a positional after a flag value is still read" {
+    run ghts_owner_from_args repo sync -b main acme/web
+    [ "$output" = "acme" ]
+    run ghts_owner_from_args repo view --json name bob/x
+    [ "$output" = "bob" ]
+    run ghts_owner_from_args pr view --json title https://github.com/acme/web/pull/3
+    [ "$output" = "acme" ]
+}
+
+@test "owner_from_args: --flag=value and attached short values do not skip the next word" {
+    run ghts_owner_from_args repo sync --branch=main acme/web
+    [ "$output" = "acme" ]
+    run ghts_owner_from_args repo sync -bmain acme/web
+    [ "$output" = "acme" ]
+    run ghts_owner_from_args pr view --json=title https://github.com/acme/web/pull/3
+    [ "$output" = "acme" ]
+}
+
+@test "owner_from_args: a short flag that is a switch for the verb does not eat the URL" {
+    # pr merge の -s は --squash、-d は --delete-branch。pr view の -w は --web
+    run ghts_owner_from_args pr merge -s https://github.com/bob/x/pull/1
+    [ "$output" = "bob" ]
+    run ghts_owner_from_args pr merge -d https://github.com/bob/x/pull/1
+    [ "$output" = "bob" ]
+    run ghts_owner_from_args pr view -w https://github.com/acme/web/pull/3
+    [ "$output" = "acme" ]
+    run ghts_owner_from_args repo view -w acme/web
+    [ "$output" = "acme" ]
+}
+
+# --- gh api のエンドポイントのクエリ文字列 ---
+
+@test "owner_from_args: api 'orgs/acme?x=1' -> acme" {
+    run ghts_owner_from_args api 'orgs/acme?x=1'
+    [ "$status" -eq 0 ]
+    [ "$output" = "acme" ]
+}
+
+@test "owner_from_args: api 'repos/acme/x?per_page=1' -> acme" {
+    run ghts_owner_from_args api 'repos/acme/x?per_page=1'
+    [ "$status" -eq 0 ]
+    [ "$output" = "acme" ]
+}
+
+@test "owner_source: api 'orgs/{owner}?per_page=1' keeps the placeholder -> none" {
+    run ghts_owner_source api 'orgs/{owner}?per_page=1'
+    [ "$output" = "none" ]
+}
+
+# --- HOST/OWNER/REPO の HOST ---
+
+@test "owner_from_args: -R with a host other than github.com -> empty" {
+    run ghts_owner_from_args pr view 3 -R github.com.evil/acme/x
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+    run ghts_owner_from_args pr view 3 -R evil.example/acme/x
+    [ -z "$output" ]
+    run ghts_owner_from_args repo view github.com.evil/acme/x
+    [ -z "$output" ]
+    # 名指しはあるので、解決元は args のまま (後ろの解決元へ進ませない)
+    run ghts_owner_source pr view 3 -R github.com.evil/acme/x
+    [ "$output" = "args" ]
+}
+
+@test "owner_from_args: -R with the github.com host in other spellings -> acme" {
+    run ghts_owner_from_args pr view 3 -R GitHub.com/Acme/x
+    [ "$output" = "acme" ]
+    run ghts_owner_from_args pr view 3 -R www.github.com/acme/x
+    [ "$output" = "acme" ]
 }
 
 @test "owner_from_url: other host (gitlab scp) -> empty" {
@@ -1455,6 +1639,174 @@ _write_config() {
     assert_gh_ran_with_token "tok-write-bob"
 }
 
+# --- フラグの値を持ち主の名指しと取り違えない (どのテストも cwd の origin は acme) ---
+
+@test "shim: repo view --json nameWithOwner -q .nameWithOwner uses the origin owner's read token" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" repo view --json nameWithOwner -q .nameWithOwner
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-acme"
+    [ "$(shim_log security)" = "find-generic-password -s gh-token-shim -a acme:read -w" ]
+    assert_not_called op
+}
+
+@test "shim: repo sync -b main elevates for the origin owner" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" repo sync -b main
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-write-acme"
+    [ "$(shim_log op)" = "read -n op://TestVault/gh-write-acme/credential" ]
+}
+
+@test "shim: repo sync --branch main elevates for the origin owner" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" repo sync --branch main
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-write-acme"
+    [ "$(shim_log op)" = "read -n op://TestVault/gh-write-acme/credential" ]
+}
+
+@test "shim: pr merge with a github.com URL in --body asks op for the origin owner, not the URL's" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" pr merge 3 --body https://github.com/bob/x/issues/1
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-write-acme"
+    [ "$(shim_log op)" = "read -n op://TestVault/gh-write-acme/credential" ]
+    assert_not_called security
+}
+
+@test "shim: pr comment with a body that starts with a github.com URL uses the origin owner" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" pr comment 3 --body "https://github.com/bob/x/pull/1 see this"
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-acme"
+    [ "$(shim_log security)" = "find-generic-password -s gh-token-shim -a acme:read -w" ]
+    assert_not_called op
+}
+
+@test "shim: pr create with an unlisted owner's URL in --body uses the origin owner" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" pr create --title t --body "https://github.com/stranger/x/issues/1"
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-acme"
+    [ "$(shim_log security)" = "find-generic-password -s gh-token-shim -a acme:read -w" ]
+}
+
+@test "shim: issue comment with an unlisted owner's URL in --body uses the origin owner" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" issue comment 3 --body "https://github.com/stranger/x/issues/1"
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-acme"
+    [ "$(shim_log security)" = "find-generic-password -s gh-token-shim -a acme:read -w" ]
+}
+
+@test "shim: pr merge -s URL elevates for the owner in the URL, not the origin" {
+    # pr merge の -s は値を取らない (--squash)。次の語を値として読み飛ばすと、
+    # 名指した bob ではなく origin の acme として昇格する
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" pr merge -s https://github.com/bob/x/pull/1
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-write-bob"
+    [ "$(shim_log op)" = "read -n op://TestVault/gh-write-bob/credential" ]
+    assert_not_called git
+}
+
+@test "shim: pr merge -s 3 elevates for the origin owner" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" pr merge -s 3
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-write-acme"
+    [ "$(shim_log op)" = "read -n op://TestVault/gh-write-acme/credential" ]
+}
+
+# --- --help は承認も拒否も起こさない ---
+
+@test "shim: pr merge --help runs with the read token and never asks op" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" pr merge --help
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-acme"
+    assert_not_called op
+}
+
+@test "shim: repo create --help is not refused as an admin operation" {
+    run_shim "$SHIM_PLAIN" repo create --help
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-home"
+    assert_not_called op
+}
+
+# --- gh api の端の形 ---
+
+@test "shim: an api GET with -f query=mutation on a REST endpoint never asks op" {
+    run_shim "$SHIM_PLAIN" api -X GET repos/acme/web/issues -f query=mutation
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-acme"
+    assert_not_called op
+}
+
+@test "shim: an api endpoint with a query string resolves the owner without it" {
+    run_shim "$SHIM_PLAIN" api 'orgs/acme?x=1'
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-acme"
+    [ "$(shim_log security)" = "find-generic-password -s gh-token-shim -a acme:read -w" ]
+}
+
+# --- HOST/OWNER/REPO の HOST が github.com でなければ読めない名指しとして扱う ---
+
+@test "shim: a write with -R on a host that only starts with github.com stops" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" pr merge 1 -R github.com.evil/acme/x
+
+    [ "$status" -eq 1 ]
+    assert_contains "$stderr" "gh-token-shim: "
+    assert_not_called gh op security git
+}
+
+@test "shim: a write with GH_REPO on a host that only starts with github.com stops" {
+    init_acme_repo
+    SHIM_ENV=(GH_REPO=github.com.evil/acme/x)
+
+    run_shim "$SHIM_REPO" pr merge 1
+
+    [ "$status" -eq 1 ]
+    assert_contains "$stderr" "gh-token-shim: "
+    assert_not_called gh op security git
+}
+
+@test "shim: a read with -R on a host that only starts with github.com uses the default owner" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" pr list -R github.com.evil/acme/x
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-home"
+}
+
 # --- 手順 6 / 7: トークンの読み出し ---
 
 @test "shim: pr merge reads the acme write token from op and never touches security" {
@@ -1609,6 +1961,7 @@ _write_config() {
     rm "$FAKE_DIR/gh"
     SHIM_PATH="$SHIM_DIR:$FAKE_DIR:$sysbin"
 
+    SHIM_RUN_OPTS=(-127)
     run_shim "$SHIM_PLAIN" pr merge 1 -R acme/x
 
     [ "$status" -eq 127 ]
@@ -1625,6 +1978,7 @@ _write_config() {
     rm "$FAKE_DIR/gh"
     SHIM_PATH="$SHIM_DIR:$FAKE_DIR:$sysbin"
 
+    SHIM_RUN_OPTS=(-127)
     run_shim "$SHIM_PLAIN" --version
 
     [ "$status" -eq 127 ]
