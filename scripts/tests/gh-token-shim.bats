@@ -5,11 +5,171 @@
 
 load test_helper
 
+bats_require_minimum_version 1.5.0
+
 LIB="$REPO_ROOT/scripts/gh-token-shim/lib.sh"
+SHIM_SOURCE="$REPO_ROOT/scripts/gh-token-shim/gh"
 
 setup() {
     # shellcheck source=/dev/null
     source "$LIB"
+    setup_shim_fixture
+}
+
+# -----------------------------------------------------------------------------
+# 入口の shim 用の fixture
+# -----------------------------------------------------------------------------
+
+# shim を本番と同じ形 (symlink) で置き、偽の gh / security / op を別のディレクトリに置く。
+# 既定の持ち主 (home) を acme / bob と別にしてあるのは、同じ値だと「origin から決めた」と
+# 「既定へ落ちた」が区別できず、持ち主の解決を壊しても緑になるため。
+setup_shim_fixture() {
+    SHIM_DIR="$BATS_TEST_TMPDIR/shim"
+    FAKE_DIR="$BATS_TEST_TMPDIR/fakes"
+    SHIM_LOG="$BATS_TEST_TMPDIR/log"
+    SHIM_HOME="$BATS_TEST_TMPDIR/home"
+    SHIM_PLAIN="$BATS_TEST_TMPDIR/plain"
+    SHIM_REPO="$BATS_TEST_TMPDIR/repo"
+    SHIM_CONF="$BATS_TEST_TMPDIR/ghts.conf"
+    SHIM_PATH="$SHIM_DIR:$FAKE_DIR:/usr/bin:/bin"
+    SHIM_ENV=()
+    mkdir -p "$SHIM_DIR" "$FAKE_DIR" "$SHIM_LOG" "$SHIM_HOME" "$SHIM_PLAIN"
+    ln -s "$SHIM_SOURCE" "$SHIM_DIR/gh"
+    ln -s "$LIB" "$SHIM_DIR/lib.sh"
+    printf '%s\n' 'vault=TestVault' 'default_owner=home' \
+        'owner=acme' 'owner=bob' 'owner=home' >"$SHIM_CONF"
+
+    # 本物の代わり。渡された GH_TOKEN と引数を1行に1つずつ残す ($* では "a b" と
+    # 2引数を区別できない)。BYPASSED_SHIM は「PATH に shim が残ったまま呼ばれた」印で、
+    # 出るときは配線が壊れていて shim は一度も走っていない。
+    cat >"$FAKE_DIR/gh" <<'FAKE'
+#!/bin/sh
+set +x
+{
+    case ":$PATH:" in
+    *":$GHTS_TEST_SHIM_DIR:"*) echo BYPASSED_SHIM ;;
+    *) echo REAL_GH_RAN ;;
+    esac
+    printf 'GH_TOKEN=[%s]\n' "${GH_TOKEN-<unset>}"
+    printf 'GITHUB_TOKEN=[%s]\n' "${GITHUB_TOKEN-<unset>}"
+    for a in "$@"; do printf 'ARG=[%s]\n' "$a"; done
+} | tee -a "$GHTS_TEST_LOG/gh.log"
+exit "${FAKE_GH_RC:-0}"
+FAKE
+
+    # 失敗の型は2つ持つ。fail はトークンを stdout へ出したうえで非 0 で終わる
+    # (rc を見ずに出力だけ見る実装と、失敗時の出力を漏らす実装を落とす)。
+    # empty は rc 0 で何も出さない。
+    cat >"$FAKE_DIR/security" <<'FAKE'
+#!/bin/sh
+set +x
+printf '%s\n' "$*" >>"$GHTS_TEST_LOG/security.log"
+account=""
+while [ $# -gt 0 ]; do
+    if [ "$1" = -a ]; then account=${2-}; fi
+    shift
+done
+case "${FAKE_SECURITY_MODE:-ok}" in
+fail)
+    echo "tok-read-partial"
+    exit 44
+    ;;
+empty) exit 0 ;;
+esac
+echo "tok-read-${account%:read}"
+FAKE
+
+    cat >"$FAKE_DIR/op" <<'FAKE'
+#!/bin/sh
+set +x
+printf '%s\n' "$*" >>"$GHTS_TEST_LOG/op.log"
+ref=""
+for a in "$@"; do ref=$a; done
+case "${FAKE_OP_MODE:-ok}" in
+fail)
+    printf 'tok-write-partial'
+    exit 1
+    ;;
+empty) exit 0 ;;
+esac
+owner=${ref#op://*/gh-write-}
+printf 'tok-write-%s' "${owner%/credential}"
+FAKE
+    chmod +x "$FAKE_DIR/gh" "$FAKE_DIR/security" "$FAKE_DIR/op"
+}
+
+# origin が acme のリポジトリを作る。hook から起動されたときに継承した GIT_DIR が
+# 一時リポジトリではなく実リポジトリを指さないよう外す。
+init_acme_repo() {
+    env -u GIT_DIR -u GIT_WORK_TREE git init -q "$SHIM_REPO"
+    env -u GIT_DIR -u GIT_WORK_TREE git -C "$SHIM_REPO" remote add origin https://github.com/acme/widgets.git
+}
+
+# shim を PATH 先頭に置いて /bin/bash (macOS では 3.2) から起動する。
+# - 環境のトークン類は必ず外す。残っていると手順1に当たり、実トークンが偽の gh の
+#   出力としてテストのログへ出る。
+# - cwd は必ず明示する。bats の既定の cwd はこのリポジトリで、実物の origin を持つ。
+# - CPU 時間を縛るのは、自分自身の再実行が無限再帰として現れるため。
+# shim へ渡す環境は SHIM_ENV に、設定の場所は SHIM_CONF に入れてから呼ぶ。
+run_shim() {
+    local dir="$1"
+    shift
+
+    # 偽物が実物より前で解決されることを先に確かめる (すぐ後ろに実物の security がある)
+    if [ "$(PATH="$FAKE_DIR:/usr/bin:/bin" command -v security)" != "$FAKE_DIR/security" ] ||
+        [ "$(PATH="$FAKE_DIR:/usr/bin:/bin" command -v op)" != "$FAKE_DIR/op" ]; then
+        echo "TEST_WIRING_BROKEN: fakes do not shadow the real binaries" >&2
+        return 98
+    fi
+
+    local conf_env=()
+    if [ -n "$SHIM_CONF" ]; then conf_env=("GH_TOKEN_SHIM_CONFIG=$SHIM_CONF"); fi
+
+    run --separate-stderr env -u GH_TOKEN -u GITHUB_TOKEN -u GH_REPO -u GIT_DIR -u GIT_WORK_TREE \
+        -u GH_TOKEN_SHIM_CONFIG -u SHELLOPTS \
+        HOME="$SHIM_HOME" GHTS_TEST_SHIM_DIR="$SHIM_DIR" GHTS_TEST_LOG="$SHIM_LOG" \
+        "${conf_env[@]}" "${SHIM_ENV[@]}" \
+        /bin/bash -c '
+            ulimit -t 10
+            cd "$1" || exit 9
+            PATH="$2"
+            export PATH
+            shift 2
+            if [ "$(command -v gh)" != "$GHTS_TEST_SHIM_DIR/gh" ]; then
+                echo "TEST_WIRING_BROKEN: gh does not resolve to the shim" >&2
+                exit 98
+            fi
+            exec gh "$@"
+        ' _ "$dir" "$SHIM_PATH" "$@"
+}
+
+# 偽物の記録 (無ければ空)
+shim_log() {
+    if [ -f "$SHIM_LOG/$1.log" ]; then cat "$SHIM_LOG/$1.log"; fi
+}
+
+# 偽物が一度も起動されていないこと。記録が効くことの陽性対照は、同じ偽物が起動される
+# 別のテスト (exact な argv の検査) が持つ。
+assert_not_called() {
+    local name
+    for name in "$@"; do
+        if [ -s "$SHIM_LOG/$name.log" ]; then
+            echo "$name は呼ばれないはずが呼ばれた: $(cat "$SHIM_LOG/$name.log")" >&2
+            return 1
+        fi
+    done
+}
+
+# 本物が shim を経由して起動され、指定のトークンを受け取ったこと
+assert_gh_ran_with_token() {
+    refute_contains "$output" "BYPASSED_SHIM" || return 1
+    assert_contains "$output" "REAL_GH_RAN" || return 1
+    assert_contains "$output" "GH_TOKEN=[$1]"
+}
+
+# トークンの値がどこにも漏れていないこと (偽物が返す値は全て tok- で始まる)
+refute_token_on_stderr() {
+    refute_contains "$stderr" "tok-"
 }
 
 @test "classify: --version -> none" {
@@ -686,4 +846,395 @@ _write_config() {
     [ "$status" -ne 0 ]
     run ghts_has_owner ""
     [ "$status" -ne 0 ]
+}
+
+# =============================================================================
+# 入口の shim (scripts/gh-token-shim/gh)
+# =============================================================================
+
+# --- 手順 1: 既存のトークンはそのまま通す ---
+
+@test "shim: an existing GH_TOKEN passes through untouched, even for a write" {
+    init_acme_repo
+    SHIM_ENV=(GH_TOKEN=preset-token)
+
+    run_shim "$SHIM_REPO" pr merge 3
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "preset-token"
+    assert_contains "$output" "ARG=[merge]"
+    assert_not_called security op
+}
+
+@test "shim: an existing GITHUB_TOKEN alone also passes through, GH_TOKEN stays unset" {
+    init_acme_repo
+    SHIM_ENV=(GITHUB_TOKEN=preset-github)
+
+    run_shim "$SHIM_REPO" pr list
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "<unset>"
+    assert_contains "$output" "GITHUB_TOKEN=[preset-github]"
+    assert_not_called security op
+}
+
+@test "shim: an existing GH_TOKEN passes through before the config is read" {
+    SHIM_CONF="$BATS_TEST_TMPDIR/missing.conf"
+    SHIM_ENV=(GH_TOKEN=preset-token)
+
+    run_shim "$SHIM_PLAIN" pr list -R acme/x
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "preset-token"
+}
+
+@test "shim: an empty GH_TOKEN counts as unset" {
+    SHIM_ENV=(GH_TOKEN= GITHUB_TOKEN=)
+
+    run_shim "$SHIM_PLAIN" pr list -R acme/x
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-acme"
+}
+
+# --- 手順 2: none はトークンなしで委譲する ---
+
+@test "shim: --version is delegated without a config and without reading a token" {
+    SHIM_CONF="$BATS_TEST_TMPDIR/missing.conf"
+
+    run_shim "$SHIM_PLAIN" --version
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "<unset>"
+    assert_contains "$output" "ARG=[--version]"
+    assert_not_called security op
+}
+
+@test "shim: no arguments at all is delegated" {
+    # set -u の下で空の "$@" を展開できること (bash 3.2)
+    run_shim "$SHIM_PLAIN"
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "<unset>"
+    refute_contains "$output" "ARG="
+    assert_not_called security op
+}
+
+# --- 手順 3: 設定 ---
+
+@test "shim: without a config pr list stops and gh is not run" {
+    SHIM_CONF="$BATS_TEST_TMPDIR/missing.conf"
+
+    run_shim "$SHIM_PLAIN" pr list -R acme/x
+
+    [ "$status" -eq 1 ]
+    assert_contains "$stderr" "gh-token-shim: "
+    assert_contains "$stderr" "$BATS_TEST_TMPDIR/missing.conf"
+    assert_contains "$stderr" "$REPO_ROOT/scripts/gh-token-shim/config.example"
+    [ -z "$output" ]
+    assert_not_called gh security op
+}
+
+@test "shim: an invalid config stops the same way" {
+    printf '%s\n' 'vault=TestVault' 'default_owner=home' 'owner=bad_name' >"$SHIM_CONF"
+
+    run_shim "$SHIM_PLAIN" pr list -R acme/x
+
+    [ "$status" -eq 1 ]
+    assert_contains "$stderr" "config.example"
+    assert_not_called gh security op
+}
+
+@test "shim: the config defaults to HOME/.config/gh-token-shim/config" {
+    mkdir -p "$SHIM_HOME/.config/gh-token-shim"
+    printf '%s\n' 'vault=HomeVault' 'default_owner=zed' 'owner=zed' \
+        >"$SHIM_HOME/.config/gh-token-shim/config"
+    SHIM_CONF=""
+
+    run_shim "$SHIM_PLAIN" pr list
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-zed"
+}
+
+@test "shim: the config is read before the admin check" {
+    SHIM_CONF="$BATS_TEST_TMPDIR/missing.conf"
+
+    run_shim "$SHIM_PLAIN" repo create acme/x
+
+    [ "$status" -eq 1 ]
+    assert_contains "$stderr" "config.example"
+    assert_not_called gh security op
+}
+
+# --- 手順 4: admin ---
+
+@test "shim: repo create stops without reading any token" {
+    run_shim "$SHIM_PLAIN" repo create acme/x
+
+    [ "$status" -eq 1 ]
+    assert_contains "$stderr" "gh-token-shim: "
+    assert_contains "$stderr" "web UI"
+    refute_contains "$stderr" "config.example"
+    [ -z "$output" ]
+    assert_not_called gh security op
+}
+
+# --- 手順 5: 持ち主の解決 ---
+
+@test "shim: pr list in a repo whose origin is acme uses the acme read token" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" pr list
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-acme"
+    [ "$(shim_log security)" = "find-generic-password -s gh-token-shim -a acme:read -w" ]
+    assert_not_called op
+    refute_token_on_stderr
+}
+
+@test "shim: -R wins over the origin of the cwd" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" pr list -R bob/x
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-bob"
+}
+
+@test "shim: GH_REPO wins over the origin of the cwd" {
+    init_acme_repo
+    SHIM_ENV=(GH_REPO=bob/x)
+
+    run_shim "$SHIM_REPO" pr list
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-bob"
+}
+
+@test "shim: -R wins over GH_REPO" {
+    SHIM_ENV=(GH_REPO=bob/x)
+
+    run_shim "$SHIM_PLAIN" pr list -R acme/x
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-acme"
+}
+
+@test "shim: outside a repository the default owner is used" {
+    run_shim "$SHIM_PLAIN" pr list
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-home"
+}
+
+@test "shim: a read for an owner not in the config uses the default owner's read token" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" pr view -R stranger/x
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-home"
+    [ "$(shim_log security)" = "find-generic-password -s gh-token-shim -a home:read -w" ]
+}
+
+@test "shim: a read for an invalid owner name uses the default owner's read token" {
+    run_shim "$SHIM_PLAIN" pr view -R 'ac_me/x'
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-home"
+}
+
+@test "shim: a write for an owner not in the config stops without calling op" {
+    # cwd の origin は設定にある acme。-R の持ち主が設定に無いとき、後ろの解決元
+    # (origin や既定の持ち主) へ進んで昇格してはいけない
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" pr merge 1 -R stranger/x
+
+    [ "$status" -eq 1 ]
+    assert_contains "$stderr" "gh-token-shim: "
+    assert_contains "$stderr" "stranger"
+    [ -z "$output" ]
+    assert_not_called gh security op
+}
+
+@test "shim: a write for an invalid owner name stops without calling op" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" pr merge 1 -R 'ac_me/x'
+
+    [ "$status" -eq 1 ]
+    assert_contains "$stderr" "gh-token-shim: "
+    # 検証を通らない名前は端末へそのまま出さない
+    refute_contains "$stderr" "ac_me"
+    assert_not_called gh security op
+}
+
+@test "shim: a write whose default owner is not listed stops without calling op" {
+    printf '%s\n' 'vault=TestVault' 'default_owner=home' 'owner=acme' >"$SHIM_CONF"
+
+    run_shim "$SHIM_PLAIN" pr merge 1
+
+    [ "$status" -eq 1 ]
+    assert_not_called gh security op
+}
+
+# --- 手順 6 / 7: トークンの読み出し ---
+
+@test "shim: pr merge reads the acme write token from op and never touches security" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" pr merge 3
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-write-acme"
+    [ "$(shim_log op)" = "read -n op://TestVault/gh-write-acme/credential" ]
+    assert_not_called security
+    refute_token_on_stderr
+}
+
+@test "shim: a write outside a repository uses the listed default owner" {
+    run_shim "$SHIM_PLAIN" pr merge 3
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-write-home"
+}
+
+@test "shim: when op fails it stops and does not continue with the read token" {
+    init_acme_repo
+    SHIM_ENV=(FAKE_OP_MODE=fail)
+
+    run_shim "$SHIM_REPO" pr merge 3
+
+    [ "$status" -eq 1 ]
+    assert_contains "$stderr" "gh-token-shim: "
+    # op が実際に呼ばれて失敗した (止まった理由が手前の検査ではない)
+    [ "$(shim_log op)" = "read -n op://TestVault/gh-write-acme/credential" ]
+    [ -z "$output" ]
+    assert_not_called gh security
+    refute_token_on_stderr
+}
+
+@test "shim: an empty answer from op counts as a failure" {
+    init_acme_repo
+    SHIM_ENV=(FAKE_OP_MODE=empty)
+
+    run_shim "$SHIM_REPO" pr merge 3
+
+    [ "$status" -eq 1 ]
+    [ "$(shim_log op)" = "read -n op://TestVault/gh-write-acme/credential" ]
+    assert_not_called gh security
+}
+
+@test "shim: when security fails it stops and shows how to store the token" {
+    init_acme_repo
+    SHIM_ENV=(FAKE_SECURITY_MODE=fail)
+
+    run_shim "$SHIM_REPO" pr list
+
+    [ "$status" -eq 1 ]
+    assert_contains "$stderr" "gh-token-shim: "
+    assert_contains "$stderr" "security add-generic-password -s gh-token-shim -a acme:read -w"
+    [ "$(shim_log security)" = "find-generic-password -s gh-token-shim -a acme:read -w" ]
+    [ -z "$output" ]
+    assert_not_called gh op
+    refute_token_on_stderr
+}
+
+@test "shim: an empty answer from security counts as a failure" {
+    init_acme_repo
+    SHIM_ENV=(FAKE_SECURITY_MODE=empty)
+
+    run_shim "$SHIM_REPO" pr list
+
+    [ "$status" -eq 1 ]
+    assert_contains "$stderr" "security add-generic-password -s gh-token-shim -a acme:read -w"
+    assert_not_called gh op
+}
+
+@test "shim: the token is not traced even when xtrace is inherited" {
+    # SHELLOPTS が export されていると shim の bash も xtrace で始まり、
+    # GH_TOKEN=... exec の行がトークンごと stderr へ出る
+    init_acme_repo
+    SHIM_ENV=(SHELLOPTS=xtrace)
+
+    run_shim "$SHIM_REPO" pr list
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-acme"
+    # xtrace が実際に効いていた陽性対照
+    assert_contains "$stderr" "+ set +x"
+    refute_token_on_stderr
+}
+
+# --- 手順 8: 委譲 ---
+
+@test "shim: arguments with spaces, quotes, globs and empty strings reach gh unchanged" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" pr create --title "a b" --body "it's" --label '*' --milestone ''
+
+    [ "$status" -eq 0 ]
+    local expected
+    expected="$(printf '%s\n' 'ARG=[pr]' 'ARG=[create]' 'ARG=[--title]' 'ARG=[a b]' \
+        'ARG=[--body]' "ARG=[it's]" 'ARG=[--label]' 'ARG=[*]' 'ARG=[--milestone]' 'ARG=[]')"
+    [ "$(shim_log gh | grep '^ARG=')" = "$expected" ]
+    assert_gh_ran_with_token "tok-read-acme"
+}
+
+@test "shim: the exit code of the real gh is passed through" {
+    SHIM_ENV=(FAKE_GH_RC=7)
+
+    run_shim "$SHIM_PLAIN" pr list -R acme/x
+
+    [ "$status" -eq 7 ]
+    assert_gh_ran_with_token "tok-read-acme"
+}
+
+@test "shim: refuses to re-exec itself when another copy stays on PATH" {
+    # 別名を PATH に残さないとこの分岐へ到達しない。-ef を外すと別名の shim が
+    # 手順1 (GH_TOKEN あり) で素通しして本物まで届くので、rc と記録の両方で見る
+    local alias_dir="$BATS_TEST_TMPDIR/shim-alias"
+    mkdir -p "$alias_dir"
+    ln -s "$SHIM_SOURCE" "$alias_dir/gh"
+    ln -s "$LIB" "$alias_dir/lib.sh"
+    SHIM_PATH="$SHIM_DIR:$alias_dir:$FAKE_DIR:/usr/bin:/bin"
+
+    run_shim "$SHIM_PLAIN" pr list -R acme/x
+
+    [ "$status" -eq 1 ]
+    assert_contains "$stderr" "refusing to re-exec the shim itself"
+    [ -z "$output" ]
+    assert_not_called gh
+    refute_token_on_stderr
+}
+
+@test "shim: exits 127 when no real gh is left on PATH" {
+    # /usr/bin を PATH に入れない (CI の runner は /usr/bin/gh を持つ)。
+    # shim 自身が要る外部コマンドだけを別のディレクトリへ並べる
+    local sysbin="$BATS_TEST_TMPDIR/sysbin"
+    mkdir -p "$sysbin"
+    ln -s "$(command -v dirname)" "$sysbin/dirname"
+    rm "$FAKE_DIR/gh"
+    SHIM_PATH="$SHIM_DIR:$FAKE_DIR:$sysbin"
+
+    run_shim "$SHIM_PLAIN" --version
+
+    [ "$status" -eq 127 ]
+    assert_contains "$stderr" "gh-token-shim: "
+    [ -z "$output" ]
+}
+
+@test "shim: stops when lib.sh is missing instead of delegating without a token" {
+    # 判定できないまま委譲すると gh は保存済みのログインで動き、承認の後ろに置いた
+    # 書き込みが素通りする
+    rm "$SHIM_DIR/lib.sh"
+
+    run_shim "$SHIM_PLAIN" pr merge 1 -R acme/x
+
+    [ "$status" -eq 1 ]
+    assert_contains "$stderr" "gh-token-shim: "
+    assert_not_called gh security op
 }
