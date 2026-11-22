@@ -7,6 +7,7 @@
 # ときに普段使いのトークンで続行することも、迷ったときに強いトークンへ倒すこともしない。
 #
 # 下の手順の順序そのものが仕様 (scripts/tests/gh-token-shim.bats が pin する)。
+# 手順 8 のうち本物の gh の確認だけは、トークンを読む手順 6 / 7 より前に行う。
 #
 # bash 専用で 3.2 互換を保つ (macOS の /bin/bash)。
 
@@ -40,7 +41,7 @@ strip_self_from_path() {
     printf '%s' "$result"
 }
 
-# 手順 8 の前半。本物の gh を real_gh へ入れる。自分自身へ戻らないことを確かめる。
+# 本物の gh を real_gh へ入れる。自分自身へ戻らないことを確かめる。
 real_gh=""
 resolve_real_gh() {
     PATH="$(strip_self_from_path)"
@@ -117,7 +118,6 @@ if ! ghts_load_config "$config"; then
         "it needs vault=, default_owner= and valid owner= lines; see $(config_example_path)"
 fi
 
-token=""
 case "$class" in
 admin)
     # --- 手順 4: 強いトークンでも通らない操作は昇格させずに止める ---
@@ -125,44 +125,45 @@ admin)
     die "this operation needs repository administration, which no token managed by the shim has" \
         "do it in the GitHub web UI instead"
     ;;
-read | write)
-    # --- 手順 5: 持ち主を決める ---
-    owner="$(resolve_owner "$@")"
-    owner_known=0
-    if ghts_valid_owner "$owner" && ghts_has_owner "$owner"; then
-        owner_known=1
-    fi
-
-    if [ "$class" = read ]; then
-        if [ "$owner_known" -eq 0 ]; then
-            owner=$GHTS_DEFAULT_OWNER
-        fi
-        # --- 手順 6: 普段使いのトークンをキーチェーンから読む ---
-        if ! token="$(security find-generic-password -s "$KEYCHAIN_SERVICE" -a "$owner:read" -w)" ||
-            [ -z "$token" ]; then
-            die "cannot read the read token for $owner from the keychain" \
-                "store it with: security add-generic-password -s $KEYCHAIN_SERVICE -a $owner:read -w"
-        fi
-    else
-        if [ "$owner_known" -eq 0 ]; then
-            # 検証を通らない名前は端末へそのまま出さない
-            if ghts_valid_owner "$owner"; then
-                die "refusing a write for owner '$owner', which is not listed in $config"
-            fi
-            die "refusing a write: the repository owner is not a valid name"
-        fi
-        # --- 手順 7: 強いトークンを 1Password から読む。read のトークンでは続行しない ---
-        if ! token="$(op read -n "op://$GHTS_VAULT/gh-write-$owner/credential")" ||
-            [ -z "$token" ]; then
-            die "cannot read the write token for $owner from 1Password; not continuing with the read token"
-        fi
-    fi
-    ;;
+read | write) ;;
 *)
     die "unexpected classification; refusing to run gh"
     ;;
 esac
 
-# --- 手順 8: トークンを本物の gh の環境にだけ載せて exec する ---
+# --- 手順 5: 持ち主を決める ---
+owner="$(resolve_owner "$@")"
+if ! ghts_valid_owner "$owner" || ! ghts_has_owner "$owner"; then
+    if [ "$class" = write ]; then
+        # 検証を通らない名前は端末へそのまま出さない
+        if ghts_valid_owner "$owner"; then
+            die "refusing a write for owner '$owner', which is not listed in $config"
+        fi
+        die "refusing a write: the repository owner is not a valid name"
+    fi
+    owner=$GHTS_DEFAULT_OWNER
+fi
+
+# --- 手順 8 の前半: 本物の gh をトークンより先に確かめる ---
+# 委譲できないと分かるのが読み出しの後だと、止まるだけの呼び出しがキーチェーンを読み、
+# 1Password の承認ダイアログを出す。意味のない承認を習慣にしないため先に置く。
 resolve_real_gh
+
+token=""
+if [ "$class" = read ]; then
+    # --- 手順 6: 普段使いのトークンをキーチェーンから読む ---
+    if ! token="$(security find-generic-password -s "$KEYCHAIN_SERVICE" -a "$owner:read" -w)" ||
+        [ -z "$token" ]; then
+        die "cannot read the read token for $owner from the keychain" \
+            "store it with: security add-generic-password -s $KEYCHAIN_SERVICE -a $owner:read -w"
+    fi
+else
+    # --- 手順 7: 強いトークンを 1Password から読む。read のトークンでは続行しない ---
+    if ! token="$(op read -n "op://$GHTS_VAULT/gh-write-$owner/credential")" ||
+        [ -z "$token" ]; then
+        die "cannot read the write token for $owner from 1Password; not continuing with the read token"
+    fi
+fi
+
+# --- 手順 8 の後半: トークンを本物の gh の環境にだけ載せて exec する ---
 GH_TOKEN="$token" exec "$real_gh" "$@"

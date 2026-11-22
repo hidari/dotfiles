@@ -834,7 +834,20 @@ _write_config() {
     CONF="$BATS_TEST_TMPDIR/ghts.conf"
     printf 'vault=v\ndefault_owner=acme\nowner=zed' >"$CONF"
     ghts_load_config "$CONF"
-    [ "$GHTS_OWNERS" = "zed" ]
+    [ "$GHTS_OWNERS" = "zed acme" ]
+}
+
+@test "load_config: default_owner is an owner without its own owner line" {
+    _write_config 'vault=v' 'default_owner=acme'
+    ghts_load_config "$CONF"
+    [ "$GHTS_OWNERS" = "acme" ]
+    ghts_has_owner acme
+}
+
+@test "load_config: default_owner listed as owner too is not duplicated" {
+    _write_config 'vault=v' 'default_owner=Acme' 'owner=bob' 'owner=acme'
+    ghts_load_config "$CONF"
+    [ "$GHTS_OWNERS" = "bob acme" ]
 }
 
 @test "load_config: file is never sourced" {
@@ -1088,13 +1101,14 @@ _write_config() {
     assert_not_called gh security op
 }
 
-@test "shim: a write whose default owner is not listed stops without calling op" {
-    printf '%s\n' 'vault=TestVault' 'default_owner=home' 'owner=acme' >"$SHIM_CONF"
+@test "shim: a write outside a repository uses the default owner even without an owner line" {
+    printf '%s\n' 'vault=TestVault' 'default_owner=acme' >"$SHIM_CONF"
 
     run_shim "$SHIM_PLAIN" pr merge 1
 
-    [ "$status" -eq 1 ]
-    assert_not_called gh security op
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-write-acme"
+    [ "$(shim_log op)" = "read -n op://TestVault/gh-write-acme/credential" ]
 }
 
 # --- 手順 6 / 7: トークンの読み出し ---
@@ -1223,8 +1237,39 @@ _write_config() {
     [ "$status" -eq 1 ]
     assert_contains "$stderr" "refusing to re-exec the shim itself"
     [ -z "$output" ]
-    assert_not_called gh
+    assert_not_called gh security
     refute_token_on_stderr
+}
+
+@test "shim: a write with a leftover shim copy on PATH stops before asking op" {
+    # 本物へ委譲できないと分かっているのに承認ダイアログを出さない。
+    # op が記録されることの陽性対照は "pr merge reads the acme write token" が持つ
+    local alias_dir="$BATS_TEST_TMPDIR/shim-alias"
+    mkdir -p "$alias_dir"
+    ln -s "$SHIM_SOURCE" "$alias_dir/gh"
+    ln -s "$LIB" "$alias_dir/lib.sh"
+    SHIM_PATH="$SHIM_DIR:$alias_dir:$FAKE_DIR:/usr/bin:/bin"
+
+    run_shim "$SHIM_PLAIN" pr merge 1 -R acme/x
+
+    [ "$status" -eq 1 ]
+    assert_contains "$stderr" "refusing to re-exec the shim itself"
+    assert_not_called gh op security
+}
+
+@test "shim: a write with no real gh on PATH exits 127 before asking op" {
+    local sysbin="$BATS_TEST_TMPDIR/sysbin"
+    mkdir -p "$sysbin"
+    ln -s "$(command -v dirname)" "$sysbin/dirname"
+    ln -s "$(command -v tr)" "$sysbin/tr"
+    rm "$FAKE_DIR/gh"
+    SHIM_PATH="$SHIM_DIR:$FAKE_DIR:$sysbin"
+
+    run_shim "$SHIM_PLAIN" pr merge 1 -R acme/x
+
+    [ "$status" -eq 127 ]
+    assert_contains "$stderr" "gh-token-shim: "
+    assert_not_called op security
 }
 
 @test "shim: exits 127 when no real gh is left on PATH" {

@@ -335,6 +335,7 @@ ghts_owner_from_args() {
 
 # 設定ファイルを行ごとに読む。source はしない (値はリテラルのまま)。
 # 設定する変数: GHTS_VAULT / GHTS_DEFAULT_OWNER / GHTS_OWNERS (小文字・空白区切り)
+# GHTS_OWNERS は owner の行に加えて default_owner を含む
 # vault と default_owner が揃い、全ての owner が正規表現に当たるとき rc 0
 ghts_load_config() {
     local file=${1-} line key val
@@ -364,7 +365,14 @@ ghts_load_config() {
         esac
     done <"$file"
 
-    [ -n "$GHTS_VAULT" ] && [ -n "$GHTS_DEFAULT_OWNER" ]
+    if [ -z "$GHTS_VAULT" ] || [ -z "$GHTS_DEFAULT_OWNER" ]; then
+        return 1
+    fi
+    # 既定の持ち主は owner の行が無くても扱える持ち主に含める (重複はさせない)
+    if ! ghts_has_owner "$GHTS_DEFAULT_OWNER"; then
+        GHTS_OWNERS="${GHTS_OWNERS:+$GHTS_OWNERS }$GHTS_DEFAULT_OWNER"
+    fi
+    return 0
 }
 
 # GHTS_OWNERS (空白区切り) に含まれれば rc 0
