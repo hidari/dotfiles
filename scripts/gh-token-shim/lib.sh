@@ -310,10 +310,15 @@ ghts_owner_from_args() {
         if [ "$pos" -eq 1 ]; then
             sub=$a
         elif [ "$pos" -ge 3 ] && [ -z "$cand" ]; then
-            # サブコマンドと動詞の後ろの位置引数だけを対象にする
+            # サブコマンドと動詞の後ろの位置引数だけを対象にする。素の OWNER/REPO は
+            # repo サブコマンドの動詞直後だけ (ブランチ名・パス・フラグ値と区別できない)
             case "$a" in
             *://* | git@*) cand=$(ghts_owner_from_url "$a") ;;
-            */*) cand=$(_ghts_owner_from_repo_spec "$a") ;;
+            */*)
+                if [ "$sub" = repo ] && [ "$pos" -eq 3 ]; then
+                    cand=$(_ghts_owner_from_repo_spec "$a")
+                fi
+                ;;
             esac
         fi
     done

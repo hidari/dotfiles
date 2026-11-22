@@ -520,6 +520,42 @@ setup() {
     [ -z "$output" ]
 }
 
+@test "owner_from_args: pr create --base main --head feature/x -> empty" {
+    run ghts_owner_from_args pr create --base main --head feature/x
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "owner_from_args: pr checkout feature/x -> empty" {
+    run ghts_owner_from_args pr checkout feature/x
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "owner_from_args: pr merge 3 --body a/b -> empty" {
+    run ghts_owner_from_args pr merge 3 --body a/b
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "owner_from_args: release create v1 dist/x -> empty" {
+    run ghts_owner_from_args release create v1 dist/x
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "owner_from_args: workflow run .github/workflows/ci.yml -> empty" {
+    run ghts_owner_from_args workflow run .github/workflows/ci.yml
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "owner_from_args: issue create -t x/y -> empty" {
+    run ghts_owner_from_args issue create -t x/y
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
 @test "owner_from_url: scp style with .git" {
     run ghts_owner_from_url git@github.com:Acme/web.git
     [ "$status" -eq 0 ]
