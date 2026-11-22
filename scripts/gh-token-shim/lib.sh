@@ -19,7 +19,7 @@ _ghts_api_flag_takes_value() {
 # 部分一致では mutationCount のようなフィールド名に当たる
 _GHTS_MUTATION_RE='(^|[^a-z0-9_])mutation([^a-z0-9_]|$)'
 
-# gh api の引数を分類して read/write のいずれかを出す。
+# gh api の引数を分類して GHTS_CLASS に read/write のいずれかを入れる。
 # 判定: -X/--method (連結形を含む) が GET/HEAD 以外なら write、明示が無ければ
 # フィールド系フラグか --input があれば write。graphql はクエリ本文が読み取りで
 # ある限りフィールドを書き込みとみなさない (変数の受け渡しに -f/-F を使うため)。
@@ -100,136 +100,75 @@ _ghts_classify_api() {
         esac
     done
 
-    if [ "$is_graphql" -eq 1 ] && [ "$query_mutates" -eq 1 ]; then
-        echo write
-        return 0
-    fi
-    if [ "$is_graphql" -eq 1 ] && [ "$has_input" -eq 1 ]; then
-        echo write
+    if [ "$is_graphql" -eq 1 ] && { [ "$query_mutates" -eq 1 ] || [ "$has_input" -eq 1 ]; }; then
+        GHTS_CLASS="write"
         return 0
     fi
 
     method=$(printf '%s' "$method" | tr '[:lower:]' '[:upper:]')
     case "$method" in
-    GET | HEAD) echo read ;;
+    GET | HEAD) GHTS_CLASS="read" ;;
     "")
         if [ "$has_input" -eq 1 ]; then
-            echo write
+            GHTS_CLASS="write"
         elif [ "$has_field" -eq 1 ] && [ "$is_graphql" -eq 0 ]; then
-            echo write
+            GHTS_CLASS="write"
         else
-            echo read
+            GHTS_CLASS="read"
         fi
         ;;
-    *) echo write ;;
+    *) GHTS_CLASS="write" ;;
     esac
     return 0
 }
 
-# gh の引数を分類して none/read/write/admin のいずれか1語を出す。rc は常に 0。
+# ghts_scan が読んだサブコマンド・動詞・その次の語から GHTS_CLASS を決める。
+# 引数は gh の引数そのもの (gh api の分類だけが使う)。
+# 書き込みの組、管理の組の順に引き、どちらにも無い組み合わせは read。
 # --help / -h が付いた書き込みと管理の操作は read へ下げる。gh はヘルプを出すだけで
 # 何も実行しないので、承認を求めるのも管理の操作として断るのも意味がない。
 # none まで下げないのは、ヘルプの見分けを誤ったときにトークン無しで委譲しないため
 # (トークン無しの gh は保存済みのログインで動く)。
-ghts_classify() {
-    local class
-    class=$(_ghts_classify_command "$@")
-    case "$class" in
-    write | admin)
-        _ghts_scan_args "$@"
-        if [ "$_GHTS_ARGS_HELP" -eq 1 ]; then class="read"; fi
-        ;;
-    esac
-    echo "$class"
-    return 0
-}
-
-# ghts_classify のうち、サブコマンドと動詞だけで決まる部分。
-# サブコマンドは最初の非フラグ、動詞はその次の非フラグ。未知の組み合わせは read。
-_ghts_classify_command() {
-    local sub="" verb="" verb2="" a
-    for a in "$@"; do
-        case "$a" in
-        -*) continue ;;
-        esac
-        if [ -z "$sub" ]; then
-            sub=$a
-        elif [ -z "$verb" ]; then
-            verb=$a
-        else
-            verb2=$a
-            break
-        fi
-    done
-
-    case "$sub" in
+_ghts_classify_scanned() {
+    local key="$_GHTS_SUB/$_GHTS_VERB"
+    case "$_GHTS_SUB" in
     "" | version | help | completion | auth)
-        echo none
+        GHTS_CLASS="none"
+        return 0
         ;;
     api)
         _ghts_classify_api "$@"
-        ;;
-    pr)
-        case "$verb" in
-        merge) echo write ;;
-        *) echo read ;;
-        esac
-        ;;
-    release)
-        case "$verb" in
-        create | upload | delete | delete-asset | edit) echo write ;;
-        *) echo read ;;
-        esac
-        ;;
-    repo)
-        case "$verb" in
-        create | delete | edit | rename | archive | unarchive | fork)
-            echo admin
-            ;;
-        deploy-key)
-            case "$verb2" in
-            add | delete) echo admin ;;
-            *) echo read ;;
-            esac
-            ;;
-        autolink)
-            case "$verb2" in
-            create | delete) echo admin ;;
-            *) echo read ;;
-            esac
-            ;;
-        sync) echo write ;;
-        *) echo read ;;
-        esac
-        ;;
-    workflow)
-        case "$verb" in
-        run | enable | disable) echo write ;;
-        *) echo read ;;
-        esac
-        ;;
-    run)
-        case "$verb" in
-        rerun | cancel | delete) echo write ;;
-        *) echo read ;;
-        esac
-        ;;
-    secret | variable)
-        case "$verb" in
-        set | delete | remove) echo write ;;
-        *) echo read ;;
-        esac
-        ;;
-    cache)
-        case "$verb" in
-        delete) echo write ;;
-        *) echo read ;;
-        esac
-        ;;
-    *)
-        echo read
+        return 0
         ;;
     esac
+
+    # この2つの動詞は、次の語がさらに動詞になる
+    case "$key" in
+    repo/deploy-key | repo/autolink) key="$key/$_GHTS_VERB2" ;;
+    esac
+    case "$key" in
+    pr/merge | \
+        release/create | release/upload | release/delete | release/delete-asset | release/edit | \
+        repo/sync | \
+        workflow/run | workflow/enable | workflow/disable | \
+        run/rerun | run/cancel | run/delete | \
+        secret/set | secret/delete | secret/remove | \
+        variable/set | variable/delete | variable/remove | \
+        cache/delete)
+        GHTS_CLASS="write"
+        ;;
+    repo/create | repo/delete | repo/edit | repo/rename | repo/archive | repo/unarchive | repo/fork | \
+        repo/deploy-key/add | repo/deploy-key/delete | \
+        repo/autolink/create | repo/autolink/delete)
+        GHTS_CLASS="admin"
+        ;;
+    *)
+        GHTS_CLASS="read"
+        return 0
+        ;;
+    esac
+
+    if [ "$_GHTS_ARGS_HELP" -eq 1 ]; then GHTS_CLASS="read"; fi
     return 0
 }
 
@@ -301,7 +240,7 @@ ghts_owner_from_url() {
 
 # -R / --repo の値 (OWNER/REPO, HOST/OWNER/REPO, URL) から小文字の owner を出す。
 # HOST が github.com のものでなければ何も出さない (読めない名指しとして扱わせる)
-_ghts_owner_from_repo_spec() {
+ghts_owner_from_repo_spec() {
     local spec=$1 slashes owner
     case "$spec" in
     *://* | git@*)
@@ -501,18 +440,28 @@ _ghts_flag_takes_value() {
     return 1
 }
 
-# gh の引数を1回なめて、持ち主の解決元が引数に「ある」か (_GHTS_ARGS_PRESENT) と、
-# そこから読めた小文字の owner (_GHTS_ARGS_OWNER。読めなければ空) を設定する。
-# あわせて、gh api 以外で --help / -h がフラグとして立っているか (_GHTS_ARGS_HELP) を
-# 設定する。フラグの値として渡された --help (--body --help) は数えない。
+# gh の引数を1回なめて、分類と持ち主の解決元を決める。rc は常に 0。設定する変数:
+#   GHTS_CLASS         none/read/write/admin のいずれか
+#   GHTS_OWNER_SOURCE  持ち主の解決元のうち、最初に「ある」もの
+#     args    引数が持ち主を名指している (読めるかどうかは問わない)
+#     gh_repo 環境変数 GH_REPO が空でない
+#     none    どちらも無い (cwd の origin を見るかどうかは呼び出し側が決める)
+#   GHTS_ARGS_OWNER    引数から読めた小文字の owner (読めなければ空)
+# 分類と持ち主が同じサブコマンドと動詞を見るよう、両方をここで決める。別々に数えると、
+# -R の値やフラグの値を片方だけが動詞に数え、書き込みを読み取りとして通す。
+# gh api 以外では、--help / -h がフラグとして立っているかも見る。フラグの値として
+# 渡された --help (--body --help) は数えない。
 # 「ある」と「読めた」を分けるのは、名指しはあるのに読めない引数 (-R /x など) を
 # 「引数に指定が無い」と同じに扱うと、呼び出し側が次の解決元の持ち主で昇格するため。
-# 優先順: 1 -R/--repo、2 api のエンドポイント、2' その他の位置引数
-_ghts_scan_args() {
+# 引数の中の優先順: 1 -R/--repo、2 api のエンドポイント、2' その他の位置引数
+ghts_scan() {
     local args=("$@") i=0 n=$# a rest
     local has_repo=0 repo="" sub="" verb="" endpoint="" pos=0 pos_present=0 cand=""
-    _GHTS_ARGS_PRESENT=0
-    _GHTS_ARGS_OWNER=""
+    # 分類は空で始める。決まる前に読まれても none (トークン無しの委譲) にはならない
+    GHTS_CLASS=""
+    GHTS_OWNER_SOURCE=""
+    GHTS_ARGS_OWNER=""
+    _GHTS_VERB2=""
     _GHTS_ARGS_HELP=0
 
     while [ "$i" -lt "$n" ]; do
@@ -563,11 +512,18 @@ _ghts_scan_args() {
             ;;
         esac
         pos=$((pos + 1))
-        if [ "$pos" -eq 1 ]; then
+        case "$pos" in
+        1)
             sub=$a
-        elif [ "$pos" -eq 2 ]; then
+            continue
+            ;;
+        2)
             verb=$a
-        elif [ "$pos_present" -eq 0 ]; then
+            continue
+            ;;
+        3) _GHTS_VERB2=$a ;;
+        esac
+        if [ "$pos_present" -eq 0 ]; then
             # サブコマンドと動詞の後ろの位置引数だけを対象にする。
             # github.com の URL はどのサブコマンドでも持ち主の名指しとみなす。それ以外の
             # URL やスラッシュ入りの語は、ブランチ名・パス・フラグの値と区別できない
@@ -582,7 +538,7 @@ _ghts_scan_args() {
                 *)
                     pos_present=1
                     case "$a" in
-                    */*) cand=$(_ghts_owner_from_repo_spec "$a") ;;
+                    */*) cand=$(ghts_owner_from_repo_spec "$a") ;;
                     esac
                     ;;
                 esac
@@ -591,44 +547,52 @@ _ghts_scan_args() {
     done
 
     if [ "$has_repo" -eq 1 ]; then
-        _GHTS_ARGS_PRESENT=1
-        _GHTS_ARGS_OWNER=$(_ghts_owner_from_repo_spec "$repo")
+        GHTS_OWNER_SOURCE=args
+        GHTS_ARGS_OWNER=$(ghts_owner_from_repo_spec "$repo")
     elif [ "$sub" = api ]; then
         if [ -n "$endpoint" ] && _ghts_endpoint_names_owner "$endpoint"; then
-            _GHTS_ARGS_PRESENT=1
-            _GHTS_ARGS_OWNER=$(_ghts_owner_from_endpoint "$endpoint")
+            GHTS_OWNER_SOURCE=args
+            GHTS_ARGS_OWNER=$(_ghts_owner_from_endpoint "$endpoint")
         fi
     elif [ "$pos_present" -eq 1 ]; then
-        _GHTS_ARGS_PRESENT=1
-        _GHTS_ARGS_OWNER=$cand
+        GHTS_OWNER_SOURCE=args
+        GHTS_ARGS_OWNER=$cand
     fi
+    if [ -z "$GHTS_OWNER_SOURCE" ]; then
+        if [ -n "${GH_REPO:-}" ]; then
+            GHTS_OWNER_SOURCE=gh_repo
+        else
+            GHTS_OWNER_SOURCE=none
+        fi
+    fi
+
+    _GHTS_SUB=$sub
+    _GHTS_VERB=$verb
+    _ghts_classify_scanned "$@"
     return 0
 }
 
-# gh の引数から持ち主を決めて小文字で出す (決められなければ空)。rc は常に 0。
+# 以下の3つは ghts_scan の結果を1つずつ出す。rc は常に 0。
+# 1回の起動で2つ以上要るときは ghts_scan を直接呼んで変数を読む (引数を何度もなめない)。
+
+# 分類を1語で出す
+ghts_classify() {
+    ghts_scan "$@"
+    echo "$GHTS_CLASS"
+    return 0
+}
+
+# 引数から読めた持ち主を小文字で出す (読めなければ何も出さない)
 ghts_owner_from_args() {
-    _ghts_scan_args "$@"
-    [ -n "$_GHTS_ARGS_OWNER" ] && printf '%s\n' "$_GHTS_ARGS_OWNER"
+    ghts_scan "$@"
+    [ -n "$GHTS_ARGS_OWNER" ] && printf '%s\n' "$GHTS_ARGS_OWNER"
     return 0
 }
 
-# 持ち主の解決元のうち、最初に「ある」ものを1語で出す。rc は常に 0。
-#   args    引数が持ち主を名指している (読めるかどうかは問わない)
-#   gh_repo 環境変数 GH_REPO が空でない
-#   origin  GHTS_ORIGIN_URL が空でない (呼び出し側が git remote get-url origin の結果を入れる)
-#   none    どれも無い
-# 引数と変数だけで決まる (git は呼ばない)。
+# 持ち主の解決元を1語で出す
 ghts_owner_source() {
-    _ghts_scan_args "$@"
-    if [ "$_GHTS_ARGS_PRESENT" -eq 1 ]; then
-        echo args
-    elif [ -n "${GH_REPO:-}" ]; then
-        echo gh_repo
-    elif [ -n "${GHTS_ORIGIN_URL:-}" ]; then
-        echo origin
-    else
-        echo none
-    fi
+    ghts_scan "$@"
+    echo "$GHTS_OWNER_SOURCE"
     return 0
 }
 

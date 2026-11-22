@@ -72,24 +72,25 @@ config_example_path() {
     esac
 }
 
-# 持ち主の候補を出す (検証前。読めなければ空)。最初に「ある」解決元だけから読み、
-# 読めなくても後ろの解決元へは進まない。-R や GH_REPO で名指した先を読めないときに
+# 持ち主の候補を owner へ入れる (検証前。読めなければ空)。最初に「ある」解決元だけから
+# 読み、読めなくても後ろの解決元へは進まない。-R や GH_REPO で名指した先を読めないときに
 # cwd の origin や既定の持ち主へ進むと、書き込みが別の持ち主として昇格する。
-# 既定の持ち主を使うのは、解決元がどれも無いときだけ。
+# origin を git に聞くのは引数にも GH_REPO にも名指しが無いときだけで、既定の持ち主を
+# 使うのは origin も無いときだけ。
+owner=""
 resolve_owner() {
-    local source
-    GHTS_ORIGIN_URL=""
-    source="$(ghts_owner_source "$@")"
-    if [ "$source" = none ]; then
-        # リポジトリの外や origin が無いときは失敗する。その場合は none のまま
-        GHTS_ORIGIN_URL="$(git remote get-url origin 2>/dev/null)" || GHTS_ORIGIN_URL=""
-        source="$(ghts_owner_source "$@")"
-    fi
-    case "$source" in
-    args) ghts_owner_from_args "$@" ;;
-    gh_repo) ghts_owner_from_args -R "$GH_REPO" ;;
-    origin) ghts_owner_from_url "$GHTS_ORIGIN_URL" ;;
-    none) printf '%s\n' "$GHTS_DEFAULT_OWNER" ;;
+    local origin
+    case "$GHTS_OWNER_SOURCE" in
+    args) owner=$GHTS_ARGS_OWNER ;;
+    gh_repo) owner="$(ghts_owner_from_repo_spec "$GH_REPO")" ;;
+    none)
+        # リポジトリの外や origin が無いときは git が失敗する
+        if origin="$(git remote get-url origin 2>/dev/null)" && [ -n "$origin" ]; then
+            owner="$(ghts_owner_from_url "$origin")"
+        else
+            owner=$GHTS_DEFAULT_OWNER
+        fi
+        ;;
     esac
 }
 
@@ -107,10 +108,11 @@ fi
 # shellcheck source=./lib.sh
 . "$self_dir/lib.sh" || die "failed to load $self_dir/lib.sh; refusing to run gh"
 
-class="$(ghts_classify "$@")"
+# 引数をなめるのはここの1回だけ。分類と持ち主の解決元の両方がここで決まる
+ghts_scan "$@"
 
 # --- 手順 2: トークンの要らない操作は、そのまま委譲する ---
-if [ "$class" = none ]; then
+if [ "$GHTS_CLASS" = none ]; then
     resolve_real_gh
     exec "$real_gh" "$@"
 fi
@@ -122,7 +124,7 @@ if ! ghts_load_config "$config"; then
         "it needs vault=, default_owner= and valid owner= lines; see $(config_example_path)"
 fi
 
-case "$class" in
+case "$GHTS_CLASS" in
 admin)
     # --- 手順 4: 強いトークンでも通らない操作は昇格させずに止める ---
     # 承認しても必ず 403 になるので、意味のない承認を習慣にしない。
@@ -136,9 +138,9 @@ read | write) ;;
 esac
 
 # --- 手順 5: 持ち主を決める ---
-owner="$(resolve_owner "$@")"
+resolve_owner
 if ! ghts_valid_owner "$owner" || ! ghts_has_owner "$owner"; then
-    if [ "$class" = write ]; then
+    if [ "$GHTS_CLASS" = write ]; then
         # 検証を通らない名前は端末へそのまま出さない
         if ghts_valid_owner "$owner"; then
             die "refusing a write for owner '$owner', which is not listed in $config"
@@ -154,7 +156,7 @@ fi
 resolve_real_gh
 
 token=""
-if [ "$class" = read ]; then
+if [ "$GHTS_CLASS" = read ]; then
     # --- 手順 6: 普段使いのトークンをキーチェーンから読む ---
     if ! token="$(security find-generic-password -s "$KEYCHAIN_SERVICE" -a "$owner:read" -w)" ||
         [ -z "$token" ]; then

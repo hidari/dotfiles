@@ -13,8 +13,8 @@ SHIM_SOURCE="$REPO_ROOT/scripts/gh-token-shim/gh"
 setup() {
     # shellcheck source=/dev/null
     source "$LIB"
-    # ghts_owner_source が読む変数。呼び出し元の環境の値で結果が変わらないよう外す
-    unset GH_REPO GHTS_ORIGIN_URL
+    # ghts_scan が読む変数。呼び出し元の環境の値で結果が変わらないよう外す
+    unset GH_REPO
     setup_shim_fixture
 }
 
@@ -510,6 +510,20 @@ assert_security_read() {
     assert_class write variable remove X
 }
 
+# --- サブコマンドと動詞のあいだの -R / --repo とその値は、動詞に数えない ---
+
+@test "classify: pr -R bob/x merge 3 -> write" {
+    assert_class write pr -R bob/x merge 3
+}
+
+@test "classify: release -R acme/x create v1 -> write" {
+    assert_class write release -R acme/x create v1
+}
+
+@test "classify: repo -R acme/x deploy-key add k -> admin" {
+    assert_class admin repo -R acme/x deploy-key add k
+}
+
 # --- --help / -h: 何も実行しないので、書き込みと管理の判定を read へ下げる ---
 
 @test "classify: pr merge --help -> read" {
@@ -833,15 +847,6 @@ assert_security_read() {
     [ "$output" = "gh_repo" ]
     run ghts_owner_source pr list -R acme/x
     [ "$output" = "args" ]
-}
-
-@test "owner_source: origin URL -> origin, GH_REPO wins over it" {
-    GHTS_ORIGIN_URL=https://gitlab.com/acme/w.git
-    run ghts_owner_source pr list
-    [ "$output" = "origin" ]
-    GH_REPO=bob/x
-    run ghts_owner_source pr list
-    [ "$output" = "gh_repo" ]
 }
 
 # --- フラグの値は位置引数に数えない ---
@@ -1196,6 +1201,8 @@ _write_config() {
 
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-read-bob"
+    # GH_REPO で決まったら origin を見に行かない
+    assert_not_called git
 }
 
 @test "shim: -R wins over GH_REPO" {
@@ -1518,6 +1525,18 @@ _write_config() {
     assert_gh_ran_with_token "tok-write-bob"
     assert_op_read bob
     assert_not_called git
+}
+
+@test "shim: pr -R bob/x merge 3 elevates for bob even though -R comes before the verb" {
+    # -R の値を動詞に数えると merge を見落とし、普段使いのトークンで本物へ渡す
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" pr -R bob/x merge 3
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-write-bob"
+    assert_op_read bob
+    assert_not_called security git
 }
 
 @test "shim: pr merge -s 3 elevates for the origin owner" {
