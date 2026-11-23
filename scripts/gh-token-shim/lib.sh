@@ -192,8 +192,10 @@ _ghts_classify_scanned() {
     case "$key" in
     repo/deploy-key | repo/autolink) key="$key/$_GHTS_VERB2" ;;
     esac
+    # pr/ready は普段使いのトークンの Pull requests の write では通らず、強いトークンで通った
+    # (どの権限が効いたかは未確認。PR への書き込みすべてに Pull requests の write が足りないという意味ではない)
     case "$key" in
-    pr/merge | \
+    pr/merge | pr/ready | \
         release/create | release/upload | release/delete | release/delete-asset | release/edit | \
         repo/sync | \
         workflow/run | workflow/enable | workflow/disable | \

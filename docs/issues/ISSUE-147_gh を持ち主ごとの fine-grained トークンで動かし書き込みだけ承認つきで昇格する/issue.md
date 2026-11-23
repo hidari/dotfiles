@@ -39,7 +39,7 @@ SSH の側は同じ日に済ませた(マシンローカルの設定で、追跡
 - `gh auth token` と `gh auth status` を読む使い手は、logout すると shim があってもトークンを受け取れない。shim は `auth` をトークン無しで委譲するため。次のものが該当する
   - Claude Code の auto mode のリポジトリの公開範囲の判定と `/web-setup`
   - apm と Homebrew の GitHub API の呼び出し。匿名に落ちる
-- 持ち主の1つは自分が管理していない org で、fine-grained のトークンを発行できなかった。設定からその持ち主を外した。開発機にはその org のリポジトリが1つある
+- 持ち主の1つは自分が管理していない org で、fine-grained のトークンを発行できなかった。その org では外部コラボレーターで、GitHub のドキュメントは外部コラボレーターとしてのリポジトリへの貢献を fine-grained のトークンの未対応に挙げている。org の設定画面では fine-grained のトークンが承認制で許可されていたので、org のメンバーにしてもらえば使える見込み。設定からその持ち主を外した。開発機にはその org のリポジトリが1つある
 
 ### 決めたこと(2026-11-23、ユーザー)
 
@@ -64,6 +64,10 @@ SSH の側は同じ日に済ませた(マシンローカルの設定で、追跡
   - 読み取りは既定の持ち主のトークンで黙って送られ、private のリポジトリは「Could not resolve to a Repository」で落ちた(そのリポジトリで作業するセッションの実測)。spec は、設定に無い持ち主を他人の公開リポジトリとしてしか想定していなかった
   - 書き込みは「設定に無い持ち主」と名指しして止まる
 - 設定にある持ち主の1つでは、`gh repo list <owner>` が fine-grained のトークンで0件を返した(OAuth では数件)。同じトークンで REST の `orgs/<owner>/repos` は OAuth と同じ数を返す。原因は切り分けていない
+- 別のリポジトリの作業で、権限の表の抜けが2つ見つかった
+  - private のリポジトリの check run の読み取り(`commits/<sha>/check-runs`)は `checks=read` を要求し、403になった。fine-grained のトークンには Checks の権限が無い(GitHub のドキュメントが Checks API を未対応に挙げており、トークンの Edit の画面にも出ない)。CI の結果は Actions の run の API で読む。public のリポジトリでは権限なしで読めるので、ここまでの確認では見えなかった
+  - `gh pr ready`(GraphQL の `markPullRequestReadyForReview`)は、普段使いのトークンの Pull requests の write では Resource not accessible になり、強いトークンでは通った。どの権限が効いたかは確かめていない。普段使いの権限は増やさず、shim で `pr ready` を書き込みに分類した
+  - graphql の本文に持ち主を書いても shim は読まないので、cwd に origin が無いと既定の持ち主のトークンで送られる。`GH_REPO` で名指しすれば、その持ち主のトークンになる
 - 依頼元のリポジトリの構成検査は、shim 経由の普段使いのトークンで21項目ずれ無し、終了0だった(依頼元のセッションの報告)
 
 ## タスク
@@ -73,13 +77,14 @@ SSH の側は同じ日に済ませた(マシンローカルの設定で、追跡
 - [x] shim と配線を実装する(テストつき)
 - [x] bootstrap.sh で配置し、新しいシェルで `command -v gh` が shim を指すことを確かめる
 - [x] 持ち主ごとの普段使いのトークンと強いトークンを発行して置く(ユーザーの操作。自分が管理していない org を除く)
-- [ ] 自分が管理していない org の管理者に fine-grained のトークンの許可を頼み、許可が出たら2本を発行して置き、設定の `owner=` へ戻す(ユーザーの操作)
+- [ ] 自分が管理していない org のメンバーにしてもらい、2本を発行して承認を受け、設定の `owner=` へ戻す(ユーザーの操作)
 - [x] gh の OAuth のトークンを外し、GitHub の Authorized OAuth Apps から許可を取り消す
 - [x] 構成検査を実物にかけて読めることを確かめ、依頼元のセッションへ変えた内容を報告する
 - [ ] 間接の書き込みを実測し、各リポジトリの workflow を棚卸しする。対話のターミナルで `op read` の承認がどのくらい続けて効くかを測る(spec の移行の順序 6 と 7)
 - [ ] `gh api` で PR / Issue へ書き込む呼び出し(`-f body=...` のコメント、graphql の resolveReviewThread など)が毎回承認を求める頻度を測り、普段使いのトークンへ回すかを決める。普段使いの権限で足りるのに、spec の書き込みの判定では昇格する
 - [ ] 手元のリポジトリの origin の持ち主のうち、設定の `owner=` に無いものを列挙する検査を作る。2026-11-23 に、1階層だけ走査して「その持ち主のリポジトリは0件」と誤って判断し、その前提で持ち主を設定から外した
 - [ ] 設定に無い持ち主の読み取りを既定の持ち主のトークンへ落とすとき、「その持ち主のトークンが設定に無い」と stderr に一言出す。今は黙って落ちるので、private のリポジトリが「Could not resolve to a Repository」という紛らわしいエラーになる
+- [ ] 普段使いのトークンで `gh pr` / `gh issue` / `gh label` の書き込みの動詞を一通り試し、通らないものを書き込みの表 (または管理の操作) へ足す。`pr ready` は表に無く read に落ちて Resource not accessible になった。同じ形の候補は `issue develop`、`pr update-branch`、`pr revert`、`issue delete` (推測)
 - [ ] `gh repo list <owner>` が fine-grained のトークンで0件になる持ち主について、原因を切り分ける。REST では同じトークンで一覧が取れるので、急がない
 - [ ] `.gitleaks.toml` の `git@` の allowlist を `ssh://git@<host>/` へ広げ、テストの literal を変数で組み立てずに書く形へ戻す。`.gitleaks.toml` は PUBLIC の各リポジトリへ配る canonical なので、別の PR にする。userinfo の URL(`https://<user>@github.com/...`)を解釈するかも、そこで決める
 
