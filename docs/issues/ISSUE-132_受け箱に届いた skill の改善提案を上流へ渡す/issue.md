@@ -41,16 +41,6 @@ dotfiles で確かめたこと: skill の frontmatter スキーマは `parent` /
 - 報告 (実測): in-repo Issue の起票の前の重複の検索で、skill が示す `grep -rli '<語>' docs/issues --include='issue.md'` の形を打つと、開発機の grep (ugrep のシェル関数) が `--include=issue.md` をファイルとして読んで警告を出し、当たりが欠けた。`find docs/issues -name issue.md -exec /usr/bin/grep -l -- '<語>' {} +` に替え、見た Issue の本数 (34) と、当たる語の対照を並べて数え直した (実測)。C.3 の節は同じ理由で `/usr/bin/grep` を明示するよう書いているが、A.0 にはその注意が無い (実測)。dotfiles で確かめたこと (2026-11-15): worktree の配布の写し (追跡外) の in-repo-issue の SKILL.md は、120行目の A.0 で報告どおりの形を示し、261行目 (C.3 の箱の数え方) は ugrep のシェル関数を避けて `/usr/bin/grep` を明示するよう書いている。この開発機の Bash ツール (grep は shell snapshot のシェル関数) で同じ形を `docs/issues` に `status` で当てると、警告は出ず145件で、`/usr/bin/grep` の同じ形と `find docs/issues -name issue.md` の数 (どちらも145) と一致した。仕分けたセッションの解釈: この開発機では再現せず、欠ける条件 (ugrep の版か、シェル関数の定義の違いか) は未特定
 - 報告者の提案 (実測): A.0 の検索のコマンドを、C.3 と同じく `find ... -exec /usr/bin/grep -l` の形にするか、「見た Issue の本数を数えて対照を並べる」を足す
 
-### in-repo-issue: 検索手順の「全 open Issue」が in_progress の Issue を落とす
-
-2026-11-24に仕分けた分で届いた。別のリポジトリのセッションの報告。
-
-報告 (実測: skill の本文の検索手順を読んだ。in_progress の Issue で実際に一覧から落ちることは、報告者はコマンドを打って確かめていない): 「検索手順」の「全 open Issue」は `^status: open$` だけを grep するので、Phase B で in_progress にした Issue が一覧から落ちる。
-
-報告者の提案: まだ閉じていない Issue を数えたい読み手には、closed/ の外にある issue.md を全部 (status が open と in_progress の両方) 拾う形の方が合う。少なくとも見出しを「status が open の Issue」にして、in_progress が入らないことを明示する。
-
-dotfiles で確かめたこと (2026-11-24): 配布されている SKILL.md (agentic-coding-tools の e1720e6) の394〜396行目は、見出しのコメントが「全 open Issue (closed/ と templates/ を除外)」で、本体は `-exec grep -l '^status: open$' {} +` だった。dotfiles の main の docs/issues で同じ条件で数えると、closed/ と templates/ の外の issue.md は81件で、`^status: open$` に当たるのは79件、残りの2件は `^status: in_progress$` だった。報告のとおり、in_progress の2件が一覧から落ちる。
-
 ### session-handoff: 実行中の subagent はセッションを越えて resume できない
 
 報告 (実測): subagent の agent id は前のセッションの中のプロセスにしか届かず、新しいセッションの一覧には出ない。引き継ぎ書に「同じ implementer を resume する」と書いても使えない。報告元は、作業木の未コミットの変更をコントローラが全文読み、テストとゲートを回してから wip でコミットし、残り (変異注入と報告) だけを新しい subagent に渡した。復元先が HEAD になるので変異の復元も安全になった。
@@ -77,6 +67,7 @@ dotfiles で確かめたこと (2026-10-23): 同じ日に、別のリポジト�
 - 報告 (実測): 引き継ぎ書だけを信じて「次の一手」から始めると、すでに進んだ作業を重ねてやり直すか、未コミットの変更を上書きするところだった。引き継ぎ書は書いた時点のスナップショットで、注入された時点の状態の証拠にはならない
 - 報告者の提案 (根拠は上の2つ。実測): 引き継ぎ書を注入する hook か session-handoff の skill に、「注入のあと、最初の作業の前に、キー情報の節 (ブランチ・HEAD・作業ツリー・プロセス) を実物と突き合わせる」手順を足す。引き継ぎ書に HEAD の SHA と `git status --porcelain` の件数を機械的に書き込んでおけば、突き合わせが1コマンドで済む
 - dotfiles で確かめたこと (2026-11-24): 配布されている session-handoff の template.md (agentic-coding-tools の e1720e6) の「キー情報」節は、書く内容をコメントで「ブランチ、PR 番号、重要ファイルパス、実行中プロセス、一時ファイルの場所」と挙げるだけで、HEAD の SHA や作業ツリーの件数の欄は無い。注入するのは dotfiles の `home/.claude/hooks/handoff-sentinel.py` で、注入の文面は作成日時と保存先を添えて本文を渡すだけで、実物と突き合わせる指示は無い。提案は skill (上流) と hook (dotfiles) の両方にまたがる
+- 仕分けたセッションの解釈: 同じまとめの観察 (引き継ぎ書のキー情報が実物と食い違った) は、ISSUE-133 の「作業の規範」節の、handoff の値の受け売りにしない項の子にも同じ型の再報告として置いた。提案のうち hook の側の半分 (注入の文面に突き合わせの指示を入れる、記録の時点で HEAD の SHA と作業ツリーの件数を控えて注入の時点で比べる) は dotfiles の handoff-sentinel の変更なので、上流へ渡すのは template.md のキー情報の欄と skill の手順に絞る。hook の側を dotfiles の新しい Issue にするかはタスクで決める
 
 ### pre-merge-quality-gate の simplify: 並列の reviewer を読み取り専用にする
 
@@ -296,6 +287,8 @@ dotfiles で確かめたこと (2026-10-31): `home/apm.yml` は ast-grep-practic
 - [ ] 「pre-merge-quality-gate: レーンの読了の量と指摘の重なり」節 (2026-11-13) の3項目を agentic-coding-tools へ渡すか決める。上流は読了の突き合わせとやり直しを既に入れているので、渡すならレーンの行数の上限と行数での分け方 (2つのリポジトリから届いた)、レーンをまたぐ指摘の束ね方に絞る。起動数の上限をレーンの数から導いた agentic-coding-tools の ISSUE-103 (closed) の裁定と合わせて見る
   - 2026-11-16に足した、機械生成の記録 (1400行) の本文を対象外と明示して手で書いた部分だけをレーンに見せた件 (実測) も、渡すかを同じく決める。pre-merge-quality-gate の使用感として届き、報告者の提案は無い
 - [ ] 2026-11-23に立てた「e2e-scenario-impact-check」節と「commit-and-pr-message」節、と同じ日に足した項目を agentic-coding-tools へ渡すか決める
+- [ ] 2026-11-24に立てた「session-handoff: 注入した引き継ぎ書のキー情報を実物と突き合わせる」節 (hook の側の半分を除く) と、同じ日に既存の節へ足した項目 (simplify を読み取り専用にする節の子、ゲートの順序の節の2周目以降も全レーンを回した項、レーンの読了の量の節の2つの子) を agentic-coding-tools へ渡すか決める
+  - 同じ節の hook の側の半分を、dotfiles の handoff-sentinel の新しい Issue として起票するかを決める
 
 ## 関連
 
