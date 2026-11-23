@@ -10,6 +10,8 @@ status: open
 
 どれも他のセッションの報告で、根拠は報告者の申告 (実測 / 推測 / ドキュメントのみ) をそのまま書く。dotfiles で確かめたものは項目の中で分けて書く。版や仕様は届いた時点のもので、古びる。2026-10-22に届いた7件から足した分は、各節の末尾と、新しく立てた節に置いた。2026-10-23に仕分けた5件から足した分も、各節の末尾と、新しく立てた GitHub の節に置いた。2026-10-31に仕分けた72件 (届いたのは2026-10-22〜2026-10-30) から足した分は、各節の末尾と、新しく立てた節に置いた。2026-11-01に仕分けた2件 (届いたのは2026-10-30) から足した分は、各節の末尾と、既存の項目の子に置いた。2026-11-02に仕分けた1件 (届いたのは2026-11-02) から足した分は、各節の末尾に置いた。2026-11-04に仕分けた5件 (届いたのは2026-11-02) から足した分は、各節の末尾と、新しく立てた CodeSandbox の節に置いた。2026-11-10に仕分けた受け箱の41件 (届いたのは2026-11-04〜2026-11-10) から足した分は、各節の末尾と、既存の項目の子と、新しく立てた節 (Cloudflare の2節、コンテナイメージ、GPUI、Vercel、Tauri、地理データ、Quint) に置いた。2026-11-11に仕分けた受け箱の8件 (届いたのは2026-11-10〜2026-11-11) から足した分は、各節の末尾と、既存の項目の子と、新しく立てた「ブラウザでレスポンシブと文字サイズを測る」節に置いた。2026-11-13に仕分けた受け箱の16件 (届いたのは2026-11-11〜2026-11-13) から足した分は、各節の末尾と、既存の項目の子と、新しく立てた「Cloudflare Turnstile の widget を測る」節に置いた。2026-11-15に仕分けた受け箱の17件 (届いたのは2026-11-13〜2026-11-14) から足した分は、各節の末尾と、既存の項目の子と、新しく立てた macOS の3節 (ディスクイメージと外付けのファイルシステム、画像の色と ICC、ファイル名の Unicode 正規化) に置いた。2026-11-16に仕分けた受け箱の2件 (届いたのは2026-11-15) から足した分は、GitHub の節の末尾に置いた。
 
+2026-11-23に仕分けた受け箱の31件 (届いたのは2026-11-16〜2026-11-23) から足した分は、各節の末尾と、既存の項目の子と、新しく立てた「macOS のファイルの監視 (notify と FSEvents)」節に置いた。
+
 ### Cloudflare Access の後ろの環境へ繋ぐ
 
 - Access の Service Auth ポリシーは、作って保存しただけではアプリに効かない。対象のアプリの Access の設定で、既存のポリシーとして割り当てて保存して初めて service token で 200 になった。割り当て前は token の有無によらず 302 で見分けが付かないので、ポリシーを足す前に「token あり」の 302 を対照として取っておくと、変化の原因を1つに絞れる (実測)
@@ -86,6 +88,7 @@ status: open
 - Workers 向けの Vitest で `*.module.css?raw` を import すると、文字列ではなく CSS Module の proxy が返る。vitest.config の `css.include` に対象を入れると文字列になった (実測)
 - vitest 5が出す isolate: false を勧めるヒントは、isolate を明示的に設定すると出なくなる (実測。条件は vitest のソースで確かめた)
 - vitest は既定で `.cache/` を除外しないので、`.cache/` にリポジトリの複製を置くとその中のテストまで収集し、テストの件数が303から4545に化けた。`test.exclude` に `.cache/` の配下を除くグロブを足して塞いだ (実測)。報告者の提案は、vitest を使うリポジトリでは `test.include` でテストの置き場を列挙すること。既定の全体探索のままだと、書き捨ての置き場や worktree に置いた複製の中のテストまで走る (実測)
+  - 2026-11-23の仕分けで、別のリポジトリから同じ型の報告が届いた。git worktree をリポジトリの `.cache/` の下に置くと、リポジトリのテストランナーが中のテストを拾うおそれがある (vitest の既定の除外は node_modules と .git だけ)。リポジトリの外の兄弟のディレクトリに置いた (推測。拾うことは試していない)
 - wrangler.toml で Durable Object の束ねを守るなら、各要素の鍵を {name, class_name} に exact で縛る。wrangler は script_name (別の Worker) とそれに付随する environment も受け付けるので class_name だけを見る検査は storage を別の場所へ向ける差分を素通しし、migration も legacy の deleted / renamed / transferred_classes は storage を消すか移すので、置ける鍵を {tag, new_sqlite_classes} に絞る (実測。鍵の意味は公式の頁で確かめた)
 - wrangler dev では Content-Length を偽った要求が Worker に届かず、前段の ProxyWorker が待ち続ける。Worker 側で宣言を見て先に拒む門は手元では確かめられず、本番の経路で確かめるしかない (実測)
 - wrangler dev の前段は、Worker が本文を読み残して返した直後の POST を1件落とすことがある (GET は再試行される)。後ろに別の smoke を並べるなら、捨ての POST を1件送る (実測。原因が keep-alive の使い回しというのは推測)
@@ -100,6 +103,10 @@ status: open
 - Vite の dev サーバーで CSS Modules の `composes: x from "<別ファイル>"` の元のファイルを変えても、composes する側の module は作り直されず、古い hash の class 名を指したまま残る。E2E が古い CSS を測って「直したのに赤」になる。dev サーバーを再起動するか、composes する側のファイルを touch すると直る (実測。computed style と class 名の hash を突き合わせて特定)。Vite の版は原文に無い
 - Vite は入口の JS チャンクのハッシュに、そのチャンクが import する CSS のハッシュを混ぜるので、CSS だけを変えても JS のファイル名が変わる。JS の中身はバイト単位で同じだった。出力の比較はファイル名でなく中身で行い、HTML はアセット名を正規化してから比べる (実測)。出力のハッシュでリファクタが挙動を変えないことを示した報告は ISSUE-133 の観測の節にある
 - vitest の `it.each` の名前では `%c` が書式の目印として消え、`%%c` と書いても `% undefinedc` になった。名前に % を入れずに言葉で書いた (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。vitest 4.1の CLI には `--repeat` が無く、`Unknown option` で落ちる。flake を繰り返して再現させるときは、シェルのループで回す (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。vitest の --reporter=json は outputFile を指定しないと既定の場所 (.vitest/json/output.json) へ書き、標準出力には「JSON report written to」の1行しか出さない。標準出力を jq に渡すとパースに失敗する。vitest 5.1.0で確認 (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。`vitest list --json <テストのファイル> ...` と打つと、`--json` が直後の位置引数を出力先として食い、未追跡のテストのファイルをテスト一覧の JSON で上書きした。rc は0で、標準出力は空。後で同じファイルを回すと「No test suite found」で落ち、テストが壊れていると誤読しかけた。一覧が欲しいときは `vitest run <files> --reporter=json --outputFile=<書き捨ての置き場>` を使う (実測)。報告者の提案は、vitest を使うリポジトリの手順書やエージェント向けの指示で、テスト ID の一覧を取る形を `vitest run --reporter=json --outputFile` に寄せ、`vitest list --json <path>` の形を書かないこと。値を任意に取るフラグの直後に位置引数を置く形は、ほかの CLI でも同じ事故を起こしうる (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。`--maxWorkers=0` は vitest がエラーにせず既定値として受け付けたので、「JSON が出ない」経路の対照にならなかった (実測、vitest 5.0.5)
 
 ### Node と Web の API
 
@@ -138,6 +145,8 @@ status: open
   - dotfiles で確かめたこと (2026-11-01、Python 3.15): `ポート5432番` に対して、str の `\b5432\b` と `(?<!\w)5432(?!\w)` はどちらも0件、bytes の `(?<![0-9A-Za-z])5432(?![0-9A-Za-z])` は1件だった。上の項の bytes の手当ては、ここで実測になった
 - Python の shlex は既定で語の途中の `#` からコメントとして捨てる。bash と zsh は語の頭の `#` だけをコメントにするので、コマンドの解析では `commenters = ""` にする (実測)。仕分けたセッションの解釈: dotfiles の apm-install-guard もコマンドを分割して判定するので、ISSUE-124 の誤検知の調査で当てはまるかを確かめるとよい
 - uv の `uv lock --upgrade` を回す recipe は、exclude-newer の値を変えただけでも全依存を上げ先へ解決し直す。値だけを変えたいときも依存の更新が混ざるので、生成物の差分を確かめる手間が要る (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。subprocess.Popen の kill() は vitest の親だけを止め、ワーカーの fork が孤児として残った (実測、vitest 5.0.5)。子プロセスを start_new_session=True で立て、止めるときは os.killpg でグループごと止めると、vitest の親を kill したときに残るワーカーの fork まで止まる (実測)。macOS で、親が終わって回収前 (ゾンビ) で所属が空のプロセスグループへ os.killpg を呼ぶと、ESRCH ではなく PermissionError (EPERM) が返り、回収後は ESRCH になる (実測、macOS 26.7.3)。報告者の提案は、書き捨ての検証スクリプトで子プロセスを止める手順の既定を「新しいセッションで立て、killpg で止め、ProcessLookupError と PermissionError の両方を受ける」にすること (根拠は「効かなかったこと」の1・2件目。実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。`python3 -I -m py_compile <file>` は -I でも隣に __pycache__ を書く (実測)
 
 ### iOS
 
@@ -166,6 +175,8 @@ status: open
 - `-only-testing` は実行を絞るだけで、スキームの全テストのターゲットはビルドされる。自動署名では UI テストの runner の分まで署名が要る (実測)
 - シミュレータ向けの `*-Simulated.xcent` は Xcode にアカウントがある手元では実際の Team ID を持ち、シミュレータで緑でも実機の署名の証拠にならない (実測)。上の実機向けの Release に当てる項と同じく、シミュレータは実機の代わりにならない
 - `xcrun devicectl device process launch` は、端末の画面がロック中だと `CoreDeviceError 10002` (理由は Locked) で起動を断る。install はロック中でも通るので「入ったのに起動しない」形になる。ロックを解除すると同じコマンドが通った (実測)。同じ節に、`devicectl device process launch` が DEVICECTL_CHILD_ の変数を写す項がある
+- 2026-11-23の仕分けで、別のリポジトリから届いた。UI テストの要素を「コンテナの何番目か」ではなく system が付ける identifier で引く形に変え、画面の形が違う2機種のシミュレータで UI の階層を書き出して、親と label の違いを確かめた (実測)。2機種で親は違っても identifier は同じだったので、identifier で引く1つのヘルパにまとめられた。親 (バーかツールバーか) と label の有無は機種で変わった (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。シミュレータの runtime が OS のダウンロードの仕組みの中で止まったとき、OS のカタログから URL と鍵を読み、curl・`aea decrypt`・入れ子の Apple Archive の切り出し・`simctl runtime add` で入れた (実測)
 
 ### React と E2E (Playwright)
 
@@ -185,6 +196,7 @@ status: open
 - 同期に済む処理を待つあいだ (async 関数が await 無しで返り、解決済みの Promise の then が戻すまで) は1 microtask しかなく、テストの側からは観測できない。その処理が同期に呼ぶ API (ダウンロードの a 要素の click など) を `addInitScript` で包み、その中で `queueMicrotask` を積むと、呼び出し側が止めたあと、then が戻す前に走る (FIFO の順)。そこで状態を記録し、もう一度の操作を送れる。変異3種で狙った行が赤になった (実測)。そこから送る2回目の操作の形は ISSUE-88 の INS-27
 - Playwright の実行を1つのシェルで順に連ねると、後の実行が `test-results/` を消すので、先の実行の失敗の trace や screenshot が残らない。失敗しうる実行ごとに `test-results/` を別の場所へ写すか、`--output` を分ける (実測)
   - 2026-11-10の仕分けで、別のリポジトリから同じ型の報告が届いた。Playwright は実行のたびに outputDir (既定の test-results/) を消すので、落ちたテストを単独で流し直した時点で、直前の全件実行の trace・スクリーンショット・error-context が消えた。流し直す前に test-results/ をリポジトリ内の書き捨ての場所へ複製しておくべきだった (実測)。報告者の提案は、E2E の失敗を調べるときの手順に「再実行の前に test-results/ (または playwright の outputDir) を退避する」を入れること。単独の再実行は再現性を見る最初の一手になりやすく、そのたびに一次の証拠が消える (実測)
+  - 2026-11-23の仕分けで、別のリポジトリから同じ型の再報告が届いた。Playwright は run のたびに `test-results/` を空にするので、全件で落ちたテストを調べる前に単独で流し直すと、失敗の trace が消える。先に退避する (実測)
 - ESLint の prefer-const は、宣言のあとで1回だけ代入される `let` を、そのあいだにクロージャから読まれていても「const にできる」と報告する。クロージャへ渡す印を小さなオブジェクトのプロパティにすると通る (実測)
 - 画面に出ない失敗の種類を文言の表から型で除く (Exclude) と、表の死に項目、一致を縛るテスト、E2E の特例がまとめて消え、網羅はコンパイラが強制する (実測)
 - 「Enter で遷移しない」を E2E で見るとき、press は遷移を待たず toHaveURL は最初に一致した時点で通るので、直後の URL の検査は遷移の前に緑になりうる。テストの最後で URL をもう一度見ると、直後の検査を外した変異も末尾の検査だけで赤になった (実測)
@@ -221,6 +233,7 @@ status: open
 - Playwright の page.evaluate に型引数つきのジェネリックな関数を渡すと、引数が Unboxed<A> に包まれて型が合わない。値は JSON の文字列1本で渡す形にした (実測)
 - Playwright の版を上げたあと、手元のブラウザを入れ直さずに E2E を回すと、全件が「Executable doesn't exist」で落ちる。headless shell の revision が変わるため。ブラウザを入れるレシピを打ち直せば直る (実測)
   - 2026-11-13の仕分けで、別のリポジトリから同じ症状の別の契機が届いた。別のプロジェクトで新しい版の Playwright のブラウザを入れたとき、報告元のリポジトリが使う古い版 (`.links` に登録があるのに) のブラウザが消え、E2E が `browserType.launch: Executable doesn't exist` で即座に落ちた。プロジェクトのブラウザの install を回し直すと戻る (実測)。仕分けたセッションの解釈: 親の項は自分のリポジトリで版を上げた場合で、こちらは版を上げていないリポジトリが、ブラウザの置き場を共有する別のプロジェクトの install で壊れる形。古い版が消えた仕組みは原文から読み取れない
+  - 2026-11-23の仕分けで、別のリポジトリから同じ症状の契機と仕組みの報告が届いた。別のリポジトリで違う版の Playwright が `playwright install` を走らせると、共有のブラウザのキャッシュ (`~/Library/Caches/ms-playwright`) から、`.links` に登録されていない版のブラウザが消される。node_modules を入れ直しただけで `playwright install` を通していないリポジトリは link が無いので、実行中の E2E のブラウザが消えた。症状は、走っている run の途中の `Target crashed` と、次の run の最初からの `Executable doesn't exist`。そのリポジトリで `playwright install` を通すと link が登録され、直る (実測)。報告者の提案は、Playwright を使う各リポジトリの依存を同期する入口 (node_modules を入れ直す make のターゲットなど) で `playwright install` まで通して link を登録するか、E2E の入口でブラウザの実行ファイルがあることを先に確かめること (実測)。仕分けたセッションの解釈: 上の2026-11-13の子は `.links` に登録があるのに消えたと書いており、ここで届いた「登録の無い版が消える」仕組みとは前提が食い違う
 - 依存の自動更新の PR で jsdom を30.1.1 → 30.1.3に上げたら、ダイアログの初期フォーカスのテストが1件落ち、原因をリリースノートと react-dom のソースと実ブラウザで切り分けた (実測)。React 19の autoFocus は DOM に autofocus 属性を出さず、commit の layout の段階で focus() を呼ぶ。`<dialog>` を useEffect の中で showModal() するコンポーネントでは、focus() がまだ閉じた (display: none の) dialog の中で呼ばれて捨てられ、showModal() が dialog の最初のフォーカスできる要素 (ヘッダの閉じるボタンなど) へフォーカスを置く。直し方は showModal() の直後に印 (data 属性) の要素へ focus() する helper を1か所に置き、直呼びを構文木の配線テストで禁じる形 (実測)。報告者の提案は、React と `<dialog>` を使うリポジトリでは、ダイアログを開く処理を1つの helper に寄せ、開いた直後のフォーカスを autoFocus ではなく showModal() の後の focus() で置く規約を持つこと (実測)
   - jsdom は30.1.2から display: none の要素への focus() を拒む (リリースノートに明記)。この更新で落ちたテストは、テストの環境が実ブラウザに寄ったことで既存の製品の不具合が見えた形だった。依存の更新でテストが落ちたら、テストを直す前に同じことが実ブラウザで起きるかを測る (実測)
   - jsdom の dialog の polyfill (開閉だけを再現するもの) は実ブラウザの showModal の初期フォーカスの処理を持たないので、ユニットテストでは仕組み (helper が印へ focus を呼ぶか) を見て、実ブラウザの初期フォーカスは E2E の toBeFocused で見る形に分けた。印を外す変異で E2E が赤になることを確かめた (実測)
@@ -241,6 +254,15 @@ status: open
 - 2026-11に Stripe の hosted Checkout が刷新され、入力欄が iframe の中に描かれるようになった (Playwright の accessibility snapshot で ref が別の frame を指す)。日本語の画面では欄の名前も変わった (「CVC」が「セキュリティコード」に、「カード名義」が「カードに記載された名前」に)。`page.getByRole` は iframe に届かないので、Checkout の画面を操作する E2E は欄を待ち続けて timeout する (実測)。報告者の手当ては、Checkout の画面を操作するテストを最小限にし、自分たちの流れの確認は Session の受け止めとテスト用の API での課金済みへの置き換えで行うこと。その方が保守が軽い (実測)。仕分けたセッションの解釈: 同じ刷新を別のまとめが3ブラウザの probe で確かめ、frame を目印の欄で探す手当てを報告した項がこの節にある
 - Stripe の Checkout の URL の path が `/c/pay/` から `/g/pay/` へ変わった形で返り、`/c/pay/` 固定の正規表現で Session の id を取っていた E2E が落ちた。外部サービスの URL の形を固定する正規表現は、変わったら大きな声で落ちる形 (id が取れなければ例外) にしておくと気付ける (実測)
 - 検索の UI で、「debounce した入力値」と「URL の検索パラメータ」という2つの状態がずれる300msの窓があり、effect が両者の差を見て古い値を再検索していた。既存の E2E は毎回空の状態から始めるので、前の値が空の経路しか通らず捕まえられなかった。debounce と URL の同期を持つ検索の UI の E2E は「結果がある状態からの再検索」と「debounce より速い送信」を対照に含めるべき (実測)
+  - 2026-11-23の仕分けで、別のリポジトリから同じ型の競合の再現と測り方の報告が届いた。debounce より早い送り直しの競合は、MCP のクリックや fill を順に打つと間に合わず再現しないことがあるが、1回のスクリプトで値の設定と requestSubmit を続けて行うと決定的に再現し、前の語の要求が277msの時点で出て結果を上書きするところまで観測できた (実測)。修正の効果を本番で BEFORE として採るのにも、ブラウザの evaluate_script で入力値の設定と送信を同じ tick で行い、Resource Timing から送信後の要求を拾う形を使った (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。文言で数を当てる locator は、対照 (変更前に必ず見える画面で visible になること) と、否定の文言 (「結果が見つかりませんでした」など、同じ語を含む空の表示) に当たらない形の両方が要った。最初の正規表現は英語の空の表示にも当たって偽の赤を出した (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。react-router 7.18.6の `redirect('//host')` は `302 Location=//host` をそのまま返し、`/\host` だけを `External navigation is not allowed` で throw する。上流は protocol-relative を明示的な外部 URL として許すので、戻り先の検証をフレームワークに任せられない (インストール済みの7.18.6を node で呼んで実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。react-router 7.18.6 (上流の PR 15784) は document の HEAD の捨てる本文を cancel するようになり、React の `renderToReadableStream` の `onError` に `The render was aborted by the server without a reason.` が届く。テンプレート由来の entry.server が shell の後のエラーを全部記録していると、HEAD のたびにエラーのログが出る。HEAD のときは記録しない判定を純粋関数に切り出して表で pin した (ローカルの dev サーバーで HEAD 2本で1行、直したあと6本で0行を実測)。報告者の提案は、テンプレート由来の `entry.server` の `onError` を持つリポジトリで react-router を7.18.6以上へ上げるときは、HEAD の cancel をエラーとして記録しない手当てを同時に入れること (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。react-router 7.18.6の `generatePath` は param を encode する (`a/b` → `/a%2Fb`、`\evil` → `/%5Cevil`)。`href` は encode せず、`a/b` は `/a/b`、`\evil` は `/evil` になる。node で直接呼んで確かめた。パスの組み立てに href を使うと、細工した値で別のパスや外部の URL ができる (実測)。報告者の提案は、react-router の `href` が param を encode しないことを、フロントエンドの規約か library-contract の契約テストの例として持っておくこと (実測)。同じ版の `redirect('//host')` が protocol-relative を外部 URL として通す項がこの節にある
+- 2026-11-23の仕分けで、別のリポジトリから届いた。不具合の原因を探すとき、推測で直さずに一時的な console 計測を hook と子コンポーネントに入れ、E2E から console を拾って effect の実行順と state の値を並べた (実測)。同じまとめの効いたこととして、React の StrictMode (開発ビルド) ではマウント直後の effect が2回走る。子の effect が「描画の時点の値が未設定なら既定を入れる」を値渡しで積み、親の effect が URL から読んだ値を積むと、2回目の子の既定が最後に積まれて勝つ。既定を関数形の更新 (`set(prev => prev ?? default)`) にすると、積まれる順に依らず URL の値が残る。StrictMode あり / なしの両方で回すテストを作ると、なしの行は修正前も緑の対照になる (実測)。報告者の提案は、React のフロントエンドの規約に「親が持つ state を子の effect が既定で埋めるときは関数形の更新にする」を足し、StrictMode あり / なしの両方で回すテストを例として置くこと (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。部分一致の文言の assertion (`getByText('1 件選択中')`) は「11 件選択中」でも通る。`{ exact: true }` で全文を見ると、「選択が全件に化ける」変異で赤くなった (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。テナントや組織の文脈 (claims) が別のタブの操作で変わると、マウント済みの画面は前の文脈の state を持ったまま、名前・URL・以後の書き込み先だけが新しい文脈になる。解決の結果を「どの auth (種類・組織・利用者) に対するものか」の鍵と組で state に持ち、描画のときに今の鍵と違えば解決中と読んで画面を外すと、作り直しになる。effect の中で同期の setState をしない形なので、react-hooks/set-state-in-effect の lint にも当たらない。E2E は名前や URL だけでなく、前の文脈のデータが消えることまで見ないと、この状態を仕様として固定してしまう (変異で赤を確認。実測)。報告者の提案は、マルチテナントの SPA の作法に「文脈の解決の結果は auth の鍵と組で持ち、鍵が変われば画面を作り直す」を足し、E2E は前の文脈のデータが消えることまで見る、を添えること (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。複数のタブで同じセッションを共有するアプリで、effect のたびに「URL の組織へ切り替える」と、別の組織を開いた2つのタブが claims の更新を通じて互いを切り替え合う恐れがある。切り替えは1ページの読み込みにつき1回にし、Promise を ref に持って走り直しでも同じものを待つ形にした。1回の守りを外す変異で、2つのタブの E2E が赤になった (実測)。同じまとめの、文脈の解決の結果を auth の鍵と組で持つ項がこの節にある
 
 ### Playwright でスタイルと配置を測る
 
@@ -282,6 +304,7 @@ status: open
 - 同じ class を button と a に付けると、baseline で44px に伸びたとき button は中身を上下中央に置き、a は置かないので文字が上に寄る (実測)
 - iframe の中ではモバイルの「横にあふれると layout viewport が広がる」挙動が起きないので、その連鎖は上の iframe 方式では再現できない。横あふれの値で代わりに判定した (実測)
 - 報告者の提案は、上の計測の手順 (checkVisibility、scrollWidth と clientWidth、中のスクロール領域の特定、横あふれと layout viewport の連鎖、iframe 方式の射程) を、ブラウザで実測する skill か参照ファイルにまとめること。次の棚卸しで同じ偽陽性を踏まない (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。文字サイズのような表示の設定が first paint 前のインラインスクリプトとマウント時の hook の2段で適用されていると、前段だけを一時的に差し替えても後段に上書きされる。後から勝つ側を差し替える (実測)
 
 ### Cloudflare Turnstile の widget を測る
 
@@ -308,6 +331,7 @@ status: open
 - Reporting API の報告は数十秒まとめてから送られるので、違反を起こした直後にタブの context を閉じると、報告は送られずに消える (実測)
 - インラインの `style="width:2000px"` で作ったはみ出しの対照は、厳しい CSP の下では style が消されてはみ出さない。属性で幅を出す `canvas` を使う (実測)
 - CSP の違反の報告で disposition が欠けていたら WebKit (Safari 系) の report-uri の形と読める。止めたもの (blocked) と出所 (source-file のスキーム) を別の列で並べると、「http で開かれたページへの外からのインラインの差し込み」まで読み分けられた (実測)。この節の、report-uri の宛先を相対のパスにする項と、Reporting API の報告を CDP で受ける項は Chromium の側
+- 2026-11-23の仕分けで、別のリポジトリから届いた。Permissions-Policy に browsing-topics=() を並べたままだと、Chromium 159 (Playwright 1.65.1の159.0.8154.6) は知らない機能として console に warning を出す。console の warning を数える E2E はほぼ全件が落ちる。本番の Chrome 159の利用者の console にも出る。Topics を断るために同じ指定を入れている他のサイトでも同じことが起きる (実測)。報告者の提案は、Permissions-Policy に browsing-topics を書いている他のリポジトリを洗い出し、外すかを決めること (実測)
 
 ### SVG とデザインツールの書き出し
 
@@ -413,7 +437,9 @@ status: open
   - 報告者の提案は、secret を CI に渡すリポジトリの共通の規約として、「secret manager のトークンはリポジトリの secret に置かず、environment の secret に環境ごとの名前で置く」を検討すること (ドキュメントのみ)
   - 2026-11-11の仕分けで、別のリポジトリから同じテストが広がった報告が届いた。「environment を持たない job は GITHUB_TOKEN 以外の secret を読まない」という parametrize のテストが、新しく足した job にも自動で広がって2件増えた。テスト ID の集合を前後で比べて、増えた分の由来を特定できた (実測)
   - 2026-11-11の仕分けで、別のリポジトリから org の secret の見え方の報告が届いた。visibility が selected で対象リポが0件の org の secret は、リポ側の Settings 画面に出ない。リポ側だけを見て「消えた」と判断すると誤る。`gh api orgs/<org>/actions/secrets` で数える (実測)。上の「org レベルに同じ名前の secret が無いかも名前だけで確かめる」の子の項 (対象リポは0件で無害だった) と同じ状態を、画面の側から見た形
+  - 2026-11-23の仕分けで、別のリポジトリから届いた。secret を repo と environment の両方に同じ名前で置いた状態で緑を見ても、どちらが使われたかは分からない。repo 側を消してからもう一度回して緑なら、environment 側の値が効いている (実測)。仕分けたセッションの解釈: 上の、名前を環境ごとに変える項とは別の手当てで、同じ名前のまま移すときの確かめ方。同じ知見は、この節の「デプロイは main からのみ」の項の子の、移す順序の報告 (同名の secret は Environment 側が勝つので、リポジトリ側を残したままの緑は証拠にならない) にあり、こちらはそれを確かめ方として言い直した形
 - environment の保護規則で拒否される job の負のプローブで、1回目の dispatch が job0件・GitHub の Internal server error で終わり、「拒否」と「障害」の区別が付かなかった。re-run の2回目で job が作られ、step 0・runner なし・annotation に保護規則の拒否が出た。負のプローブの判定は conclusion ではなく、job の有無と annotation の本文で行う (実測)
+  - 2026-11-23の仕分けで、別のリポジトリから同じ型の報告が届いた。environment の配信の規則を main だけにすると、別のブランチを ref にした workflow_dispatch の job は「Branch ... is not allowed to deploy to <env> due to environment protection rules」でステップ0本のまま止まり、理由は check run の annotations にだけ出る (実測)。仕分けたセッションの解釈: この節の「デプロイは main からのみ」の項の子の、live の確認の報告と同じ観測
 - 1Password の load-secrets-action は、OP_ENV_FILE のパスが読めないと何も読み込まずに成功する。前の step で `test -f` する必要がある (ドキュメントのみ。action のソースを読んだ subagent の報告)
 - GitHub Actions の workflow lockfile (`.github/workflows/actions.lock`、`gh actions-lock` 拡張 v0.4.0) へ、全 `uses:` を SHA で固定済みの workflow を移した (実測)。別の報告は、lockfile が2026-10-28に GA になったとしている (ドキュメントのみ)
   - `gh actions-lock --no-fix` を先に打つと、書き込まずに onboarding で何が変わるか (SHA の ref を tag の ref へ書き換えること) が分かる。生成後の lockfile の commit は元の SHA と一致し、`--verify` で検証できる (実測)
@@ -422,6 +448,7 @@ status: open
   - lockfile の強制 (Require lockfile) の policy は、REST の Actions policies の文書に rule の型が載っていない。UI (Settings > Actions > Policies) で作ったものを `GET repos/<owner>/<repo>/actions/policies/<id>` で読むと rule は `{"type":"require_lockfile"}`、対象は `workflow_path.include: ["~ALL"]` だった。一覧の GET は rules を返さないので詳細を引く (実測)。別の報告は、この policy は REST の作成と更新で弾かれるという報告があるので、画面でしか有効にできない前提で計画するとしている (ドキュメントのみ)
   - lockfile が古い PR では、workflow が `startup_failure` になって PR の check の一覧に出ないと報告されている。CI の結論は check の一覧ではなく run の一覧で見る必要がある (ドキュメントのみ。第三者の検証記事)
   - 報告者の提案は2つ。1つは、全 action を SHA で固定済みのリポジトリへ lockfile を入れるときの手順 (`--no-fix` で差分の形を見る、lockfile の commit が元の SHA と同じかを確かめる、SHA 固定の強制はそのまま有効にできる、Require lockfile は main に入ってから有効にする) を横断の手順として持っておくこと (実測とドキュメント)。もう1つは、Actions を使う全リポジトリで採用を検討すること。composite の action が内部で使う action まで commit を固定でき、SHA の固定だけでは届かなかった推移的な依存を塞げる。sha_pinning_required は API で入れられる安い下敷きとして併用する (ドキュメントのみ)。仕分けたセッションの解釈: dotfiles 自身も Actions を SHA で固定しているので採否の対象になる
+  - 2026-11-23の仕分けで、別のリポジトリから届いた。Actions の lockfile を強制しているリポジトリでは、lockfile に載っていない workflow を push すると、run は startup_failure で job が0本になり、理由は「workflow file issue」としか出ない (実測)。仕分けたセッションの解釈: 上の、lockfile が古い PR で startup_failure になるという第三者の報告と近い形を、別の経路で踏んだもの
 - deploy の workflow で、リリースタグの作成を smoke テストの job の中の step から独立した job へ切り出し、その job だけに `contents: write` を付けて `github.token` で作り、top-level の permissions は read にした (実測。workflow の静的テストと10種の変異で確認、配信での実行はこれから)。独立した job にすると、書き込み権限をその job へ閉じられ、タグの作成の失敗が rollback の条件 (smoke の job の failure) に乗らなくなる。step のままだと、トークンの失効だけで smoke が緑でも健全な配信が巻き戻る (実測。YAML の構造で確認)。報告者の提案は、規範の「タグを作るときは contents: write」を workflow level ではなく job level で書き、top-level は read か `{}` にして、書き込みは必要な job にだけ足すこと。全 workflow の top-level に write が無いことをテストで固定する案も、規則を置く層として検討の価値がある (推測)。dotfiles で確かめたこと (2026-11-11): この項を足す前の docs/issues と CLAUDE.md・rules・references に `contents: write` は0件で、報告者の言う規範は dotfiles の規範層には無い。dotfiles の `.github/workflows/mise-update-check.yml` は top-level の permissions に `issues: write` を持ち、`test.yml` は `contents: read` だけを持つ。仕分けたセッションの解釈: 報告者の言う規範は報告元のリポジトリのもので、top-level に write を置かない形を採るなら dotfiles の mise-update-check.yml も対象になる
 - GitHub の environment を削除すると、その中の secret と deployment branch policy も一緒に消え、API は environment ごと404を返す。作り直すときに environment 名をタイポすると workflow の `environment:` と一致せず、次の実行で保護なしの空の environment が自動で作られうる。作り直したら名前の集合、secret の名前、branch policy を API で数え直す (実測)
 - GitHub の environment の名前は大文字小文字を区別しない。`Staging` で作っても `environments/staging` で引ける (実測)
@@ -441,6 +468,8 @@ status: open
 - コンテナの tag は Dependabot が上げないので、イメージの版と lockfile の @playwright/test の版の一致をユニットテストで pin すると、npm 側の更新の PR で赤くなる。workerd では node:fs が無いので `?raw` で YAML を読み、正規表現はキーの行に固定してコメントの行を拾わない (実測、変異注入で確認)
 - digest 固定の node のイメージを root のまま動かすと、checkout の後の git が dubious ownership で落ちる (ワークスペースは uid 1001で、checkout の safe.directory は後続に残らない)。`--user 1001` で揃えて解消し、テストで pin した (実測)
 - CI と同じ digest 固定の Playwright 公式イメージをローカルの Docker で動かし、全ブラウザの E2E を回した。リポジトリを読み取り専用でマウントしてコンテナの中へコピーし、node_modules は中で入れ直し、webServer が呼ぶタスクランナーがイメージに無いときは使う recipe だけの使い捨ての shim を置いた (実測。ホストのブラウザが欠けていても全ブラウザで確かめられた)
+  - 2026-11-23の仕分けで、別のリポジトリから同じ型の報告が届いた。Apple Silicon のホストから `docker run --platform linux/amd64` (Rosetta) で、CI の ubuntu と同じ道具の表 (linux-x64 の行しかない) を入れて、非 root で preflight を丸ごと回した (実測)
+  - 2026-11-23の仕分けで、別のリポジトリから届いた。CI でだけ飛ばす分岐 (`CI` の環境変数を見るレシピ) があるリポジトリでは、ローカルのコンテナで CI を再現するときに `CI=true` を立てないと、ホストにしか無い資産 (ホームの設定ディレクトリにある skill など) が無いことで止まる (実測)
 - 報告者の提案: 「ローカルのコンテナで検証する」の具体例として参照ファイルに置く
 
 ### コンテナイメージの配信と trust store
@@ -470,6 +499,11 @@ status: open
   - dotfiles で確かめたこと (2026-10-23): `gh api 'user/repos?affiliation=owner,organization_member'` で見える87件のうち、private の36件で `has_pages` が true のものは0件だった。対照として、public の51件のうち4件は true を返した。gh-pages のブランチの中身は見ていない。棚卸しの手順を置く場所は決めていない
 - GitHub の資格情報を盗んで workflow を注入し、すぐ revert して run を消すキャンペーンの IOC を、Org の全リポで gh の読み取り API だけで探した (実測)。revert と run の削除で痕跡を消す攻撃には、既定のブランチのコミット履歴 (revert しても残る) と、workflow ごとの `run_number` の欠け (`最大 - 最小 + 1 - 件数`) を見るのが効く。欠けの検査は、期間の直前の最後の run 番号とつながるかも見ないと、期間の最初の run の削除が見えない (実測)。作って消されたブランチや PR は今のブランチの一覧には出ないので、`repos/{repo}/events` (90日、最大300件) の CreateEvent / DeleteEvent / PullRequestEvent の ref とタイトルで追う (実測)。IOC の0件を結論にする前に、同じパターンを合成した IOC の行に当てる陽性の対照を並べると、パターンの書き間違いによる空振りと区別できた (実測)。`orgs/{org}/audit-log` は Enterprise Cloud 以外の Org で404。盗まれた資格情報での操作は本人の操作として記録されるので、資格情報が無事かはアカウントの security log の画面でしか確かめられない (実測)。報告者の提案は、この探し方 (コミット履歴・run 番号の欠けと境界・events・artifact と cache・既定のブランチの tree と workflow の中身、陽性の対照つき) を、リポを越えて使える skill かスクリプトにすること。dotfiles で確かめたこと (2026-11-13): グローバルの CLAUDE.md の観測カテゴリは、64行目で「0 件」「空」「緑」を健全の根拠にする前に正常なら非空になる対照を並べることを既に求めている。陽性の対照の項はその実例にあたる。同じ探し方の報告は ISSUE-133 のセキュリティの節にもある
 - 2026-11-16の仕分けで、別のリポジトリから届いた。GitHub の Free・Pro・Team では、private リポジトリの Environment で required reviewers と wait timer が使えない (public だけ)。タグの push だけでデプロイの secret に届く経路を承認者で閉じる案は、Pro の private では取れない。公式の文書の Deployments and environments で確認し、画面では確かめていない (ドキュメントのみ)。タグの push だけでデプロイと Release を作る形と、Environment のブランチのポリシーで main に絞る項は「GitHub Actions と Node の版」節にある
+- 2026-11-23の仕分けで、別のリポジトリの2つのまとめから届いた。write を持つ外部の開発者を受け入れる private リポジトリで、main の ruleset を承認の ruleset とそれ以外に分け、repo secret を main だけを通す environment と配信の environment へ移した。admin の視点で、設定の読み戻し、admin なしのマージの拒否、main 以外の ref の拒否、使い捨てのブランチの run で secret が空になることを確かめた (実測)。報告者の提案は、外部の write の協力者を受け入れる前の確認の型 (承認の ruleset と bypass なしの ruleset への分割、CODEOWNERS の `*`、承認の後の push で承認を外す、repo secret を environment へ移して repo 側を消してから再実行、別 ref の dispatch の拒否を annotations で見る、probe は値を出さず対照を並べる) を参照ファイルに置くこと。根拠は同じまとめの「効いたこと」の3〜8件目で、この節と「GitHub Actions と Node の版」節に分けて置いた (実測)。もう1つのまとめの提案は、外部の人を受け入れる前の点検の観点に「保護規則の承認の必須数」と「リポジトリ単位のシークレットに、同じリポジトリのブランチの PR や push で動く workflow が届くか」を入れること。fork が無効なリポジトリでは外部の人も write でブランチを push するので、fork からの PR の制限では守られない (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。ruleset の bypass はルールではなく ruleset 単位で効く。承認だけを admin に飛ばさせ、必須のチェックと force push の禁止は誰にも飛ばさせないなら、ruleset を2つに分けて bypass は承認の側にだけ付ける。読み戻すと admin の current_user_can_bypass は、bypass なしの側が never、pull_request の形の側が pull_requests_only だった (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。write を持つ人が2人いると、承認の必須数1だけでは互いに承認しあえる。CODEOWNERS の `*` を維持者に持たせて code owner のレビューを必須にし、dismiss_stale_reviews_on_push で承認の後の push を塞ぐ (設定の読み戻しまで実測。write のアカウントで破る確認はしていない)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。使い捨ての probe の workflow は、値を出さず空かどうかだけを出し、必ず値がある GITHUB_TOKEN を同じ形で読む job を対照に並べる (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。必須のチェックは「GitHub Actions のアプリが付けた同じ名前の check」しか求めないので、write を持つ人は別の workflow から check run を偽造できる見込み (推測。反証役の推論で、試していない)
 
 ### GitHub の CLI とリポジトリの管理
 
@@ -477,10 +511,12 @@ status: open
 
 - `gh api .../actions/jobs/<id>/logs` は、ログが端末のエスケープシーケンスを含むと出力を拒んで rc 1になり、リダイレクト先は0行になる。`--allow-escape-sequences` を付けると取れる (実測)
   - 2026-11-10の仕分けで、2つのまとめから同じ型の報告が届いた。拒んだときの出力は本文の代わりに「--allow-escape-sequences を渡せ」という1行で rc=1になり、その出力に grep をかけると0件になり、「見ていない0件」が健全に見える。`gh run view <run> --job <id> --log` なら取れた (実測)
+  - 2026-11-23の仕分けで、別のリポジトリから `gh run view --log` の出力の形の報告が届いた。出力の色の印は ESC ではなく `^[[36;1m` という文字列そのもので、`grep -vF '^[[36;1m'` で除く (実測)
 - gh pr create が GraphQL の汎用エラーで失敗したとき、作り直す前に `gh pr list --head <branch> --state all` で存在を確かめると、1回目は作られず、2回目は作られたうえで assignee の設定だけが落ちていた。再実行の前に存在を、作られた後に title・body・assignee・head を個別に確かめる (実測)
   - 2026-11-10の仕分けで、別のリポジトリから GitHub 側の書き込みが続けて失敗した報告が届いた。push が `fatal error in commit_refs_rules` で、同じ時間帯の squash merge が GraphQL のエラーと REST の空応答で、それぞれ続けて失敗した。githubstatus は正常だった。ブランチ名を変えた push は通り、merge は数分あけた再試行で通った。原因は特定できていない。ブランチ名が原因だと決めるには根拠が足りない (実測)。報告者の提案は、GitHub 側の書き込みが続けて失敗したら、叩き続けずに状態 (PR が merge されていないこと、main が動いていないこと) を確かめてから、数分あけて1回だけ再試行する手順を共通の運用に置くこと (実測)
 - `gh run download <id> -n <artifact>` で artifact を1つだけ落とすと、artifact の名前のサブディレクトリが作られず直下に置かれる (全部落とすときは作られる) (実測)
 - Dependabot の版の更新の PR が届いていても、脆弱性の通知 (Dependabot alerts) は別のスイッチで無効のことがある。`gh api .../dependabot/alerts` が403 disabled なら無効で、`PUT .../vulnerability-alerts` で有効にし (GET が204で確認)、有効にした直後の0件は dependency-graph/sbom のパッケージ数が非空であることを対照に読む (実測)
+  - 2026-11-23の仕分けで、別のリポジトリから報告者の提案が届いた。依存のアラートに気づく仕組みが無いリポジトリでは、アラートが1か月で70件以上たまった。定期的に open のアラートを数えて差分だけを知らせる仕組みを、CI の費用の小さい形で検討する (推測)
 - 報告者の提案: 管理しているリポジトリの定期点検に、Dependabot alerts の有効を入れる
   - 2026-11-10の仕分けで、別のリポジトリから報告者の提案が届いた。dotfiles の監査の手順で、依存の脆弱性を lockfile の1件として挙げるときは、`dependabot/alerts?state=open` の件数も並べる。その報告では1件の指摘に対して実際の open alerts は92件だった (実測)。仕分けたセッションの解釈: どの監査の手順を指すかは原文から特定できない
 - 個人アカウントの private のリポジトリを REST の transfer API で organization へ移し、前後で repo の設定 (ruleset、rules/branches、Environments と保護、secret と variable の名前、Actions の権限、webhook、deploy key、collaborator、autolink、repo 本体) を JSON に写し、id・URL・タイムスタンプ・owner など必ず変わるキーを jq の walk で落としてから diff すると、残った差分だけが読むべきものになった。transfer の POST の応答は旧い owner の full_name と null の visibility を返し、移管は非同期なので、新しい名前で GET し直してはじめて完了が分かる (実測。21ファイル中20が一致し、差分は repo 本体の4項目)
@@ -493,13 +529,17 @@ status: open
 - `gh run rerun <run> --failed` の後は、再実行していない成功の job も API 上で新しい job id が振られて見える。`started_at` が元の時刻のままなら再実行されていない。ログは新しい id で取り直さないと前回の失敗のログを読む (実測)
   - 2026-11-13の仕分けで、別のリポジトリから同じコマンドの報告が届いた。外部ミラーの不調で CI の1段だけが timeout した run を、翌日に `gh run rerun --failed` で落ちた job だけ再実行し、緑の job は同じ run の中で再利用させた (実測)。仕分けたセッションの解釈: 親の項 (再実行していない成功の job にも新しい job id が振られ、`started_at` は元の時刻のまま) と同じ再利用の挙動で、報告は job id には触れていない
 - `GET repos/{owner}/{repo}/rules/branches/{branch}` が `[]` なら、リポジトリと組織のどちらの ruleset もそのブランチに効いていない。「PR 必須のつもり」の private リポジトリで実際には何も強制されていなかったのを、この API で見つけた (実測)
+  - 2026-11-23の仕分けで、別のリポジトリから同じ API を定期の検査に使った報告が届いた。毎朝の定期の workflow で `rules/branches/<branch>` を GITHUB_TOKEN で読めば、ruleset のルールの parameters (承認の数・code owner・承認を外す) まで確かめられる。ruleset の一覧や bypass は GITHUB_TOKEN では読めない (実測)
 - `gh pr merge --match-head-commit` は短縮の SHA を受け付けず、GraphQL の `Could not coerce value ... to GitObjectID` で落ちるので、40桁で渡す (実測)。別の報告では、Dependabot の PR を続けてマージすると、lockfile がぶつかる PR は Dependabot が rebase して head が変わり、`--match-head-commit` に前の sha を渡した実行は「Head branch was modified」で止まった。マージのコマンドは毎回 head を引き直してから組む (実測)
   - 2026-11-11の仕分けで、別のリポジトリから拒否の形の報告が届いた。`gh pr merge --match-head-commit` にわざと古い SHA を渡すと、rc=1で `GraphQL: Head branch was modified. Review and try the merge again. (mergePullRequest)` と出て、PR は OPEN のまま残った (実測)
+  - 2026-11-23の仕分けで、別のリポジトリから同じ型の再報告が届いた。`gh pr merge --match-head-commit` に短縮した SHA を渡すと GraphQL が `Could not coerce value ... to GitObjectID` で拒否する。全桁で渡す (実測)
 - `gh pr diff` にはパスで絞る引数が無い。パスを渡しても何も出ないので、差分をファイルに書いてから diff --git の区切りで切り出す (実測)
 - `gh` の `--jq` は jq のオプション (`-c` など) を受け付けず、`accepts 1 arg(s)` で失敗する。整形は `tojson` を式の中で使う (実測)
 - `gh pr checks --watch` の出力をファイルへ書いて tail で読むと、書き直しのたびの一覧が縦につながる。そのため「test が pending なのに集約のジョブが pass」に見える行の並びができ、集約のジョブが待たずに緑になったと誤読しかけた。順序は actions の jobs API の started_at / completed_at で確かめる (実測)。dotfiles で確かめたこと (2026-11-11): `home/.claude/references/observation.md` は既に、`gh pr checks --watch` などの成否を持つ長時間コマンドの結論は専用クエリ (`gh run view <id> --json conclusion` 等) で確かめると書いている。CI の待ち方は ISSUE-132 の「pre-merge-quality-gate: ゲートの順序、増分、CI の待ち方」節にもある
 - Dependabot の版の更新を見るときに、到達先の版が上流の security advisory の範囲に入っていないかまで読ませたら、critical の advisory の範囲内の版への PR だと分かった。advisory は上流のリポジトリには公開されていたが、グローバルの Advisory Database にはまだ無く、pnpm audit は緑のままだった。audit の緑は「上流にしか載っていない advisory は見ていない」 (実測)。報告者の提案は、Dependabot の PR をマージする前に、到達先の版が上流の security advisory (GitHub のリポジトリの advisories) の範囲に入っていないかを確かめる手順を入れること。pnpm audit と Dependabot alert はグローバルの Advisory Database しか見ない (実測)。この Issue の「Rust と依存の脆弱性」節の、GitHub の Advisory DB が RustSec の項目を全部は取り込んでいない項と同じく、グローバルのデータベースの外にある advisory を audit や alert の緑が見ない型
+  - 2026-11-23の仕分けで、別のリポジトリの2つのまとめから同じ型の報告が届いた。ある JS のフレームワークの依存の脆弱性を、パッケージマネージャの audit、GitHub のグローバルな Advisory DB の API、配布元のリポジトリの security advisory の API の3つで引き比べた (実測)。配布元のリポジトリの advisory の API (`/repos/<owner>/<repo>/security-advisories`) は公開当日の advisory を返し、公開から4日たってもグローバルな DB (`/advisories`、`/advisories/<GHSA>`) は同じ ID を404で返していた (実測)。audit は公開から4日たった High 3件を含む advisory を1件も出さなかった。グローバルな DB を引いているからで、その DB 側が未掲載だった。audit の0件を「その依存に既知の脆弱性は無い」の根拠にできず、検索で見つけた二次情報の GHSA の ID もグローバルな DB では404なので、そこだけを見ると「実在しない ID」に見える (実測)。もう1つのまとめも、配布元のリポジトリの `/security-advisories` の advisory は公開から4日たっても `pnpm audit` と GitHub Advisory DB に出ていなかったと書いている (前のセッションの観測を引き継ぎ。今回は配布元の API だけを使った。ドキュメントのみ)。報告者の提案は、依存の脆弱性の確認手順に配布元のリポジトリの security advisory の API を必須の入口として足し、audit とグローバルな DB の0件だけで「影響なし」と結論しないこと (根拠: 効かなかったことの1件目。実測)
 - `gh search commits "\"<メッセージ>\""` は引用符で囲んでもあいまい一致で、IOC のコミットのメッセージで自分のアカウントを検索すると無関係なコミットが5件当たった。件数を IOC の有無の判定に使わず、当たったコミットの1行目と日付を必ず開く (実測)。IOC を当てるときの0件の対照 (run の番号の連番) は ISSUE-133 の「セキュリティ」節にある
+- 2026-11-23の仕分けで、別のリポジトリから届いた。Dependabot のブランチを手元でマージし直して push しようとしたら、その間に Dependabot が自分で rebase していて fast-forward で弾かれた。force はせず、Dependabot の head を main に重ねたツリーが手元で検証したツリーと同じか (git merge-tree の結果と diff) を確かめて、Dependabot の版を使った (実測)
 
 ### pnpm
 
@@ -561,6 +601,7 @@ status: open
 - `pnpm install --offline --frozen-lockfile` は、同じ lockfile でも、手元の store に無いパッケージ (別のマシンや CI で解決された版) があると ERR_PNPM_NO_OFFLINE_TARBALL で落ちる。worktree の対照を作るときは、オフラインを前提にしない (実測)
 - pnpm 12の minimumReleaseAge が何に掛かるかを、同じ手順の対照で確かめた。公開から1日の npm のパッケージでは lock が止まり、公開から2日の devEngines.runtime の Node では止まらなかった。Node のセキュリティリリースを急いで入れるのに minimumReleaseAgeExclude は要らない。lock のログの「verified Xh ago」は検査を使い回したようにも読めるので、止まる側の対照を並べないと「方針が掛からない」とは言えない (実測)。仕分けたセッションの解釈: 報告は minimumReleaseAge の値を書いていない。値が1日より長く2日より短いなら、2日の Node が止まらないのは公開からの日数が値を超えていたからでも説明でき、「devEngines.runtime には掛からない」の証拠にならない。値が2日以上だったかを確かめてから採る。この節の、minimumReleaseAge を変えると「verified Nd ago」のキャッシュが外れる項と、pnpm 12.9の frozen install が lockfile の各版を minimumReleaseAge で検査する項と並ぶ
 - lockfile の差は、`packages:` 節の見出しのキーの集合を前後で diff し、変わった各パッケージを `pnpm view <pkg>@<ver> dependencies` の宣言と突き合わせると、版上げで説明がつくかを数行で判定できた (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。Dependabot の pnpm の更新で、上げたパッケージ本体は新しい推移依存を要求するのに、一緒に使う兄弟のパッケージがゆるい範囲 (^8.0.0など) で同じ推移依存を要求すると、兄弟の側だけ lockfile に残っていた古い版に解決され、同じパッケージが2版並ぶ。型検査は通り、テストの実行時に内部の関数が無いと落ちた。手元で package.json を上げて pnpm install し直すと1版に揃った。lockfile の「2版以上あるパッケージの一覧」を main と並べると、変更が重複を増やしたかが一目で分かる (実測、pnpm 12)
 
 ### Biome
 
@@ -577,6 +618,15 @@ status: open
 - biome 2.5.14から、HTML (Astro / Vue / Svelte も) で aria-label だけを持つアイコンのリンクを useAnchorContent のエラーにする (JSX と同じ判定)。リンクの中に視覚的に隠したテキストを置く形へ移すと通る (実測)。2.5.12からは noDescendingSpecificity の検出の範囲も広がり、別の要素どうしの比較が出る (changelog による)
 - Biome の `// biome-ignore` をオブジェクトのプロパティの前に置いていたら、値の文字列が長くなって formatter が `key:` の次の行へ折り返したとき、抑制がプロパティ名の行に当たって空振りし、元の警告と `suppressions/unused` の2件が出た。抑制のコメントは、警告の出る式 (文字列そのもの) の直前の行に置く (実測)
 - ソースを走査する検査のテストで、テンプレートリテラルの差し込みの例を普通の文字列 (`'${name} is missing'`) に書くと、Biome の lint/suspicious/noTemplateCurlyInString が警告を出す。テスト名に書いても同じ。例は `['$', '{', expr, '}'].join('')` のように実行時に組み立てる (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。eslint から Biome へ載せ替えられるかを、ファイルの種類ごとに `eslint --print-config` で取り出した有効なルールの和集合を先に作り、範囲ごとの調査役と、独立した検証役と批評役を置いた Workflow で対応表にした (実測)。報告者の提案は、この調査の手順 (有効なルールの和集合を取る → 範囲ごとに対応表 → 検証 → 批評) と、同じまとめの「効かなかったこと」にある Biome の3点を、他のリポジトリでも使える形で残すこと (実測とドキュメント)。同じまとめの Biome の個々の罠は、この節の続く項に置いた
+- 2026-11-23の仕分けで、別のリポジトリから届いた。ast-grep で React の set-state-in-effect を近似するとき、名前 (`set[A-Z]`) だけで拾うより、同じ関数の中の `useState` の分割代入に結びつけるほうが誤検出が少なかった。あるリポジトリで eslint の37 effect のうち36を検出し、本番のコードでの誤検出は0件だった (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。Biome 2.6.8には、eslint の bulk suppressions に当たる「ファイルとルールごとの件数の baseline」が無く、行ごとの `biome-ignore` へ書き換えることになる (ドキュメントのみ)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。eslint-plugin-react-hooks v7の React Compiler 系のルールは、Biome では nursery の `useReactCompiler` 1本にまとまっている。既定の severity は info で `--error-on-warnings` でも落ちず、カテゴリ単位の on/off も抑止も無い (ドキュメントとソースのみ)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。Biome の `useExhaustiveDependencies` は、effect の deps に書かれているが使われていない値もエラーにする。「X が変わったらリセットする」effect が新しく赤になり、unsafe fix をかけると dep が消える (ソースのみ)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。Biome の `suspicious/noEmptyBlockStatements` は、空のブロック文だけでなく空の関数 (`() => {}`) も赤にする。eslint の `no-empty` の対応先として入れると、テストの mock の空の関数が大量に赤になる。あるリポジトリでは191件が全部テストのファイルだった (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。Biome 2.6.8では `linter.rules.recommended: true` が deprecated で info の診断が出る。同じ意味の `preset: "recommended"` を使う (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。`biome migrate eslint` を `--config-path` で写しの設定へ向けても、cwd の本体の `biome.json` まで書き換えられた。migrate は cwd ごと写しの中で回す (実測)。`--config-path` がディレクトリを受け取る件はこの節の上の項にある
+- 2026-11-23の仕分けで、別のリポジトリから届いた。Biome の style と complexity をグループごと off にすると、eslint の `prefer-const` や `no-array-constructor` の受け皿 (`useConst`・`useArrayLiterals`) まで消える。off はルール単位で当てる (実測)
 
 ### mise の lock
 
@@ -681,6 +731,7 @@ status: open
 - 2026-11-15の仕分けで、上の項と同じまとめから届いた。Rust 1.98 の clippy の pedantic `unused_async_trait_impl` (`.await` の無い `async fn` で trait を実装すると指摘) は、port の trait が `fn ... -> impl Future<Output = T> + Send` で宣言されていれば、実装も同じ形にして同期で求めた値を `std::future::ready(..)` で包むと `#[allow]` 無しで通る。早期 return は `if` の式にして `ready(if .. { Err(..) } else { Ok(..) })` にできる。trait が `async fn` で宣言されていても、実装を `fn ... -> impl Future<Output = T>` と書けば合う (`+ Send` を足すと宣言より狭くなるので付けない)。cloudflare の worker crate の `#[durable_object]` の実装でも wasm32 のビルドが通った (実測)。この lint の追加で古びたコメントの件は ISSUE-133 の「依存とツールの導入」節にある
 - 2026-11-15の仕分けで、上の項と同じまとめから届いた。Rust 1.99 の clippy の pedantic `assert_is_empty` は `assert!(x.is_empty())` を `assert_eq!` で値が見える形にするよう求める。提案は `[] as [T; 0]` だが、`Vec::<T>::new()` と比べる形のほうが読みやすく、同じく通る (実測)
 - 2026-11-15の仕分けで、上の項と同じまとめから届いた。Rust 1.100 の cargo の `unused_dependencies` (既定で warn) が、lib 本体は使わず tests/ だけが使う依存に出た。dev-dependencies へ移せば消え、lib へ一時的に書く `#[cfg(test)]` のコードからも dev-dependencies は見える (`cargo test --lib` はテスト用に lib を組むため) (実測)
+  - 2026-11-23の仕分けで、別のリポジトリから同じ lint の別の面が届いた。Rust の workspace で、ある crate の依存を `cfg(target_os = "macos")` のコードからしか使っていないと、Linux のビルドでだけ cargo の `unused_dependencies` の manifest の警告が出る (cargo 1.100.0)。`-D warnings` は manifest の警告を error にしないので clippy は rc=0で通り、macOS の手元では見えない。warning の行そのものを赤にするラッパーと、Linux のコンテナでの確かめで拾えた。直し方は、その依存を target ごとの依存の表へ移すこと (実測)。報告者の提案は、Rust と macOS だけの UI crate を持つリポジトリの preflight の手順に、Linux (CI と同じアーキテクチャ) のコンテナでの warning 0の確かめを merge の前に入れること。cfg で切った依存の警告は macOS の手元で原理的に見えない (実測)
 - 報告者の提案: Rust の規範へ、版つきで次の3つを足す候補にする。どれも clippy の pedantic を warn にした workspace で `-D warnings` を回すと落ちる形で、toolchain を上げたときにまとめて出る。Rust 1.98 以降は、port の trait が `impl Future` を返す形なら、await の無い実装は `async fn` ではなく `fn ... -> impl Future<Output = T>` と `std::future::ready` で書く (clippy `unused_async_trait_impl`) (実測)。Rust 1.99 以降は、空かどうかの assert は `assert_eq!(x, Vec::<T>::new())` / `assert_ne!(s, "")` で値を見せる (clippy `assert_is_empty`) (実測)。Rust 1.100 以降は、lib 本体が使わずテストだけが使う依存は dev-dependencies に置く (cargo `unused_dependencies`、既定で warn) (実測)
 - 2026-11-15の仕分けで、上の項と同じまとめから届いた。Rust 1.98.0・1.99.0・1.100.0 のリリースノート (RELEASES.md、公式ブログの告知、clippy の CHANGELOG) を版ごとに読み、書き方の推奨が変わる項目を挙げた。読んだのは WebFetch の要約越しで、逐語ではない (ドキュメントのみ)。その1つが Rust 1.100 の never 型 `!` の安定化で、`Result<T, !>` のように戻り値以外の位置にも書ける。`std::convert::Infallible` は `!` の別名になり、never 型のフォールバックは全 edition で `!` になった。新しく「失敗しない」実装の Error 型を書くなら `Infallible` の代わりに `!` と書ける。edition 2024 はもともとフォールバックが `!` なので、既存のコードの書き換えは要らない (ドキュメントのみ)
 - 2026-11-15の仕分けで、同じリポジトリの2つのまとめから届いた。Rust 1.100 の cargo の `[registry] global-min-publish-age` (.cargo/config.toml。公開されてからその期間が経っていない版をリゾルバが選ばない) を、サプライチェーン対策の候補として検討する。`cargo install` には効かず、index に公開時刻の無い版は抑止されないので、単独では防御にならない (ドキュメントのみ)。もう1つのまとめは、仕様を一次資料 (cargo の config リファレンス、resolver の章、リリースの告知、1.100.0 のタグのテスト) だけで調べ、反証役に URL と引用を開き直させた (ドキュメントのみ)。`cargo install` は registry から入れるとき `--locked` の有無に依らず `global-min-publish-age` を見ない (cargo の1.100のリリースの告知と PR 17335。RFC 3923 の本文は反対のことを書いており古い)。pnpm の `minimumReleaseAge` と揃えてサプライチェーンの待ち期間を入れるときは、道具の導入の経路は別に版を固定する必要がある (ドキュメントのみ)。pnpm の待ち期間は「pnpm」節、mise のツールへのクールダウンは ISSUE-133 の「依存とツールの導入」節にある
@@ -688,6 +739,12 @@ status: open
 - 2026-11-15の仕分けで、別のリポジトリから届いた。Rust 1.100.0 の cargo では、テストのバイナリが `target/<dir>/debug/deps/` ではなく `build/<package>/<hash>/out/` に置かれる (`deps/` 自体が無くなった)。cargo-llvm-cov 0.6.19 は新しい並びを探さず、「not found object files」の警告のあと `llvm-cov export` が「No filenames specified!」で落ちる。新しい並びへの対応は cargo-llvm-cov 0.8.6 から入っており、0.9.1 で測れた。Rust の toolchain を上げるときは、cargo-llvm-cov の版も合わせて上げる。CI でカバレッジを回すなら道具の版の固定も見直す (実測)
 - 2026-11-15の仕分けで、別のリポジトリから届いた。Rust 1.97.1 から1.100.0 で、カバレッジの region の切り方が変わった。同じソースを両方の版で測って突き合わせると、`unwrap_or_else(|_| ..)` のクロージャと `if let Err(e) = f()` の束縛は2 region から1 region にまとまり、ネイティブでは組まれない async 関数の中のクロージャは、実行回数0の関数として新しく記録されるようになった。ファイルごとの未到達の件数を exact で pin しているなら、toolchain を上げると触っていないファイルでも赤くなる。直す前に、旧版と新版で同じ木を測って region を行と列で突き合わせ、コンパイラの変化か新しい未到達の枝かを見分ける (実測)。この節の、cargo llvm-cov の JSON から未到達の region を座標ごとに合算して拾う項と組で読む
 - 2026-11-15の仕分けで、別のリポジトリから届いた。サブディレクトリだけが持っていた rust-toolchain.toml を消し、リポジトリ直下の1つへ寄せた。rustup は親へ遡って宣言を探すので、サブディレクトリでも直下の版が選ばれる (実測。rustup show active-toolchain と、編集後の hook が起動する rustfmt の版で確認)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。actix-web の backend で、どの route にも当たらないリクエストは tracing の span (path の行) が付かず、logger の `"GET /path"` の行にしか残らない。漏れたリクエストを数えるときは span の行ではなく logger の行を数える。正常なら非空になる対照を先に置いていたので偽陰性に気付けた (実測)。この節の、actix-web 4.xの Logger が middleware の Err でアクセスログの行を出さない項と組で読む
+- 2026-11-23の仕分けで、別のリポジトリから届いた。rusqlite の bundled (libsqlite3-sys 0.40.0、SQLite 3.54.1) は -DSQLITE_USE_URI でビルドされ、open のフラグに SQLITE_OPEN_URI を付けなくても `file:` で始まるパスを URI として解釈する。ファイル名の末尾 (拡張子) で開いてよいかを判定するコードは `file:<別のファイル>?x=/a.<拡張子>` で抜けられ、0バイトの別のファイルに書き込みが起きた。絶対パスであること (先頭が `/`) を先に要求し、最後の要素がシンボリックリンクなら断ることで塞いだ。SQLITE_OPEN_NOFOLLOW は macOS の /var → /private/var のような途中のリンクも断るので単独では使えない (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。`cargo update -p <crate>` (`--precise` でも) は、範囲の広い要求 (例: `>=0.3, <0.5`) を持つ無関係の crate の依存の版を選び直すことがある。Cargo.lock の差分を行で数え、範囲外の1行は手で戻して `cargo metadata --locked` が受け入れることを確かめた (実測)。報告者の提案は、依存の更新の手順に「Cargo.lock の差分を行で数え、範囲外の行を戻す」を足すこと (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。Rust の依存のセキュリティ更新を「直った最初の版、連鎖も要求される最小の版、どれも公開から2週間以上」で選び、束ごとにコミットを分け、各束の前に変わるはずの名前と版を書いて lockfile の差分と突き合わせた (実測)。cargo が連鎖で選ぶ「最新」は、2週間のクールダウンの規約に引っかかることがある (公開から10日の版を選んだ) (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。上の項と同じまとめから来た。lockfile の差分の検査は (名前, 版) の集合だけでなく、両方にある package の依存の辺まで比べる。cargo update / --precise で連鎖を上げてから下げると、一族の外のクレートの辺 (socket2 や windows-sys の版の付け替え) が解き直されるが、版の集合は変わらないので集合の比較では0件に見える。辺を正規化して比べる検査に直し、問題のコミットで非空・同一の版どうしで0件の両方の対照を確かめた (実測)。cargo の解き直しが収束しないときは cargo に選ばせない。土台の lockfile に、必要な package のブロックだけを cargo が作ったブロックで差し替えて組み直し、依存を解き直すビルドの前後で Cargo.lock のハッシュが変わらない (不動点) ことを確かめる。cargo は書き方の正規化 (版が1つになった依存の版の省略) だけを書き換えることがあるので、正規化後にもう一度不動点を確かめる (実測)。報告者の提案は、lockfile を書き換える作業 (依存の更新) の手順に「辺まで比べる差分」と「組み直した後の不動点の確認」を入れること (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。上の項と同じまとめから来た。本体の pin を上げる前に、連鎖を先に最小の版へ --precise で上げておくと、「最新まで連れて上がってから下げる」副作用の大半を避けられた (実測)。一方、同じ `cargo update -p X --precise V` を繰り返しても、鍵を外した依存の寄せ先 (lockfile に既にある複数の版のどれか) が毎回揺れ、3回で3通りに分かれた。繰り返しで収束を待つのは無駄 (実測)。この節の、`cargo update -p A` が手前の版で止まる項と組で読む
 
 ### GPUI
 
@@ -699,6 +756,7 @@ status: open
 - uniform_list の processor は、行の高さを測るために先頭の1行 (範囲 0..1) だけで呼ばれることがある。processor の range を「見えている範囲」と取ると毎フレーム揺れる。見えている範囲はスクロールの offset と viewport の高さから自分で計算する (実測)
 - GPUI のアトラスは RenderImage の Arc を捨てても空かない。Window::drop_image を呼ばないとメモリが増え続ける (実測)
 - 2026-11-15の仕分けで、別のリポジトリから届いた。Parallels の macOS VM で、ホストでビルドした GPUI のアプリ (起動時に Metal でシェーダーをコンパイルする形) が動くかを、スナップショットで原状を守って試した (実測)。ssh から GUI アプリを起動するとき、素のバイナリを `launchctl asuser` で起動すると権限で断られる。最小の `.app` (Contents/MacOS と Info.plist だけ) に包んで `open -n <.app> --args ...` で起動すると、GUI のセッションで窓が開く。ホスト側の `prlctl capture` で撮れ、GPUI の窓と日本語の描画が写った (実測)。macvm の skill への提案は ISSUE-132 に置いた
+- 2026-11-23の仕分けで、別のリポジトリから届いた。GPUI (zed c84af5b) の `img` は、縦横比を明示しないと画像自身の比を要素の比にする。そのため `size_full()` の正方形の升でも、縦長の画像の要素は升の2倍の高さになってはみ出す。`.aspect_square()` (升の比) を明示して `ObjectFit::Contain` で収める。`debug_selector` と `VisualTestContext::debug_bounds` で要素の大きさを exact で pin でき、元の形では186x372で赤になった (実測)。報告者の提案は、画面のテストで GPUI の `img` を使う箇所には、縦長と横長の画像で要素の大きさを `debug_bounds` で pin するテストを置くこと (実測)
 
 ### Supabase CLI と外部サービスの CLI
 
@@ -768,6 +826,7 @@ status: open
 - Tauri v2 (wry 0.55) の WebviewWindowBuilder::additional_browser_args は、値を渡すと WebView2 の既定の引数に足すのではなく置き換える (wry の webview2/mod.rs の unwrap_or_else)。CDP のポートだけを渡すと既定の無効化が黙って外れる (ソースの読みのみ)
 - 環境変数 WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS は、親のプロセスで設定して直接起動しても効かなかった (Microsoft の文書は環境変数とレジストリを並べて「追記される」と書いているが、環境変数の側は外れた)。HKCU の policy (`Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments` に、値の名前を実行ファイル名、値を `--remote-debugging-port=<N>`) は、Tauri の既定の引数の後ろに追記されて CDP が開いた (実測、Windows 11 ARM の WebView2 156)
 - 報告者の提案: E2E の生成の手順の参照に、Tauri (WebView2) のアプリへ Playwright を CDP でつなぐ経路として「HKCU の WebView2 の policy で開く。環境変数は効かない。additional_browser_args は既定を置き換える」を足す。Tauri のアプリを持つリポジトリで同じ遠回りを踏みうる (原文に根拠の札は無い)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。裏にある WKWebView のウィンドウを HMR の直後に screencapture すると、前の描画のまま写ることがあった。撮った画像の中身で切り替わったことを確かめてから判定する (実測)
 
 ### その他のツール
 
@@ -802,7 +861,11 @@ status: open
 - APM でサブディレクトリの skill を巨大なリポジトリから取ると、初回は190秒かかったが、残るのは124KB だった。2回目はキャッシュで0.2秒 (実測)
 - MoonBit 0.10.19で String / StringView の `view(start_offset=, end_offset=)` が非推奨になり、`--deny-warn` の check が赤くなる。旧 `view` は範囲外で abort するので、意味を保つ置き換え先は `exact_view(start=, end=)`。`clamped_view` は端へ丸めるので、テストの前提が崩れたときに黙って通す (実測)。報告者の提案は、MoonBit を使う他のリポジトリで toolchain を0.10.19以上へ上げるときは、`view(start_offset=` / `view(end_offset=` / 引数なしの `.view()` を事前に grep して `exact_view` へ移す手順を、toolchain の更新の手順に添えること (実測)
 - 1Password CLI の `op run --env-file` は、外から渡した同名の環境変数よりテンプレートの値を優先した。テンプレートが持つ変数を起動時の環境変数で上書きする設計は取れない (実測)
+  - 2026-11-23の仕分けで、別のリポジトリから同じ型の再報告が届いた。シェルに別環境の向き先 (URL と鍵) が残ったまま `op run --env-file=<テンプレート>` 越しにローカル向けのテストを回すときの変数の優先順位を、真偽だけ出す node の probe で確かめた (実測)。`op run --env-file` はテンプレートに書いた変数だけをシェルの値より優先し、op:// の参照だけでなく平文の値 (`KEY=value`) と空の値 (`KEY=`) も上書きとして効いた。書いていない変数はシェルの値がそのまま子プロセスへ素通りする。修正前は向き先の判定が全部 false、テンプレートに平文の行を足したあとは true に変わった (実測)。報告者の提案: テンプレート経由で環境変数を注入する仕組み (op run など) を使うリポジトリでは、ローカル向けのテンプレートに向き先の変数 (BASE_URL・API の URL・鍵・Basic 認証) をローカルの値か空で明示して、シェルに残った別環境の値の素通りを塞ぐ。ただしテンプレートを通らない入口 (lint やユニットテストの target、直接のテストランナー) は塞がらないので、コード側で fail-closed に照合する層と組にする (実測)
 - 2026-11-15の仕分けで、別のリポジトリから届いた。just のレシピの中から just を呼び直すと、利用者の環境変数 (JUST_COLOR=always) が内側に効いて出力に色のエスケープが混ざる。内側の呼び出しには --color never を付け、確認付きのレシピに備えて --yes と /dev/null の標準入力も渡す (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。`aa extract` は、対象の型が既定の集合に無いエントリを黙って飛ばし、rc=0で0件を返す。展開の後は出力のファイルを数える (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。jq で違反の配列を `A + B + (式) as $x | C` のように `+` でつなぐと、`as` の束縛がそれまでの `+` の連なり全体を取り込み、前の違反の和が捨てられて C だけが残る。検査は緑のまま通る。`+ ((式) as $x | C)` と括弧で閉じて直した。fixture の赤の場合を行数まで pin したテストで見つかった (実測)
+- 2026-11-23の仕分けで、別のリポジトリから届いた。GUI の測りで「窓が前面にある」ことを画面収録の許可なしで確かめるために、`lsappinfo front` を0.1秒ごとに記録した (実測)。`lsappinfo info -only name "$(lsappinfo front)"` は許可のダイアログ無しで最前面のアプリの名前を返し、測る回ごとに対象のアプリが前面に来たかの記録に使える (実測)
 
 ### 地理データの処理 (osmium)
 
@@ -824,6 +887,7 @@ status: open
 - コンポーネント1つのモデル化を始めても、最後のスキャンからツリーが変わっていれば、先にリポジトリ全体のスキャンと intent 抽出がやり直される (その報告では intent の reader が約450、agent のセッションが1秒で80超)。開発中の作業ツリーで裏で回すとそのたびに全体を読み直すので、ツリーが落ち着いた時点 (PR の前など) に回すのが向く (実測)
 - スキャンが作るコンポーネントマップは、テストファイルを本体と別のコンポーネントへ割り当てることがある (例: backend のエンドポイントのテストが desktop 側のコマンドのコンポーネントに入った)。ランク付けに使う前に、変更の多いコンポーネントに割り当てられた本体とテストのパスの一覧を目視する (実測)
 - 2026-11-15の仕分けで、別のリポジトリから届いた。quint-connect 0.1.2 (Quint のトレースを Rust の実装に流して比べる crate) が、pin している Quint 0.33.1 で動くかを、同梱の例のテストと変異注入で試した (実測)。例のテストは、件数ではなく、例の実装の1か所を壊して「State invariant failed」で赤くなることで、トレースと状態を本当に比べていると確かめた (実測)。ISSUE-88 の INS-95 (Quint の検査に陽性対照を並べる) の隣
+- 2026-11-23の仕分けで、別のリポジトリから届いた。Quint 0.33.1の rust の評価器は Set の fold を、文字列の昇順ではない固定の順 (seed やプロセスに依らない) でたどる。仕様の fold の結果が順に依存すると、実装とトレースで突き合わせるテストが食い違う。仕様に順を List で明示し、その List が集合を過不足なく覆うことを invariant にした (実測)
 
 ### CodeSandbox で上流への再現を作る
 
@@ -867,6 +931,12 @@ status: open
 2026-11-15に仕分けた分で届いた。
 
 - 2026-11-15の仕分けで、別のリポジトリから届いた。Finder から窓へドロップされたファイルのパスは NFD で渡ることがある (濁点が結合文字に分かれる)。パスやファイル名を文字列で比べるところは正規化をそろえないと、見た目が同じでも一致しない (実測)。報告者の提案: ファイルのパスを比べるコードには NFC / NFD をそろえる規約を、macOS を対象にするリポジトリ共通の注意として置く (実測)
+
+### macOS のファイルの監視 (notify と FSEvents)
+
+2026-11-23に仕分けた分で届いた。
+
+- 2026-11-23の仕分けで、別のリポジトリから届いた。notify 8.2.2の macOS FSEvents (APFS) は、ファイルを書いている間にイベントを出さず、作成時と閉じたときの2回だけだった。「最後のイベントから一定時間静か」のまとめ方では書きかけを読む。代わりに観測時に更新日時を見て「書かれている途中」を判定した (実測、委譲先の測り)。同じ環境で、監視を始める20ms未満前の変更が始めたあとにイベントとして届いた。監視のテストは時間待ちでなく、合図のファイルの束を待ってから操作する形にすると安定した (実測、委譲先の測り)。notify 8.2.2の FSEvents の callback は FFI の境界で panic を受け止めず、UTF-8 でないパスや未知のフラグで panic すると run loop のスレッドだけが死に、watcher の drop が戻らなくなる (実測、委譲先の測り)。止める側は手放しを別スレッドで行い、待たない形にした
 
 ## タスク
 
