@@ -57,6 +57,8 @@ set +x
     printf 'GITHUB_TOKEN=[%s]\n' "${GITHUB_TOKEN-<unset>}"
     for a in "$@"; do printf 'ARG=[%s]\n' "$a"; done
 } | tee -a "$GHTS_TEST_LOG/gh.log"
+# 受け取った stdin をバイトのまま残す (shim が本文を読んでから渡し直す経路の検査用)
+if [ -n "${FAKE_GH_READ_STDIN-}" ]; then cat >"$GHTS_TEST_LOG/gh.stdin"; fi
 exit "${FAKE_GH_RC:-0}"
 FAKE
 
@@ -95,7 +97,7 @@ fail)
     ;;
 empty) exit 0 ;;
 esac
-owner=${ref#op://*/gh-write-}
+owner=${ref##*gh-write-}
 printf 'tok-write-%s' "${owner%/credential}"
 FAKE
 
@@ -203,6 +205,29 @@ assert_class() {
     local expected="$1"
     shift
     assert_exact_output "$expected" ghts_classify "$@"
+}
+
+# ghts_scan が引数を期待の分類と stdin の印 (0 / 1) にすること。
+# 未定義の印を 0 と取り違えないよう、文字列で比べる
+assert_stdin_mark() {
+    local class="$1" mark="$2"
+    shift 2
+    ghts_scan "$@"
+    if [ "$GHTS_CLASS" != "$class" ] || [ "${GHTS_QUERY_ON_STDIN-unset}" != "$mark" ]; then
+        echo "$*: $class と [$mark] のはずが $GHTS_CLASS と [${GHTS_QUERY_ON_STDIN-unset}]" >&2
+        return 1
+    fi
+}
+
+# 本文を stdin で受けた graphql の分類が、本文を読んだあとで期待どおりになること
+assert_stdin_class() {
+    local expected="$1" body="$2"
+    ghts_scan api graphql -F query=@-
+    ghts_classify_stdin_query "$body"
+    if [ "$GHTS_CLASS" != "$expected" ]; then
+        echo "[$body]: $expected のはずが $GHTS_CLASS" >&2
+        return 1
+    fi
 }
 
 # ghts_owner_from_args が引数から期待の持ち主を出すこと (空は「決められない」)
@@ -441,6 +466,54 @@ assert_security_read() {
 
 @test "classify: api graphql -F query=@q.graphql -> write" {
     assert_class write api graphql -F query=@q.graphql
+}
+
+# --- graphql の query=@- は本文を読むまで write のまま、印だけ立てる ---
+
+@test "scan: api graphql -F query=@- stays write and asks for the body on stdin" {
+    assert_stdin_mark write 1 api graphql --hostname github.com --cache 20s -F query=@-
+    assert_stdin_mark write 1 api -X GET graphql -F query=@-
+    assert_stdin_mark write 1 api -F query=@- graphql
+    assert_stdin_mark write 1 api graphql --field=query=@-
+    assert_stdin_mark write 1 api graphql -Fquery=@-
+}
+
+@test "scan: query=@- is not asked for on stdin when the class is already decided" {
+    assert_stdin_mark write 0 api graphql -F query=@q.graphql
+    assert_stdin_mark write 0 api graphql --input - -F query=@-
+    assert_stdin_mark write 0 api graphql -f 'query=mutation{x}' -F query=@-
+    assert_stdin_mark write 0 api repos/a/b/issues -F query=@-
+    assert_stdin_mark write 0 api -X POST graphql -F query=@-
+    # -f / --raw-field の @- は文字列として送られ、stdin を読まない
+    assert_stdin_mark write 0 api graphql -f query=@-
+    assert_stdin_mark write 0 api graphql --raw-field=query=@-
+    assert_stdin_mark read 0 pr list
+}
+
+@test "stdin body: a query without a mutation lowers the class to read" {
+    assert_stdin_class read 'query { rateLimit{cost remaining resetAt} r0: repository(owner:"a", name:"b") { pullRequest(number:1){state} } }'
+    assert_stdin_class read '{viewer{mutationCount}}'
+}
+
+@test "stdin body: a mutation keeps the class write" {
+    assert_stdin_class write 'mutation { x }'
+    assert_stdin_class write '  Mutation Name { x }'
+    assert_stdin_class write $'query { a }\nmutation { b }'
+}
+
+# GraphQL のコメントは任意のバイトを持てる。その手前の不正なバイト列で mutation を見落とさない
+@test "mutation check: invalid UTF-8 before the mutation does not hide it in a UTF-8 locale" {
+    local body
+    body=$(printf '# \377\nmutation { x }')
+    LC_ALL=en_US.UTF-8
+    assert_class write api graphql -f "query=$body"
+    assert_stdin_class write "$body"
+}
+
+@test "stdin body: without the mark the class is left alone" {
+    ghts_scan pr merge 3
+    ghts_classify_stdin_query '{viewer{login}}'
+    [ "$GHTS_CLASS" = write ]
 }
 
 @test "classify: repo create a/b --private -> admin" {
@@ -1032,12 +1105,13 @@ _write_config() {
     printf '%s\n' "$@" >"$CONF"
 }
 
-@test "load_config: normal file sets three variables" {
+@test "load_config: normal file sets the variables" {
     _write_config '# comment' '' 'vault=Dev Vault' 'default_owner=Acme' 'owner=Acme' '' 'owner=bob-2'
     ghts_load_config "$CONF"
     [ "$GHTS_VAULT" = "Dev Vault" ]
     [ "$GHTS_DEFAULT_OWNER" = "acme" ]
     [ "$GHTS_OWNERS" = "acme bob-2" ]
+    [ "$GHTS_WRITE_ITEM" = "gh-write-{owner}" ]
 }
 
 @test "load_config: missing vault -> rc 1" {
@@ -1093,6 +1167,31 @@ _write_config() {
     # 設定を実際に読んだ陽性対照: 値がリテラルのまま入る
     [ "$GHTS_VAULT" = '$(touch pwned)' ]
     [ ! -e "$work/pwned" ]
+}
+
+@test "load_config: without write_item the item title is gh-write-{owner}" {
+    _write_config 'vault=v' 'default_owner=acme'
+    ghts_load_config "$CONF"
+    assert_exact_output 'gh-write-acme' ghts_write_item_title acme
+}
+
+@test "load_config: write_item keeps spaces and the text around {owner} literally" {
+    _write_config 'vault=v' 'default_owner=acme' 'write_item=Token for gh-write-{owner} (x)'
+    ghts_load_config "$CONF"
+    assert_exact_output 'Token for gh-write-acme (x)' ghts_write_item_title acme
+}
+
+@test "load_config: write_item must contain {owner} exactly once and no slash" {
+    local bad
+    for bad in 'write_item=gh-write' 'write_item={owner}-{owner}' 'write_item=a/{owner}' \
+        'write_item='; do
+        _write_config 'vault=v' 'default_owner=acme' "$bad"
+        run ghts_load_config "$CONF"
+        if [ "$status" -ne 1 ]; then
+            echo "[$bad]: rc 1 のはずが rc $status" >&2
+            return 1
+        fi
+    done
 }
 
 @test "has_owner: member and non-member" {
@@ -1658,6 +1757,86 @@ _write_config() {
     assert_not_called op
 }
 
+# Claude Code の PR の状態の取得は gh api graphql -F query=@- で本文を stdin に流す
+# (2.1.330 で確認)。中身を読まずに write とみなすと、取得のたびに承認が出る。
+# 本文は末尾の空行まで含めて、受け取ったバイトのまま本物へ渡ること。
+
+@test "shim: a graphql query on stdin without a mutation uses the read token and reaches gh unchanged" {
+    init_acme_repo
+    SHIM_ENV=(FAKE_GH_READ_STDIN=1)
+    printf 'query { rateLimit{cost remaining resetAt} }\n\n' >"$BATS_TEST_TMPDIR/body"
+
+    run_shim "$SHIM_REPO" api graphql --hostname github.com --cache 20s -F query=@- <"$BATS_TEST_TMPDIR/body"
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-read-acme"
+    assert_security_read acme
+    assert_not_called op
+    cmp "$BATS_TEST_TMPDIR/body" "$SHIM_LOG/gh.stdin"
+    refute_token_on_stderr
+}
+
+@test "shim: a graphql mutation on stdin elevates and still reaches gh unchanged" {
+    init_acme_repo
+    SHIM_ENV=(FAKE_GH_READ_STDIN=1)
+    printf 'mutation { addStar(input:{starrableId:"x"}) { clientMutationId } }\n\n' >"$BATS_TEST_TMPDIR/body"
+
+    run_shim "$SHIM_REPO" api graphql -F query=@- <"$BATS_TEST_TMPDIR/body"
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-write-acme"
+    assert_op_read acme
+    assert_not_called security
+    cmp "$BATS_TEST_TMPDIR/body" "$SHIM_LOG/gh.stdin"
+}
+
+@test "shim: a mutation on stdin hidden behind invalid UTF-8 still elevates in a UTF-8 locale" {
+    init_acme_repo
+    SHIM_ENV=(FAKE_GH_READ_STDIN=1 LC_ALL=en_US.UTF-8)
+    printf '# \377\nmutation { x }' >"$BATS_TEST_TMPDIR/body"
+
+    run_shim "$SHIM_REPO" api graphql -F query=@- <"$BATS_TEST_TMPDIR/body"
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-write-acme"
+    assert_op_read acme
+}
+
+@test "shim: a mutation on stdin stops when op fails and gh never runs" {
+    init_acme_repo
+    SHIM_ENV=(FAKE_GH_READ_STDIN=1 FAKE_OP_MODE=fail)
+
+    run_shim "$SHIM_REPO" api graphql -F query=@- <<<'mutation { x }'
+
+    [ "$status" -eq 1 ]
+    assert_op_read acme
+    assert_not_called gh security
+    refute_token_on_stderr
+}
+
+@test "shim: the exit code of the real gh is passed through when the body was read from stdin" {
+    SHIM_ENV=(FAKE_GH_READ_STDIN=1 FAKE_GH_RC=7)
+    printf '{viewer{login}}\n' >"$BATS_TEST_TMPDIR/body"
+
+    run_shim "$SHIM_PLAIN" api graphql -F query=@- <"$BATS_TEST_TMPDIR/body"
+
+    [ "$status" -eq 7 ]
+    assert_gh_ran_with_token "tok-read-home"
+    cmp "$BATS_TEST_TMPDIR/body" "$SHIM_LOG/gh.stdin"
+}
+
+@test "shim: stdin for --input reaches gh untouched without being read by the shim" {
+    init_acme_repo
+    SHIM_ENV=(FAKE_GH_READ_STDIN=1)
+    printf '{"query":"{viewer{login}}"}' >"$BATS_TEST_TMPDIR/body"
+
+    run_shim "$SHIM_REPO" api graphql --input - <"$BATS_TEST_TMPDIR/body"
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-write-acme"
+    cmp "$BATS_TEST_TMPDIR/body" "$SHIM_LOG/gh.stdin"
+}
+
 @test "shim: an api endpoint with a query string resolves the owner without it" {
     run_shim "$SHIM_PLAIN" api 'orgs/acme?x=1'
 
@@ -1717,6 +1896,18 @@ _write_config() {
 
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-write-home"
+}
+
+@test "shim: a write reads the 1Password item named by write_item" {
+    init_acme_repo
+    printf '%s\n' 'vault=TestVault' 'default_owner=home' 'owner=acme' \
+        'write_item=Token for gh-write-{owner}' >"$SHIM_CONF"
+
+    run_shim "$SHIM_REPO" pr merge 3
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-write-acme"
+    assert_shim_log op "read -n op://TestVault/Token for gh-write-acme/credential"
 }
 
 @test "shim: when op fails it stops and does not continue with the read token" {

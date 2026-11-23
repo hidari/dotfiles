@@ -15,18 +15,34 @@ _ghts_api_flag_takes_value() {
     return 1
 }
 
-# graphql のクエリ本文 (小文字にしたもの) が mutation を語として含むかを見る。
-# 部分一致では mutationCount のようなフィールド名に当たる
-_GHTS_MUTATION_RE='(^|[^a-z0-9_])mutation([^a-z0-9_]|$)'
+# graphql のクエリ本文が mutation を語として含むかを、大文字小文字を問わずに見る。
+# 部分一致では mutationCount のようなフィールド名に当たる。
+# 小文字にしてから照合しないのは、置換を 26 回なめる分だけ本文の大きさに対して
+# 急に遅くなるため (大文字の多い 10 KB の本文で 5 秒を超えた、/bin/bash 3.2.57)
+_GHTS_MUTATION_RE='(^|[^A-Za-z0-9_])[Mm][Uu][Tt][Aa][Tt][Ii][Oo][Nn]([^A-Za-z0-9_]|$)'
+
+# graphql のクエリ本文が mutation を含めば rc 0。照合はバイト単位で行う。
+# UTF-8 のロケールでは、mutation より前に不正なバイト列 (GraphQL のコメントには任意の
+# バイトを書ける) があると =~ が照合を諦めて「一致しない」を返し、mutation を read と読む
+# (macOS の /bin/bash 3.2.57 で確認)
+_ghts_query_mutates() {
+    local LC_ALL=C
+    [[ $1 =~ $_GHTS_MUTATION_RE ]]
+}
 
 # gh api の引数を分類して GHTS_CLASS に read/write のいずれかを入れる。
 # 判定: -X/--method (連結形を含む) が GET/HEAD 以外なら write、明示が無ければ
 # フィールド系フラグか --input があれば write。graphql はクエリ本文が読み取りで
 # ある限りフィールドを書き込みとみなさない (変数の受け渡しに -f/-F を使うため)。
-# 中身を読めない query=@file と --input は書き込みとみなす。
+# 中身を読まない query=@file と、JSON の中身を解さない --input は書き込みとみなす。
+# -F / --field の query=@- (本文が stdin) は、本文を除けば read になる形のときだけ
+# write としたうえで GHTS_QUERY_ON_STDIN=1 を立てる。本文を読んだ呼び手が
+# ghts_classify_stdin_query で判定し直す。印を無視する呼び手にとっては write のままなので、
+# 安全側に倒れる。
 # query= の中身を見るのは graphql だけ (REST では query はただの検索語)。
 _ghts_classify_api() {
     local seen_api=0 method="" has_field=0 has_input=0 is_graphql=0 query_mutates=0
+    local query_stdin=0
     local a val
 
     while [ $# -gt 0 ]; do
@@ -92,10 +108,18 @@ _ghts_classify_api() {
         # ここへ来るのはフィールド系のみ。query の中身で mutation を見る。
         # graphql かどうかはここでは決めない (エンドポイントがフィールドより後ろに来うる)
         case "$val" in
+        query=@-)
+            # -f / --raw-field は値を文字列のまま送り、@ で stdin を読まない。読まない stdin を
+            # 待たないよう、印は -F / --field のときだけ立てる。文字列の @- はクエリとして
+            # 読めないので、@file と同じく write に倒す
+            case "$a" in
+            -f* | --raw-field*) query_mutates=1 ;;
+            *) query_stdin=1 ;;
+            esac
+            ;;
         query=@*) query_mutates=1 ;;
         query=*)
-            _ghts_lower_into "${val#query=}"
-            if [[ $_GHTS_LOWER =~ $_GHTS_MUTATION_RE ]]; then query_mutates=1; fi
+            if _ghts_query_mutates "${val#query=}"; then query_mutates=1; fi
             ;;
         esac
     done
@@ -104,7 +128,6 @@ _ghts_classify_api() {
         GHTS_CLASS="write"
         return 0
     fi
-
     # メソッドは大文字小文字を問わない
     case "$method" in
     [Gg][Ee][Tt] | [Hh][Ee][Aa][Dd]) GHTS_CLASS="read" ;;
@@ -119,6 +142,12 @@ _ghts_classify_api() {
         ;;
     *) GHTS_CLASS="write" ;;
     esac
+
+    # 本文が stdin にあるときは、本文を読むまで read へ下げない
+    if [ "$is_graphql" -eq 1 ] && [ "$query_stdin" -eq 1 ] && [ "$GHTS_CLASS" = read ]; then
+        GHTS_CLASS="write"
+        GHTS_QUERY_ON_STDIN=1
+    fi
     return 0
 }
 
@@ -477,6 +506,7 @@ _ghts_flag_takes_value() {
 #     gh_repo 環境変数 GH_REPO が空でない
 #     none    どちらも無い (cwd の origin を見るかどうかは呼び出し側が決める)
 #   GHTS_ARGS_OWNER    引数から読めた小文字の owner (読めなければ空)
+#   GHTS_QUERY_ON_STDIN 1 なら graphql の本文が stdin にある (約束事は _ghts_classify_api)
 # 分類と持ち主が同じサブコマンドと動詞を見るよう、両方をここで決める。別々に数えると、
 # -R の値やフラグの値を片方だけが動詞に数え、書き込みを読み取りとして通す。
 # gh api 以外では、--help / -h がフラグとして立っているかも見る。フラグの値として
@@ -489,6 +519,7 @@ ghts_scan() {
     local has_repo=0 repo="" sub="" verb="" endpoint="" pos=0 pos_present=0 cand=""
     # 分類は空で始める。決まる前に読まれても none (トークン無しの委譲) にはならない
     GHTS_CLASS=""
+    GHTS_QUERY_ON_STDIN=0
     GHTS_OWNER_SOURCE=""
     GHTS_ARGS_OWNER=""
     _GHTS_VERB2=""
@@ -626,15 +657,30 @@ ghts_owner_source() {
     return 0
 }
 
+# GHTS_QUERY_ON_STDIN=1 のときだけ、stdin から読んだ本文で GHTS_CLASS を決め直す。
+# 印が無ければ何もしない (ほかの理由で決まった write を下げない)
+ghts_classify_stdin_query() {
+    [ "$GHTS_QUERY_ON_STDIN" -eq 1 ] || return 0
+    if _ghts_query_mutates "${1-}"; then
+        GHTS_CLASS="write"
+    else
+        GHTS_CLASS="read"
+    fi
+    return 0
+}
+
 # 設定ファイルを行ごとに読む。source はしない (値はリテラルのまま)。
-# 設定する変数: GHTS_VAULT / GHTS_DEFAULT_OWNER / GHTS_OWNERS (小文字・空白区切り)
+# 設定する変数: GHTS_VAULT / GHTS_DEFAULT_OWNER / GHTS_OWNERS (小文字・空白区切り) /
+# GHTS_WRITE_ITEM (強いトークンの 1Password の項目名の形。{owner} を持ち主に置き換える)
 # GHTS_OWNERS は owner の行に加えて default_owner を含む
-# vault と default_owner が揃い、全ての owner が正規表現に当たるとき rc 0
+# vault と default_owner が揃い、全ての owner が正規表現に当たり、write_item が
+# {owner} をちょうど1つ持ちスラッシュ (secret reference の区切り) を持たないとき rc 0
 ghts_load_config() {
     local file=${1-} line key val
     GHTS_VAULT=""
     GHTS_DEFAULT_OWNER=""
     GHTS_OWNERS=""
+    GHTS_WRITE_ITEM="gh-write-{owner}"
     [ -r "$file" ] || return 1
 
     while IFS= read -r line || [ -n "$line" ]; do
@@ -657,6 +703,13 @@ ghts_load_config() {
             _ghts_lower_into "$val"
             GHTS_OWNERS="${GHTS_OWNERS:+$GHTS_OWNERS }$_GHTS_LOWER"
             ;;
+        write_item)
+            case "$val" in
+            */* | *"{owner}"*"{owner}"*) return 1 ;;
+            *"{owner}"*) GHTS_WRITE_ITEM=$val ;;
+            *) return 1 ;;
+            esac
+            ;;
         esac
     done <"$file"
 
@@ -668,6 +721,12 @@ ghts_load_config() {
         GHTS_OWNERS="${GHTS_OWNERS:+$GHTS_OWNERS }$GHTS_DEFAULT_OWNER"
     fi
     return 0
+}
+
+# 持ち主の強いトークンを入れた 1Password の項目名を出す。ghts_load_config の後に呼ぶ。
+# {owner} がちょうど1つであることは読み込みが保証するので、前後で切って挟む
+ghts_write_item_title() {
+    printf '%s%s%s\n' "${GHTS_WRITE_ITEM%%"{owner}"*}" "$1" "${GHTS_WRITE_ITEM#*"{owner}"}"
 }
 
 # GHTS_OWNERS (空白区切り) に含まれれば rc 0

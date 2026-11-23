@@ -32,6 +32,22 @@ SSH の側は同じ日に済ませた(マシンローカルの設定で、追跡
 - Administration: none だと `GET actions/permissions` は 403 になる(要るのは `administration=read`)。ruleset の作成と Environment の作成も 403 になる
 - 応答ヘッダの `x-accepted-github-permissions` で、その endpoint に要る fine-grained の権限が分かる
 
+### 配置の前の棚卸しで分かったこと(2026-11-23)
+
+- Claude Code (2.1.330) は PR の状態を `gh api graphql --hostname <host> --cache <ttl> -F query=@-` で取る。本文は stdin で、中身は読み取りの query だけ。shim は `query=@-` を中身を読めない write とみなしていたので、取得のたびに承認を求めるところだった。本文を読んで判定し直すように直した
+- spec の「git の HTTPS の経路はすでに塞がっている」は誤りだった。開発機の追跡外の git 設定に、`gh auth git-credential` を絶対パスで呼ぶ github.com の credential helper があった。shim を素通りして、OAuth のトークンを HTTPS の git へ渡していた。HTTPS の origin を持つリポジトリは1つだけ
+- `gh auth token` と `gh auth status` を読む使い手は、logout すると shim があってもトークンを受け取れない。shim は `auth` をトークン無しで委譲するため。次のものが該当する
+  - Claude Code の auto mode のリポジトリの公開範囲の判定と `/web-setup`
+  - apm と Homebrew の GitHub API の呼び出し。匿名に落ちる
+- 持ち主の1つは自分が管理していない org で、fine-grained のトークンを発行できなかった。設定からその持ち主を外した。書き込みは「設定に無い持ち主」として止まる
+
+### 決めたこと(2026-11-23、ユーザー)
+
+- `query=@-` の誤判定は配置の前に shim で直す
+- HTTPS の git の credential helper は消す。push は SSH だけにそろえる
+- `gh auth token` の使い手が匿名に落ちるのは受け入れる。shim はトークンを `gh auth token` で配らない
+- 1Password の強いトークンの項目名の形を、設定の `write_item=` で決められるようにする
+
 ## タスク
 
 - [x] 設計書(`ISSUE-147-spec.md`)を書いて承認を得る
