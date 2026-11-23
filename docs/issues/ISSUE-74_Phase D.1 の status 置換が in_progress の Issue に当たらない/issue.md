@@ -28,6 +28,14 @@ D.4 の理由文も同じ前提を再掲している。
 
 実測 (2026-09-04) では dotfiles の active な Issue 45 件のうち 2 件が `in_progress` で、「検索手順」節のコマンドは 43 件しか返さない。この 2 件はクローズするときに Phase D が回るので、D.1 の空振りもあわせて踏む。仮想の経路ではない。
 
+### 受け箱から届いた再報告 (2026-11-24の仕分け)
+
+別のリポジトリのセッションから、同じ型の再報告が届いた。
+
+- 報告 (実測: skill の本文の検索手順を読んだ。in_progress の Issue で実際に一覧から落ちることは、報告者はコマンドを打って確かめていない): 「検索手順」の「全 open Issue」は `^status: open$` だけを grep するので、Phase B で in_progress にした Issue が一覧から落ちる
+- 報告者の提案: まだ閉じていない Issue を数えたい読み手には、closed/ の外にある issue.md を全部 (status が open と in_progress の両方) 拾う形の方が合う。少なくとも見出しを「status が open の Issue」にして、in_progress が入らないことを明示する
+- dotfiles で確かめたこと (2026-11-24): 配布されている SKILL.md (agentic-coding-tools の e1720e6) の394〜396行目は、見出しのコメントが「全 open Issue (closed/ と templates/ を除外)」で、本体は `-exec grep -l '^status: open$' {} +` のままだった。dotfiles の main の docs/issues で同じ条件で数えると、closed/ と templates/ の外の issue.md は81件で、`^status: open$` に当たるのは79件、残りの2件は `^status: in_progress$` だった。2026-09-04の実測と同じく、今も2件が落ちる
+
 ## タスク
 
 - [x] Phase D.1 から literal 前提を外す。`status` 行が `open` と `in_progress` のどちらでもありうることを書き、literal 置換ではなく「`status` 行を `closed` にする」形の指示にする
