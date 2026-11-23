@@ -379,6 +379,17 @@ assert_security_read() {
     assert_class write pr merge 3 --squash
 }
 
+@test "classify: pr ready and pr ready --undo -> write" {
+    assert_class write pr ready
+    assert_class write pr ready 12
+    assert_class write pr ready 12 --undo
+    assert_class write pr -R acme/web ready 12
+}
+
+@test "classify: pr ready --help -> read" {
+    assert_class read pr ready --help
+}
+
 @test "classify: release create v1 -> write" {
     assert_class write release create v1
 }
@@ -1725,6 +1736,17 @@ _write_config() {
     [ "$status" -eq 0 ]
     assert_gh_ran_with_token "tok-write-acme"
     assert_op_read acme
+}
+
+@test "shim: pr ready elevates for the origin owner" {
+    init_acme_repo
+
+    run_shim "$SHIM_REPO" pr ready 12
+
+    [ "$status" -eq 0 ]
+    assert_gh_ran_with_token "tok-write-acme"
+    assert_op_read acme
+    assert_not_called security
 }
 
 # --- --help は承認も拒否も起こさない ---
