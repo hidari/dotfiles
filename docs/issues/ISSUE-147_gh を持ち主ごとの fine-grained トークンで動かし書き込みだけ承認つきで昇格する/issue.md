@@ -39,7 +39,7 @@ SSH の側は同じ日に済ませた(マシンローカルの設定で、追跡
 - `gh auth token` と `gh auth status` を読む使い手は、logout すると shim があってもトークンを受け取れない。shim は `auth` をトークン無しで委譲するため。次のものが該当する
   - Claude Code の auto mode のリポジトリの公開範囲の判定と `/web-setup`
   - apm と Homebrew の GitHub API の呼び出し。匿名に落ちる
-- 持ち主の1つは自分が管理していない org で、fine-grained のトークンを発行できなかった。設定からその持ち主を外した。書き込みは「設定に無い持ち主」として止まる
+- 持ち主の1つは自分が管理していない org で、fine-grained のトークンを発行できなかった。設定からその持ち主を外した。開発機にはその org のリポジトリが1つある
 
 ### 決めたこと(2026-11-23、ユーザー)
 
@@ -48,17 +48,39 @@ SSH の側は同じ日に済ませた(マシンローカルの設定で、追跡
 - `gh auth token` の使い手が匿名に落ちるのは受け入れる。shim はトークンを `gh auth token` で配らない
 - 1Password の強いトークンの項目名の形を、設定の `write_item=` で決められるようにする
 
+### 配置して確かめたこと(2026-11-23)
+
+- bootstrap.sh で配置し、新しいログインシェルの `command -v gh` が shim を指した
+- 設定にある持ち主すべてで、shim 経由の読み取り(PR の一覧、rulesets の GET)が通った。応答ヘッダが fine-grained のトークンのもの(`github-authentication-token-expiration`)で、OAuth のトークンの `x-oauth-scopes` ではないことを、素の gh と並べて確かめた
+- stdin で本文を渡す graphql の読み取りは、承認なしで通った
+- 書き込みの承認ダイアログを拒否すると rc 1で止まり、普段使いのトークンで続行せず、対象は変わらなかった
+- 承認を通した書き込みは成功した。一時的なブランチの ref を作って消せた。対照として、普段使いのトークンで同じ ref を作ると403になり、`x-accepted-github-permissions` は `contents=write` を求めた
+- 強いトークンには Administration が無い。承認を通しても、リポジトリの設定の PATCH は403で止まり(`x-accepted-github-permissions` は `administration=write`)、対象は変わらなかった
+- `gh auth logout` の後、素の gh は未ログインになり、shim の読み取りは通り続けた。GitHub の Authorized OAuth Apps から GitHub CLI の許可も取り消した
+- logout の前に gh の使い手を棚卸しした。launchd のジョブ、hooks、statusline、Raycast のスクリプト、mise は gh もトークンも使っていなかった。影響があるのは上の棚卸しの `gh auth token` の使い手と、起動中のセッションだけだった
+  - 起動中の Claude のセッションは shim の入る前の PATH を持つので、logout の後は gh が未ログインで落ちる。新しい zsh から起動し直すまで続く。起動し直さずに回すなら `zsh -i -c '<コマンド>'` で新しい対話の zsh を挟む
+- 上の棚卸しの HTTPS の git の credential helper を、開発機の git 設定から消した。github.com 向けに残る helper はシステムの osxkeychain だけで、キーチェーンに github.com の資格情報は無い
+- 設定から外した org のリポジトリは、shim 経由だと読み取りも書き込みも通らない。止まり方は読み取りと書き込みで違う(持ち主の決め方は `scripts/gh-token-shim/gh` の手順 5 が持つ)
+  - 読み取りは既定の持ち主のトークンで黙って送られ、private のリポジトリは「Could not resolve to a Repository」で落ちた(そのリポジトリで作業するセッションの実測)。spec は、設定に無い持ち主を他人の公開リポジトリとしてしか想定していなかった
+  - 書き込みは「設定に無い持ち主」と名指しして止まる
+- 設定にある持ち主の1つでは、`gh repo list <owner>` が fine-grained のトークンで0件を返した(OAuth では数件)。同じトークンで REST の `orgs/<owner>/repos` は OAuth と同じ数を返す。原因は切り分けていない
+- 依頼元のリポジトリの構成検査は、shim 経由の普段使いのトークンで21項目ずれ無し、終了0だった(依頼元のセッションの報告)
+
 ## タスク
 
 - [x] 設計書(`ISSUE-147-spec.md`)を書いて承認を得る
 - [x] 実装プランを書く
 - [x] shim と配線を実装する(テストつき)
-- [ ] bootstrap.sh で配置し、新しいシェルで `command -v gh` が shim を指すことを確かめる(トークンを置く直前に行う。配置してからトークンを置くまでのあいだ、gh はどれも置き方の案内で止まる)
-- [ ] 持ち主ごとの普段使いのトークンと強いトークンを発行して置く(ユーザーの操作)
-- [ ] gh の OAuth のトークンを外し、GitHub の Authorized OAuth Apps から許可を取り消す
-- [ ] 構成検査を実物にかけて読めることを確かめ、依頼元のセッションへ変えた内容を報告する
+- [x] bootstrap.sh で配置し、新しいシェルで `command -v gh` が shim を指すことを確かめる
+- [x] 持ち主ごとの普段使いのトークンと強いトークンを発行して置く(ユーザーの操作。自分が管理していない org を除く)
+- [ ] 自分が管理していない org の管理者に fine-grained のトークンの許可を頼み、許可が出たら2本を発行して置き、設定の `owner=` へ戻す(ユーザーの操作)
+- [x] gh の OAuth のトークンを外し、GitHub の Authorized OAuth Apps から許可を取り消す
+- [x] 構成検査を実物にかけて読めることを確かめ、依頼元のセッションへ変えた内容を報告する
 - [ ] 間接の書き込みを実測し、各リポジトリの workflow を棚卸しする。対話のターミナルで `op read` の承認がどのくらい続けて効くかを測る(spec の移行の順序 6 と 7)
 - [ ] `gh api` で PR / Issue へ書き込む呼び出し(`-f body=...` のコメント、graphql の resolveReviewThread など)が毎回承認を求める頻度を測り、普段使いのトークンへ回すかを決める。普段使いの権限で足りるのに、spec の書き込みの判定では昇格する
+- [ ] 手元のリポジトリの origin の持ち主のうち、設定の `owner=` に無いものを列挙する検査を作る。2026-11-23 に、1階層だけ走査して「その持ち主のリポジトリは0件」と誤って判断し、その前提で持ち主を設定から外した
+- [ ] 設定に無い持ち主の読み取りを既定の持ち主のトークンへ落とすとき、「その持ち主のトークンが設定に無い」と stderr に一言出す。今は黙って落ちるので、private のリポジトリが「Could not resolve to a Repository」という紛らわしいエラーになる
+- [ ] `gh repo list <owner>` が fine-grained のトークンで0件になる持ち主について、原因を切り分ける。REST では同じトークンで一覧が取れるので、急がない
 - [ ] `.gitleaks.toml` の `git@` の allowlist を `ssh://git@<host>/` へ広げ、テストの literal を変数で組み立てずに書く形へ戻す。`.gitleaks.toml` は PUBLIC の各リポジトリへ配る canonical なので、別の PR にする。userinfo の URL(`https://<user>@github.com/...`)を解釈するかも、そこで決める
 
 ## 関連
