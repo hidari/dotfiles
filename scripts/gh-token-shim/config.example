@@ -15,5 +15,7 @@ owner=example-org
 # 持ち主ごとに用意するもの。
 # 読み取り用トークンは macOS のキーチェーンに入れる。
 #   security add-generic-password -s gh-token-shim -a <owner>:read -w
-# 書き込み用トークンは 1Password の vault に、項目名 gh-write-<owner>、
-# フィールド名 credential で入れる。
+# 書き込み用トークンは 1Password の vault に、フィールド名 credential で入れる。
+# 項目名は write_item の形で決まり、{owner} が持ち主の名前 (小文字) に置き換わる。
+# 書かなければ gh-write-{owner}。受け付ける形は lib.sh の ghts_load_config が持つ。
+#write_item=gh-write-{owner}

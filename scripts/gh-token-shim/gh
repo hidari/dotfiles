@@ -126,11 +126,22 @@ if [ "$GHTS_CLASS" = none ]; then
     exec "$real_gh" "$@"
 fi
 
+# --- 手順 2.5: graphql の本文が stdin なら読んで分類し直す ---
+# 読まずに write とみなすと、本文を stdin で渡す読み取り (Claude Code の PR の状態の取得)
+# が呼ぶたびに承認を求める。読んだ本文は手順 8 で本物へそのまま渡し直す。
+# 末尾の改行をコマンド置換に落とされないよう、番兵を付けて読んでから外す。
+stdin_body=""
+if [ "$GHTS_QUERY_ON_STDIN" -eq 1 ]; then
+    stdin_body="$(cat && printf x)" || die "cannot read the graphql query from stdin"
+    stdin_body=${stdin_body%x}
+    ghts_classify_stdin_query "$stdin_body"
+fi
+
 # --- 手順 3: 設定を読む ---
 config="${GH_TOKEN_SHIM_CONFIG:-$HOME/.config/gh-token-shim/config}"
 if ! ghts_load_config "$config"; then
     die "cannot load the config: $config" \
-        "it needs vault=, default_owner= and valid owner= lines; see $(config_example_path)"
+        "it needs vault= and default_owner=, and default_owner=, owner= and write_item= must be valid; see $(config_example_path)"
 fi
 
 case "$GHTS_CLASS" in
@@ -174,11 +185,16 @@ if [ "$GHTS_CLASS" = read ]; then
     fi
 else
     # --- 手順 7: 強いトークンを 1Password から読む。read のトークンでは続行しない ---
-    if ! token="$(op read -n "op://$GHTS_VAULT/gh-write-$owner/credential")" ||
+    if ! token="$(op read -n "op://$GHTS_VAULT/$(ghts_write_item_title "$owner")/credential")" ||
         [ -z "$token" ]; then
         die "cannot read the write token for $owner from 1Password; not continuing with the read token"
     fi
 fi
 
 # --- 手順 8 の後半: トークンを本物の gh の環境にだけ載せて exec する ---
+if [ "$GHTS_QUERY_ON_STDIN" -eq 1 ]; then
+    # 読んだ本文を stdin へ戻す。ヒアストリングは bash 3.2 では一時ファイルを経由するので、
+    # /dev/fd のプロセス置換を使う
+    exec 0< <(printf '%s' "$stdin_body")
+fi
 GH_TOKEN="$token" exec "$real_gh" "$@"
