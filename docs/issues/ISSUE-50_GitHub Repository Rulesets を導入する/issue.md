@@ -53,6 +53,7 @@ classic だけを見ると今も 404 なので、上の判定手順を使わな�
   ある。dotfiles は既に代替経路で運用できているが、展開先では経路の確認が要る
 - 2026-11-13に仕分けた分で、別のリポジトリから届いた。必須のステータスチェックを integration_id (Actions のアプリ) に結び付けておくと、PAT で名前だけを合わせた偽の success は通らない。ただしワークフローの中の GITHUB_TOKEN で出したステータスは同じアプリから来るので、これは防げない (ドキュメントのみ)。仕分けたセッションの解釈: 下のタスクにある `protect-main` へ必須ステータスチェックを足すとき、チェックの出し手をどう縛るかの材料になる
 - 2026-11-15に仕分けた分で、別のリポジトリから届いた。下敷きにしたリポジトリの main の ruleset に pull_request の rule が無く、dev-workflow の skill は「PR 必須でない」と読む状態だった (実測。報告元はそちらを直していない)。仕分けたセッションの解釈: ruleset を展開した先で pull_request の rule の有無を確かめる段が要る
+- 2026-11-24に仕分けた分で、別のリポジトリから届いた。ruleset の required_status_checks が check の名前だけで照合していると、checks: write を持つ App が同名の check を作れる。integration_id で固定したくても、fine-grained のトークンに checks の読み取りの権限が無いと発行元の id を読めず、取り違えると全 PR の merge が止まるので推測で入れられない (実測: check-runs の API が403)。同じまとめの報告者の提案: ruleset の integration_id の値は classic の資格情報か画面で読む手順を残す (ドキュメントのみ)。仕分けたセッションの解釈: 2026-11-13の項 (integration_id に結び付けると、名前だけを合わせた偽の success は通らない) を入れるときに、id をどこから読むかの制約にあたる。fine-grained のトークンに Checks の権限が無い件は ISSUE-147 にある
 
 ## タスク
 
