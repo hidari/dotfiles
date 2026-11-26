@@ -668,6 +668,7 @@ status: open
 - pre-commit は hook がファイルを変えるとコミットを止め、lefthook の stage_fixed のように黙って stage し直さない。format の自動修正を確かめてから add し直す流れになる (実測)
   - 2026-11-10の仕分けで、別のリポジトリから同じ挙動の別の面が届いた。整形の hook がファイルを直すとコミットが止まるのに、`git commit ... | tail -1` で結果を見ると止まったことに気づけない。コミットの後に git log で着地を確かめる (実測)
 - lefthook が置く git hook は、本体が見つからないと警告を出して exit 0で終わるので、依存から外すだけだと gitleaks などの検査が緑のまま消える。外す前に lefthook uninstall を打つ (実測)
+  - 2026-11-26の仕分けで、別のリポジトリから同じ機構の2件目が届いた (届いたのは2026-11-24)。書き捨ての置き場に作った git worktree では、lefthook の本体が見つからず `Can't find lefthook in PATH` と出るだけで pre-commit が黙って飛ばされ、コミットは rc=0で通った (実測)。本文は ISSUE-133 の「シェルとコマンド」節の、git worktree から push する項の子にある。仕分けたセッションの解釈: 版の記録は今回も無い
 - 報告者の提案: lefthook から移る手順に、これを入れる
 - pre-commit install は既存の他のツールの hook を .legacy へ退避して連鎖で実行するので、本体の無い lefthook の hook が退避されると exit 0のまま残る。--overwrite で置き換えると避けられる (実測。移行モードが既定であることはドキュメントのみ)
 - lefthook から移した後も、prepare-commit-msg が lefthook のものとして残ることがある。pre-commit install --overwrite は default_install_hook_types の種類しか置き換えないので、ソースの読解で「作られない」と結論したレビューより手元の実物を優先し、消す前に中身を確かめた (実測。古い版が置いたというのは推測)
