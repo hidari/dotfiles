@@ -92,6 +92,7 @@ status: open
 - vitest 5が出す isolate: false を勧めるヒントは、isolate を明示的に設定すると出なくなる (実測。条件は vitest のソースで確かめた)
 - vitest は既定で `.cache/` を除外しないので、`.cache/` にリポジトリの複製を置くとその中のテストまで収集し、テストの件数が303から4545に化けた。`test.exclude` に `.cache/` の配下を除くグロブを足して塞いだ (実測)。報告者の提案は、vitest を使うリポジトリでは `test.include` でテストの置き場を列挙すること。既定の全体探索のままだと、書き捨ての置き場や worktree に置いた複製の中のテストまで走る (実測)
   - 2026-11-23の仕分けで、別のリポジトリから同じ型の報告が届いた。git worktree をリポジトリの `.cache/` の下に置くと、リポジトリのテストランナーが中のテストを拾うおそれがある (vitest の既定の除外は node_modules と .git だけ)。リポジトリの外の兄弟のディレクトリに置いた (推測。拾うことは試していない)
+  - 2026-11-26の仕分けで、別のリポジトリから届いた (届いたのは2026-11-24)。書き捨ての置き場に worktree を作るのは、親の作業ツリーで重い検証が走っている間は避けた。テストランナーなどが ignore を見ずに複製の中まで拾い、件数を化けさせるおそれがあるため。検証が終わってから作った (ドキュメントのみ。参照先の手引きの既知の実測に従った)。dotfiles で確かめたこと (2026-11-26): `references/host-environment.md` の17〜19行目は、`.cache/` の複製をツールが ignore を見ずに本体と同じ木として扱うこと、vitest がテストの件数を303から4545に化けさせた実測を書いている。仕分けたセッションの解釈: 再発見ではなく、references の該当の節が踏む前に読まれて避けられた例
 - wrangler.toml で Durable Object の束ねを守るなら、各要素の鍵を {name, class_name} に exact で縛る。wrangler は script_name (別の Worker) とそれに付随する environment も受け付けるので class_name だけを見る検査は storage を別の場所へ向ける差分を素通しし、migration も legacy の deleted / renamed / transferred_classes は storage を消すか移すので、置ける鍵を {tag, new_sqlite_classes} に絞る (実測。鍵の意味は公式の頁で確かめた)
 - wrangler dev では Content-Length を偽った要求が Worker に届かず、前段の ProxyWorker が待ち続ける。Worker 側で宣言を見て先に拒む門は手元では確かめられず、本番の経路で確かめるしかない (実測)
 - wrangler dev の前段は、Worker が本文を読み残して返した直後の POST を1件落とすことがある (GET は再試行される)。後ろに別の smoke を並べるなら、捨ての POST を1件送る (実測。原因が keep-alive の使い回しというのは推測)
@@ -111,6 +112,7 @@ status: open
 - 2026-11-23の仕分けで、別のリポジトリから届いた。`vitest list --json <テストのファイル> ...` と打つと、`--json` が直後の位置引数を出力先として食い、未追跡のテストのファイルをテスト一覧の JSON で上書きした。rc は0で、標準出力は空。後で同じファイルを回すと「No test suite found」で落ち、テストが壊れていると誤読しかけた。一覧が欲しいときは `vitest run <files> --reporter=json --outputFile=<書き捨ての置き場>` を使う (実測)。報告者の提案は、vitest を使うリポジトリの手順書やエージェント向けの指示で、テスト ID の一覧を取る形を `vitest run --reporter=json --outputFile` に寄せ、`vitest list --json <path>` の形を書かないこと。値を任意に取るフラグの直後に位置引数を置く形は、ほかの CLI でも同じ事故を起こしうる (実測)
 - 2026-11-23の仕分けで、別のリポジトリから届いた。`--maxWorkers=0` は vitest がエラーにせず既定値として受け付けたので、「JSON が出ない」経路の対照にならなかった (実測、vitest 5.0.5)
 - 2026-11-24の仕分けで、別のリポジトリから届いた。vitest の setup が console を黙らせているリポジトリでは、probe の `console.log` が rc=0のまま0件で消えた。結果を assertion の失敗メッセージとして出す (`expect(JSON.stringify(rows)).toBe('SHOW')`) と観測できた (実測)。仕分けたセッションの解釈: 「React と E2E (Playwright)」節の、page.evaluate の console.log がランナーの標準出力に出ないので失敗メッセージで読んだ項と同じ手当て
+- 2026-11-26の仕分けで、別のリポジトリから届いた (届いたのは2026-11-25)。`pnpm run test -- <file>` は vitest の run の script ではファイルの絞り込みにならず、全体が走った。絞るなら `pnpm exec vitest run <file>` (実測)。報告者の提案: 計画の brief に「このファイルのテストだけ回す」コマンドを書くときは、script 経由の `--` が絞り込みとして効くかを先に1回測ってから書く (実測)
 
 ### Node と Web の API
 
@@ -151,6 +153,7 @@ status: open
 - uv の `uv lock --upgrade` を回す recipe は、exclude-newer の値を変えただけでも全依存を上げ先へ解決し直す。値だけを変えたいときも依存の更新が混ざるので、生成物の差分を確かめる手間が要る (実測)
 - 2026-11-23の仕分けで、別のリポジトリから届いた。subprocess.Popen の kill() は vitest の親だけを止め、ワーカーの fork が孤児として残った (実測、vitest 5.0.5)。子プロセスを start_new_session=True で立て、止めるときは os.killpg でグループごと止めると、vitest の親を kill したときに残るワーカーの fork まで止まる (実測)。macOS で、親が終わって回収前 (ゾンビ) で所属が空のプロセスグループへ os.killpg を呼ぶと、ESRCH ではなく PermissionError (EPERM) が返り、回収後は ESRCH になる (実測、macOS 26.7.3)。報告者の提案は、書き捨ての検証スクリプトで子プロセスを止める手順の既定を「新しいセッションで立て、killpg で止め、ProcessLookupError と PermissionError の両方を受ける」にすること (根拠は「効かなかったこと」の1・2件目。実測)
 - 2026-11-23の仕分けで、別のリポジトリから届いた。`python3 -I -m py_compile <file>` は -I でも隣に __pycache__ を書く (実測)
+- 2026-11-26の仕分けで、別のリポジトリから届いた (届いたのは2026-11-25)。Python で `if w.get("advisory")` と書くと、null だけでなく空の dict も読み飛ばし、形の違いを黙って通す。null を飛ばす意図なら `is not None` で書く。形の違いのテストを subTest で並べたら見つかった (実測)。同じまとめの cargo-audit の JSON の読み方は「Rust と依存の脆弱性」節に置いた
 
 ### iOS
 
@@ -269,6 +272,7 @@ status: open
 - 2026-11-23の仕分けで、別のリポジトリから届いた。テナントや組織の文脈 (claims) が別のタブの操作で変わると、マウント済みの画面は前の文脈の state を持ったまま、名前・URL・以後の書き込み先だけが新しい文脈になる。解決の結果を「どの auth (種類・組織・利用者) に対するものか」の鍵と組で state に持ち、描画のときに今の鍵と違えば解決中と読んで画面を外すと、作り直しになる。effect の中で同期の setState をしない形なので、react-hooks/set-state-in-effect の lint にも当たらない。E2E は名前や URL だけでなく、前の文脈のデータが消えることまで見ないと、この状態を仕様として固定してしまう (変異で赤を確認。実測)。報告者の提案は、マルチテナントの SPA の作法に「文脈の解決の結果は auth の鍵と組で持ち、鍵が変われば画面を作り直す」を足し、E2E は前の文脈のデータが消えることまで見る、を添えること (実測)
 - 2026-11-23の仕分けで、別のリポジトリから届いた。複数のタブで同じセッションを共有するアプリで、effect のたびに「URL の組織へ切り替える」と、別の組織を開いた2つのタブが claims の更新を通じて互いを切り替え合う恐れがある。切り替えは1ページの読み込みにつき1回にし、Promise を ref に持って走り直しでも同じものを待つ形にした。1回の守りを外す変異で、2つのタブの E2E が赤になった (実測)。同じまとめの、文脈の解決の結果を auth の鍵と組で持つ項がこの節にある
 - 2026-11-24の仕分けで、別のリポジトリから届いた。値を encodeURIComponent してパスに差し込むタグ付きテンプレートが、値が丸ごと `.` か `..` のときに dot segment を防げない件を、React Router 7.18.6の createRequestHandler に最小の ServerBuild を食わせて確かめた (実測)。React Router v7 の single fetch は `new URL(request.url)` の後で末尾の `.data` を剥がしてから route を match する。そのため `/x/%2E%2E.data` で loader の params に `..` が届く。素の文書要求 `/x/%2E%2E` は WHATWG URL が parse の段階で畳むので届かない。params の検査や dot segment の試験は `.data` の経路で書く必要がある (実測)。報告者の提案: E2E や loader のテストで URL の path traversal を確かめる指針に「React Router の single fetch では `.data` の経路を使う。文書要求の URL は parse の段階で畳まれ、修正前でも緑になる dead pin になる」を足す (実測。根拠はこの項)。dot segment をどこで止めるかは ISSUE-133 のセキュリティの節の、dot segment の項の子に置いた
+- 2026-11-26の仕分けで、別のリポジトリから届いた (届いたのは2026-11-24)。失敗したテストが `findBy...` の直後の `expect` で落ちているときは、待ち時間切れではなく順序の前提の破れだと、テストの本体の行番号から言える。負荷で揺れるテストを「遅さ」と決めて待ち時間を延ばす前に、落ちた行を確かめると見立てが変わる (実測)。仕分けたセッションの解釈: `references/testing-time-and-order.md` の「テストどうしの漏れと実行順」節は、負荷の高いときだけ落ちるテストを前のテストの非同期処理の漏れと読んだ例を持つ。落ちた行から時間切れと順序の破れを見分ける手がかりは書いていない
 
 ### Playwright でスタイルと配置を測る
 
@@ -510,6 +514,7 @@ status: open
 - 2026-11-23の仕分けで、別のリポジトリから届いた。write を持つ人が2人いると、承認の必須数1だけでは互いに承認しあえる。CODEOWNERS の `*` を維持者に持たせて code owner のレビューを必須にし、dismiss_stale_reviews_on_push で承認の後の push を塞ぐ (設定の読み戻しまで実測。write のアカウントで破る確認はしていない)
 - 2026-11-23の仕分けで、別のリポジトリから届いた。使い捨ての probe の workflow は、値を出さず空かどうかだけを出し、必ず値がある GITHUB_TOKEN を同じ形で読む job を対照に並べる (実測)
 - 2026-11-23の仕分けで、別のリポジトリから届いた。必須のチェックは「GitHub Actions のアプリが付けた同じ名前の check」しか求めないので、write を持つ人は別の workflow から check run を偽造できる見込み (推測。反証役の推論で、試していない)
+- 2026-11-26の仕分けで、別のリポジトリから届いた (届いたのは2026-11-25)。リポジトリの push ruleset (`target: push`、`file_path_restriction`) で `.github/` の下を変える push を admin の role と Dependabot だけに限り、当たるかを admin の push の応答で確かめた (実測)。bypass に Dependabot を入れるときの API の形は `{"actor_type":"Integration","actor_id":29110}` で、29110は `gh api /apps/dependabot` の id。文書には API の形が載っていなかったが、画面から作った ruleset を GET で読み戻すとこの形だった (実測)。パターンが当たるかは、admin が bypass した push の応答で見られる。bypass されると push の出力に「Bypassed rule violations」「File path is restricted」と該当ファイルの名前が出る。対象の外だけを変えた対照の push では何も出ない。書き込みだけのアカウントを用意せずに、パターンの当たり方を確かめられる (実測)。bypass を `exempt` ではなく `always` にすると、bypass の記録が残るのでこの確かめ方が使える。`exempt` はルールを評価せず記録も残さない (ドキュメントのみ)。push ruleset に bypass の `pull_request` の形は使えない。文書は branch の ruleset に限ると書く (ドキュメントのみ)。`file_path_restriction` の文書の例は `dir/**/*` の形だけで、`dir/**` が入れ子に当たるかは書いていない。両方を入れて、直下と入れ子の両方で当たることを確かめた (実測)。報告者の提案: GitHub の ruleset を扱う参照 (tools の索引など) に、Dependabot の bypass の API の形 (Integration と `/apps/dependabot` の id) と、admin の push の応答でパターンの当たり方を確かめる方法を足す (実測)。dotfiles で確かめたこと (2026-11-26): `references/tools.md` に ruleset の語は無い。ruleset を扱う references は `git-workflow.md` (classic の API の404と ruleset の判定) と `tool-gh.md` (移管の前後の比較) で、push ruleset・Dependabot・`exempt` の語はどちらにも無い。仕分けたセッションの解釈: この節の、ruleset の bypass はルールではなく ruleset 単位で効く項の隣にあたる。同じまとめの、fine-grained のトークンで403になった API の一覧は ISSUE-147 に、持ち主が別にいるリポジトリで攻撃の形の操作を回すかを決め直した件は ISSUE-133 の「セキュリティ」節に置いた
 
 ### GitHub の CLI とリポジトリの管理
 
@@ -546,6 +551,12 @@ status: open
   - 2026-11-23の仕分けで、別のリポジトリの2つのまとめから同じ型の報告が届いた。ある JS のフレームワークの依存の脆弱性を、パッケージマネージャの audit、GitHub のグローバルな Advisory DB の API、配布元のリポジトリの security advisory の API の3つで引き比べた (実測)。配布元のリポジトリの advisory の API (`/repos/<owner>/<repo>/security-advisories`) は公開当日の advisory を返し、公開から4日たってもグローバルな DB (`/advisories`、`/advisories/<GHSA>`) は同じ ID を404で返していた (実測)。audit は公開から4日たった High 3件を含む advisory を1件も出さなかった。グローバルな DB を引いているからで、その DB 側が未掲載だった。audit の0件を「その依存に既知の脆弱性は無い」の根拠にできず、検索で見つけた二次情報の GHSA の ID もグローバルな DB では404なので、そこだけを見ると「実在しない ID」に見える (実測)。もう1つのまとめも、配布元のリポジトリの `/security-advisories` の advisory は公開から4日たっても `pnpm audit` と GitHub Advisory DB に出ていなかったと書いている (前のセッションの観測を引き継ぎ。今回は配布元の API だけを使った。ドキュメントのみ)。報告者の提案は、依存の脆弱性の確認手順に配布元のリポジトリの security advisory の API を必須の入口として足し、audit とグローバルな DB の0件だけで「影響なし」と結論しないこと (根拠: 効かなかったことの1件目。実測)
 - `gh search commits "\"<メッセージ>\""` は引用符で囲んでもあいまい一致で、IOC のコミットのメッセージで自分のアカウントを検索すると無関係なコミットが5件当たった。件数を IOC の有無の判定に使わず、当たったコミットの1行目と日付を必ず開く (実測)。IOC を当てるときの0件の対照 (run の番号の連番) は ISSUE-133 の「セキュリティ」節にある
 - 2026-11-23の仕分けで、別のリポジトリから届いた。Dependabot のブランチを手元でマージし直して push しようとしたら、その間に Dependabot が自分で rebase していて fast-forward で弾かれた。force はせず、Dependabot の head を main に重ねたツリーが手元で検証したツリーと同じか (git merge-tree の結果と diff) を確かめて、Dependabot の版を使った (実測)
+- 2026-11-26の仕分けで、別のリポジトリから届いた (届いたのは2026-11-24)。別アカウントで gh と git を動かす確認の中で、git と gh の設定の階層について次のことが分かった
+  - credential helper を空にする設定は、git の `-c` ではなく `GIT_CONFIG_COUNT` / `GIT_CONFIG_KEY_n` / `GIT_CONFIG_VALUE_n` の環境で渡すと、gh が中で起動する git (拡張や pr create の push) にも効いた。`GIT_ASKPASS=''` (空) は git の askpass の連鎖 (core.askpass と SSH_ASKPASS) ごと止めた (実測、スタブの helper と askpass が呼ばれないことで確認)
+  - `git config --get-all credential.helper` は、空の値で一覧を空にした後も上位の階層の helper を並べて見せる。リセットが効いているかは `git credential fill` を走らせて、呼ばれた helper で見る必要があった (実測)
+  - コンテナの中で `GIT_CONFIG_GLOBAL=/dev/null` にしても、root だと `git config --global` が rc=0で通り、書いた helper が一覧に載った (ロックファイルの rename で /dev/null が置き換わったと見ている。原因は推測)。root ではない利用者にして、global の設定を root の持ち物の読み取り専用のファイルにすると、Permission denied で止まった (実測)
+  - `gh auth login` は既定でトークンを OS の keychain (service `gh:github.com`) に保存し、その項目は GH_CONFIG_DIR で分かれない。GH_CONFIG_DIR を消しても別アカウントのトークンが keychain に残る。`--insecure-storage` で GH_CONFIG_DIR の中へ置かせ、後始末で `gh auth logout --user` と `security find-generic-password` の終了コード44 (項目が無い) を見る (レビューの指摘とフラグの存在は実測。keychain への書き込みそのものは試していない)
+  - 仕分けたセッションの解釈: `git credential fill` で呼ばれた helper を見る形は、ISSUE-147 の「配置して確かめたこと」節の、HTTPS の資格情報が残っていないことを `git credential fill` で確かめる子と同じ道具を、リセットの効きの確認に使ったもの。同じまとめの、helper のリセットを環境へ移したら呼び手の `GIT_CONFIG_PARAMETERS` の helper が後ろに足された件は、ISSUE-133 の「セキュリティ」節の別アカウントの項に置いた
 
 ### pnpm
 
@@ -753,6 +764,7 @@ status: open
 - 2026-11-23の仕分けで、別のリポジトリから届いた。上の項と同じまとめから来た。lockfile の差分の検査は (名前, 版) の集合だけでなく、両方にある package の依存の辺まで比べる。cargo update / --precise で連鎖を上げてから下げると、一族の外のクレートの辺 (socket2 や windows-sys の版の付け替え) が解き直されるが、版の集合は変わらないので集合の比較では0件に見える。辺を正規化して比べる検査に直し、問題のコミットで非空・同一の版どうしで0件の両方の対照を確かめた (実測)。cargo の解き直しが収束しないときは cargo に選ばせない。土台の lockfile に、必要な package のブロックだけを cargo が作ったブロックで差し替えて組み直し、依存を解き直すビルドの前後で Cargo.lock のハッシュが変わらない (不動点) ことを確かめる。cargo は書き方の正規化 (版が1つになった依存の版の省略) だけを書き換えることがあるので、正規化後にもう一度不動点を確かめる (実測)。報告者の提案は、lockfile を書き換える作業 (依存の更新) の手順に「辺まで比べる差分」と「組み直した後の不動点の確認」を入れること (実測)
 - 2026-11-23の仕分けで、別のリポジトリから届いた。上の項と同じまとめから来た。本体の pin を上げる前に、連鎖を先に最小の版へ --precise で上げておくと、「最新まで連れて上がってから下げる」副作用の大半を避けられた (実測)。一方、同じ `cargo update -p X --precise V` を繰り返しても、鍵を外した依存の寄せ先 (lockfile に既にある複数の版のどれか) が毎回揺れ、3回で3通りに分かれた。繰り返しで収束を待つのは無駄 (実測)。この節の、`cargo update -p A` が手前の版で止まる項と組で読む
 - 2026-11-24の仕分けで、別のリポジトリから届いた。依存の監査をローカルの事前ゲートだけで回し CI で回さない構成では、ブランチと無関係な新しい advisory が出た日に事前ゲートが止まり、main も同じく赤になる。直った版が公開から日が浅く、パッケージの待ち期間の規約に届かないときは、到達しないことを陽性対照つきで確かめ、消す条件を書いて除外した。cargo audit は不要になった除外を知らせないので、持ち越しの一覧へ必ず載せる (実測)。仕分けたセッションの解釈: 「pnpm」節の、pnpm audit が advisory の追加で翌日に赤くなり、外す時機を依存の更新を待つ Issue のタスクに持たせた項と同じ手当てを cargo audit で取った形。同じまとめの `cargo update -p` の件は、この節の `cargo update -p A` が手前の版で止まる項の子に置いた
+  - 2026-11-26の仕分けで、別のリポジトリから届いた (届いたのは2026-11-25)。cargo-audit の `.cargo/audit.toml` の ignore に残った要らない ID を検出する検査を、依存を増やさずに足した。cargo-deny への移行は採らなかった (実測)。cargo-audit 0.22.0は要らなくなった ignore を exit 0で警告も出さずに通す。設定ファイルを読ませないフラグも無い。cwd の `./.cargo/audit.toml` を探し、無ければ `$CARGO_HOME/audit.toml` を読む (同版の src/commands.rs) ので、設定の見えない一時ディレクトリから `-f <lock>` で走らせた `--json` の当たりと、tomllib で読んだ ignore の一覧の差を取れば検出できる。設定なしの報告の `settings.ignore` が空でなければ止める守りを置く (実測)。当たりは `vulnerabilities.list` と `warnings.*` の両方から集める。ignore は警告側 (unmaintained・unsound) にも置けるので、脆弱性だけを見ると正しい設定で赤になる。yanked の警告は `advisory` が null で来る (rustsec 0.31の Warning に skip_serializing_if が無い) (実測)。設定ファイルに `$CARGO_HOME` のような退避先があるツールを「設定なし」で走らせたいときは、一時ディレクトリに空の設定ファイルを置くと退避そのものを止められる。置かずに一時ディレクトリへ逃がすだけだと、ホームの設定 (別の DB の置き場など) が比較に混ざり、報告に出ない差は検出できない (実測)。仕分けたセッションの解釈: 親の項の「cargo audit は不要になった除外を知らせない」を機械で検出する手当てにあたる。同じまとめの、設定を読ませた結果を一覧に使う設計が0件で黙って緑になった件と、cwd に依存する組み立てを振る舞いで pin した件は ISSUE-88 の表、`if w.get("advisory")` の件は「Python」節に置いた
 
 ### GPUI
 
@@ -874,6 +886,7 @@ status: open
 - 2026-11-23の仕分けで、別のリポジトリから届いた。`aa extract` は、対象の型が既定の集合に無いエントリを黙って飛ばし、rc=0で0件を返す。展開の後は出力のファイルを数える (実測)
 - 2026-11-23の仕分けで、別のリポジトリから届いた。jq で違反の配列を `A + B + (式) as $x | C` のように `+` でつなぐと、`as` の束縛がそれまでの `+` の連なり全体を取り込み、前の違反の和が捨てられて C だけが残る。検査は緑のまま通る。`+ ((式) as $x | C)` と括弧で閉じて直した。fixture の赤の場合を行数まで pin したテストで見つかった (実測)
 - 2026-11-23の仕分けで、別のリポジトリから届いた。GUI の測りで「窓が前面にある」ことを画面収録の許可なしで確かめるために、`lsappinfo front` を0.1秒ごとに記録した (実測)。`lsappinfo info -only name "$(lsappinfo front)"` は許可のダイアログ無しで最前面のアプリの名前を返し、測る回ごとに対象のアプリが前面に来たかの記録に使える (実測)
+- 2026-11-26の仕分けで、別のリポジトリから届いた (届いたのは2026-11-24)。開発モードのデスクトップアプリが自己再起動すると、開発サーバ (UI の配信元) が開発ツールの終了と一緒に止まり、再起動した窓が真っ白になった。本番のビルドは UI を同梱するので起きない。実機の確認の手順では、自己再起動の後の画面を見るなら本番のビルドを使う必要がある (実測)。仕分けたセッションの解釈: 報告はデスクトップアプリのフレームワークの名前を書いていないので、特定のフレームワークの節ではなくここに置いた
 
 ### 地理データの処理 (osmium)
 
