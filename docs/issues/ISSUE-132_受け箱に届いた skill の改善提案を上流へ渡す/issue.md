@@ -243,8 +243,8 @@ dotfiles で確かめたこと (2026-10-31): `home/apm.yml` は ast-grep-practic
 - 使用感 (実測): doctor の「GUI セッション」の行で、ログインの画面かどうかを先に見られるのが役に立った。スナップショットを使わずに原状そのものを作り直す手順 (OS の更新、許可、止め方) は skill に無い
 - 報告者の提案 (実測。根拠は上の1つ目と2つ目): skill に、ストレージの回収の節を足す。plain の sparse ディスクでは `compact` が使えず、ゲストの「システム終了」の TRIM で戻ること、回収の余地は `diskutil apfs list` の使用量とホスト側のファイルの割り当て (`ls -ls`) の差で見積もれること
 - 報告者の提案 (実測。根拠は上の4つ目と5つ目): 同じ skill に、原状を作り直すときの確かめの形を足す。許可の確かめは窓の大きさを変える AppleScript で行い (数えるだけの AppleScript では確かめにならない)、自動アップデートとおやすみモードを原状に含める
-- dotfiles で確かめたこと (2026-11-26): worktree の配布の写し (追跡外、agentic-coding-tools の e1720e6) の macos-vm-verification の SKILL.md・macvm.py・references に、compact・TRIM・shut down・システム終了・SoftwareUpdate・おやすみ・stop --kill の語は無い。TCC への言及は `references/macos-bootstrap.md` の18〜19行目の Full Disk Access だけで、アクセシビリティの許可の確かめ方は無い。doctor の「GUI セッション」の行は macvm.py の738行目と744行目にある
-- 仕分けたセッションの解釈: Windows の側の縮小の順序 (compact はスナップショットが0件のときだけ効く) は「windows-vm-verification: ディスクの容量」節にあり、こちらは compact そのものが plain のディスクで効かない形。ゲスト内の osascript / System Events にアクセシビリティの許可が要ることは ISSUE-134 の「その他のツール」節の `prlctl send-key-event` の項にある
+- dotfiles で確かめたこと (2026-11-26): worktree の配布の写し (追跡外、agentic-coding-tools の e1720e6) の macos-vm-verification の SKILL.md・macvm.py・references に、compact・TRIM・shut down・システム終了・SoftwareUpdate・おやすみの語は無い。止め方は、SKILL.md の手順5 (原状へ戻した後に VM を止める手順) が、起動中の VM を `prlctl stop "<vm>" --kill` で止めるとしている (素の stop は Apple の仮想化の macOS VM で rc 255になる。手順4で原状へ戻した後なので強制停止で失うものは無い、と理由も書いている)。ゲストの OS を終了させて止める経路は無い。TCC への言及は `references/macos-bootstrap.md` の18〜19行目の Full Disk Access だけで、アクセシビリティの許可の確かめ方は無い。doctor の「GUI セッション」の行は macvm.py の738行目と744行目にある
+- 仕分けたセッションの解釈: Windows の側の縮小の順序 (compact はスナップショットが0件のときだけ効く) は「windows-vm-verification: ディスクの容量」節にあり、こちらは compact そのものが plain のディスクで効かない形。ゲスト内の osascript / System Events にアクセシビリティの許可が要ることは ISSUE-134 の「その他のツール」節の `prlctl send-key-event` の項にある。報告の「強制停止を使わずに済む」は、手順5の --kill の代わりになる経路で、TRIM の回収はこちらでしか起きない。手順5はスナップショットで原状へ戻した後の強制停止を前提にしているので、渡すなら、スナップショットを使わずに原状を作り直す経路と手順5の使い分けの条件を並べる
 
 ### justfile (第三者の上流): `*args` の展開で引数が割れる
 
