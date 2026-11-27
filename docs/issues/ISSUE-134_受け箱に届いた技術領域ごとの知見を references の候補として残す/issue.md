@@ -385,6 +385,7 @@ status: open
 - planner / generator に実画面の文言を推測と区別して報告させると、UX の欠陥 (無効化された利用者に通信失敗の汎用画面が出る) を探索の段階で見つけられた。generator は Bash を持たないので、テストの実行はコントローラ側が要る (実測)
   - 2026-11-10の仕分けで、別のリポジトリから generator の報告が届いた。実物のアプリを探索して locator を選ぶので役に立つが、探索した画面の構造のまま書くので、同じ文字列が画面に2か所ある箇所で strict mode の違反になりやすく、実行前のレビューで2件見つかった。shell が無いので自分では実行できず、型エラーも実行もコントローラが確かめる必要がある (実測)
   - 2026-11-11の仕分けで、2つのリポジトリから同じ型の報告が届いた。1つは、playwright-test-generator を Workflow の agentType として使い、バグを再現する e2e の初版を書けたが、この環境ではテストを実行する道具を持たず、赤の確認は後続の agent に回す必要があった。生成物の待ち方 (正規表現の .+) が既存の作法より緩く、統合のときに直した (実測)。もう1つは、公式 Playwright Test Agents の generator には shell が無く、書いたテストを1回も走らせずに返すので、コントローラが毎回 `playwright test` を回し、赤は healer に渡す流れにすると回った。generator は古いビルドの画面を見て書くので、ブランチの HEAD で焼いたビルドで通すまで、仕様の変更との食い違いは見えない (実測)。同じ報告で、planner や generator などの Test Agents には Write の道具も無いので、報告ファイルの書き出しを求めず、返事の本文で受け取るようにした (実測)。dotfiles で確かめたこと (2026-11-11): `references/testing.md` は Planner / Generator / Healer で作成すると書くだけで、generator がテストを実行しないことや Write を持たないことには触れていない
+  - 2026-11-27の仕分けで、別のリポジトリから届いた (届いたのは2026-11-26)。generator が生成したテストは、保存の完了を「同期待ちを示す表示が消えたこと」で待っていた。その表示は同期待ちの間だけ出るので、書き込みが積まれる前でも通る。再読み込みの後の値も localStorage から戻りうる。generator 自身が報告したので、DB の poll と、localStorage の空の新しいコンテキストでの再読み込みに直させた (実測)。仕分けたセッションの解釈: この項の子の、生成物の待ち方 (正規表現の .+) が既存の作法より緩い件と同じく generator の待ち方の緩さで、こちらは不在を待つ条件が処理の前から成り立っている形
 - chrome-devtools の MCP は、同じプロファイルのブラウザが他で動いていると起動できない。別の MCP のブラウザへ切り替えて回避した (実測)
 - セッションの途中で作った .mcp.json のサーバーは /mcp に出てこなかった (実測)。プロジェクトの MCP サーバーは起動時にしか読まれない様子で、Playwright Test Agents を使うにはセッションの再起動が要る (推測)。MCP の要らない配線を先に WIP コミットしてから再起動すると、待ちが無駄にならない。報告者の提案は、`references/testing.md` の「E2E の生成」に再起動の要否を足すこと
   - 2026-11-11の仕分けで、別のリポジトリから同じ症状の別の原因が届いた。プロジェクトの `.mcp.json` にある MCP サーバが ToolSearch にも `/mcp` の一覧にも出なかった原因は、リポジトリの `.claude/settings.local.json` の `disabledMcpjsonServers` に名前が入っていたことだった。設定の各スコープ (user の settings.json、`~/.claude.json` のプロジェクトの項目、リポジトリの `.claude/settings*.json`) を順に grep して見つけ、`~/.claude.json` の側の同名のリストは空だった。項目を消して `/mcp` から reconnect したら、ツールが出てきた (実測)。設定ファイルの `disabledMcpjsonServers` に入ったサーバは `/mcp` の一覧に出ないので、そこから有効にできなかった。`~/.claude.json` の側の無効化とは扱いが違う (実測)。報告者の提案は、リポジトリへ配る settings.local.json のテンプレートに `disabledMcpjsonServers` が入っていないかを確かめ、入れるなら「`/mcp` に出なくなる」ことを手順書に添えること (推測)。テンプレートから settings.local.json を配置する手順の扱いは ISSUE-140 のタスクが持つ。dotfiles で確かめたこと (2026-11-11): この項を足す前の worktree の全体で `disabledMcpjsonServers` は0件で、追跡下に settings.local.json のファイルは無かった
@@ -399,6 +400,7 @@ status: open
 - chrome-devtools-mcp の emulate の networkConditions Offline では、supabase-js の要求は即座ではなく数秒後に失敗として返った。失敗の表示を確かめるときは、待ちを長めに取る (実測)
 - playwright-test の MCP の `browser_run_code_unsafe` の中の相対パスは、MCP のサーバの cwd (Playwright の package) から解決され、screenshot が想定外の場所に落ちた。絶対パスで書く (実測)
 - 公式 Playwright Test Agents の planner を CDP 越しの WebView2 で使うと、探索を歩いて計画を書く過程で、計画以外の所見も拾った。ただ `browser_run_code_unsafe` で時間制限の無い待ちを書くと30分固まるので、brief で `setDefaultTimeout` などの上限を求めるのがよい (実測)。WebView2 へ Playwright を CDP でつなぐ経路は「Tauri と WebView2」節にある
+- 2026-11-27の仕分けで、別のリポジトリから届いた (届いたのは2026-11-26)。Playwright Test Agents の generator で、seed の auth.setup の1件 (画面からのログイン) が1回だけ5秒の待ちで落ちた。同じ seed を playwright test で回すと緑で、generator の再試行でも通った。Vite の起動直後の一過性と見ている (原因は未確定。推測)
 
 ### GitHub Actions と Node の版
 
@@ -766,6 +768,10 @@ status: open
 - 2026-11-23の仕分けで、別のリポジトリから届いた。上の項と同じまとめから来た。本体の pin を上げる前に、連鎖を先に最小の版へ --precise で上げておくと、「最新まで連れて上がってから下げる」副作用の大半を避けられた (実測)。一方、同じ `cargo update -p X --precise V` を繰り返しても、鍵を外した依存の寄せ先 (lockfile に既にある複数の版のどれか) が毎回揺れ、3回で3通りに分かれた。繰り返しで収束を待つのは無駄 (実測)。この節の、`cargo update -p A` が手前の版で止まる項と組で読む
 - 2026-11-24の仕分けで、別のリポジトリから届いた。依存の監査をローカルの事前ゲートだけで回し CI で回さない構成では、ブランチと無関係な新しい advisory が出た日に事前ゲートが止まり、main も同じく赤になる。直った版が公開から日が浅く、パッケージの待ち期間の規約に届かないときは、到達しないことを陽性対照つきで確かめ、消す条件を書いて除外した。cargo audit は不要になった除外を知らせないので、持ち越しの一覧へ必ず載せる (実測)。仕分けたセッションの解釈: 「pnpm」節の、pnpm audit が advisory の追加で翌日に赤くなり、外す時機を依存の更新を待つ Issue のタスクに持たせた項と同じ手当てを cargo audit で取った形。同じまとめの `cargo update -p` の件は、この節の `cargo update -p A` が手前の版で止まる項の子に置いた
   - 2026-11-26の仕分けで、別のリポジトリから届いた (届いたのは2026-11-25)。cargo-audit の `.cargo/audit.toml` の ignore に残った要らない ID を検出する検査を、依存を増やさずに足した。cargo-deny への移行は採らなかった (実測)。cargo-audit 0.22.0は要らなくなった ignore を exit 0で警告も出さずに通す。設定ファイルを読ませないフラグも無い。cwd の `./.cargo/audit.toml` を探し、無ければ `$CARGO_HOME/audit.toml` を読む (同版の src/commands.rs) ので、設定の見えない一時ディレクトリから `-f <lock>` で走らせた `--json` の当たりと、tomllib で読んだ ignore の一覧の差を取れば検出できる。設定なしの報告の `settings.ignore` が空でなければ止める守りを置く (実測)。当たりは `vulnerabilities.list` と `warnings.*` の両方から集める。ignore は警告側 (unmaintained・unsound) にも置けるので、脆弱性だけを見ると正しい設定で赤になる。yanked の警告は `advisory` が null で来る (rustsec 0.31の Warning に skip_serializing_if が無い) (実測)。設定ファイルに `$CARGO_HOME` のような退避先があるツールを「設定なし」で走らせたいときは、一時ディレクトリに空の設定ファイルを置くと退避そのものを止められる。置かずに一時ディレクトリへ逃がすだけだと、ホームの設定 (別の DB の置き場など) が比較に混ざり、報告に出ない差は検出できない (実測)。仕分けたセッションの解釈: 親の項の「cargo audit は不要になった除外を知らせない」を機械で検出する手当てにあたる。同じまとめの、設定を読ませた結果を一覧に使う設計が、cwd がずれると0件で黙って緑になる件と、cwd に依存する組み立てを振る舞いで pin した件は ISSUE-88 の表、`if w.get("advisory")` の件は「Python」節に置いた
+- 2026-11-27の仕分けで、別のリポジトリから届いた (届いたのは2026-11-26)。reqwest のクライアントの既定のタイムアウトより長い要求ごとのタイムアウト (RequestBuilder::timeout) が既定を上書きするかを、std の TcpListener で応答を遅らせる手作りのサーバで確かめた (実測)。reqwest 0.13.3 では要求ごとの timeout が client の既定より長い方向にも効く。既定の client が同じ遅いサーバで5秒で切れる対照と、経過時間の下限の assert を並べて pin した (実測)
+  - 接続プールを共有したまま値だけ差し替える `with_timeout(&self) -> Self` の形にすると、プールの共有の設計を崩さずに経路ごとのタイムアウトを持てる。延ばす値は配線ではなくアダプタの new() の中で当てると、付け忘れの余地が無くなり getter で単体テストできる (実測)
+  - mockito 1.7.2 の `with_body_from_request` に sleep を入れると応答 (ヘッダも) を遅らせられる。ただし1つのサーバーは要求を直列に捌くので、並列の観測には別のサーバーを立てる (実測)
+  - dotfiles で確かめたこと (2026-11-27): references・グローバル CLAUDE.md・rules に reqwest、with_timeout、with_body_from_request はどれも0件だった。対照として mockito は references の2ファイルに当たり、どちらも応答の遅延の話ではない (testing-fakes.md の fixture の項と、testing.md の expect_at_least の項)
 
 ### GPUI
 
@@ -803,6 +809,7 @@ status: open
 - Stripe CLI を API 鍵で固定すると、webhook の署名鍵が login 経由のときと別の値になる (再起動しても安定)。バックエンドが検証に使う署名鍵を秘密管理に持っている構成では、そちらも新しい値へ更新しないと署名の検証で落ちる (実測)
 - Stripe CLI の転送ログを tail で読むと、起動時の行に webhook の署名鍵がそのまま出ている。調査で読むときは grep で行を絞るか伏せ字にしてから読む (実測)
 - 2026-11-15の仕分けで、別のリポジトリから届いた。Supabase CLI の `project_id` を変えると、古い名前の volume (supabase_db_<旧名> など) が残る (実測)。ホストの掃除の件は ISSUE-133 のホスト環境の節にある
+- 2026-11-27の仕分けで、別のリポジトリから届いた (届いたのは2026-11-26)。リリースの後の確認用の一時的な E2E の spec で、Supabase の SSR の cookie (`sb-<ref>-auth-token`、`base64-` の前置、`.N` への分割) から access token を取り出し、backend を直接叩いた (実測)。報告に書かれているのは試したことまでで、取り出し方の詳細は無い。同じまとめの、拒否の層を本文で見分ける件は ISSUE-97 の再発見の節にある
 
 ### Vercel
 
@@ -848,6 +855,7 @@ status: open
 - 環境変数 WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS は、親のプロセスで設定して直接起動しても効かなかった (Microsoft の文書は環境変数とレジストリを並べて「追記される」と書いているが、環境変数の側は外れた)。HKCU の policy (`Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments` に、値の名前を実行ファイル名、値を `--remote-debugging-port=<N>`) は、Tauri の既定の引数の後ろに追記されて CDP が開いた (実測、Windows 11 ARM の WebView2 156)
 - 報告者の提案: E2E の生成の手順の参照に、Tauri (WebView2) のアプリへ Playwright を CDP でつなぐ経路として「HKCU の WebView2 の policy で開く。環境変数は効かない。additional_browser_args は既定を置き換える」を足す。Tauri のアプリを持つリポジトリで同じ遠回りを踏みうる (原文に根拠の札は無い)
 - 2026-11-23の仕分けで、別のリポジトリから届いた。裏にある WKWebView のウィンドウを HMR の直後に screencapture すると、前の描画のまま写ることがあった。撮った画像の中身で切り替わったことを確かめてから判定する (実測)
+- 2026-11-27の仕分けで、別のリポジトリから届いた (届いたのは2026-11-26)。macOS の System Events の entire contents では、Tauri の WKWebView の中身 (ボタン等) が AX の木に出てこず、AXPress で狙えなかった (実測)。ホストの画面で目視の確認のために操作しようとした件で、座標クリックの件は ISSUE-133 の「ホスト環境」節に置いた。仕分けたセッションの解釈: 「その他のツール」節の、`prlctl send-key-event` では WKWebView の Tab がボタンへ移らなかった項と合わせると、WKWebView のボタンを外から押せなかった報告がキーボードと AX の2経路で届いたことになる
 
 ### その他のツール
 
