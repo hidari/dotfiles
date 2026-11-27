@@ -41,7 +41,7 @@ dotfiles で確かめたこと: skill の frontmatter スキーマは `parent` /
 - 2026-11-27の仕分けで、別のリポジトリから届いた (届いたのは2026-11-26)。Phase D で2つの Issue を `git mv` で closed/ へ移してから、1つずつコミットしようとした (実測)。`git mv` は rename を即座に index へ積むので、2つを先に両方 mv してから片方だけ `git add` してコミットすると、もう片方の rename (中身は HEAD のまま、status が古い) が1つ目のコミットに混ざった。D.4 が避けたい「closed/ にあるのに status が古い」形が途中のコミットにできた。push の前だったので soft reset で作り直した (実測)
 - 報告者の提案: 複数の Issue を同じブランチで閉じるときは「1件ずつ D.1〜D.4 を通してからコミットし、次の Issue の `git mv` はその後にする」と書くか、D.4 の明示 stage の対象に「この Issue のディレクトリだけ」を足す。`git mv` が他の Issue の rename を先に積むことに触れる (実測)
 - dotfiles で確かめたこと (2026-11-27、agentic-coding-tools の e1720e6 の写し): worktree の配布の写し (追跡外) の in-repo-issue の SKILL.md は、276行目で D.1〜D.4 の順序を固定し、305〜308行目の D.4 で新パスを明示 stage してコミットする。複数の Issue を続けて閉じる場合と、先に index へ積まれた別の Issue の rename には触れていない
-- 仕分けたセッションの解釈: `git mv` が新パスへ HEAD の内容を stage する機序は ISSUE-18 の背景 (9行目) にあり、こちらは同じ index に他の Issue の rename が残る形。index に別の rename が積まれたままでも指定のパスだけでコミットを作れる `git commit --only -- <paths>` の実測は ISSUE-133 の「シェルとコマンド」節 (295行目) にある
+- 仕分けたセッションの解釈: `git mv` が新パスへ HEAD の内容を stage する機序は Issue 18 の背景にあり、こちらは同じ index に他の Issue の rename が残る形。index に別の rename が積まれたままでも指定のパスだけでコミットを作れる `git commit --only -- <paths>` の実測は ISSUE-133 の「シェルとコマンド」節の `git commit --only` の項にある
 
 ### in-repo-issue: A.0 の重複検索のコマンドが grep の置き換えで欠ける
 
