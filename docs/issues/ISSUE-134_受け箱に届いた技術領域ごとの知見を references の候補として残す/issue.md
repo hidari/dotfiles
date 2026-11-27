@@ -42,6 +42,7 @@ status: open
 - workers-rs の Worker で fetch が Err を返すと crate がエラーのログにして500を返し、panic! は「runtime canceled ... hung」と、ファイルと行番号つきの Rust の panic の行と、関数名つきの wasm の stack trace として写る。Durable Object の alarm と hibernation の WebSocket ハンドラの Err は type=exception で trigger つきで写る (実測。呼び出しログが無効の構成は確かめている途中)
 - workers.dev が 404 と error code 1042 を返すことを「本番の Worker の workers.dev が閉じている」の確認に使っていたが、同じサブドメインで存在しない Worker の名前を叩いても同じ 404 / 1042 が返った。届かないことの証拠にはなるが、Worker が在ることや新しい版が載ったことの証拠にはならないので、版は deploy のログの Upload と Version ID で別に確かめる (実測)
 - 2026-11-24の仕分けで、別のリポジトリから届いた。1つのアカウントに複数のリポジトリのデプロイ (Pages と Workers) と複数のゾーンが同居していて、Audit Log (v2、`GET /accounts/{id}/logs/audit`) にはそれら全部の操作が混ざる。リポジトリごとの検査はそのリポジトリの範囲に絞るしかなく、トークンの作成・メンバーの変更・新しいプロジェクトの作成のようなアカウント単位の出来事はどのリポジトリにも属さない。Pages の通知 (Project updates) はプロジェクトの選択が必須で、新しいプロジェクトの作成は拾えない。Audit Log は Account Settings Read の読み取りトークンで読め、トークン経由の操作 (api_token) とダッシュボードの操作 (dash) の両方が記録されることを実物で確かめた。閲覧 (view) も全部残るので、見るのは書き込みの操作に絞る必要がある (実測)。報告者の提案: Cloudflare のアカウント全体を見張る仕組みを、個々のリポジトリの外 (dotfiles か専用のリポジトリ) に置くことを検討する (置き場と知らせ方は未検討)。仕分けたセッションの解釈: 提案は references の候補ではなく仕組みの新設にあたるので、採るなら別の Issue に切り出す。切り出すかはこの Issue のタスクで決める
+  - 2026-11-27の2回目の仕分けで、別のリポジトリから届いた (届いたのは2026-11-27)。報告者の提案: アカウント全体の見張りを作るなら、AI Search のインスタンスとゾーンの WAF のレート制限のルールも対象に入れる。どちらもダッシュボードで足せて、リポジトリの検査からは見えない (推測)。仕分けたセッションの解釈: 親の項の報告者の提案 (Cloudflare のアカウント全体を見張る仕組みを個々のリポジトリの外に置く) に、見張る対象を足す形。この Issue のタスクの、親の項の提案を別の Issue に切り出すかを決める項で一緒に扱える。同じまとめの Search for Agents と課金の件は「Cloudflare の Search for Agents と AI Search の課金」節にある
 
 ### Cloudflare Logpush と DuckDB
 
@@ -77,6 +78,25 @@ status: open
 - Durable Object の duration を「起きている時間 × 128MB」で見積もった。Hibernation API の接続しか持たない DO は、休眠の条件を満たして idle のあいだ課金されず、休眠に入る前の窓も課金されない (pricing の FAQ の明文)。この見積もりは hibernation が壊れたときの値で、攻撃の最悪値として出すと費用を桁で過大に見せる (ドキュメントのみ。検証環境の月の duration が小さいことと矛盾しないことは実測)
 - ダッシュボードの Data Studio のクエリのエディタは、前に開いたインスタンスで打った文を残す。新しく打った文とつながって両方が実行された。消す文に `WHERE id = ...` を付けていたので、別のインスタンスでは0行で済んだ。回避は、毎回エディタを空にすることと、消す文に必ず主キーの条件を付けること (実測)。報告者の提案は、ダッシュボードの SQL エディタで本番のデータを消す手順を書くときは、この2つを手順の行として持たせること (実測)
 - ダッシュボードの Workers の cron trigger の編集ダイアログは、「スケジュール」のタブで表せる式 (毎時N分・毎日N時) を開いて「Cron 式」のタブに切り替えると、実際の式ではなく既定値の `*/30 * * * *` を表示した。一覧の説明と次の発火時刻、API の GET .../schedules は正しい式を返した。確認に編集ダイアログを使わない (「更新」を押すと書き換わる) (実測)
+
+### Cloudflare の Search for Agents と AI Search の課金
+
+2026-11-27の2回目の仕分けで、別のリポジトリから届いた (届いたのは2026-11-27)。Cloudflare の Search for Agents (ベータ) が、エージェント向けの一般的な仕組み (Content-Signal、sitemap、llms.txt など) と重なるかを、一次資料と外からの実測で調べた報告で、各項の札は報告者のもの。
+
+- Search for Agents は問い合わせの API を足すだけで、サイト側の llms.txt や .md の twin は置き換えない。クローラ (Cloudflare-AI-Search) は robots.txt の Content-Signal の search と ai-input を見て、sitemap を入力に使う (ドキュメントのみ)
+- 索引に入ったのは sitemap の HTML のページとルートだけで、確かめた HTML 以外の資源は入らなかった。Path Filters の除外は要らなかった (実測)
+- WAF のレート制限は検索のエンドポイント `/.well-known/search` にも効く。索引を作っている間の503の応答で連続して叩けば、検索のクエリを使わずに429になることを確かめられる (実測)。確かめ方の型は ISSUE-97 の再発見の節にも置いた
+- 有効にすると、配信する HTML の head に agent: の meta が4つ入る。404のページと非 HTML には入らない。キャッシュのヘッダは変わらない (実測)
+- ダッシュボードの診断の Markdown Negotiation は、ルートの / に `Accept: text/markdown` を付けて実際の content-type を見ている。設定の ON/OFF ではない (実測)
+- 確かめたゾーンでは、WAF のレート制限の数える単位は IP に固定だった。IP ごとの上限なので、請求の総額に天井はかけられない (実測)
+- Markdown for Agents は Pro 以上で、Free では使えない。origin が Content-Signal ヘッダを送らないと、既定で ai-train=yes を付ける。robots.txt だけで学習を断る方針は、ヘッダでも宣言しないと食い違う (ドキュメントのみ)
+- `/.well-known/search` の応答は Cloudflare が返すので、origin の側で付けるレスポンスヘッダ (セキュリティヘッダや Content-Signal) は付かない。学習の可否を origin のヘッダで宣言していても、検索の結果には乗らない (実測)
+- AI Search の使用量を名指しで見張る通知も、自動で止める支出の上限も無い。通知の一覧に AI Search の項目が無く、支出の上限は Workers と Durable Objects だけ。製品ごとの Usage Based Billing 通知は Pro 以上のゾーンが条件 (ドキュメントのみ)
+- AI Search のインスタンスの一時停止は同期を止めるだけで、検索は動き続けて課金される。止める手段にならない (ドキュメントのみ)
+- 報告者の提案: 静的サイトで Search for Agents を有効にする前に、`/.well-known/search` に WAF のレート制限を置くことと、アカウントの Workers のプランを確かめることを手順にする。検索のエンドポイントは認証が無く誰でも叩けて、Workers Paid では無料枠を超えた分が請求になりうる (止まるか請求かはドキュメントに書かれていない)。根拠として報告者は同じまとめの上の各項を挙げている (ドキュメントのみ)
+- 報告者の提案: Cloudflare の従量課金の気づき方は2段で組む。本命はアカウントの予算アラート (USD、全製品の合計、メールだけ)。Discord などの Webhook に送りたいときは Alerts の Monitors (SQL のしきい値、リクエスト数を見る) を足す。しきい値はその月に既にある超過分の上に置く (ドキュメントのみ)
+- 同じまとめの、本番の HTML と成果物を比べる検査から Cloudflare がエッジで差し込むものを1つの一覧で取り除く提案は ISSUE-97 の再発見の節に、アカウント全体の見張りに AI Search のインスタンスと WAF のレート制限のルールを入れる提案は「Cloudflare Workers のログと API のトークン」節の2026-11-24の項の子に置いた
+- dotfiles で確かめたこと (2026-11-27): `home/.claude/references/` に Search for Agents・AI Search・Content-Signal・robots.txt・llms.txt・`/.well-known/search`・Markdown for Agents は0件だった。対照として Cloudflare は references の2行 (observation.md の108行目と observation-records.md の23行目) に当たった
 
 ### wrangler と Vite と Vitest
 
